@@ -23,3 +23,9 @@ pnpm dlx prisma init
 
 npx @better-auth/cli generate
 pnpm dlx prisma db push
+
+pnpm prisma validate
+pnpm prisma generate
+
+pnpm add @t3-oss/env-nextjs zod
+npx prisma migrate dev

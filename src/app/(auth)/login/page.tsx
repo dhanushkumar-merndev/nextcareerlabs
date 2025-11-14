@@ -1,3 +1,4 @@
+"use client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,8 +9,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { authClient } from "@/lib/auth-client";
+import { Loader } from "lucide-react";
 import Link from "next/link";
-import React from "react";
+import React, { useTransition } from "react";
+import { toast } from "sonner";
 
 export const GoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
   return (
@@ -33,7 +37,25 @@ export const GoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
     </svg>
   );
 };
-const LoginPage = () => {
+export default function LoginPage() {
+  const [googlePending, startGoogleTransition] = useTransition();
+
+  async function signInWithGoogle() {
+    startGoogleTransition(async () => {
+      await authClient.signIn.social({
+        provider: "google",
+        callbackURL: "/",
+        fetchOptions: {
+          onSuccess: () => {
+            toast.success("Signed in with Google, you will be redirected...");
+          },
+          onError: () => {
+            toast.error("Internal Server Error");
+          },
+        },
+      });
+    });
+  }
   return (
     <Card>
       <CardHeader className="text-center">
@@ -41,9 +63,23 @@ const LoginPage = () => {
         <CardDescription>Login with Google or Email account</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <Button className="w-full" variant={"outline"}>
-          <GoogleIcon className="size-5" />
-          Login with Google
+        <Button
+          onClick={signInWithGoogle}
+          className="w-full"
+          variant={"outline"}
+          disabled={googlePending}
+        >
+          {googlePending ? (
+            <>
+              <Loader className="size-4 animate-spin" />
+              <span>Loading...</span>
+            </>
+          ) : (
+            <>
+              <GoogleIcon className="size-5" />
+              Sign In with Google
+            </>
+          )}
         </Button>
         <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
           <span className="relative z-10 bg-card px-2 text-muted-foreground">
@@ -70,6 +106,4 @@ const LoginPage = () => {
       </div>
     </Card>
   );
-};
-
-export default LoginPage;
+}
