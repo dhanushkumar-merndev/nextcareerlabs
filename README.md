@@ -16,7 +16,8 @@ pnpm add better-auth
 
 ## INSTALL ORM PRISMA
 
-pnpm @prisma/client
+pnpm add @prisma/client
+
 pnpm i -D prisma
 pnpm dlx prisma init
 
