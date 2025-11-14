@@ -39,16 +39,6 @@ const LoginPage = () => {
   return (
     <Card>
       <CardHeader className="text-center">
-        <Link href="/">
-          {" "}
-          <Image
-            src={Logo}
-            alt="Next Career Labs"
-            width={32}
-            height={32}
-            className="mx-auto mb-2 mt-4"
-          />
-        </Link>
         <CardTitle className="text-xl">Welcome Back!</CardTitle>
         <CardDescription>Login with Google or Email account</CardDescription>
       </CardHeader>
@@ -70,12 +60,12 @@ const LoginPage = () => {
           <Button className="w-full">Continue with Email</Button>
         </div>
       </CardContent>
-      <div className="text-balance text-center text-sm text-muted-foreground">
-        By clicking continue, you agree to our{" "}
+      <div className=" text-balance text-center text-sm text-muted-foreground">
+        {" "}
         <Link className="hover:text-primary hover:underline" href="/terms">
           Terms of Service
         </Link>{" "}
-        and{" "}
+        &{" "}
         <Link className="hover:text-primary hover:underline" href="/privacy">
           Privacy Policy
         </Link>

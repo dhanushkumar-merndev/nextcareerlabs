@@ -9,3 +9,16 @@ pnpm dlx shadcn@latest add alert-dialog avatar badge breadcrumb button card char
 ## ERROR (Error evaluating Node.js code ./src/app/globals.css)
 
 npm install tw-animate-css
+
+## INSTALL BETTER AUTH
+
+pnpm add better-auth
+
+## INSTALL ORM PRISMA
+
+pnpm @prisma/client
+pnpm i -D prisma
+pnpm dlx prisma init
+
+npx @better-auth/cli generate
+pnpm dlx prisma db push
