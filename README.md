@@ -27,5 +27,6 @@ pnpm dlx prisma db push
 pnpm prisma validate
 pnpm prisma generate
 
+## ZOD
+
 pnpm add @t3-oss/env-nextjs zod
-npx prisma migrate dev
