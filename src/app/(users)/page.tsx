@@ -1,7 +1,5 @@
-"use client";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { authClient } from "@/lib/auth-client";
 import Link from "next/link";
 interface featuresProps {
   title: string;
@@ -40,8 +38,6 @@ const features: featuresProps[] = [
 ];
 
 export default function Home() {
-  const { data: session } = authClient.useSession();
-
   return (
     <>
       <section className="relative py-20">

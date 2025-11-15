@@ -4,8 +4,32 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { Toaster } from "sonner";
 
+const defaultUrl = process.env.VERCEL_URL
+  ? `https://${process.env.VERCEL_URL}`
+  : "http://localhost:3000";
+
+// ----------------------
+//      METADATA
+// ----------------------
+export const metadata: Metadata = {
+  metadataBase: new URL(defaultUrl),
+  title: "Next Career Labs LMS",
+  description: "The fastest way to build apps with Next.js and Supabase",
+  icons: {
+    icon: [
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+};
+
+// ----------------------
+//      FONTS
+// ----------------------
 const geistSans = Geist({
   variable: "--font-geist-sans",
+  display: "swap",
   subsets: ["latin"],
 });
 
@@ -14,11 +38,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "Next Career Labs LMS",
-  description: "A learning management system for Next Career Labs",
-};
-
+// ----------------------
+//      ROOT LAYOUT
+// ----------------------
 export default function RootLayout({
   children,
 }: Readonly<{
