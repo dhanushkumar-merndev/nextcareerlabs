@@ -30,3 +30,6 @@ pnpm prisma generate
 ## ZOD
 
 pnpm add @t3-oss/env-nextjs zod
+pnpm add resend
+pnpm add @arcjet/next @arcjet/inspect
+pnpm install -S @arcjet/ip

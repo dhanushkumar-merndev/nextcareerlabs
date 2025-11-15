@@ -10,9 +10,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
-import { Loader } from "lucide-react";
+import { Loader, Loader2, Send } from "lucide-react";
 import Link from "next/link";
-import React, { useTransition } from "react";
+import { useRouter } from "next/navigation";
+import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
 export const GoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
   return (
@@ -37,7 +38,10 @@ export const GoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
   );
 };
 export function LoginForm() {
+  const router = useRouter();
   const [googlePending, startGoogleTransition] = useTransition();
+  const [emailPending, startEmailTransition] = useTransition();
+  const [email, setEmail] = useState("");
 
   async function signInWithGoogle() {
     startGoogleTransition(async () => {
@@ -55,6 +59,25 @@ export function LoginForm() {
       });
     });
   }
+
+  function signInWithEmail() {
+    startEmailTransition(async () => {
+      await authClient.emailOtp.sendVerificationOtp({
+        email: email,
+        type: "sign-in",
+        fetchOptions: {
+          onSuccess: () => {
+            toast.success("Email Sent");
+            router.push(`/verify-request?email=${email}`);
+          },
+          onError: () => {
+            toast.error("Error sending Email");
+          },
+        },
+      });
+    });
+  }
+
   return (
     <Card>
       <CardHeader className="text-center">
@@ -88,9 +111,31 @@ export function LoginForm() {
         <div className="grid gap-3">
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" placeholder="m@example.com" />
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              placeholder="m@example.com"
+              autoComplete="email"
+            />
           </div>
-          <Button className="w-full">Continue with Email</Button>
+          <Button
+            onClick={signInWithEmail}
+            disabled={emailPending}
+            className="w-full"
+          >
+            {emailPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                <span>Loading...</span>
+              </>
+            ) : (
+              <>
+                <Send className="size-4" />
+                Continue with Email
+              </>
+            )}
+          </Button>
         </div>
       </CardContent>
       <div className=" text-balance text-center text-sm text-muted-foreground">
