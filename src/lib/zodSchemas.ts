@@ -4,6 +4,20 @@ export const courseLevels = ["Beginner", "Intermediate", "Advanced"] as const;
 
 export const courseStatus = ["Draft", "Published", "Archived"] as const;
 
+export const courseCategories = [
+  "Development",
+  "Business",
+  "Finance",
+  "IT and Softwares",
+  "Office productivity",
+  "Personal Development",
+  "Design",
+  "Marketing",
+  "Health & Fitness",
+  "Music",
+  "Teaching",
+] as const;
+
 export const courseSchema = z.object({
   title: z
     .string()
@@ -16,16 +30,16 @@ export const courseSchema = z.object({
 
   fileKey: z.string().min(1, { message: "File must be selected" }),
 
-  price: z.coerce.number().min(1, { message: "Price must be greater than 0" }),
+  price: z.number().min(1, { message: "Price must be greater than 0" }),
 
-  duration: z.coerce
+  duration: z
     .number()
     .min(1, { message: "Duration must be greater than 0" })
     .max(500, { message: "Duration must be less than 500 characters" }),
 
   level: z.enum(courseLevels, { message: "Level must be selected" }),
 
-  category: z.string(),
+  category: z.enum(courseCategories, { message: "Category is required" }),
 
   smallDescription: z
     .string()
