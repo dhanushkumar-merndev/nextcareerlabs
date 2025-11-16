@@ -290,7 +290,7 @@ export default function CourseCreationPage() {
                 )}
               />
               <Button className="cursor-pointer">
-                Create Cource <PlusCircle className="ml-1 size-5" />
+                Create Course <PlusCircle className="ml-1 size-5" />
               </Button>
             </form>
           </Form>
