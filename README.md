@@ -39,3 +39,5 @@ pnpm i add slugify
 ## TipTap
 
 pnpm install @tiptap/react @tiptap/pm @tiptap/starter-kit
+
+## react-dropzone
