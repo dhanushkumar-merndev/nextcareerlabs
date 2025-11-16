@@ -146,7 +146,7 @@ export default function CourseCreationPage() {
                   <FormItem className="w-full">
                     <FormLabel>Description</FormLabel>
                     <FormControl>
-                      <RichTextEditor />
+                      <RichTextEditor field={field} />
                       {/* <Textarea
                         className="min-h-[120px]"
                         placeholder="Description"

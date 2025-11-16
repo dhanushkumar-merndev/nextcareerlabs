@@ -1,6 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-
+@plugin "@tailwindcss/typography";
 @custom-variant dark (&:is(.dark *));
 
 :root {
@@ -177,25 +177,15 @@
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
 }
+
 @layer base {
   * {
-    @apply border-border;
-    outline: none;
+    @apply border-border outline-ring/50;
   }
-
   body {
     @apply bg-background text-foreground;
   }
-
-  /* Remove default browser focus outline */
-  *:focus {
-    @apply outline-none ring-0;
-  }
 }
-
-/* ------------------------------------------------ */
-/*                 WHITE CUSTOM SCROLLBAR           */
-/* ------------------------------------------------ */
 
 ::-webkit-scrollbar {
   width: 6px;
@@ -207,43 +197,15 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: white;
+  background: #4161ed;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.8);
+  background: rgb(65, 97, 237);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: white transparent;
-}
-
-/* ------------------------------------------------ */
-/*        NON-SELECTABLE TEXT + NON-DRAG IMAGES     */
-/* ------------------------------------------------ */
-
-/* Disable text selection everywhere */
-* {
-  user-select: none;
-  -webkit-user-select: none;
-  -ms-user-select: none;
-}
-
-/* Disable image dragging + selection */
-img {
-  user-drag: none;
-  -webkit-user-drag: none;
-  user-select: none;
-  pointer-events: none;
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+  scrollbar-color: #4161ed transparent;
 }

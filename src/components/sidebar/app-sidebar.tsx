@@ -140,7 +140,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   alt="Company Logo"
                   width={28}
                   height={28}
-                  className="rounded"
                 />
                 <span className="text-base font-semibold ml-2">
                   Next Career Labs LMS
