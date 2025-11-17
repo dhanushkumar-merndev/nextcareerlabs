@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 
 interface UploaderState {
-  id: String | null;
+  id: string | null;
   file: File | null;
   uploading: boolean;
   progress: number;
@@ -57,7 +57,7 @@ export function Uploader() {
         toast.error("Failed to get presigned URL");
         setFileState((prevState) => ({
           ...prevState,
-          uploading: true,
+          uploading: false,
           progress: 0,
           error: true,
         }));

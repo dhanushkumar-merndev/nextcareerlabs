@@ -47,7 +47,9 @@ export function NavUser() {
                 <AvatarImage
                   src={
                     session?.user.image ??
-                    `https://avatar.vercel.sh/${session?.user.email}`
+                    `https://avatar.vercel.sh/${encodeURIComponent(
+                      session?.user.email ?? ""
+                    )}`
                   }
                   alt={session?.user.name}
                 />
