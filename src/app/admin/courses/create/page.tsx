@@ -14,7 +14,7 @@ import {
   CourseSchemaType,
   courseStatus,
 } from "@/lib/zodSchemas";
-import { ArrowLeft, PlusCircle, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, PlusCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,8 +38,15 @@ import {
 } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/rich-text-editor/Editor";
 import { Uploader } from "@/components/file-uploader/Uploader";
+import { useTransition } from "react";
+import { tryCatch } from "@/hooks/try-catch";
+import { CreateCourse } from "./action";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function CourseCreationPage() {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
   const form = useForm<CourseSchemaType>({
     resolver: zodResolver(courseSchema),
     defaultValues: {
@@ -55,9 +62,21 @@ export default function CourseCreationPage() {
       status: "Draft",
     },
   });
-  function onSubmit(data: CourseSchemaType) {
-    // Do something with the form values.
-    console.log(data);
+  function onSubmit(values: CourseSchemaType) {
+    startTransition(async () => {
+      const { data: result, error } = await tryCatch(CreateCourse(values));
+      if (error) {
+        toast.error("An unexpected error occurred. Please try again later");
+        return;
+      }
+      if (result.status === "success") {
+        toast.success(result.message);
+        form.reset();
+        router.push("/admin/courses");
+      } else if (result.status === "error") {
+        toast.error(result.message);
+      }
+    });
   }
 
   return (
@@ -160,8 +179,7 @@ export default function CourseCreationPage() {
                   <FormItem className="w-full">
                     <FormLabel>Thumbnail image</FormLabel>
                     <FormControl>
-                      <Uploader />
-                      {/* <Input placeholder="Thumbnail url" {...field} /> */}
+                      <Uploader onChange={field.onChange} value={field.value} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -234,12 +252,17 @@ export default function CourseCreationPage() {
                           type="number"
                           min={0}
                           {...field}
+                          onChange={(e) =>
+                            field.onChange(Number(e.target.value))
+                          }
+                          value={field.value ?? ""}
                         />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
                 <FormField
                   control={form.control}
                   name="price"
@@ -248,10 +271,14 @@ export default function CourseCreationPage() {
                       <FormLabel>Price ($)</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="price"
+                          placeholder="Price"
                           type="number"
                           min={0}
                           {...field}
+                          onChange={(e) =>
+                            field.onChange(Number(e.target.value))
+                          }
+                          value={field.value ?? ""}
                         />
                       </FormControl>
                       <FormMessage />
@@ -286,8 +313,21 @@ export default function CourseCreationPage() {
                   </FormItem>
                 )}
               />
-              <Button className="cursor-pointer">
-                Create Course <PlusCircle className="ml-1 size-5" />
+              <Button
+                className="cursor-pointer"
+                type="submit"
+                disabled={isPending}
+              >
+                {isPending ? (
+                  <>
+                    Creating...
+                    <Loader2 className="ml-1 size-4 animate-spin" />
+                  </>
+                ) : (
+                  <>
+                    Create Course <PlusCircle className="ml-1 size-4" />
+                  </>
+                )}
               </Button>
             </form>
           </Form>

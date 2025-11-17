@@ -14,7 +14,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
   id            String    @id
   name          String
@@ -25,8 +24,12 @@ model User {
   updatedAt     DateTime  @default(now()) @updatedAt
   sessions      Session[]
   accounts      Account[]
-  courses  Course[]
+  courses       Course[]
 
+  role       String?
+  banned     Boolean?  @default(false)
+  banReason  String?
+  banExpires DateTime?
 
   @@unique([email])
   @@map("user")
@@ -42,6 +45,8 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  impersonatedBy String?
 
   @@unique([token])
   @@map("session")
@@ -78,31 +83,32 @@ model Verification {
 }
 
 model Course {
-  id        String @id @default(uuid())
-  title String
-  description String
-  fileKey String
-  price Int
-  duration Int
-  level CourseLevel @default(Beginner)
-category String
-smallDescription String
-slug String @unique
-status CourseStatus @default(Draft)
-createAt DateTime @default(now())
-updatedAt DateTime @updatedAt
+  id               String       @id @default(uuid())
+  title            String
+  description      String
+  fileKey          String
+  price            Int
+  duration         Int
+  level            CourseLevel  @default(Beginner)
+  category         String
+  smallDescription String
+  slug             String       @unique
+  status           CourseStatus @default(Draft)
+  createAt         DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
-User User @relation(fields: [userId], references: [id], onDelete: Cascade)
-userId    String
+  User   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
 }
+
 enum CourseLevel {
- Beginner
- Intermediate
- Advanced
+  Beginner
+  Intermediate
+  Advanced
 }
 
 enum CourseStatus {
- Draft
- Published
- Archived
+  Draft
+  Published
+  Archived
 }
