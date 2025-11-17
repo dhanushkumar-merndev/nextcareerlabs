@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 import { CloudUploadIcon, ImageIcon } from "lucide-react";
 import { Button } from "../ui/button";
-import { lastLoginMethod } from "better-auth/plugins";
 
 export function RenderEmptyState({ isDragActive }: { isDragActive: boolean }) {
   return (
@@ -27,10 +26,15 @@ export function RenderEmptyState({ isDragActive }: { isDragActive: boolean }) {
 
 export function RenderErrorState() {
   return (
-    <div className="text-destructive text-center">
-      <div className="flex items-center mx-auto justify-center size-12 rounded-full bg-destructive/30 mb-4">
-        <ImageIcon className={cn("size-6 text-muted-foreground")} />
+    <div className="text-center">
+      <div className="text-destructive flex items-center mx-auto justify-center size-12 rounded-full bg-destructive/30 mb-4">
+        <ImageIcon className={cn("size-6 ")} />
       </div>
+      <p className=" text-base font-semibold">Upload Failed</p>
+      <p className="text-muted-foreground text-sm mt-1">something went wrong</p>
+      <Button type="button" className="mt-4 cursor-pointer">
+        Retry fle selection
+      </Button>
     </div>
   );
 }

@@ -6,7 +6,7 @@ export default function LayoutUser({
   children: React.ReactNode;
 }) {
   return (
-    <div>
+    <div suppressHydrationWarning>
       <Navbar />
       <main className="container mx-auto">{children}</main>
     </div>

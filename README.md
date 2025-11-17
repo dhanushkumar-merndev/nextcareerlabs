@@ -8,7 +8,7 @@ pnpm dlx shadcn@latest add alert-dialog avatar badge breadcrumb button card char
 
 ## ERROR (Error evaluating Node.js code ./src/app/globals.css)
 
-npm install tw-animate-css
+pnpm install tw-animate-css
 
 ## INSTALL BETTER AUTH
 
@@ -41,3 +41,17 @@ pnpm i add slugify
 pnpm install @tiptap/react @tiptap/pm @tiptap/starter-kit
 
 ## react-dropzone
+
+pnpm i add react-dropzone
+
+## https://www.tigrisdata.com/docs/overview/
+
+## uuild
+
+pnpm i uuid
+
+## s3
+
+pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+
+## XHR file upload
