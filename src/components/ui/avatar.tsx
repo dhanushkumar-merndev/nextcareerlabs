@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import Image from "next/image";
 
 import { cn } from "@/lib/utils";
 
@@ -21,18 +22,38 @@ function Avatar({
   );
 }
 
+// Create a custom interface that's compatible with Next.js Image
+interface AvatarImageProps
+  extends Omit<
+    React.ComponentProps<typeof AvatarPrimitive.Image>,
+    "src" | "width" | "height"
+  > {
+  src?: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+}
+
 function AvatarImage({
   className,
   src,
-  alt,
+  alt = "",
+  width = 32,
+  height = 32,
   ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Image>) {
+}: AvatarImageProps) {
+  if (!src) {
+    return null;
+  }
+
   return (
-    <AvatarPrimitive.Image
+    <Image
       data-slot="avatar-image"
-      className={cn("aspect-square size-full", className)}
-      src={src}
       alt={alt}
+      className={cn("aspect-square size-full", className)}
+      width={width}
+      height={height}
+      src={src}
       {...props}
     />
   );

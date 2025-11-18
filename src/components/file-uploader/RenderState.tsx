@@ -60,7 +60,7 @@ export function RenderUploadedState({
       <Button
         variant={"destructive"}
         size="icon"
-        className={cn("absolute top-4 right-4")}
+        className={cn("absolute top-4 right-4 cursor-pointer")}
         onClick={handleRemoveFile}
         disabled={isDeleting}
       >
