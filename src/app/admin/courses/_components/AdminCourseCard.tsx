@@ -37,7 +37,7 @@ export function AdminCourseCard({ data }: iAppProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="text-white hover:text-primary cursor-pointer"
+              className="text-primary cursor-pointer"
             >
               <MoreVertical className="size-6" />
             </Button>
@@ -65,17 +65,14 @@ export function AdminCourseCard({ data }: iAppProps) {
         </DropdownMenu>
       </div>
 
-      <div className="relative w-full">
+      <div className="relative w-full group overflow-hidden rounded-t-lg">
         <Image
           src={thumbnaiUrl}
           alt="Thumbnail Url"
           width={600}
           height={400}
-          className="w-full rounded-t-lg aspect-video h-full object-cover"
+          className="w-full aspect-video h-full object-cover rounded-t-lg transition-transform duration-500 ease-out group-hover:scale-110"
         />
-
-        {/* Overlay Layer */}
-        <div className="absolute inset-0 bg-black/60 rounded-t-lg" />
       </div>
 
       <CardContent className="p-4  ">

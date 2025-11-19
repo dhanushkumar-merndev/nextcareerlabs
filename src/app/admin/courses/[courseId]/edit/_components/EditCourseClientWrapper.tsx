@@ -37,7 +37,7 @@ export function EditCourseClientWrapper({
       </h1>
 
       <Tabs defaultValue="basic-info" className="w-full">
-        <TabsList className="grid grid-cols-2 w-full">
+        <TabsList className="grid grid-cols-2 w-full ">
           <TabsTrigger value="basic-info">Basic Information</TabsTrigger>
           <TabsTrigger value="course-structure">Course Structure</TabsTrigger>
         </TabsList>
