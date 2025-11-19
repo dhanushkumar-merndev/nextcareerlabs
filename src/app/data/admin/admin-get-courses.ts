@@ -5,7 +5,7 @@ export async function adminGetCourses() {
   await requireAdmin();
   const data = await prisma.course.findMany({
     orderBy: {
-      createAt: "desc",
+      createdAt: "desc",
     },
     select: {
       id: true,

@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/rich-text-editor/Editor";
 import { Uploader } from "@/components/file-uploader/Uploader";
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { tryCatch } from "@/hooks/try-catch";
 
 import { toast } from "sonner";
@@ -41,9 +41,10 @@ import { AdminCourseSingularType } from "@/app/data/admin/admin-get-course";
 
 interface iAppProps {
   data: AdminCourseSingularType;
+  setDirty: (dirty: boolean) => void;
 }
 
-export function EditCourseForm({ data }: iAppProps) {
+export function EditCourseForm({ data, setDirty }: iAppProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const form = useForm<CourseSchemaType>({
@@ -61,6 +62,11 @@ export function EditCourseForm({ data }: iAppProps) {
       status: data.status,
     },
   });
+
+  useEffect(() => {
+    setDirty(form.formState.isDirty);
+  }, [form.formState.isDirty, setDirty]);
+
   function onSubmit(values: CourseSchemaType) {
     startTransition(async () => {
       const { data: result, error } = await tryCatch(

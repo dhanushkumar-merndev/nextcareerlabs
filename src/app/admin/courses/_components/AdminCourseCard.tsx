@@ -34,8 +34,12 @@ export function AdminCourseCard({ data }: iAppProps) {
       <div className="absolute top-2 right-2 z-10">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="icon">
-              <MoreVertical className="size-4" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white hover:text-primary cursor-pointer"
+            >
+              <MoreVertical className="size-6" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
@@ -61,14 +65,20 @@ export function AdminCourseCard({ data }: iAppProps) {
         </DropdownMenu>
       </div>
 
-      <Image
-        src={thumbnaiUrl}
-        alt="Thumbnail Url"
-        width={600}
-        height={400}
-        className="w-full rounded-t-lg aspect-video h-full object-cover"
-      />
-      <CardContent className="p-4">
+      <div className="relative w-full">
+        <Image
+          src={thumbnaiUrl}
+          alt="Thumbnail Url"
+          width={600}
+          height={400}
+          className="w-full rounded-t-lg aspect-video h-full object-cover"
+        />
+
+        {/* Overlay Layer */}
+        <div className="absolute inset-0 bg-black/60 rounded-t-lg" />
+      </div>
+
+      <CardContent className="p-4  ">
         <Link
           href={`/admin/courses/${data.id}`}
           className="font-medium text-lg line-clamp-2 hover:underline group-hover:text-primary transition-colors"

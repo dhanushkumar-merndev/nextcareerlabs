@@ -59,3 +59,7 @@ pnpm add @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
 pnpm dlx @better-auth/cli generate
 
 pnpm install && pnpm dlx shadcn@latest add alert-dialog avatar badge breadcrumb button card chart checkbox collapsible dialog drawer dropdown-menu form input-otp input label progress select separator sheet sidebar skeleton sonner table tabs textarea toggle-group toggle tooltip && pnpm install tw-animate-css better-auth @prisma/client @t3-oss/env-nextjs zod resend @arcjet/next @arcjet/inspect @arcjet/ip slugify @tiptap/react @tiptap/pm @tiptap/starter-kit react-dropzone uuid @aws-sdk/client-s3 @aws-sdk/s3-request-presigner pnpm dlx prisma generate pnpm dlx prisma db push
+
+## https://dndkit.com/
+
+pnpm install @dnd-kit/core
