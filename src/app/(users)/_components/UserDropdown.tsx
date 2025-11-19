@@ -79,10 +79,7 @@ export function UserDropdown({ email, name, image }: iAppProps) {
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={handleSignOut}
-          className=" hover:bg-red-100 dark:hover:bg-red-900/30"
-        >
+        <DropdownMenuItem onClick={handleSignOut}>
           <LogOutIcon size={16} className="opacity-60" aria-hidden="true" />
           <span>Logout</span>
         </DropdownMenuItem>
