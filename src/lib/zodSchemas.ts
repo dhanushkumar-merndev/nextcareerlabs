@@ -51,5 +51,26 @@ export const courseSchema = z.object({
   status: z.enum(courseStatus, { message: "Status must be selected" }),
 });
 
-// Form Type
+export const chapterSchema = z.object({
+  name: z.string().min(3, { message: "Name must be at least 3 characters" }),
+  courseId: z.string().uuid({ message: "Invalid course ID" }),
+});
+
+export const lessonSchema = z.object({
+  name: z.string().min(3, { message: "Name must be at least 3 characters" }),
+  chapterId: z.string().uuid({ message: "Invalid chapter ID" }),
+  courseId: z.string().uuid({ message: "Invalid course ID" }),
+  description: z
+    .string()
+    .min(3, { message: "Description must be at least 3 characters" })
+    .optional(),
+  thumbnailKey: z
+    .string()
+    .min(1, { message: "Thumbnail must be selected" })
+    .optional(),
+  videoKey: z.string().min(1, { message: "Video must be selected" }).optional(),
+});
+
 export type CourseSchemaType = z.infer<typeof courseSchema>;
+export type ChapterSchemaType = z.infer<typeof chapterSchema>;
+export type LessonSchemaType = z.infer<typeof lessonSchema>;

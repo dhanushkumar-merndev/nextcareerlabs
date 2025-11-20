@@ -1,5 +1,5 @@
 "use client";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DndContext,
   DraggableSyntheticListeners,
@@ -38,6 +38,10 @@ import Link from "next/link";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { toast } from "sonner";
 import { reorderChapters, reorderLessons } from "../actions";
+import { NewChapterModel } from "./NewChapterModel";
+import { NewLessonModel } from "./NewLessonModel";
+import { DeleteLesson } from "./DeleteLesson";
+import { DeleteChapter } from "./DeleteChapter";
 
 interface iAppProps {
   data: AdminCourseSingularType;
@@ -70,6 +74,25 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
   }, [data]);
 
   const [items, setItems] = useState(initialItems);
+
+  useEffect(() => {
+    setItems((prevItems) => {
+      const updatedItems =
+        data.chapter.map((chapter) => ({
+          id: chapter.id,
+          title: chapter.title,
+          order: chapter.position,
+          isOpen:
+            prevItems.find((item) => item.id === chapter.id)?.isOpen ?? true,
+          lessons: chapter.lesson.map((lesson) => ({
+            id: lesson.id,
+            title: lesson.title,
+            order: lesson.position,
+          })),
+        })) || [];
+      return updatedItems;
+    });
+  }, [data]);
 
   // Detect unsaved changes
   useEffect(() => {
@@ -296,7 +319,8 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     >
       <Card>
         <CardHeader className="flex flex-row items-center justify-between border-b border-border">
-          Chapters
+          <CardTitle>Chapters</CardTitle>
+          <NewChapterModel courseId={data.id} />
         </CardHeader>
 
         <CardContent>
@@ -343,9 +367,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                           </p>
                         </div>
 
-                        <Button size="icon" variant={"outline"}>
-                          <Trash2 className="size-4" />
-                        </Button>
+                        <DeleteChapter chapterId={item.id} courseId={data.id} />
                       </div>
 
                       <CollapsibleContent>
@@ -381,9 +403,11 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                                       </Link>
                                     </div>
 
-                                    <Button size="icon" variant={"outline"}>
-                                      <Trash2 className="size-4" />
-                                    </Button>
+                                    <DeleteLesson
+                                      chapterId={item.id}
+                                      courseId={data.id}
+                                      lessonId={lesson.id}
+                                    />
                                   </div>
                                 )}
                               </SortableItem>
@@ -391,9 +415,10 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                           </SortableContext>
 
                           <div className="p-2">
-                            <Button className="w-full" variant={"outline"}>
-                              Create a new lesson
-                            </Button>
+                            <NewLessonModel
+                              courseId={data.id}
+                              chapterId={item.id}
+                            />
                           </div>
                         </div>
                       </CollapsibleContent>
