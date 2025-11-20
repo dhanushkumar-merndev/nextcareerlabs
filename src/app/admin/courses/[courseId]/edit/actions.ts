@@ -346,9 +346,9 @@ export async function deleteChapter({
       return { status: "error", message: "Chapter not found" };
     }
 
-    await prisma.lesson.deleteMany({
-      where: { chapterId },
-    });
+    // await prisma.lesson.deleteMany({
+    //   where: { chapterId },
+    // });
 
     const remainingChapters = courseWithChapters.chapter.filter(
       (c) => c.id !== chapterId
