@@ -4,7 +4,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-import { School, Star, TimerIcon } from "lucide-react";
+import { CrownIcon, School, TimerIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -17,7 +17,7 @@ export function PublicCourseCard({ data }: iAppProps) {
   return (
     <Card className="group relative py-0 gap-0">
       <Badge className="absolute top-2 right-2 z-10">
-        <Star className="size-2 mr-1" />
+        <CrownIcon className="size-2 " />
         {data.level}
       </Badge>
       <Image

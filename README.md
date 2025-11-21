@@ -63,3 +63,5 @@ pnpm install && pnpm dlx shadcn@latest add alert-dialog avatar badge breadcrumb 
 ## https://dndkit.com/
 
 pnpm install @dnd-kit/core
+pnpm i html-react-parser
+pnpm i @tiptap/html
