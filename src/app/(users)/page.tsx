@@ -40,7 +40,7 @@ const features: featuresProps[] = [
 export default function Home() {
   return (
     <>
-      <section className="relative py-20">
+      <section className="relative py-20 mb-32">
         <div className="flex flex-col items-center text-center space-y-8">
           <Badge variant={"outline"}>The future of Online Education</Badge>
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight">

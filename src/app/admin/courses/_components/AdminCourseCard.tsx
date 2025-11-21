@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { DropdownMenuSeparator } from "@radix-ui/react-dropdown-menu";
 
@@ -31,7 +32,7 @@ export function AdminCourseCard({ data }: iAppProps) {
   const thumbnaiUrl = useConstructUrl(data.fileKey);
   return (
     <Card className="group relative py-0 gap-0">
-      <div className="absolute top-2 right-2 z-10">
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -77,7 +78,7 @@ export function AdminCourseCard({ data }: iAppProps) {
 
       <CardContent className="p-4  ">
         <Link
-          href={`/admin/courses/${data.id}`}
+          href={`/admin/courses/${data.id}/edit`}
           className="font-medium text-lg line-clamp-2 hover:underline group-hover:text-primary transition-colors"
         >
           {data.title}
@@ -103,6 +104,48 @@ export function AdminCourseCard({ data }: iAppProps) {
         >
           Edit Course <ArrowRight />
         </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function AdminCourseCardSkeleton() {
+  return (
+    <Card className="group relative py-0 gap-0">
+      {/* action menu placeholder */}
+      <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+        <div className="h-8 w-8 rounded-full animate-pulse bg-muted/30" />
+      </div>
+
+      {/* thumbnail */}
+      <div className="relative w-full group overflow-hidden rounded-t-lg">
+        <Skeleton className="w-full aspect-video rounded-t-lg" />
+      </div>
+
+      <CardContent className="p-4">
+        {/* title */}
+        <Skeleton className="h-5 w-3/4" />
+
+        {/* description */}
+        <div className="mt-2 space-y-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+        </div>
+
+        {/* meta (duration + level) */}
+        <div className="mt-4 flex items-center gap-x-5">
+          <div className="flex items-center gap-x-2">
+            <Skeleton className="h-6 w-6 rounded-md" />
+            <Skeleton className="h-4 w-10" />
+          </div>
+          <div className="flex items-center gap-x-2">
+            <Skeleton className="h-6 w-6 rounded-md" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+        </div>
+
+        {/* button */}
+        <Skeleton className="h-10 w-full mt-4 rounded-md" />
       </CardContent>
     </Card>
   );

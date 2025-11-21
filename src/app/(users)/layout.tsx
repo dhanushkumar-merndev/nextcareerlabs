@@ -8,7 +8,7 @@ export default function LayoutUser({
   return (
     <div suppressHydrationWarning>
       <Navbar />
-      <main className="container mx-auto">{children}</main>
+      <main className="container mx-auto mb-32">{children}</main>
     </div>
   );
 }
