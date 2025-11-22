@@ -135,12 +135,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <Link href="/">
-                <Image
-                  src="/logo.png"
-                  alt="Company Logo"
-                  width={28}
-                  height={28}
-                />
+                <div className="w-7 h-7">
+                  <Image
+                    src="/logo.png"
+                    alt="Company Logo"
+                    width={28}
+                    height={28}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+
                 <span className="text-base font-semibold ml-2">
                   Next Career Labs LMS
                 </span>

@@ -26,6 +26,7 @@ export function PublicCourseCard({ data }: iAppProps) {
         width={600}
         height={400}
         className="w-full aspect-video h-full object-cover rounded-t-lg"
+        priority
       />
       <CardContent className="p-4">
         <Link
