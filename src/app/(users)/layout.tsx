@@ -1,4 +1,4 @@
-import { Navbar } from "./_components/Navbar";
+import NavbarWrapper from "./_components/NavbarWrapper";
 
 export default function LayoutUser({
   children,
@@ -6,9 +6,9 @@ export default function LayoutUser({
   children: React.ReactNode;
 }) {
   return (
-    <div suppressHydrationWarning>
-      <Navbar />
+    <>
+      <NavbarWrapper />
       <main className="container mx-auto mb-32">{children}</main>
-    </div>
+    </>
   );
 }

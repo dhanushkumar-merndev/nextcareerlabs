@@ -20,6 +20,7 @@ import {
 } from "@tabler/icons-react";
 import { TimerIcon } from "lucide-react";
 import Image from "next/image";
+import { JSX } from "react";
 
 type Params = Promise<{ slug: string }>;
 
@@ -155,66 +156,67 @@ export default async function SlugPage({ params }: { params: Params }) {
       </div>
       <div className="order-2 lg:col-span-1">
         <div className="sticky top-20">
-          <Card className="py-0 shadow-md border border-border/50">
-            <CardContent className="p-6">
-              {/* Price Section */}
-              <div className="flex items-center justify-between mb-6">
-                <span className="text-lg font-semibold text-muted-foreground">
-                  Price
-                </span>
-                <span className="text-3xl font-bold text-primary">
-                  {new Intl.NumberFormat("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                    minimumFractionDigits: 0,
-                  }).format(course.price)}
-                </span>
-              </div>
-
-              {/* Benefits Section */}
-              <div className="mb-6 rounded-xl bg-muted/40 p-5 border border-border/40">
-                <h4 className="font-semibold text-base mb-4">
-                  What you will get
-                </h4>
-
-                <div className="flex flex-col gap-4">
-                  {/* Row */}
-                  <FeatureRow
-                    icon={<IconClock className="size-4" />}
-                    title="Duration"
-                    value={`${course.duration} hours`}
-                  />
-
-                  <FeatureRow
-                    icon={<IconChartBar className="size-4" />}
-                    title="Level"
-                    value={course.level}
-                  />
-
-                  <FeatureRow
-                    icon={<IconCategory className="size-4" />}
-                    title="Category"
-                    value={course.category}
-                  />
-
-                  <FeatureRow
-                    icon={<IconBook className="size-4" />}
-                    title="Total Chapters"
-                    value={`${course.chapter.length} Chapters`}
-                  />
-
-                  <FeatureRow
-                    icon={<IconBook className="size-4" />}
-                    title="Total Lessons"
-                    value={`${course.chapter.reduce(
-                      (total, chapter) => total + chapter.lesson.length,
-                      0
-                    )} lessons`}
-                  />
+          <div className="relative">
+            <Card className="py-0 shadow-md border border-border/50 relative z-10">
+              <CardContent className="p-6">
+                {/* Price Section */}
+                <div className="flex items-center justify-between mb-6">
+                  <span className="text-lg font-semibold text-muted-foreground ">
+                    Price
+                  </span>
+                  <span className="text-3xl font-bold text-primary">
+                    {new Intl.NumberFormat("en-IN", {
+                      style: "currency",
+                      currency: "INR",
+                      minimumFractionDigits: 0,
+                    }).format(course.price)}
+                  </span>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+
+                {/* Benefits Section */}
+                <div className="mb-6 rounded-xl bg-muted/40 p-5 border border-border/40">
+                  <h4 className="font-semibold text-base mb-4">
+                    What you will get
+                  </h4>
+
+                  <div className="flex flex-col gap-4">
+                    <FeatureRow
+                      icon={<IconClock className="size-4" />}
+                      title="Duration"
+                      value={`${course.duration} hours`}
+                    />
+
+                    <FeatureRow
+                      icon={<IconChartBar className="size-4" />}
+                      title="Level"
+                      value={course.level}
+                    />
+
+                    <FeatureRow
+                      icon={<IconCategory className="size-4" />}
+                      title="Category"
+                      value={course.category}
+                    />
+
+                    <FeatureRow
+                      icon={<IconBook className="size-4" />}
+                      title="Total Chapters"
+                      value={`${course.chapter.length} Chapters`}
+                    />
+
+                    <FeatureRow
+                      icon={<IconBook className="size-4" />}
+                      title="Total Lessons"
+                      value={`${course.chapter.reduce(
+                        (total, chapter) => total + chapter.lesson.length,
+                        0
+                      )} lessons`}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </div>
     </div>
