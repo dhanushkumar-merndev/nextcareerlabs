@@ -56,12 +56,15 @@ export function RenderUploadedState({
       {fileType === "video" ? (
         <video src={previewUrl} controls className="rounded-md w-full h-full" />
       ) : (
-        <Image
-          src={previewUrl}
-          alt="Upload File"
-          fill
-          className="object-contain p-2"
-        />
+        <div className="relative w-full h-full">
+          <Image
+            src={previewUrl}
+            alt="Upload File"
+            fill
+            className="object-contain p-2"
+            sizes="300px"
+          />
+        </div>
       )}
       <Button
         variant={"destructive"}

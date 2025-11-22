@@ -6,14 +6,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { UserDropdown } from "./UserDropdown";
 
-const navigationItems = [
-  { name: "Home", href: "/" },
-  { name: "Courses", href: "/courses" },
-  { name: "Dashboard", href: "/dashboard" },
-];
-
 export function Navbar() {
   const { data: session, isPending } = authClient.useSession();
+
+  // Dashboard should change depending on role
+  const dashboardLink =
+    session?.user?.role === "admin" ? "/admin" : "/dashboard";
+
+  const navigationItems = [
+    { name: "Home", href: "/" },
+    { name: "Courses", href: "/courses" },
+    { name: "Dashboard", href: dashboardLink },
+  ];
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">

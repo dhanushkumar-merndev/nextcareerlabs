@@ -18,18 +18,21 @@ import {
   IconClock,
   IconPlayerPlay,
 } from "@tabler/icons-react";
-import { TimerIcon } from "lucide-react";
+import { CheckIcon, TimerIcon } from "lucide-react";
 import Image from "next/image";
 import { JSX } from "react";
+import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
+import Link from "next/link";
+import { EnrollmentButton } from "./_components/EnrollmentButton";
 
 type Params = Promise<{ slug: string }>;
 
 export default async function SlugPage({ params }: { params: Params }) {
   const { slug } = await params;
   const course = await getIndividualCourse(slug);
-
+  const isEnrolled = await checkIfCourseBought(course.id);
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5  px-4 lg:px-6 ">
       <div className="order-1 lg:col-span-2">
         <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">
           <Image
@@ -157,11 +160,11 @@ export default async function SlugPage({ params }: { params: Params }) {
       <div className="order-2 lg:col-span-1">
         <div className="sticky top-20">
           <div className="relative">
-            <Card className="py-0 shadow-md border border-border/50 relative z-10">
-              <CardContent className="p-6">
+            <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
+              <CardContent className="p-6 space-y-8">
                 {/* Price Section */}
-                <div className="flex items-center justify-between mb-6">
-                  <span className="text-lg font-semibold text-muted-foreground ">
+                <div className="flex items-center justify-between">
+                  <span className="text-base font-semibold text-muted-foreground">
                     Price
                   </span>
                   <span className="text-3xl font-bold text-primary">
@@ -173,11 +176,9 @@ export default async function SlugPage({ params }: { params: Params }) {
                   </span>
                 </div>
 
-                {/* Benefits Section */}
-                <div className="mb-6 rounded-xl bg-muted/40 p-5 border border-border/40">
-                  <h4 className="font-semibold text-base mb-4">
-                    What you will get
-                  </h4>
+                {/* Benefits / Course Meta */}
+                <div className="rounded-xl bg-muted/40 p-5 border border-border/40 space-y-5">
+                  <h4 className="font-semibold text-base">What you will get</h4>
 
                   <div className="flex flex-col gap-4">
                     <FeatureRow
@@ -210,10 +211,45 @@ export default async function SlugPage({ params }: { params: Params }) {
                       value={`${course.chapter.reduce(
                         (total, chapter) => total + chapter.lesson.length,
                         0
-                      )} lessons`}
+                      )} Lessons`}
                     />
                   </div>
                 </div>
+
+                {/* Course Includes */}
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-base">
+                    This course includes:
+                  </h4>
+
+                  <ul className="space-y-3">
+                    {[
+                      "Full lifetime access",
+                      "Access on mobile and desktop",
+                      "Certificate of completion",
+                    ].map((item) => (
+                      <li
+                        key={item}
+                        className="flex items-center gap-3 text-sm"
+                      >
+                        <div className="rounded-full bg-green-500/10 text-green-600 p-1.5">
+                          <CheckIcon className="size-3" />
+                        </div>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {isEnrolled ? (
+                  <Link href="/dashboard">Watch Course</Link>
+                ) : (
+                  <EnrollmentButton courseId={course.id} />
+                )}
+
+                <p className="text-center text-xs text-muted-foreground">
+                  30-day money-back guarantee
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -232,15 +268,15 @@ function FeatureRow({
   value: string;
 }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between w-full">
       <div className="flex items-center gap-3">
-        <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <div className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary shadow-sm">
           {icon}
         </div>
         <p className="text-sm font-medium">{title}</p>
       </div>
 
-      <p className="text-sm text-muted-foreground">{value}</p>
+      <p className="text-sm text-muted-foreground font-medium">{value}</p>
     </div>
   );
 }

@@ -65,3 +65,4 @@ pnpm install && pnpm dlx shadcn@latest add alert-dialog avatar badge breadcrumb 
 pnpm install @dnd-kit/core
 pnpm i html-react-parser
 pnpm i @tiptap/html
+pnpm dlx prisma@5.22.0 db push

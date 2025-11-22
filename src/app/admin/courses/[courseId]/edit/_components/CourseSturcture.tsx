@@ -30,7 +30,6 @@ import {
   ChevronRight,
   FileText,
   GripVertical,
-  Trash2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -42,6 +41,7 @@ import { NewChapterModel } from "./NewChapterModel";
 import { NewLessonModel } from "./NewLessonModel";
 import { DeleteLesson } from "./DeleteLesson";
 import { DeleteChapter } from "./DeleteChapter";
+import { EditChapter } from "./EditChapter";
 
 interface iAppProps {
   data: AdminCourseSingularType;
@@ -74,22 +74,26 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
   }, [data]);
 
   const [items, setItems] = useState(initialItems);
-
   useEffect(() => {
     setItems((prevItems) => {
       const updatedItems =
-        data.chapter.map((chapter) => ({
-          id: chapter.id,
-          title: chapter.title,
-          order: chapter.position,
-          isOpen:
-            prevItems.find((item) => item.id === chapter.id)?.isOpen ?? true,
-          lessons: chapter.lesson.map((lesson) => ({
-            id: lesson.id,
-            title: lesson.title,
-            order: lesson.position,
-          })),
-        })) || [];
+        data.chapter
+          .map((chapter) => ({
+            id: chapter.id,
+            title: chapter.title,
+            order: chapter.position,
+            isOpen:
+              prevItems.find((item) => item.id === chapter.id)?.isOpen ?? true,
+            lessons: chapter.lesson
+              .map((lesson) => ({
+                id: lesson.id,
+                title: lesson.title,
+                order: lesson.position,
+              }))
+              .sort((a, b) => a.order - b.order), // ✅ sort lessons by position
+          }))
+          .sort((a, b) => a.order - b.order) || []; // ✅ sort chapters by position
+
       return updatedItems;
     });
   }, [data]);
@@ -366,8 +370,17 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                             {item.title}
                           </p>
                         </div>
-
-                        <DeleteChapter chapterId={item.id} courseId={data.id} />
+                        <div className="flex items-center gap-2">
+                          <EditChapter
+                            chapterId={item.id}
+                            courseId={data.id}
+                            initialName={item.title}
+                          />
+                          <DeleteChapter
+                            chapterId={item.id}
+                            courseId={data.id}
+                          />
+                        </div>
                       </div>
 
                       <CollapsibleContent>
