@@ -8,7 +8,12 @@ const aj = arcjet({
   rules: [
     detectBot({
       mode: "LIVE",
-      allow: ["CATEGORY:SEARCH_ENGINE"], // allow Google/Bing only
+      allow: [
+        "CATEGORY:SEARCH_ENGINE",
+        "CATEGORY:MONITOR",
+        "CATEGORY:PREVIEW",
+        "STRIPE_WEBHOOK",
+      ], // allow Google/Bing only
     }),
   ],
 });
