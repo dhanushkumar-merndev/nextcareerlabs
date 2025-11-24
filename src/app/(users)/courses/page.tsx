@@ -6,6 +6,7 @@ import {
 
 import { Suspense } from "react";
 import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
+export const dynamic = "force-dynamic";
 
 export default function PublicCoursesRoute() {
   return (
