@@ -8,9 +8,6 @@ const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "http://localhost:3000";
 
-// ----------------------
-//      METADATA
-// ----------------------
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Next Career Labs LMS",
@@ -24,9 +21,6 @@ export const metadata: Metadata = {
   },
 };
 
-// ----------------------
-//      FONTS
-// ----------------------
 const geistSans = Geist({
   variable: "--font-geist-sans",
   display: "swap",
@@ -38,14 +32,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// ----------------------
-//      ROOT LAYOUT
-// ----------------------
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body

@@ -1,27 +1,26 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { requireAdmin } from "./require-admin";
 
-export async function getAllCourses() {
+export async function adminGetRecentCourses() {
+  await requireAdmin();
   const data = await prisma.course.findMany({
-    where: {
-      status: "Published",
-    },
     orderBy: {
       createdAt: "desc",
     },
+    take: 6,
     select: {
+      id: true,
       title: true,
       smallDescription: true,
       duration: true,
       level: true,
+      status: true,
       price: true,
       fileKey: true,
-      category: true,
       slug: true,
-      id: true,
+      category: true,
     },
   });
   return data;
 }
-
-export type PublicCourseType = Awaited<ReturnType<typeof getAllCourses>>[0];
