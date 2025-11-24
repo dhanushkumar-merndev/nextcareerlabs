@@ -62,7 +62,7 @@ export function PublicCourseCard({ data, isEnrolled = false }: iAppProps) {
         {isEnrolled ? (
           <div className="mt-4 flex items-center gap-2">
             <Link
-              href={`/courses/${data.slug}/watch`}
+              href={`/courses/${data.slug}`}
               className={buttonVariants({ className: "w-1/2" })}
             >
               Watch Now
@@ -80,7 +80,7 @@ export function PublicCourseCard({ data, isEnrolled = false }: iAppProps) {
           </div>
         ) : (
           <Link
-            href={`/courses/${data.slug}`}
+            href={`/dashboard/${data.slug}`}
             className={buttonVariants({ className: "w-full mt-4" })}
           >
             Learn More
