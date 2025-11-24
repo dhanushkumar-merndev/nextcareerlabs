@@ -1,6 +1,7 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
+import React from "react";
 
 import {
   Card,
@@ -16,7 +17,6 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import React from "react";
 
 export const description = "Interactive Bar Chart";
 
@@ -32,9 +32,12 @@ interface ChartAreaInteractiveProps {
 }
 
 export function ChartAreaInteractive({ data }: ChartAreaInteractiveProps) {
+  // Backend already returns exactly 30 days, so no need to slice
+  const last30DaysData = data;
+
   const totalEnrollments = React.useMemo(
-    () => data.reduce((total, item) => total + item.enrollments, 0),
-    [data]
+    () => last30DaysData.reduce((total, item) => total + item.enrollments, 0),
+    [last30DaysData]
   );
 
   return (
@@ -57,22 +60,20 @@ export function ChartAreaInteractive({ data }: ChartAreaInteractiveProps) {
           className="aspect-auto h-[250px] w-full"
         >
           <BarChart
-            data={data}
+            data={last30DaysData}
             margin={{
               left: 12,
               right: 12,
             }}
           >
-            {/* Grid */}
             <CartesianGrid vertical={false} />
 
-            {/* X Axis */}
             <XAxis
               dataKey="date"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              interval={"preserveStartEnd"}
+              interval="preserveStartEnd"
               tickFormatter={(value) => {
                 const date = new Date(value);
                 return date.toLocaleDateString("en-IN", {
@@ -82,7 +83,6 @@ export function ChartAreaInteractive({ data }: ChartAreaInteractiveProps) {
               }}
             />
 
-            {/* Tooltip */}
             <ChartTooltip
               content={
                 <ChartTooltipContent
@@ -98,7 +98,6 @@ export function ChartAreaInteractive({ data }: ChartAreaInteractiveProps) {
               }
             />
 
-            {/* Bar (Color applied) */}
             <Bar dataKey="enrollments" fill="var(--color-primary)" />
           </BarChart>
         </ChartContainer>

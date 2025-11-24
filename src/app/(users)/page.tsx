@@ -40,7 +40,7 @@ const features: featuresProps[] = [
 export default function Home() {
   return (
     <>
-      <section className="relative py-20 mb-12">
+      <section className="relative py-22 mb-6 px-4 lg:px-6">
         <div className="flex flex-col items-center text-center space-y-8">
           <Badge variant={"outline"}>The future of Online Education</Badge>
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
@@ -63,20 +63,29 @@ export default function Home() {
           </div>
         </div>
       </section>
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6">
         {features.map((feature, index) => {
           const Icon = feature.icon;
 
           return (
-            <Card key={index} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="size-12 flex items-center justify-center rounded-lg bg-primary/10">
+            <Card
+              key={index}
+              className="group rounded-xl  border bg-card p-4 py-8 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1"
+            >
+              <CardHeader className="space-y-3">
+                <div className="size-14 flex items-center justify-center rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
                   <Icon className="w-8 h-8 text-primary" />
                 </div>
-                <CardTitle>{feature.title}</CardTitle>
+
+                <CardTitle className="text-xl font-semibold">
+                  {feature.title}
+                </CardTitle>
               </CardHeader>
+
               <CardContent>
-                <p className="text-muted-foreground">{feature.description}</p>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {feature.description}
+                </p>
               </CardContent>
             </Card>
           );

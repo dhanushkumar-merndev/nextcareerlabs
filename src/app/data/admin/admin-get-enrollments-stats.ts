@@ -4,13 +4,16 @@ import { requireAdmin } from "./require-admin";
 
 export async function adminGetEnrollmentsStats() {
   await requireAdmin();
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+  const today = new Date();
+  const startDate = new Date();
+  startDate.setDate(today.getDate() - 29); // include today
+
+  // Fetch all enrollments within last 30 days
   const enrollments = await prisma.enrollment.findMany({
     where: {
       createdAt: {
-        gte: thirtyDaysAgo,
+        gte: startDate,
       },
     },
     select: {
@@ -20,22 +23,33 @@ export async function adminGetEnrollmentsStats() {
       createdAt: "asc",
     },
   });
+
+  // Build fixed 30-day data structure
   const last30Days: { date: string; enrollments: number }[] = [];
+  const counts: Record<string, number> = {};
+
   for (let i = 29; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    last30Days.push({
-      date: date.toISOString().split("T")[0],
-      enrollments: 0,
-    });
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+
+    // timezone-safe yyyy-mm-dd
+    const key = d.toLocaleDateString("en-CA");
+
+    last30Days.push({ date: key, enrollments: 0 });
+    counts[key] = 0;
   }
 
-  enrollments.forEach((enrollment) => {
-    const enrollmentDate = enrollment.createdAt.toISOString().split("T")[0];
-    const dayIndex = last30Days.findIndex((d) => d.date === enrollmentDate);
-    if (dayIndex !== -1) {
-      last30Days[dayIndex].enrollments++;
+  // Count enrollments per day
+  for (const en of enrollments) {
+    const key = en.createdAt.toLocaleDateString("en-CA");
+    if (counts[key] !== undefined) {
+      counts[key]++;
     }
-  });
-  return last30Days;
+  }
+
+  // Merge final values
+  return last30Days.map((item) => ({
+    date: item.date,
+    enrollments: counts[item.date] ?? 0,
+  }));
 }

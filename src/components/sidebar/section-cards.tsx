@@ -1,5 +1,3 @@
-"use client";
-
 import {
   IconUsers,
   IconUserPlus,
