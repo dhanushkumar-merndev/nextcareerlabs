@@ -26,7 +26,7 @@ export default function VerifyRequestRoute() {
   );
 }
 
-export function VerifyRequest() {
+function VerifyRequest() {
   const [otp, setOtp] = useState("");
   const [emailPending, startEmailTransition] = useTransition();
   const params = useSearchParams();
