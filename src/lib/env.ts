@@ -3,7 +3,9 @@ import { z } from "zod";
 
 export const env = createEnv({
   server: {
-    DATABASE_URL: z.string().min(1), // FIXED (Prisma URL is not a real URL)
+    DATABASE_URL: z
+      .string()
+      .startsWith("postgresql://", { message: "Must be a PostgreSQL URL" }),
     GOOGLE_CLIENT_SECRET: z.string().min(1),
     GOOGLE_CLIENT_ID: z.string().min(1),
     BETTER_AUTH_URL: z.string().url(),
