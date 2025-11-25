@@ -82,7 +82,7 @@ export function CourseSidebar({ course }: iAppProps) {
                     }`}
                   />
 
-                  <div className="flex-1 text-left min-w-0">
+                  <div className="flex-1 pl-1 text-left min-w-0">
                     <p className="text-semibold text-sm truncate text-foreground">
                       {chapter.position}: {chapter.title}
                     </p>

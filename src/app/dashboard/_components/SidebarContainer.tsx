@@ -53,7 +53,7 @@ export function SidebarContainer({
   ${open ? "translate-x-0" : "-translate-x-full"}`}
       >
         {/* Drawer Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b bg-background/70 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-background/70 backdrop-blur-sm shadow-sm">
           <h3></h3>
           <button
             onClick={() => setOpen(false)}
@@ -64,7 +64,7 @@ export function SidebarContainer({
         </div>
 
         {/* Sidebar Content */}
-        <div className="overflow-y-auto h-full pt-5 pl-3 custom-scrollbar">
+        <div className="overflow-y-auto h-full pt-6 pl-3  custom-scrollbar">
           <CourseSidebar course={course} />
         </div>
       </div>
