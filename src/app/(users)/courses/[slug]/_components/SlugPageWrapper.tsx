@@ -258,21 +258,30 @@ export function SlugPageWrapper({ course, isEnrolled }: SlugPageWrapperProps) {
                     ))}
                   </ul>
                 </div>
-
-                {isEnrolled ? (
+                <div>
+                  {isEnrolled ? (
+                    <Link
+                      className={buttonVariants({ className: "w-full" })}
+                      href="/dashboard"
+                    >
+                      Watch Course
+                    </Link>
+                  ) : (
+                    <EnrollmentButton courseId={course.id} />
+                  )}
                   <Link
-                    className={buttonVariants({ className: "w-full" })}
-                    href="/dashboard"
+                    href="/courses"
+                    className={buttonVariants({
+                      variant: "outline",
+                      className: "w-full mt-4",
+                    })}
                   >
-                    Watch Course
+                    Go Back
                   </Link>
-                ) : (
-                  <EnrollmentButton courseId={course.id} />
-                )}
-
-                <p className="text-center text-xs text-muted-foreground">
-                  30-day money-back guarantee
-                </p>
+                  <p className="text-center text-xs text-muted-foreground mt-2">
+                    30-day money-back guarantee
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -304,18 +313,3 @@ function FeatureRow({
     </div>
   );
 }
-
-// Updated page.tsx should look like:
-// import { getIndividualCourse } from "@/app/data/course/get-course";
-// import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
-// import { SlugPageWrapper } from "./SlugPageWrapper";
-//
-// type Params = Promise<{ slug: string }>;
-//
-// export default async function SlugPage({ params }: { params: Params }) {
-//   const { slug } = await params;
-//   const course = await getIndividualCourse(slug);
-//   const isEnrolled = await checkIfCourseBought(course.id);
-//
-//   return <SlugPageWrapper course={course} isEnrolled={isEnrolled} />;
-// }

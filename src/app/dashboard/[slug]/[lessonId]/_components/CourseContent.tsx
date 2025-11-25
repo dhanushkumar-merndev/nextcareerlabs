@@ -89,7 +89,7 @@ export function CourseContent({ data }: iAppProps) {
   const hasVideo = Boolean(data.videoKey);
 
   return (
-    <div className="flex flex-col h-full bg-background pl-6">
+    <div className="flex flex-col h-full bg-background md:pl-4 lg:pl-6">
       {/* ======================= */}
       {/* VIDEO PLAYER */}
       {/* ======================= */}

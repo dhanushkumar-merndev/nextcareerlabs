@@ -8,10 +8,12 @@ import { authClient } from "@/lib/auth-client";
 import { buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/themeToggle";
 import { UserDropdown } from "./UserDropdown"; // <<— USE YOUR COMPONENT HERE
+import { useSignOut } from "@/hooks/use-signout";
 
 export function Navbar() {
   const { data: session, isPending } = authClient.useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const handleSignOut = useSignOut();
 
   const dashboardLink =
     session?.user?.role === "admin" ? "/admin" : "/dashboard";
@@ -121,7 +123,7 @@ export function Navbar() {
 
         {/* PROFILE */}
         {session && (
-          <div className="flex justify-center py-6 border-b">
+          <div className="flex flex-col items-center py-6 border-b px-4 text-center">
             <Image
               src={
                 session.user.image ??
@@ -132,6 +134,16 @@ export function Navbar() {
               height={70}
               className="rounded-full border"
             />
+
+            {/* NAME */}
+            <h3 className="mt-3 text-lg font-semibold">
+              {session.user.name?.trim() || session.user.email.split("@")[0]}
+            </h3>
+
+            {/* EMAIL */}
+            <p className="text-sm text-muted-foreground">
+              {session.user.email}
+            </p>
           </div>
         )}
 
@@ -155,16 +167,15 @@ export function Navbar() {
         {/* LOGOUT FIXED AT ABSOLUTE BOTTOM */}
         <div className="px-4 pb-6">
           {session ? (
-            <Link
-              href="/logout"
-              onClick={() => setIsOpen(false)}
+            <button
+              onClick={handleSignOut}
               className={
                 buttonVariants({ variant: "destructive" }) +
                 " w-full text-center block"
               }
             >
               Logout
-            </Link>
+            </button>
           ) : (
             <div className="flex flex-col space-y-3">
               <Link
@@ -178,7 +189,7 @@ export function Navbar() {
                 Login
               </Link>
               <Link
-                href="/login"
+                href="/dashboard"
                 onClick={() => setIsOpen(false)}
                 className={buttonVariants() + " w-full text-center block"}
               >

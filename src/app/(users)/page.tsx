@@ -56,7 +56,7 @@ export default function Home() {
             </Link>
             <Link
               className={buttonVariants({ size: "lg", variant: "outline" })}
-              href="/login"
+              href="/dashboard"
             >
               Get Started
             </Link>
