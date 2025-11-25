@@ -49,6 +49,8 @@
     "@tiptap/pm": "^2.27.1",
     "@tiptap/react": "^2.27.1",
     "@tiptap/starter-kit": "^2.27.1",
+    "@vercel/analytics": "^1.5.0",
+    "@vercel/speed-insights": "^1.2.0",
     "better-auth": "^1.3.34",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
