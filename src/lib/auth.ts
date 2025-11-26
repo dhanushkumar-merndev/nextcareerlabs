@@ -4,6 +4,7 @@ import { prisma } from "./db";
 import { env } from "./env";
 import { emailOTP } from "better-auth/plugins";
 import { resend } from "./resend";
+import type { User, Session } from "@/generated/prisma";
 import { admin } from "better-auth/plugins";
 
 const date = new Date().getFullYear();
@@ -19,6 +20,17 @@ export const auth = betterAuth({
       scope: ["openid", "email", "profile"],
       accessType: "offline",
       prompt: "select_account consent",
+    },
+  },
+  events: {
+    async signIn({ session, user }: { session: Session; user: User }) {
+      // Invalidate all other sessions for the user
+      await prisma.session.deleteMany({
+        where: {
+          userId: user.id,
+          id: { not: session.id }, // Exclude the current new session
+        },
+      });
     },
   },
   plugins: [
