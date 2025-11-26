@@ -54,22 +54,34 @@ export async function enrollInCourseAction(
       };
     }
 
-    let stripeCustomerId: string;
-
     const userWithStripeCustomerId = await prisma.user.findUnique({
       where: { id: user.id }, // FIXED
       select: { stripeCustomerId: true },
     });
 
-    if (userWithStripeCustomerId?.stripeCustomerId) {
-      stripeCustomerId = userWithStripeCustomerId.stripeCustomerId;
-    } else {
+    let stripeCustomerId = userWithStripeCustomerId?.stripeCustomerId;
+
+    // Verify the customer exists in Stripe and is not deleted
+    if (stripeCustomerId) {
+      try {
+        const customer = await stripe.customers.retrieve(stripeCustomerId);
+        if (customer.deleted) {
+          // The customer was deleted in Stripe, so we'll create a new one
+          stripeCustomerId = null;
+        }
+      } catch {
+        // The customer ID is invalid or doesn't exist, so we'll create a new one
+        stripeCustomerId = null;
+      }
+    }
+
+    // If we don't have a valid customer ID, create a new customer in Stripe
+    if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
         email: user.email,
         name: user.name,
         metadata: { userId: user.id },
       });
-
       stripeCustomerId = customer.id;
 
       await prisma.user.update({
@@ -121,7 +133,14 @@ export async function enrollInCourseAction(
         customer: stripeCustomerId,
         line_items: [
           {
-            price: "price_1SWIOZRtjyoPrdAzPkq8ggpM",
+            price_data: {
+              currency: "inr",
+              product_data: {
+                name: course.title,
+                description: `Enrollment in the course: ${course.title}`,
+              },
+              unit_amount: course.price * 100, // Convert to cents
+            },
             quantity: 1,
           },
         ],
@@ -144,6 +163,10 @@ export async function enrollInCourseAction(
     checkoutUrl = result.checkourUrl as string;
   } catch (error) {
     if (error instanceof Stripe.errors.StripeError) {
+      // Log the detailed error for debugging on the server
+      console.error("Stripe API Error:", error.message);
+      console.error("Stripe Error Type:", error.type);
+
       return {
         status: "error",
         message: "Payment system error. Please try again later",
