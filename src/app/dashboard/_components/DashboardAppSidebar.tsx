@@ -2,7 +2,9 @@
 import * as React from "react";
 import {
   IconCamera,
-  IconDashboard,
+  IconLayoutDashboard,
+  IconBook,
+  IconLibrary,
   IconFileAi,
   IconFileDescription,
   IconHelp,
@@ -30,7 +32,17 @@ const data = {
     {
       title: "Dashboard",
       url: "/dashboard",
-      icon: IconDashboard,
+      icon: IconLayoutDashboard,
+    },
+    {
+      title: "My Courses",
+      url: "/dashboard/my-courses",
+      icon: IconBook,
+    },
+    {
+      title: "Available Courses",
+      url: "/dashboard/available-courses",
+      icon: IconLibrary,
     },
   ],
   navClouds: [

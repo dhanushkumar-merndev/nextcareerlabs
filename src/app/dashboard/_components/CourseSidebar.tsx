@@ -22,19 +22,18 @@ export function CourseSidebar({ course }: iAppProps) {
   const { completedLessons, totalLessons, progressPercentage } =
     useCourseProgress({ courseData: course });
 
-  // ⭐ Track which chapter is open
   const [openChapter, setOpenChapter] = useState<string | null>(
     course.chapter[0]?.id || null
   );
 
-  function toggleChapter(id: string) {
+  const toggleChapter = (id: string) => {
     setOpenChapter((prev) => (prev === id ? null : id));
-  }
+  };
 
   return (
     <div className="flex flex-col h-full">
-      {/* TOP HEADER */}
-      <div className="pb-4 pr-4 border-b border-border">
+      {/* HEADER (Fixed on top) */}
+      <div className="pb-4 pr-4 border-b border-border shrink-0">
         <div className="flex items-center gap-3 mb-3">
           <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Play className="size-5 text-primary" />
@@ -49,7 +48,7 @@ export function CourseSidebar({ course }: iAppProps) {
         </div>
 
         {/* Progress */}
-        <div className="space-y-2">
+        <div className="space-y-4">
           <div className="flex justify-between text-xs">
             <span>Progress</span>
             <span>
@@ -63,8 +62,14 @@ export function CourseSidebar({ course }: iAppProps) {
         </div>
       </div>
 
-      {/* CHAPTER LIST */}
-      <div className="py-4 pr-4 space-y-3">
+      {/* CHAPTER LIST — scrolls only on mobile */}
+      <div
+        className="
+          pt-4 pb-20 md:pb-0 pr-4 space-y-3
+          flex-1 overflow-y-auto min-h-0 
+          lg:overflow-visible lg:min-h-fit lg:flex-none
+        "
+      >
         {course.chapter.map((chapter) => {
           const isOpen = openChapter === chapter.id;
 
@@ -83,7 +88,7 @@ export function CourseSidebar({ course }: iAppProps) {
                   />
 
                   <div className="flex-1 pl-1 text-left min-w-0">
-                    <p className="text-semibold text-sm truncate text-foreground">
+                    <p className="font-semibold text-sm truncate text-foreground">
                       {chapter.position}: {chapter.title}
                     </p>
                     <p className="text-[10px] text-muted-foreground font-medium truncate">

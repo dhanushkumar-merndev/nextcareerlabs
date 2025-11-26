@@ -1,73 +1,34 @@
-import { EmptyState } from "@/components/general/EmptyState";
-import { getAllCourses } from "../data/course/get-all-courses";
-import { getEnrolledCourses } from "../data/user/get-enrolled-courses";
-import { PublicCourseCard } from "../(users)/_components/PublicCourseCard";
+import Link from "next/link";
 
-import { CourseProgressCard } from "./_components/CourseProgressCard";
-
-export default async function DashboardPage() {
-  const [courses, enrolledCourses] = await Promise.all([
-    getAllCourses(),
-    getEnrolledCourses(),
-  ]);
-
-  // Extract course IDs user has enrolled in
-  const enrolledIds = enrolledCourses.map((e) => e.Course.id);
-
-  // Filter available courses the user has NOT enrolled in
-  const availableCourses = courses.filter(
-    (course) => !enrolledIds.includes(course.id)
-  );
-
+export default function DashboardPage() {
   return (
-    <div className="px-4 lg:px-6 space-y-12">
-      {/* Enrolled Courses */}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold">Enrolled Courses</h1>
-        <p className="text-muted-foreground">
-          Here you can see all the courses you have enrolled in.
-        </p>
-      </div>
+    <div className="px-4 lg:px-6 py-10 space-y-10">
+      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <p className="text-muted-foreground">
+        Quick access to your learning sections.
+      </p>
 
-      {enrolledCourses.length === 0 ? (
-        <EmptyState
-          title="No enrolled courses"
-          description="You have not enrolled in any courses yet."
-          buttonText="Browse Courses"
-          href="/courses"
-        />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-          {enrolledCourses.map((enrolled) => (
-            <CourseProgressCard key={enrolled.Course.id} data={enrolled} />
-          ))}
-        </div>
-      )}
-
-      {/* Available Courses */}
-      <section>
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold">Available Courses</h1>
-          <p className="text-muted-foreground">
-            Here you can see all the course available for enrollment
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-xl">
+        <Link
+          href="/dashboard/my-courses"
+          className="p-6 border rounded-xl hover:bg-muted transition"
+        >
+          <h2 className="font-semibold text-xl mb-1">My Courses</h2>
+          <p className="text-muted-foreground text-sm">
+            View your enrolled courses and continue learning.
           </p>
-        </div>
+        </Link>
 
-        {availableCourses.length === 0 ? (
-          <EmptyState
-            title="No courses available"
-            description="You have already purchased all available courses"
-            buttonText="Browse Courses"
-            href="/courses"
-          />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-            {availableCourses.map((course) => (
-              <PublicCourseCard key={course.id} data={course} />
-            ))}
-          </div>
-        )}
-      </section>
+        <Link
+          href="/dashboard/available-courses"
+          className="p-6 border rounded-xl hover:bg-muted transition"
+        >
+          <h2 className="font-semibold text-xl mb-1">Available Courses</h2>
+          <p className="text-muted-foreground text-sm">
+            Browse courses you can enroll in.
+          </p>
+        </Link>
+      </div>
     </div>
   );
 }

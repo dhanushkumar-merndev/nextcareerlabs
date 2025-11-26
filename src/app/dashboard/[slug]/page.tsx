@@ -14,11 +14,9 @@ export default async function CourseSulgPage({ params }: iAppProps) {
   if (firstLesson) {
     redirect(`/dashboard/${slug}/${firstLesson.id}`);
   }
+
   return (
-    <div
-      className="flex
-  items-center justify-center h-full text-center "
-    >
+    <div className="flex flex-col items-center justify-center min-h-screen text-center px-4">
       <h2 className="text-2xl font-bold mb-2">No lessons Available</h2>
       <p className="text-muted-foreground">
         This course does not have any lessons yet.
