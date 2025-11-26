@@ -34,7 +34,7 @@ export const auth = betterAuth({
         await tx.session.deleteMany({
           where: {
             userId: user.id,
-            id: { not: session.id },
+            id: { not: session.userId },
           },
         });
       });
