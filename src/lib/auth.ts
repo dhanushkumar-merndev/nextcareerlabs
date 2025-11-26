@@ -23,16 +23,24 @@ export const auth = betterAuth({
     },
   },
   events: {
-    async signIn({ session, user }: { session: Session; user: User }) {
-      // Invalidate all other sessions for the user
-      await prisma.session.deleteMany({
-        where: {
-          userId: user.id,
-          id: { not: session.id }, // Exclude the current new session
-        },
+    async "session.create"({
+      session,
+      user,
+    }: {
+      session: Session;
+      user: User;
+    }) {
+      await prisma.$transaction(async (tx) => {
+        await tx.session.deleteMany({
+          where: {
+            userId: user.id,
+            id: { not: session.id },
+          },
+        });
       });
     },
   },
+
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp }) {
