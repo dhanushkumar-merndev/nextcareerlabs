@@ -13,7 +13,8 @@ export const auth = betterAuth({
   trustedOrigins: [
     "https://nextcareerlabs.online",
     "http://localhost:3000",
-    "http://192.168.1.2:3000",
+
+    "https://www.nextcareerlabs.online",
   ],
 
   database: prismaAdapter(prisma, {
