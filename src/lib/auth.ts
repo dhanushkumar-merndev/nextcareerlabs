@@ -36,7 +36,7 @@ export const auth = betterAuth({
         await tx.session.deleteMany({
           where: {
             userId: user.id,
-            token: { not: session.token }, // keep only new session
+            token: { not: session.token },
           },
         });
       });
