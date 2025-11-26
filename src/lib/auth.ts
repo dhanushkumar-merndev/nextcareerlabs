@@ -9,6 +9,14 @@ import { admin } from "better-auth/plugins";
 const date = new Date().getFullYear();
 
 export const auth = betterAuth({
+  trustedOrigins: [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.1.2:3000", // your LAN IP
+    "https://nextcareerlabs.online",
+    "https://www.nextcareerlabs.online",
+  ],
+
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -64,7 +72,7 @@ export const auth = betterAuth({
       letter-spacing: 5px;
       color: #2d3748;
     ">
-    ${otp}
+    ${otp} 
   </div>
 
   <p style="
