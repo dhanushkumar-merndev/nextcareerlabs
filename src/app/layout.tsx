@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ui/theme-provider";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { PreloadPages } from "./PreloadPages";
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : "http://localhost:3000";
@@ -58,6 +59,9 @@ export default function RootLayout({
 
           {/* Vercel Speed Insights */}
           <SpeedInsights />
+
+          {/* Preload important pages */}
+          <PreloadPages />
         </ThemeProvider>
       </body>
     </html>

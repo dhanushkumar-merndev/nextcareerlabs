@@ -6,6 +6,8 @@ import { emailOTP } from "better-auth/plugins";
 import { resend } from "./resend";
 import { admin } from "better-auth/plugins";
 
+const date = new Date().getFullYear();
+
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
@@ -23,7 +25,7 @@ export const auth = betterAuth({
     emailOTP({
       async sendVerificationOTP({ email, otp }) {
         await resend.emails.send({
-          from: "Next Career Labs <no-reply@nextcareerlabs.online>", // ✅ FIXED
+          from: "Next Career Labs <no-reply@nextcareerlabs.online>",
           to: [email],
           subject: "Next Career Labs - Verify your email",
           html: `<!-- Email Template for Next Career Labs -->
@@ -84,7 +86,7 @@ export const auth = betterAuth({
       font-size: 12px;
       text-align: center;
     ">
-    © {new Date().getFullYear()} Next Career Labs. All rights reserved.
+    © ${date} Next Career Labs. All rights reserved.
   </p>
 </div>
 `,

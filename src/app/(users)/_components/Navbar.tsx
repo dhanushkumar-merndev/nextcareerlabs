@@ -36,7 +36,16 @@ export function Navbar() {
         <div className="container flex items-center min-h-16 px-4 mx-auto relative">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <Image src="/logo.png" alt="logo" width={32} height={32} />
+            <div className="relative h-8 w-8">
+              <Image
+                src="/logo.png"
+                alt="logo"
+                sizes="5"
+                fill
+                className="object-contain"
+              />
+            </div>
+
             <span className="font-medium">Next Career Labs LMS</span>
           </Link>
 
