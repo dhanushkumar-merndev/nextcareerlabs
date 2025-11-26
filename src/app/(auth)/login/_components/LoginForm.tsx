@@ -49,8 +49,7 @@ export function LoginForm() {
         provider: "google",
         callbackURL: "/",
         fetchOptions: {
-          onSuccess: async () => {
-            await fetch("/api/auth/enforce-single-session", { method: "POST" });
+          onSuccess: () => {
             toast.success("Signed in with Google, you will be redirected...");
           },
           onError: () => {
@@ -67,8 +66,7 @@ export function LoginForm() {
         email: email,
         type: "sign-in",
         fetchOptions: {
-          onSuccess: async () => {
-            await fetch("/api/auth/enforce-single-session", { method: "POST" });
+          onSuccess: () => {
             toast.success("Email Sent");
             router.push(`/verify-request?email=${email}`);
           },

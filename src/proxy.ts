@@ -2,6 +2,7 @@ import { env } from "@/lib/env";
 import arcjet, { createMiddleware, detectBot } from "@arcjet/next";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "./lib/db";
 
 const aj = arcjet({
   key: env.ARCJET_KEY!,
@@ -21,6 +22,20 @@ const aj = arcjet({
 async function adminMiddleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
+
+  if (session) {
+    // Delete all sessions except the latest one
+    await prisma.session.deleteMany({
+      where: {
+        userId: session.user.id,
+        id: { not: session.session.id },
+      },
+    });
+  }
+
   // Always allow Better Auth endpoints
   if (path.startsWith("/api/auth")) return NextResponse.next();
 
@@ -28,10 +43,6 @@ async function adminMiddleware(request: NextRequest) {
   if (!path.startsWith("/admin")) return NextResponse.next();
 
   // --- /admin/** protection starts here ---
-
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  });
 
   // Unauthenticated → login
   if (!session) {
