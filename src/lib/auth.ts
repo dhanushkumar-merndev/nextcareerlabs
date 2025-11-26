@@ -23,7 +23,7 @@ export const auth = betterAuth({
     },
   },
   events: {
-    async "session.create"({
+    async "session.created"({
       session,
       user,
     }: {
