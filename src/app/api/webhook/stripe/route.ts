@@ -4,48 +4,59 @@ import { stripe } from "@/lib/stripe";
 import { headers } from "next/headers";
 import { Stripe } from "stripe";
 
+export const config = {
+  api: {
+    bodyParser: false, // Stripe requires raw body
+  },
+};
+
 export async function POST(req: Request) {
   const body = await req.text();
-  const headerList = await headers();
-  const signature = headerList.get("Stripe-Signature") as string;
+  const headerList = await headers(); // <-- added await
+  const signature = headerList.get("stripe-signature") as string;
+
   let event: Stripe.Event;
+
   try {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      env.STRIPE_WEBHOOK_SECRET
+      env.STRIPE_WEBHOOK_SECRET // must be test secret in prod
     );
   } catch {
-    return new Response("Webhook Error", { status: 400 });
+    // cleaned - no console logs
+    return new Response("Invalid Stripe Signature", { status: 400 });
   }
-  const session = event.data.object as Stripe.Checkout.Session;
+
   if (event.type === "checkout.session.completed") {
+    const session = event.data.object as Stripe.Checkout.Session;
+
     const courseId = session.metadata?.courseId;
+    const enrollmentId = session.metadata?.enrollmentId;
     const customerId = session.customer as string;
 
-    if (!courseId) {
-      throw new Error("Course ID not found...");
+    if (!courseId || !enrollmentId) {
+      return new Response("Missing metadata", { status: 400 });
     }
+
     const user = await prisma.user.findUnique({
-      where: {
-        stripeCustomerId: customerId,
-      },
+      where: { stripeCustomerId: customerId },
     });
 
     if (!user) {
-      throw new Error("User not found...");
+      return new Response("User not found", { status: 404 });
     }
+
     await prisma.enrollment.update({
-      where: {
-        id: session.metadata?.enrollmentId as string,
-      },
+      where: { id: enrollmentId },
       data: {
         userId: user.id,
-        courseId: courseId,
-        amount: session.amount_total as number,
+        courseId,
+        amount: session.amount_total || 0,
         status: "Active",
       },
     });
   }
-  return new Response(null, { status: 200 });
+
+  return new Response("OK", { status: 200 });
 }
