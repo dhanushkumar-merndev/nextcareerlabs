@@ -9,7 +9,6 @@ import { buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/themeToggle";
 import { UserDropdown } from "./UserDropdown"; // <<— USE YOUR COMPONENT HERE
 import { useSignOut } from "@/hooks/use-signout";
-import { PageLoader } from "./PageLoader";
 
 export function Navbar() {
   const { data: session, isPending } = authClient.useSession();
@@ -32,7 +31,6 @@ export function Navbar() {
 
   return (
     <>
-      <PageLoader />
       {/* NAVBAR */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
         <div className="container flex items-center min-h-16 px-4 mx-auto relative">

@@ -35,7 +35,7 @@ export function SectionCards({ stats }: SectionCardsProps) {
   const { totalUsers, enrolledUsers, totalCourses, totalLessons } = stats;
 
   return (
-    <div className="grid grid-cols-1 gap-6 px-4 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
+    <div className="grid grid-cols-2 gap-6 px-4 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
       <SimpleStatCard
         title="Total Sign-Ups"
         value={totalUsers}
