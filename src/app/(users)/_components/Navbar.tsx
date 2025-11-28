@@ -43,7 +43,7 @@ export function Navbar() {
                 sizes="5"
                 fill
                 className="object-contain"
-                priority
+                preload
               />
             </div>
 
