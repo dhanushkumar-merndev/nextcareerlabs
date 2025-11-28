@@ -155,7 +155,7 @@ export async function enrollInCourseAction(
       });
 
       return {
-        enrollemnt: enrollment,
+        enrollment,
         checkourUrl: checkoutSession.url,
       };
     });
