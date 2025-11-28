@@ -34,9 +34,10 @@ export async function enrollInCourseAction(
     if (decision.isDenied()) {
       return {
         status: "error",
-        message: "You have be blocked",
+        message: "You have been blocked",
       };
     }
+
     const course = await prisma.course.findUnique({
       where: { id: courseId },
       select: {
@@ -54,64 +55,62 @@ export async function enrollInCourseAction(
       };
     }
 
-    const userWithStripeCustomerId = await prisma.user.findUnique({
-      where: { id: user.id }, // FIXED
+    const userRecord = await prisma.user.findUnique({
+      where: { id: user.id },
       select: { stripeCustomerId: true },
     });
 
-    let stripeCustomerId = userWithStripeCustomerId?.stripeCustomerId;
+    let stripeCustomerId = userRecord?.stripeCustomerId;
 
-    // Verify the customer exists in Stripe and is not deleted
     if (stripeCustomerId) {
       try {
         const customer = await stripe.customers.retrieve(stripeCustomerId);
-        if (customer.deleted) {
-          // The customer was deleted in Stripe, so we'll create a new one
+        if ("deleted" in customer && customer.deleted === true) {
           stripeCustomerId = null;
         }
       } catch {
-        // The customer ID is invalid or doesn't exist, so we'll create a new one
         stripeCustomerId = null;
       }
     }
 
-    // If we don't have a valid customer ID, create a new customer in Stripe
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
         email: user.email,
         name: user.name,
         metadata: { userId: user.id },
       });
+
       stripeCustomerId = customer.id;
 
       await prisma.user.update({
         where: { id: user.id },
-        data: { stripeCustomerId: stripeCustomerId },
+        data: { stripeCustomerId },
       });
     }
+
     const result = await prisma.$transaction(async (tx) => {
-      const exisitingEnrollment = await tx.enrollment.findUnique({
+      const existingEnrollment = await tx.enrollment.findUnique({
         where: {
           userId_courseId: {
             userId: user.id,
-            courseId: course.id, // FIXED
+            courseId: course.id,
           },
         },
         select: { id: true, status: true },
       });
 
-      if (exisitingEnrollment?.status === "Active") {
+      if (existingEnrollment?.status === "Active") {
         return {
           status: "success",
-          message: "you are already enrolled in this course",
+          message: "You are already enrolled in this course",
         };
       }
 
       let enrollment;
 
-      if (exisitingEnrollment) {
+      if (existingEnrollment) {
         enrollment = await tx.enrollment.update({
-          where: { id: exisitingEnrollment.id },
+          where: { id: existingEnrollment.id },
           data: {
             amount: course.price,
             status: "Pending",
@@ -139,7 +138,7 @@ export async function enrollInCourseAction(
                 name: course.title,
                 description: `Enrollment in the course: ${course.title}`,
               },
-              unit_amount: course.price * 100, // Convert to cents
+              unit_amount: course.price * 100,
             },
             quantity: 1,
           },
@@ -156,25 +155,21 @@ export async function enrollInCourseAction(
 
       return {
         enrollment,
-        checkourUrl: checkoutSession.url,
+        checkoutUrl: checkoutSession.url,
       };
     });
 
-    checkoutUrl = result.checkourUrl as string;
+    checkoutUrl = result.checkoutUrl as string;
   } catch (error) {
     if (error instanceof Stripe.errors.StripeError) {
-      // Log the detailed error for debugging on the server
-      console.error("Stripe API Error:", error.message);
-      console.error("Stripe Error Type:", error.type);
-
       return {
         status: "error",
-        message: "Payment system error. Please try again later",
+        message: "Payment system error",
       };
     }
     return {
       status: "error",
-      message: "Failed to Enroll in Course",
+      message: "Failed to enroll in course",
     };
   }
 
