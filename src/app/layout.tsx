@@ -13,7 +13,8 @@ const defaultUrl = process.env.VERCEL_URL
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
   title: "Next Career Labs LMS",
-  description: "The fastest way to build apps with Next.js and Supabase",
+  description:
+    "Our LMS is a complete e-learning solution that helps you create engaging courses, manage students, automate assessments, award certificates, and track performance. Built for educators, institutes, training companies, and creators who want to scale online learning with ease.",
   icons: {
     icon: [
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },

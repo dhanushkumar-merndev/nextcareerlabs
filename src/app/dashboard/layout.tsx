@@ -1,5 +1,6 @@
 import { SiteHeader } from "@/components/sidebar/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { Suspense } from "react";
 import { PageLoader } from "../(users)/_components/PageLoader";
 import { AppSidebar } from "./_components/DashboardAppSidebar";
 
@@ -17,7 +18,9 @@ export default function DashboardLayout({
         } as React.CSSProperties
       }
     >
-      <PageLoader />
+      <Suspense>
+        <PageLoader />
+      </Suspense>
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
