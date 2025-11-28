@@ -14,7 +14,7 @@ const aj = arcjet({
         "CATEGORY:MONITOR",
         "CATEGORY:PREVIEW",
         "STRIPE_WEBHOOK",
-      ], // allow Google/Bing only
+      ],
     }),
   ],
 });
@@ -22,12 +22,16 @@ const aj = arcjet({
 async function adminMiddleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
+  // IMPORTANT: BYPASS STRIPE WEBHOOK
+  if (path.startsWith("/api/webhook/stripe")) {
+    return NextResponse.next();
+  }
+
   const session = await auth.api.getSession({
     headers: request.headers,
   });
 
   if (session) {
-    // Delete all sessions except the latest one
     await prisma.session.deleteMany({
       where: {
         userId: session.user.id,
@@ -36,30 +40,22 @@ async function adminMiddleware(request: NextRequest) {
     });
   }
 
-  // Always allow Better Auth endpoints
   if (path.startsWith("/api/auth")) return NextResponse.next();
-
-  // If route is NOT /admin/** → allow for everyone INCLUDING admin
   if (!path.startsWith("/admin")) return NextResponse.next();
 
-  // --- /admin/** protection starts here ---
-
-  // Unauthenticated → login
   if (!session) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Logged in but not admin → block
   if (session.user.role !== "admin") {
     return NextResponse.redirect(new URL("/not-admin", request.url));
   }
 
-  // Admin → allow
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|api/auth).*)"],
+  matcher: ["/((?!_next|favicon.ico|api/auth|api/webhook/stripe).*)"],
 };
 
 export default createMiddleware(aj, async (request: NextRequest) => {
