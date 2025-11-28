@@ -4,15 +4,12 @@ import { stripe } from "@/lib/stripe";
 import { headers } from "next/headers";
 import { Stripe } from "stripe";
 
-export const config = {
-  api: {
-    bodyParser: false, // Stripe requires raw body
-  },
-};
+export const runtime = "nodejs"; // required for raw body
+export const dynamic = "force-dynamic"; // disable caching
 
 export async function POST(req: Request) {
-  const body = await req.text();
-  const headerList = await headers(); // <-- added await
+  const body = await req.text(); // raw body
+  const headerList = await headers();
   const signature = headerList.get("stripe-signature") as string;
 
   let event: Stripe.Event;
@@ -21,10 +18,9 @@ export async function POST(req: Request) {
     event = stripe.webhooks.constructEvent(
       body,
       signature,
-      env.STRIPE_WEBHOOK_SECRET // must be test secret in prod
+      env.STRIPE_WEBHOOK_SECRET
     );
   } catch {
-    // cleaned - no console logs
     return new Response("Invalid Stripe Signature", { status: 400 });
   }
 
@@ -43,16 +39,14 @@ export async function POST(req: Request) {
       where: { stripeCustomerId: customerId },
     });
 
-    if (!user) {
-      return new Response("User not found", { status: 404 });
-    }
+    if (!user) return new Response("User not found", { status: 404 });
 
     await prisma.enrollment.update({
       where: { id: enrollmentId },
       data: {
         userId: user.id,
         courseId,
-        amount: session.amount_total || 0,
+        amount: session.amount_total ?? 0,
         status: "Active",
       },
     });
