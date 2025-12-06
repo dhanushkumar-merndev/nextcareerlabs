@@ -35,15 +35,16 @@ export function Navbar() {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
         <div className="container flex items-center min-h-16 px-4 mx-auto relative">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="relative h-8 w-8">
+          <Link href="/" className="flex items-center space-x-3">
+            <div className="relative top-0.5 h-8 w-8">
               <Image
-                src="/nextcareerlabs.png"
+                src="/nextcareerlabs.svg"
                 alt="logo"
-                sizes="5"
-                fill
+                width={32}
+                height={32}
                 className="object-contain"
-                preload
+                priority
+                unoptimized
               />
             </div>
 
@@ -97,12 +98,16 @@ export function Navbar() {
           </div>
 
           {/* Mobile Burger */}
-          <button
-            className="md:hidden ml-auto p-2 rounded-md border hover:bg-accent"
-            onClick={() => setIsOpen(true)}
-          >
-            <Menu className="w-5 h-5" />
-          </button>
+          <div className="flex md:hidden items-center gap-2 ml-auto">
+            <ThemeToggle />
+
+            <button
+              className="p-2 rounded-md border hover:bg-accent"
+              onClick={() => setIsOpen(true)}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </header>
 

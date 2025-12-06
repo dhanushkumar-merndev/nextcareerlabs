@@ -135,13 +135,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
               <Link href="/">
-                <div className="w-7 h-7">
+                <div className="relative top-0.5 w-8 h-8">
                   <Image
-                    src="/nextcareerlabs.png"
-                    alt="Company Logo"
-                    width={28}
-                    height={28}
-                    className="w-full h-full object-contain"
+                    src="/nextcareerlabs.svg"
+                    alt="logo"
+                    width={32}
+                    height={32}
+                    className="object-contain"
+                    priority
+                    unoptimized
                   />
                 </div>
 
