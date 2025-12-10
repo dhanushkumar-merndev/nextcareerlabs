@@ -7,7 +7,6 @@ import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { BookIcon, CheckCircle } from "lucide-react";
-
 import { markLessonComplete } from "../actions";
 import { toast } from "sonner";
 import { useTransition } from "react";
@@ -33,9 +32,10 @@ export function CourseContent({ data }: iAppProps) {
     const videoUrl = useConstructUrl(videoKey);
     const thumbnailUrl = useConstructUrl(thumbnailkey);
 
+    // No video case
     if (!videoKey) {
       return (
-        <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center">
+        <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border">
           <BookIcon className="size-16 text-primary mx-auto mb-4" />
           <p className="text-muted-foreground">
             This lesson does not have a video yet
@@ -44,8 +44,9 @@ export function CourseContent({ data }: iAppProps) {
       );
     }
 
+    // With video
     return (
-      <div className="aspect-video bg-black rounded-lg relative overflow-hidden">
+      <div className="aspect-video bg-muted rounded-lg border overflow-hidden relative">
         <video
           className="w-full h-full object-cover"
           controls
@@ -63,7 +64,7 @@ export function CourseContent({ data }: iAppProps) {
   }
 
   // ==============================
-  // MARK COMPLETE FUNCTION
+  // MARK COMPLETE HANDLER
   // ==============================
   function onSubmit() {
     startTransition(async () => {
@@ -101,7 +102,7 @@ export function CourseContent({ data }: iAppProps) {
       {/* ======================= */}
       {/* ACTION BUTTON */}
       {/* ======================= */}
-      <div className="py-4 border-b">
+      <div className="py-4 border-b border-border bg-background">
         {isCompleted ? (
           <Button disabled className="gap-2">
             <CheckCircle className="size-4" />
@@ -126,9 +127,9 @@ export function CourseContent({ data }: iAppProps) {
       </div>
 
       {/* ======================= */}
-      {/* LESSON DETAILS */}
+      {/* LESSON DESCRIPTION */}
       {/* ======================= */}
-      <div className="space-y-3 pt-3 pb-10">
+      <div className="space-y-3 pt-4 pb-10">
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
           {data.title}
         </h1>

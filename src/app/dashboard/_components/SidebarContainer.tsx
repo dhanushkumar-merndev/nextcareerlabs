@@ -34,7 +34,7 @@ export function SidebarContainer({
   return (
     <div className="flex flex-col h-full">
       {/* MOBILE HEADER */}
-      <div className="md:hidden flex items-center justify-between pb-4 bg-background shadow-sm">
+      <div className="md:hidden flex items-center justify-between pb-4 bg-background ">
         <h2></h2>
 
         <button
