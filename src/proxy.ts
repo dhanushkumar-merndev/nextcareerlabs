@@ -19,18 +19,20 @@ const aj = arcjet({
   ],
 });
 
-async function adminMiddleware(request: NextRequest) {
+async function mainMiddleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // IMPORTANT: BYPASS STRIPE WEBHOOK
+  // BYPASS STRIPE WEBHOOK
   if (path.startsWith("/api/webhook/stripe")) {
     return NextResponse.next();
   }
 
+  // Get session using Better Auth
   const session = await auth.api.getSession({
     headers: request.headers,
   });
 
+  // Clean up multiple sessions
   if (session) {
     await prisma.session.deleteMany({
       where: {
@@ -40,15 +42,29 @@ async function adminMiddleware(request: NextRequest) {
     });
   }
 
+  // Allow Better Auth internal routes
   if (path.startsWith("/api/auth")) return NextResponse.next();
-  if (!path.startsWith("/admin")) return NextResponse.next();
 
-  if (!session) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  //
+  // 🔐 PROTECT DASHBOARD ROUTES
+  //
+  if (path.startsWith("/dashboard")) {
+    if (!session) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
   }
 
-  if (session.user.role !== "admin") {
-    return NextResponse.redirect(new URL("/not-admin", request.url));
+  //
+  // 🔐 PROTECT ADMIN ROUTES
+  //
+  if (path.startsWith("/admin")) {
+    if (!session) {
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    if (session.user.role !== "admin") {
+      return NextResponse.redirect(new URL("/not-admin", request.url));
+    }
   }
 
   return NextResponse.next();
@@ -59,5 +75,5 @@ export const config = {
 };
 
 export default createMiddleware(aj, async (request: NextRequest) => {
-  return adminMiddleware(request);
+  return mainMiddleware(request);
 });

@@ -38,7 +38,7 @@ export function Navbar() {
           <Link href="/" className="flex items-center space-x-3">
             <div className="relative top-0.5 h-8 w-8">
               <Image
-                src="/nextcareerlabs.svg"
+                src="/logo.svg"
                 alt="logo"
                 width={32}
                 height={32}

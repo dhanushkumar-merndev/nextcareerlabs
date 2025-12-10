@@ -1,14 +1,12 @@
 import { adminGetCourses } from "@/app/data/admin/admin-get-courses";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
-import {
-  AdminCourseCard,
-  AdminCourseCardSkeleton,
-} from "./_components/AdminCourseCard";
+import { AdminCourseCard } from "./_components/AdminCourseCard";
 import { EmptyState } from "@/components/general/EmptyState";
-import { Suspense } from "react";
 
-export default function CoursePage() {
+export default async function CoursePage() {
+  const data = await adminGetCourses();
+
   return (
     <div className="px-4 lg:px-6">
       <div className="flex items-center justify-between mb-10">
@@ -17,17 +15,7 @@ export default function CoursePage() {
           Create Course
         </Link>
       </div>
-      <Suspense fallback={<AdminCourseCardSkeletonLayout />}>
-        <RenderCourses />
-      </Suspense>
-    </div>
-  );
-}
 
-async function RenderCourses() {
-  const data = await adminGetCourses();
-  return (
-    <>
       {data.length === 0 ? (
         <EmptyState
           title="No courses found"
@@ -38,26 +26,13 @@ async function RenderCourses() {
       ) : (
         <div
           className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3
-     gap-7"
+           gap-7"
         >
           {data.map((course) => (
             <AdminCourseCard key={course.id} data={course} />
           ))}
         </div>
       )}
-    </>
-  );
-}
-
-function AdminCourseCardSkeletonLayout() {
-  return (
-    <div
-      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3
-     gap-7"
-    >
-      {Array.from({ length: 6 }).map((_, index) => (
-        <AdminCourseCardSkeleton key={index} />
-      ))}
     </div>
   );
 }
