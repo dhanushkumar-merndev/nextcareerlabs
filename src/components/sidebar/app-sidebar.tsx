@@ -142,8 +142,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     width={32}
                     height={32}
                     className="object-contain"
-                    priority
-                    unoptimized
                   />
                 </div>
 

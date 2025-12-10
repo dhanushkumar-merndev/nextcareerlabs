@@ -125,11 +125,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <Link href="/">
                 <div className="w-7 h-7">
                   <Image
-                    src="/logo.png"
-                    alt="Company Logo"
-                    width={28}
-                    height={28}
-                    className="w-full h-full object-contain"
+                    src="/logo.svg"
+                    alt="logo"
+                    width={32}
+                    height={32}
+                    className="object-contain"
                   />
                 </div>
 

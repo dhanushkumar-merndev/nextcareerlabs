@@ -43,8 +43,6 @@ export function Navbar() {
                 width={32}
                 height={32}
                 className="object-contain"
-                priority
-                unoptimized
               />
             </div>
 
