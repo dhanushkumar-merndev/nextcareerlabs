@@ -29,7 +29,7 @@ import { useSignOut } from "@/hooks/use-signout";
 import Link from "next/link";
 
 export function NavUser() {
-  const { isMobile } = useSidebar();
+  const { isMobile, setOpen } = useSidebar();
   const handleSignOut = useSignOut();
   const { data: session, isPending } = authClient.useSession();
   if (isPending) {
@@ -111,19 +111,19 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem asChild>
-                <Link href="/">
+                <Link href="/" onClick={() => setOpen(false)}>
                   <HomeIcon />
                   Homepage
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/dashboard">
+                <Link href="/dashboard" onClick={() => setOpen(false)}>
                   <IconDashboard />
                   Dashboard
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/courses">
+                <Link href="/courses" onClick={() => setOpen(false)}>
                   <Tv2 />
                   Courses
                 </Link>
