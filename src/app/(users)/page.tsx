@@ -1,5 +1,4 @@
-export const dynamic = "force-static";
-export const revalidate = false;
+export const revalidate = 0; // Fast FCP + normal reload + fresh SSR
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -7,13 +6,13 @@ import Link from "next/link";
 import { BookOpen, Layers, BarChart3, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-interface featuresProps {
+interface FeatureProps {
   title: string;
   description: string;
   icon: React.ElementType;
 }
 
-const features: featuresProps[] = [
+const features: FeatureProps[] = [
   {
     title: "Comprehensive Courses",
     description:
@@ -50,7 +49,7 @@ export default function Home() {
         <div className="flex flex-col items-center text-center max-w-3xl mx-auto space-y-6">
           <Badge variant="outline">The future of Online Education</Badge>
 
-          {/* MAIN HERO TITLE - optimized for LCP */}
+          {/* LCP TARGET */}
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight leading-[1.15]">
             Elevate Your Learning Experience
           </h1>
