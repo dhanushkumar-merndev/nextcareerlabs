@@ -129,14 +129,6 @@ export function NavUser() {
             {/* MENU LINKS */}
             <DropdownMenuGroup>
               <DropdownMenuItem
-                onClick={() => handleNavigate("/")}
-                className="cursor-pointer"
-              >
-                <HomeIcon />
-                Homepage
-              </DropdownMenuItem>
-
-              <DropdownMenuItem
                 onClick={() => handleNavigate("/dashboard")}
                 className="cursor-pointer"
               >
