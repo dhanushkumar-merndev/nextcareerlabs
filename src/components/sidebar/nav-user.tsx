@@ -31,17 +31,24 @@ import { useSignOut } from "@/hooks/use-signout";
 export function NavUser() {
   const { isMobile, setOpen } = useSidebar();
   const router = useRouter();
+  const handleSignOut = useSignOut();
 
+  // 🔥 Navigation with forced reload
   const handleNavigate = (href: string) => {
     setOpen(false);
     router.push(href);
+
+    // Ensure fresh data loads after navigating
+    setTimeout(() => {
+      router.refresh();
+    }, 50);
   };
 
-  const handleSignOut = useSignOut();
   const { data: session, isPending } = authClient.useSession();
   if (isPending) {
     return null;
   }
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -51,7 +58,7 @@ export function NavUser() {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-2xl ">
+              <Avatar className="h-8 w-8 rounded-2xl">
                 <AvatarImage
                   src={
                     session?.user.image ??
@@ -67,6 +74,7 @@ export function NavUser() {
                     .toUpperCase()}
                 </AvatarFallback>
               </Avatar>
+
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">
                   {
@@ -79,9 +87,11 @@ export function NavUser() {
                   {session?.user.email}
                 </span>
               </div>
+
               <IconDotsVertical className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
+
           <DropdownMenuContent
             className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
@@ -91,16 +101,14 @@ export function NavUser() {
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage
-                    src={session?.user.image || ""}
-                    alt={session?.user.name}
-                  />
+                  <AvatarImage src={session?.user.image || ""} />
                   <AvatarFallback className="rounded-lg">
                     {(session?.user.name?.trim() || session?.user.email)
                       ?.charAt(0)
                       .toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
+
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">
                     {
@@ -115,7 +123,10 @@ export function NavUser() {
                 </div>
               </div>
             </DropdownMenuLabel>
+
             <DropdownMenuSeparator />
+
+            {/* MENU LINKS */}
             <DropdownMenuGroup>
               <DropdownMenuItem
                 onClick={() => handleNavigate("/")}
@@ -124,6 +135,7 @@ export function NavUser() {
                 <HomeIcon />
                 Homepage
               </DropdownMenuItem>
+
               <DropdownMenuItem
                 onClick={() => handleNavigate("/dashboard")}
                 className="cursor-pointer"
@@ -131,6 +143,7 @@ export function NavUser() {
                 <IconDashboard />
                 Dashboard
               </DropdownMenuItem>
+
               <DropdownMenuItem
                 onClick={() => handleNavigate("/courses")}
                 className="cursor-pointer"
@@ -139,7 +152,10 @@ export function NavUser() {
                 Courses
               </DropdownMenuItem>
             </DropdownMenuGroup>
+
             <DropdownMenuSeparator />
+
+            {/* LOGOUT */}
             <DropdownMenuItem onClick={handleSignOut}>
               <IconLogout />
               Log out
