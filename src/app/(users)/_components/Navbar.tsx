@@ -7,10 +7,12 @@ import { Menu, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/themeToggle";
-import { UserDropdown } from "./UserDropdown"; // <<— USE YOUR COMPONENT HERE
+import { UserDropdown } from "./UserDropdown";
 import { useSignOut } from "@/hooks/use-signout";
+import { usePathname } from "next/navigation";
 
 export function Navbar() {
+  const pathname = usePathname();
   const { data: session, isPending } = authClient.useSession();
   const [isOpen, setIsOpen] = useState(false);
   const handleSignOut = useSignOut();
@@ -24,7 +26,10 @@ export function Navbar() {
     { name: "Dashboard", href: dashboardLink },
   ];
 
-  // Disable scroll when sidebar is open
+  const isActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + "/");
+
+  // Disable scroll when mobile menu open
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "auto";
   }, [isOpen]);
@@ -37,6 +42,7 @@ export function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3">
             <div className="h-8 w-8">
+              {/* SVG LOGO */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 125 109"
@@ -54,24 +60,30 @@ export function Navbar() {
                 />
               </svg>
             </div>
-
             <span className="font-medium">Next Career Labs LMS</span>
           </Link>
 
-          {/* Desktop Nav Centered */}
+          {/* DESKTOP NAV CENTERED */}
           <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 gap-8">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className="font-medium hover:text-primary"
-              >
-                {item.name}
-              </Link>
-            ))}
+            {navigationItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`font-medium transition ${
+                    active
+                      ? "text-white font-semibold" // ACTIVE
+                      : "text-muted-foreground hover:text-primary" // DEFAULT + HOVER
+                  }`}
+                >
+                  {item.name}
+                </Link>
+              );
+            })}
           </nav>
 
-          {/* Desktop Right */}
+          {/* DESKTOP RIGHT SIDE */}
           <div className="hidden md:flex items-center gap-2 lg:gap-4 ml-auto">
             <ThemeToggle />
 
@@ -104,7 +116,7 @@ export function Navbar() {
               ))}
           </div>
 
-          {/* Mobile Burger */}
+          {/* MOBILE BUTTONS */}
           <div className="flex md:hidden items-center gap-2 ml-auto">
             <ThemeToggle />
 
@@ -157,36 +169,41 @@ export function Navbar() {
               className="rounded-full border"
             />
 
-            {/* NAME */}
             <h3 className="mt-3 text-lg font-semibold">
               {session.user.name?.trim() || session.user.email.split("@")[0]}
             </h3>
 
-            {/* EMAIL */}
             <p className="text-sm text-muted-foreground">
               {session.user.email}
             </p>
           </div>
         )}
 
-        {/* NAV ITEMS */}
+        {/* MOBILE NAV ITEMS */}
         <nav className="flex flex-col mt-4 px-4 space-y-1">
-          {navigationItems.map((item) => (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={() => setIsOpen(false)}
-              className="text-[16px] my-1 py-3 px-2 rounded-md hover:bg-accent font-medium"
-            >
-              {item.name}
-            </Link>
-          ))}
+          {navigationItems.map((item) => {
+            const active = isActive(item.href);
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setIsOpen(false)}
+                className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition ${
+                  active
+                    ? " text-primary font-semibold" // ACTIVE MOBILE
+                    : "text-white hover:text-primary" // DEFAULT + HOVER
+                }`}
+              >
+                {item.name}
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* PUSH EVERYTHING UP */}
+        {/* PUSH CONTENT UP */}
         <div className="flex-1"></div>
 
-        {/* LOGOUT FIXED AT ABSOLUTE BOTTOM */}
+        {/* LOGOUT SECTION */}
         <div className="px-4 pb-6">
           {session ? (
             <button

@@ -29,7 +29,7 @@ export function EditCourseClientWrapper({
 
   return (
     <div className="px-4 lg:px-6 ">
-      <h1 className="text-3xl font-bold mb-3 flex flex-col sm:flex-row sm:items-center gap-2">
+      <h1 className="text-3xl font-bold mb-3 md:mb-6 flex flex-col sm:flex-row sm:items-center gap-2">
         {/* Wrapper for Back + "Edit Course:" */}
         <div className="flex items-center gap-2">
           <BackConfirm href="/admin/courses" isDirty={isDirty} />
@@ -37,7 +37,7 @@ export function EditCourseClientWrapper({
         </div>
 
         {/* Title (goes below on mobile, inline on desktop) */}
-        <span className="mt-4 text-primary underline text-center sm:ml-2 ">
+        <span className="mt-4 md:mt-0 mb-2 md:mb-0 text-primary underline text-center sm:ml-2 ">
           {data.title}
         </span>
       </h1>

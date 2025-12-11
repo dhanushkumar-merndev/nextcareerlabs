@@ -23,9 +23,10 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
-import Link from "next/link";
+
 import { HomeIcon, Tv2 } from "lucide-react";
 import { useSignOut } from "@/hooks/use-signout";
+import Link from "next/link";
 
 export function NavUser() {
   const { isMobile } = useSidebar();
