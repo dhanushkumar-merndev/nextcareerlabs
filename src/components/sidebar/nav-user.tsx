@@ -16,14 +16,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { authClient } from "@/lib/auth-client";
 
+import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { HomeIcon, Tv2 } from "lucide-react";
 import { useSignOut } from "@/hooks/use-signout";
@@ -38,16 +39,13 @@ export function NavUser() {
     setOpen(false);
     router.push(href);
 
-    // Ensure fresh data loads after navigating
     setTimeout(() => {
       router.refresh();
     }, 50);
   };
 
   const { data: session, isPending } = authClient.useSession();
-  if (isPending) {
-    return null;
-  }
+  if (isPending) return null;
 
   return (
     <SidebarMenu>
@@ -98,6 +96,7 @@ export function NavUser() {
             align="end"
             sideOffset={4}
           >
+            {/* Header User Block */}
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
@@ -126,8 +125,16 @@ export function NavUser() {
 
             <DropdownMenuSeparator />
 
-            {/* MENU LINKS */}
-            <DropdownMenuGroup>
+            {/* MENU LINKS — HIDDEN ON MOBILE/TABLET */}
+            <DropdownMenuGroup className="hidden lg:block">
+              <DropdownMenuItem
+                onClick={() => handleNavigate("/")}
+                className="cursor-pointer"
+              >
+                <HomeIcon />
+                Homepage
+              </DropdownMenuItem>
+
               <DropdownMenuItem
                 onClick={() => handleNavigate("/dashboard")}
                 className="cursor-pointer"
@@ -147,7 +154,7 @@ export function NavUser() {
 
             <DropdownMenuSeparator />
 
-            {/* LOGOUT */}
+            {/* LOGOUT ALWAYS VISIBLE */}
             <DropdownMenuItem onClick={handleSignOut}>
               <IconLogout />
               Log out
