@@ -24,12 +24,19 @@ import {
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
 
+import { useRouter } from "next/navigation";
 import { HomeIcon, Tv2 } from "lucide-react";
 import { useSignOut } from "@/hooks/use-signout";
-import Link from "next/link";
 
 export function NavUser() {
   const { isMobile, setOpen } = useSidebar();
+  const router = useRouter();
+
+  const handleNavigate = (href: string) => {
+    setOpen(false);
+    router.push(href);
+  };
+
   const handleSignOut = useSignOut();
   const { data: session, isPending } = authClient.useSession();
   if (isPending) {
@@ -110,23 +117,26 @@ export function NavUser() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem asChild>
-                <Link href="/" onClick={() => setOpen(false)}>
-                  <HomeIcon />
-                  Homepage
-                </Link>
+              <DropdownMenuItem
+                onClick={() => handleNavigate("/")}
+                className="cursor-pointer"
+              >
+                <HomeIcon />
+                Homepage
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard" onClick={() => setOpen(false)}>
-                  <IconDashboard />
-                  Dashboard
-                </Link>
+              <DropdownMenuItem
+                onClick={() => handleNavigate("/dashboard")}
+                className="cursor-pointer"
+              >
+                <IconDashboard />
+                Dashboard
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/courses" onClick={() => setOpen(false)}>
-                  <Tv2 />
-                  Courses
-                </Link>
+              <DropdownMenuItem
+                onClick={() => handleNavigate("/courses")}
+                className="cursor-pointer"
+              >
+                <Tv2 />
+                Courses
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
