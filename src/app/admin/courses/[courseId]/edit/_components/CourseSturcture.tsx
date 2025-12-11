@@ -58,43 +58,6 @@ interface SortableItemProps {
   };
 }
 
-// ========================================================
-// ✅ FIXED SORTABLE ITEM — MOBILE SCROLL FULLY WORKING
-// ========================================================
-function SortableItem({ children, id, className, data }: SortableItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id, data });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes} // Only attributes (safe)
-      className={cn(
-        "touch-none",
-        className,
-        isDragging ? "relative z-50 pointer-events-none" : "z-0"
-      )}
-    >
-      {children(listeners)} {/* Listeners ONLY sent to drag handle */}
-    </div>
-  );
-}
-
-// -------------------------------------------------------
-// MAIN COMPONENT
-// -------------------------------------------------------
 export function CourseStructure({ data, setDirty }: iAppProps) {
   const initialItems = useMemo(() => {
     return data.chapter.map((chapter) => ({
@@ -111,7 +74,6 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
   }, [data]);
 
   const [items, setItems] = useState(initialItems);
-
   useEffect(() => {
     setItems((prevItems) => {
       const updatedItems =
@@ -142,9 +104,40 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     setDirty(changed);
   }, [items, initialItems, setDirty]);
 
-  // -------------------------------------------------------
+  // Sortable Item Component
+  function SortableItem({ children, id, className, data }: SortableItemProps) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: id, data: data });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        className={cn(
+          className,
+          isDragging ? "relative z-999 pointer-events-none" : "z-0"
+        )}
+      >
+        {children(listeners)}
+      </div>
+    );
+  }
+
+  // --------------------------------------
   // DRAG END LOGIC
-  // -------------------------------------------------------
+  // --------------------------------------
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
@@ -175,90 +168,155 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       const oldIndex = items.findIndex((i) => i.id === activeId);
       const newIndex = items.findIndex((i) => i.id === targetChapterId);
 
-      if (oldIndex === -1 || newIndex === -1) return;
+      if (oldIndex === -1 || newIndex === -1) {
+        toast.error("Could not find the chapter to reorder");
+        return;
+      }
 
-      const reordered = arrayMove(items, oldIndex, newIndex).map(
-        (item, idx) => ({ ...item, order: idx + 1 })
-      );
-
-      const previousItems = [...items];
-      setItems(reordered);
-
-      const chapterToUpdate = reordered.map((chapter) => ({
-        id: chapter.id,
-        position: chapter.order,
+      const reorderLocalChapter = arrayMove(items, oldIndex, newIndex);
+      const updatedChapterForState = reorderLocalChapter.map((item, idx) => ({
+        ...item,
+        order: idx + 1,
       }));
+      const previousItems = [...items];
 
-      toast.promise(() => reorderChapters(courseId, chapterToUpdate), {
-        loading: "Reordering Chapters...",
-        success: (result) => {
-          if (result.status === "success") return result.message;
-          throw new Error(result.message);
-        },
-        error: () => {
-          setItems(previousItems);
-          return "An unexpected error occurred. Please try again.";
-        },
-      });
+      setItems(updatedChapterForState);
+      if (courseId) {
+        const chapterToUpdate = updatedChapterForState.map((chapter) => ({
+          id: chapter.id,
+          position: chapter.order,
+        }));
+
+        const reorderChaptersPromise = () =>
+          reorderChapters(courseId, chapterToUpdate);
+
+        toast.promise(reorderChaptersPromise(), {
+          loading: "Reordering Chapters...",
+          success: (result) => {
+            if (result.status === "success") return result.message;
+            throw new Error(result.message);
+          },
+          error: () => {
+            setItems(previousItems);
+            return "An unexpected error occurred. Please try again later";
+          },
+        });
+      }
     }
 
     // --------------------------------------
-    // REORDER LESSONS
+    // REORDER LESSONS INSIDE SAME CHAPTER
     // --------------------------------------
     if (activeType === "lesson" && overType === "lesson") {
       const chapterId = over.data.current?.chapterId;
+      const overChapterId = over.data.current?.chapterId;
 
-      if (!chapterId) return;
+      if (!chapterId || chapterId !== overChapterId) {
+        toast.error("Lesson move between different chapters is not allowed");
+        return;
+      }
 
-      const chapterIndex = items.findIndex((c) => c.id === chapterId);
-      const chapter = items[chapterIndex];
-
-      const oldIdx = chapter.lessons.findIndex((l) => l.id === activeId);
-      const newIdx = chapter.lessons.findIndex((l) => l.id === overId);
-
-      const reorderedLessons = arrayMove(chapter.lessons, oldIdx, newIdx).map(
-        (l, i) => ({ ...l, order: i + 1 })
+      const chapterIndex = items.findIndex(
+        (chapter) => chapter.id === chapterId
       );
+
+      if (chapterIndex === -1) {
+        toast.error("Could not find the chapter for this lesson");
+        return;
+      }
+
+      const chapterToUpdate = items[chapterIndex];
+
+      const oldLessonIndex = chapterToUpdate.lessons.findIndex(
+        (lesson) => lesson.id === activeId
+      );
+
+      const newLessonIndex = chapterToUpdate.lessons.findIndex(
+        (lesson) => lesson.id === overId
+      );
+
+      if (oldLessonIndex === -1 || newLessonIndex === -1) {
+        toast.error("Could not find the lesson to reorder");
+        return;
+      }
+
+      const reorderLocalLesson = arrayMove(
+        chapterToUpdate.lessons,
+        oldLessonIndex,
+        newLessonIndex
+      );
+
+      const updatedLessonForState = reorderLocalLesson.map((lesson, idx) => ({
+        ...lesson,
+        order: idx + 1,
+      }));
 
       const previousItems = [...items];
 
-      const updatedItems = [...items];
-      updatedItems[chapterIndex] = {
-        ...chapter,
-        lessons: reorderedLessons,
+      const newItems = [...items];
+      newItems[chapterIndex] = {
+        ...chapterToUpdate,
+        lessons: updatedLessonForState,
       };
 
-      setItems(updatedItems);
+      setItems(newItems);
 
-      const lessonToUpdate = reorderedLessons.map((lesson) => ({
-        id: lesson.id,
-        position: lesson.order,
-      }));
+      // Save reorder to server
+      if (courseId) {
+        const lessonToUpdate = updatedLessonForState.map((lesson) => ({
+          id: lesson.id,
+          position: lesson.order,
+        }));
 
-      toast.promise(() => reorderLessons(chapterId, lessonToUpdate, data.id), {
-        loading: "Reordering Lessons...",
-        success: (result) => {
-          if (result.status === "success") return result.message;
-          throw new Error(result.message);
-        },
-        error: () => {
-          setItems(previousItems);
-          return "An unexpected error occurred. Please try again.";
-        },
-      });
+        const reorderLessonsPromise = () =>
+          reorderLessons(chapterId, lessonToUpdate, courseId);
+
+        toast.promise(reorderLessonsPromise(), {
+          loading: "Reordering Lessons...",
+          success: (result) => {
+            if (result.status === "success") return result.message;
+            throw new Error(result.message);
+          },
+          error: () => {
+            setItems(previousItems);
+            return "An unexpected error occurred. Please try again later";
+          },
+        });
+      }
+      return;
     }
   }
 
+  // --------------------------------------
+  // TOGGLE CHAPTER OPEN/CLOSE
+  // --------------------------------------
+  function toggleChapter(chapterId: string) {
+    setItems(
+      items.map((chapter) =>
+        chapter.id === chapterId
+          ? { ...chapter, isOpen: !chapter.isOpen }
+          : chapter
+      )
+    );
+  }
+
+  // --------------------------------------
+  // DND SENSORS - WITH ACTIVATION CONSTRAINT
+  // --------------------------------------
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px movement before drag activates
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
 
-  // -------------------------------------------------------
+  // --------------------------------------
   // UI RETURN
-  // -------------------------------------------------------
+  // --------------------------------------
   return (
     <DndContext
       autoScroll={false}
@@ -284,30 +342,25 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                   <Card className="mb-4">
                     <Collapsible
                       open={item.isOpen}
-                      onOpenChange={() =>
-                        setItems(
-                          items.map((chapter) =>
-                            chapter.id === item.id
-                              ? { ...chapter, isOpen: !chapter.isOpen }
-                              : chapter
-                          )
-                        )
-                      }
+                      onOpenChange={() => toggleChapter(item.id)}
                     >
-                      <div className="flex items-center justify-between p-3 border-b">
-                        <div className="flex items-center gap-2">
-                          {/* DRAG HANDLE — ONLY HERE WE APPLY LISTENERS */}
+                      <div className="flex items-center justify-between p-3 border-b border-border">
+                        <div className="flex items-center gap-2 ">
                           <Button
                             size="icon"
-                            variant="ghost"
-                            className="cursor-grab"
+                            variant={"ghost"}
+                            className="cursor-grab opacity-60 hover:opacity-100 touch-none"
                             {...listeners}
                           >
                             <GripVertical className="size-4" />
                           </Button>
 
                           <CollapsibleTrigger asChild>
-                            <Button size="icon" variant="ghost">
+                            <Button
+                              size="icon"
+                              variant={"ghost"}
+                              className="flex items-center cursor-pointer "
+                            >
                               {item.isOpen ? (
                                 <ChevronDown className="size-4" />
                               ) : (
@@ -316,9 +369,10 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                             </Button>
                           </CollapsibleTrigger>
 
-                          <p className="pl-2">{item.title}</p>
+                          <p className="cursor-pointer hover:text-primary pl-2">
+                            {item.title}
+                          </p>
                         </div>
-
                         <div className="flex items-center gap-2">
                           <EditChapter
                             chapterId={item.id}
@@ -342,22 +396,18 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                               <SortableItem
                                 key={lesson.id}
                                 id={lesson.id}
-                                data={{
-                                  type: "lesson",
-                                  chapterId: item.id,
-                                }}
+                                data={{ type: "lesson", chapterId: item.id }}
                               >
                                 {(lessonListeners) => (
                                   <div className="flex items-center justify-between p-2 hover:bg-accent rounded-sm">
-                                    <div className="flex items-center gap-2">
-                                      {/* LESSON DRAG HANDLE */}
+                                    <div className="flex items-center gap-2 ">
                                       <Button
                                         size="icon"
-                                        variant="ghost"
-                                        className="cursor-grab"
+                                        variant={"ghost"}
+                                        className="cursor-grab touch-none"
                                         {...lessonListeners}
                                       >
-                                        <GripVertical className="size-4" />
+                                        <GripVertical className="size-4 " />
                                       </Button>
 
                                       <FileText className="size-4" />
