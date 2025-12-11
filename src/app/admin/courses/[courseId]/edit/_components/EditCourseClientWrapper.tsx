@@ -70,7 +70,7 @@ export function EditCourseClientWrapper({
                 Here you can update your course structure.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-1 md:p-4">
               <CourseStructure data={data} setDirty={setStructureDirty} />
             </CardContent>
           </Card>
