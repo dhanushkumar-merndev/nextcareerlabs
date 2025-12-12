@@ -146,7 +146,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     // REORDER CHAPTERS
     // =====================
     if (activeType === "chapter") {
-      let targetId =
+      const targetId =
         overType === "chapter" ? over.id : over.data.current?.chapterId;
 
       if (!targetId) return;
@@ -221,10 +221,15 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       );
     }
   }
+  const isTouch =
+    typeof window !== "undefined" &&
+    window.matchMedia("(pointer: coarse)").matches;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: isTouch
+        ? { delay: 120, tolerance: 5 } // Mobile → delay to avoid scroll issues
+        : { distance: 5 }, // Desktop → instant, smooth drag
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -268,7 +273,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="cursor-grab opacity-70 hover:opacity-100"
+                            className="cursor-grab active:cursor-grabbing touch-none opacity-70 hover:opacity-100"
                             {...listeners}
                           >
                             <GripVertical className="size-4" />
@@ -320,7 +325,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                                       <Button
                                         size="icon"
                                         variant="ghost"
-                                        className="cursor-grab"
+                                        className="cursor-grab active:cursor-grabbing touch-none"
                                         {...lessonListeners}
                                       >
                                         <GripVertical className="size-4" />
