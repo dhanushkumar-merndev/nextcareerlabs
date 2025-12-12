@@ -107,15 +107,24 @@ export function NavUser() {
                       .toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">
-                    {
-                      (
-                        session?.user.name?.trim() || session?.user.email
-                      )?.split("@")[0]
-                    }
-                  </span>
+                  {/* NAME WITH ROLE BADGE */}
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="truncate font-medium">
+                      {
+                        (
+                          session?.user.name?.trim() || session?.user.email
+                        )?.split("@")[0]
+                      }
+                    </span>
+                    {session?.user.role && (
+                      <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-primary/30 text-primary uppercase tracking-wide shrink-0">
+                        {session.user.role}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* EMAIL */}
                   <span className="text-muted-foreground truncate text-xs">
                     {session?.user.email}
                   </span>
