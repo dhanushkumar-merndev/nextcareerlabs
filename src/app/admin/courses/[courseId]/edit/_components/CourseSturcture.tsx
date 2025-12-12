@@ -221,15 +221,10 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       );
     }
   }
-  const isTouch =
-    typeof window !== "undefined" &&
-    window.matchMedia("(pointer: coarse)").matches;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: isTouch
-        ? { delay: 120, tolerance: 5 } // Mobile → delay to avoid scroll issues
-        : { distance: 5 }, // Desktop → instant, smooth drag
+      activationConstraint: { distance: 5 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
