@@ -6,22 +6,11 @@ import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PreloadPages } from "./PreloadPages";
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(defaultUrl),
   title: "Next Career Labs LMS",
   description:
-    "Our LMS is a complete e-learning solution that helps you create engaging courses, manage students, automate assessments, award certificates, and track performance. Built for educators, institutes, training companies, and creators who want to scale online learning with ease.",
-  icons: {
-    icon: [
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
-    ],
-    apple: "/apple-touch-icon.png",
-  },
+    "Our LMS is a complete e-learning solution with modern, interactive learning.",
 };
 
 const geistSans = Geist({
@@ -42,19 +31,42 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* THEME INIT SCRIPT */}
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              try {
-                const theme = localStorage.getItem('theme') || 'system';
-                if (theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark');
-                }
-              } catch (e) {}
-            `,
+          try {
+            const theme = localStorage.getItem('theme') || 'system';
+            if (
+              theme === 'dark' ||
+              (theme === 'system' &&
+                window.matchMedia('(prefers-color-scheme: dark)').matches)
+            ) {
+              document.documentElement.classList.add('dark');
+            }
+          } catch (e) {}
+        `,
           }}
         />
+
+        {/* ✅ FAVICONS (IMPORTANT) */}
+        <link rel="icon" href="/favicon.ico" />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="16x16"
+          href="/favicon-16x16.png"
+        />
+        <link
+          rel="icon"
+          type="image/png"
+          sizes="32x32"
+          href="/favicon-32x32.png"
+        />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="manifest" href="/site.webmanifest" />
       </head>
+
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
@@ -67,14 +79,8 @@ export default function RootLayout({
           {children}
 
           <Toaster />
-
-          {/* Vercel Analytics */}
           <Analytics />
-
-          {/* Vercel Speed Insights */}
           <SpeedInsights />
-
-          {/* Preload important pages */}
           <PreloadPages />
         </ThemeProvider>
       </body>

@@ -71,11 +71,27 @@ export function Navbar() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`font-medium transition ${
+                  className={`
+                  relative font-medium transition-colors duration-300
+                  ${
                     active
-                      ? "text-white font-semibold" // ACTIVE
-                      : "text-muted-foreground hover:text-primary" // DEFAULT + HOVER
-                  }`}
+                      ? "text-primary"
+                      : "text-muted-foreground hover:text-primary"
+                  }
+
+                  before:content-['']
+                  before:absolute
+                  before:-bottom-1
+                  before:left-1/2
+                  before:-translate-x-1/2
+                  before:h-0.5
+                  before:w-0
+                  before:bg-primary
+                  before:transition-all
+                  before:duration-300
+                  before:origin-center
+                  hover:before:w-full
+                `}
                 >
                   {item.name}
                 </Link>

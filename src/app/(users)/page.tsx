@@ -51,7 +51,7 @@ export default function Home() {
             Elevate Your Learning Experience
           </h1>
 
-          <p className="max-w-[650px] text-muted-foreground text-lg md:text-xl leading-relaxed">
+          <p className="max-w-162.5 text-muted-foreground text-lg md:text-xl leading-relaxed">
             Discover a new way to learn with our modern, interactive platform.
             Access high-quality courses anytime, anywhere.
           </p>
