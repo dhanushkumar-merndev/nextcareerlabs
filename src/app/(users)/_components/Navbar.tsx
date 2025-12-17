@@ -207,7 +207,7 @@ export function Navbar() {
                 className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition ${
                   active
                     ? " text-primary font-semibold" // ACTIVE MOBILE
-                    : "text-white hover:text-primary" // DEFAULT + HOVER
+                    : "text-muted-foreground hover:text-primary" // DEFAULT + HOVER
                 }`}
               >
                 {item.name}
