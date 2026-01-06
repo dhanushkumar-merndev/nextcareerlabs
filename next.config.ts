@@ -15,7 +15,15 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "next-career-labs-assets.t3.storage.dev", // your S3 bucket domain
+        hostname: "next-career-labs-assets.t3.storage.dev",
+      },
+      {
+        protocol: "https",
+        hostname: "randomuser.me",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
       },
     ],
   },

@@ -4,42 +4,157 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
+import { usePathname } from "next/navigation";
+
 import { authClient } from "@/lib/auth-client";
 import { buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/themeToggle";
 import { UserDropdown } from "./UserDropdown";
 import { useSignOut } from "@/hooks/use-signout";
-import { usePathname } from "next/navigation";
+
+type Section = "home" | "programs" | "testimonials" | "contact";
 
 export function Navbar() {
   const pathname = usePathname();
+  const isHomePage = pathname === "/";
   const { data: session, isPending } = authClient.useSession();
-  const [isOpen, setIsOpen] = useState(false);
   const handleSignOut = useSignOut();
+
+  const [isOpen, setIsOpen] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
+  const [activeSection, setActiveSection] = useState<Section>("home");
+  const [lastScrollY, setLastScrollY] = useState(0);
 
   const dashboardLink =
     session?.user?.role === "admin" ? "/admin" : "/dashboard";
 
-  const navigationItems = [
-    { name: "Home", href: "/" },
-    { name: "Courses", href: "/courses" },
-    { name: "Dashboard", href: dashboardLink },
-  ];
+  /* ================= COMPACT MODE ================= */
+  useEffect(() => {
+    if (!isHomePage || window.innerWidth < 1024) return;
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
+    const ENTER = 180; // px → turn compact ON
+    const EXIT = 120; // px → turn compact OFF
+    let ticking = false;
 
-  // Disable scroll when mobile menu open
+    const updateCompact = () => {
+      const y = window.scrollY;
+
+      setIsCompact((prev) => {
+        if (!prev && y > ENTER) return true;
+        if (prev && y < EXIT) return false;
+        return prev; // 👈 prevents flicker
+      });
+
+      ticking = false;
+    };
+
+    const onScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(updateCompact);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    updateCompact(); // initial run
+
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [isHomePage]);
+
+  /* ================= BODY LOCK (MOBILE) ================= */
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "auto";
   }, [isOpen]);
 
+  /* ================= SCROLL SPY (FIXED) ================= */
+  useEffect(() => {
+    if (!isHomePage) return;
+
+    const sections: Section[] = ["programs", "testimonials", "contact"];
+    let ticking = false;
+
+    const onScroll = () => {
+      const currentScrollY = window.scrollY;
+      const isScrollingDown = currentScrollY > lastScrollY;
+
+      // Dynamic offset based on scroll direction (hysteresis)
+      const offset = isScrollingDown ? 250 : 150;
+      const scrollPos = currentScrollY + offset;
+
+      let newSection: Section = "home";
+
+      // Find which section we're in
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const id = sections[i];
+        const el = document.getElementById(id);
+        if (!el) continue;
+
+        const top = el.offsetTop;
+
+        if (scrollPos >= top) {
+          newSection = id;
+          break;
+        }
+      }
+
+      // Only update if section actually changed
+      setActiveSection((prev) => {
+        if (prev !== newSection) {
+          return newSection;
+        }
+        return prev;
+      });
+
+      setLastScrollY(currentScrollY);
+      ticking = false;
+    };
+
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(onScroll);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    onScroll(); // initial run
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [isHomePage, lastScrollY]);
+
+  /* ================= HELPERS ================= */
+  const isRouteActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + "/");
+
+  const scrollToSection = (id: Section) => {
+    if (!isHomePage) return;
+
+    if (id === "home") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    window.scrollTo({
+      top: el.offsetTop - 80, // offset for navbar
+      behavior: "smooth",
+    });
+  };
+
+  /* ================= RENDER ================= */
   return (
     <>
-      {/* NAVBAR */}
+      {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
-        <div className="container flex items-center min-h-16 px-4 mx-auto relative">
-          {/* Logo */}
+        <div
+          className={`container flex items-center px-4 mx-auto relative transition-all duration-300
+          ${isCompact ? "min-h-12" : "min-h-16"}`}
+        >
+          {/* LOGO */}
           <Link href="/" className="flex items-center space-x-3">
             <div className="h-8 w-8">
               {/* SVG LOGO */}
@@ -60,46 +175,168 @@ export function Navbar() {
                 />
               </svg>
             </div>
-            <span className="font-medium">Next Career Labs LMS</span>
+            <span className="font-medium">Skill Force Cloud</span>
           </Link>
 
-          {/* DESKTOP NAV CENTERED */}
+          {/* ================= DESKTOP NAV CENTERED ================= */}
           <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 gap-8">
-            {navigationItems.map((item) => {
-              const active = isActive(item.href);
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
+            {isHomePage ? (
+              <>
+                <button
+                  onClick={() => scrollToSection("home")}
                   className={`
-                  relative font-medium transition-colors duration-300
-                  ${
-                    active
-                      ? "text-primary"
-                      : "text-muted-foreground hover:text-primary"
+                    font-medium transition-all duration-300
+                    ${isCompact ? "animate-in fade-in slide-in-from-top-2" : ""}
+                    ${
+                      activeSection === "home"
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                  `}
+                  style={
+                    isCompact
+                      ? {
+                          animationDelay: "0ms",
+                          animationFillMode: "both",
+                        }
+                      : {}
                   }
-
-                  before:content-['']
-                  before:absolute
-                  before:-bottom-1
-                  before:left-1/2
-                  before:-translate-x-1/2
-                  before:h-0.5
-                  before:w-0
-                  before:bg-primary
-                  before:transition-all
-                  before:duration-300
-                  before:origin-center
-                  hover:before:w-full
-                `}
                 >
-                  {item.name}
+                  Home
+                </button>
+
+                <Link
+                  href="/courses"
+                  className={`
+                    font-medium transition-all duration-300
+                    ${isCompact ? "animate-in fade-in slide-in-from-top-2" : ""}
+                    ${
+                      isRouteActive("/courses")
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                  `}
+                  style={
+                    isCompact
+                      ? {
+                          animationDelay: "100ms",
+                          animationFillMode: "both",
+                        }
+                      : {}
+                  }
+                >
+                  Courses
                 </Link>
-              );
-            })}
+
+                <Link
+                  href={dashboardLink}
+                  className={`
+                    font-medium transition-all duration-300
+                    ${isCompact ? "animate-in fade-in slide-in-from-top-2" : ""}
+                    ${
+                      isRouteActive(dashboardLink)
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                  `}
+                  style={
+                    isCompact
+                      ? {
+                          animationDelay: "200ms",
+                          animationFillMode: "both",
+                        }
+                      : {}
+                  }
+                >
+                  Dashboard
+                </Link>
+
+                {isCompact &&
+                  (["programs", "testimonials", "contact"] as Section[]).map(
+                    (id, index) => (
+                      <button
+                        key={id}
+                        onClick={() => scrollToSection(id)}
+                        className={`
+                          font-medium transition-all duration-300
+                          animate-in fade-in slide-in-from-top-2
+                          ${
+                            activeSection === id
+                              ? "text-primary"
+                              : "text-muted-foreground hover:text-primary"
+                          }
+                        `}
+                        style={{
+                          animationDelay: `${(index + 3) * 100}ms`,
+                          animationFillMode: "both",
+                        }}
+                      >
+                        {id[0].toUpperCase() + id.slice(1)}
+                      </button>
+                    )
+                  )}
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/"
+                  className={`
+                    relative font-medium transition-colors duration-300
+                    ${
+                      pathname === "/"
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                    before:content-['']
+                    before:absolute
+                    before:-bottom-1
+                    before:left-1/2
+                    before:-translate-x-1/2
+                    before:h-0.5
+                    before:w-0
+                    before:bg-primary
+                    before:transition-all
+                    before:duration-300
+                    before:origin-center
+                    hover:before:w-full
+                    ${pathname === "/" ? "before:w-full" : ""}
+                  `}
+                >
+                  Home
+                </Link>
+
+                <Link
+                  href="/courses"
+                  className={`
+                    font-medium transition-colors duration-300
+                    ${
+                      isRouteActive("/courses")
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                  `}
+                >
+                  Courses
+                </Link>
+
+                <Link
+                  href={dashboardLink}
+                  className={`
+                    font-medium transition-colors duration-300
+                    ${
+                      isRouteActive(dashboardLink)
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                  `}
+                >
+                  Dashboard
+                </Link>
+              </>
+            )}
           </nav>
 
-          {/* DESKTOP RIGHT SIDE */}
+          {/* ================= DESKTOP RIGHT SIDE ================= */}
           <div className="hidden md:flex items-center gap-2 lg:gap-4 ml-auto">
             <ThemeToggle />
 
@@ -132,7 +369,7 @@ export function Navbar() {
               ))}
           </div>
 
-          {/* MOBILE BUTTONS */}
+          {/* ================= MOBILE BUTTONS ================= */}
           <div className="flex md:hidden items-center gap-2 ml-auto">
             <ThemeToggle />
 
@@ -146,7 +383,7 @@ export function Navbar() {
         </div>
       </header>
 
-      {/* MOBILE SIDEBAR BACKDROP */}
+      {/* ================= MOBILE SIDEBAR BACKDROP ================= */}
       <div
         className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity ${
           isOpen ? "opacity-100 visible" : "opacity-0 invisible"
@@ -154,7 +391,7 @@ export function Navbar() {
         onClick={() => setIsOpen(false)}
       />
 
-      {/* MOBILE SIDEBAR */}
+      {/* ================= MOBILE SIDEBAR ================= */}
       <aside
         className={`fixed top-0 left-0 h-full w-72 bg-background border-r z-60 shadow-xl transition-transform duration-300 flex flex-col ${
           isOpen ? "translate-x-0" : "-translate-x-full"
@@ -197,23 +434,86 @@ export function Navbar() {
 
         {/* MOBILE NAV ITEMS */}
         <nav className="flex flex-col mt-4 px-4 space-y-1">
-          {navigationItems.map((item) => {
-            const active = isActive(item.href);
-            return (
+          {isHomePage ? (
+            <>
+              {(
+                ["home", "programs", "testimonials", "contact"] as Section[]
+              ).map((id) => (
+                <button
+                  key={id}
+                  onClick={() => {
+                    setIsOpen(false);
+                    scrollToSection(id);
+                  }}
+                  className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition text-left ${
+                    activeSection === id
+                      ? "text-primary font-semibold"
+                      : "text-foreground hover:text-primary"
+                  }`}
+                >
+                  {id[0].toUpperCase() + id.slice(1)}
+                </button>
+              ))}
               <Link
-                key={item.name}
-                href={item.href}
+                href="/courses"
                 onClick={() => setIsOpen(false)}
                 className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition ${
-                  active
-                    ? " text-primary font-semibold" // ACTIVE MOBILE
-                    : "text-muted-foreground hover:text-primary" // DEFAULT + HOVER
+                  isRouteActive("/courses")
+                    ? "text-primary font-semibold"
+                    : "text-foreground hover:text-primary"
                 }`}
               >
-                {item.name}
+                Courses
               </Link>
-            );
-          })}
+              <Link
+                href={dashboardLink}
+                onClick={() => setIsOpen(false)}
+                className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition ${
+                  isRouteActive(dashboardLink)
+                    ? "text-primary font-semibold"
+                    : "text-foreground hover:text-primary"
+                }`}
+              >
+                Dashboard
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link
+                href="/"
+                onClick={() => setIsOpen(false)}
+                className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition ${
+                  pathname === "/"
+                    ? "text-primary font-semibold"
+                    : "text-foreground hover:text-primary"
+                }`}
+              >
+                Home
+              </Link>
+              <Link
+                href="/courses"
+                onClick={() => setIsOpen(false)}
+                className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition ${
+                  isRouteActive("/courses")
+                    ? "text-primary font-semibold"
+                    : "text-foreground hover:text-primary"
+                }`}
+              >
+                Courses
+              </Link>
+              <Link
+                href={dashboardLink}
+                onClick={() => setIsOpen(false)}
+                className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition ${
+                  isRouteActive(dashboardLink)
+                    ? "text-primary font-semibold"
+                    : "text-foreground hover:text-primary"
+                }`}
+              >
+                Dashboard
+              </Link>
+            </>
+          )}
         </nav>
 
         {/* PUSH CONTENT UP */}
@@ -244,7 +544,7 @@ export function Navbar() {
                 Login
               </Link>
               <Link
-                href="/dashboard"
+                href="/login"
                 onClick={() => setIsOpen(false)}
                 className={buttonVariants() + " w-full text-center block"}
               >

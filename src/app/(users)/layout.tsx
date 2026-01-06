@@ -1,3 +1,4 @@
+import { Footer } from "./_components/Footer";
 import NavbarWrapper from "./_components/NavbarWrapper";
 
 export default function LayoutUser({
@@ -9,6 +10,7 @@ export default function LayoutUser({
     <>
       <NavbarWrapper />
       <main className="container mx-auto mb-32">{children}</main>
+      <Footer />
     </>
   );
 }
