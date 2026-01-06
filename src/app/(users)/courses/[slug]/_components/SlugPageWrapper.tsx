@@ -33,7 +33,6 @@ interface Course {
   level: string;
   duration: number;
   category: string;
-  price: number;
   fileKey: string;
   chapter: Array<{
     id: string;
@@ -180,20 +179,6 @@ export function SlugPageWrapper({ course, isEnrolled }: SlugPageWrapperProps) {
           <div className="relative">
             <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
               <CardContent className="p-6 space-y-8">
-                {/* Price Section */}
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-semibold text-muted-foreground">
-                    Price
-                  </span>
-                  <span className="text-3xl font-bold text-primary">
-                    {new Intl.NumberFormat("en-IN", {
-                      style: "currency",
-                      currency: "INR",
-                      minimumFractionDigits: 0,
-                    }).format(course.price)}
-                  </span>
-                </div>
-
                 {/* Benefits / Course Meta */}
                 <div className="rounded-xl bg-muted/40 p-5 border border-border/40 space-y-5">
                   <h4 className="font-semibold text-base">What you will get</h4>
@@ -278,9 +263,6 @@ export function SlugPageWrapper({ course, isEnrolled }: SlugPageWrapperProps) {
                   >
                     Go Back
                   </Link>
-                  <p className="text-center text-xs text-muted-foreground mt-2">
-                    30-day money-back guarantee
-                  </p>
                 </div>
               </CardContent>
             </Card>

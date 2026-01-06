@@ -15,7 +15,7 @@ export async function adminGetCourses() {
       duration: true,
       level: true,
       status: true,
-      price: true,
+
       fileKey: true,
       category: true,
       slug: true,

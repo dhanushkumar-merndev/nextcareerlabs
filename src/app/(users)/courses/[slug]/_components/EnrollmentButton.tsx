@@ -35,7 +35,7 @@ export function EnrollmentButton({ courseId }: { courseId: string }) {
           Loading...
         </>
       ) : (
-        "Enroll Now"
+        "Request Access"
       )}
     </Button>
   );

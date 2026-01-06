@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { Toaster } from "sonner";
@@ -13,16 +13,6 @@ export const metadata: Metadata = {
     "Our LMS is a complete e-learning solution with modern, interactive learning.",
 };
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  display: "swap",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 export default function RootLayout({
   children,
 }: {
@@ -67,9 +57,7 @@ export default function RootLayout({
         <link rel="manifest" href="/site.webmanifest" />
       </head>
 
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

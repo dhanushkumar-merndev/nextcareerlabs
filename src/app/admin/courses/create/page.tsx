@@ -55,7 +55,6 @@ export default function CourseCreationPage() {
       title: "",
       description: "",
       fileKey: "",
-      price: 0,
       duration: 0,
       level: "Beginner",
       category: "Development",
@@ -153,7 +152,7 @@ export default function CourseCreationPage() {
                     <FormLabel>Small Description</FormLabel>
                     <FormControl>
                       <Textarea
-                        className="min-h-[120px]"
+                        className="min-h-30"
                         placeholder="Small Description"
                         {...field}
                       />
@@ -269,57 +268,35 @@ export default function CourseCreationPage() {
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
-                  name="price"
+                  name="status"
                   render={({ field }) => (
                     <FormItem className="w-full">
-                      <FormLabel>Price ($)</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Price"
-                          type="number"
-                          min={0}
-                          {...field}
-                          onChange={(e) =>
-                            field.onChange(Number(e.target.value))
-                          }
-                          value={field.value ?? ""}
-                        />
-                      </FormControl>
+                      <FormLabel>Status</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select Status" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {courseStatus.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {status}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem className="w-full">
-                    <FormLabel>Status</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select Status" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {courseStatus.map((status) => (
-                          <SelectItem key={status} value={status}>
-                            {status}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
               <Button
                 className="cursor-pointer"
                 type="submit"

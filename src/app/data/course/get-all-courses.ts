@@ -14,7 +14,7 @@ export async function getAllCourses() {
       smallDescription: true,
       duration: true,
       level: true,
-      price: true,
+
       fileKey: true,
       category: true,
       slug: true,

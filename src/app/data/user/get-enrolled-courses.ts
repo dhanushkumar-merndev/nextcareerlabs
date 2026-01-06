@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db";
 export async function getEnrolledCourses() {
   const user = await requireUser();
   const data = await prisma.enrollment.findMany({
-    where: { userId: user.id, status: "Active" },
+    where: { userId: user.id, status: "Granted" },
     select: {
       Course: {
         select: {

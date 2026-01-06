@@ -9,23 +9,13 @@ const aj = arcjet({
   rules: [
     detectBot({
       mode: "LIVE",
-      allow: [
-        "CATEGORY:SEARCH_ENGINE",
-        "CATEGORY:MONITOR",
-        "CATEGORY:PREVIEW",
-        "STRIPE_WEBHOOK",
-      ],
+      allow: ["CATEGORY:SEARCH_ENGINE", "CATEGORY:MONITOR", "CATEGORY:PREVIEW"],
     }),
   ],
 });
 
 async function mainMiddleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
-
-  // BYPASS STRIPE WEBHOOK
-  if (path.startsWith("/api/webhook/stripe")) {
-    return NextResponse.next();
-  }
 
   // Get session using Better Auth
   const session = await auth.api.getSession({
@@ -71,7 +61,7 @@ async function mainMiddleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|api/auth|api/webhook/stripe).*)"],
+  matcher: ["/((?!_next|favicon.ico|api/auth).*)"],
 };
 
 export default createMiddleware(aj, async (request: NextRequest) => {

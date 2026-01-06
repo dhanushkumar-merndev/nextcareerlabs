@@ -4,7 +4,7 @@ import { requireAdmin } from "@/app/data/admin/require-admin";
 import arcjet from "@/lib/arcjet";
 
 import { prisma } from "@/lib/db";
-import { stripe } from "@/lib/stripe";
+
 import { ApiResponse } from "@/lib/types";
 import { courseSchema, CourseSchemaType } from "@/lib/zodSchemas";
 import { fixedWindow, request } from "@arcjet/next";
@@ -43,19 +43,26 @@ export async function CreateCourse(
       };
     }
 
-    const data = await stripe.products.create({
-      name: validation.data.title,
-      description: validation.data.smallDescription,
-      default_price_data: {
-        currency: "inr",
-        unit_amount: validation.data.price * 100,
+    const existingCourse = await prisma.course.findUnique({
+      where: {
+        slug: validation.data.slug,
+      },
+      select: {
+        id: true,
       },
     });
+
+    if (existingCourse) {
+      return {
+        status: "error",
+        message: "Course with this slug already exists",
+      };
+    }
+
     await prisma.course.create({
       data: {
         ...validation.data,
-        userId: session?.user.id as string,
-        stripePriceId: data.default_price as string,
+        userId: session.user.id,
       },
     });
 
@@ -63,7 +70,8 @@ export async function CreateCourse(
       status: "success",
       message: "Course Created Successfully",
     };
-  } catch {
+  } catch (error) {
+    console.error("Error creating course:", error);
     return {
       status: "error",
       message: "Failed to create course",

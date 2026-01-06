@@ -30,9 +30,6 @@ model User {
   enrollment    Enrollment[]
   lessonProgress LessonProgress[]
 
-  stripeCustomerId String? @unique
-
-
   role       String?
   banned     Boolean?  @default(false)
   banReason  String?
@@ -94,10 +91,8 @@ model Course {
   title            String
   description      String
   fileKey          String
-  price            Int
   duration         Int
   level            CourseLevel  @default(Beginner)
-  stripePriceId    String @unique
 
   category         String
   smallDescription String
@@ -160,8 +155,9 @@ model Lesson{
 
 model Enrollment{
   id         String   @id @default(uuid())
-amount       Int
 status       EnrollmentStatus @default(Pending)
+grantedAt    DateTime?
+rejectedAt   DateTime?
 createdAt    DateTime @default(now())
 updatedAt    DateTime @updatedAt
 Course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -173,8 +169,9 @@ userId       String
 
 enum EnrollmentStatus {
 Pending
-Active
-Cancelled
+Granted
+Rejected
+Revoked
 }
 
 
@@ -191,5 +188,3 @@ model LessonProgress {
 
 @@unique([userId,lessonId])
 }
-
-
