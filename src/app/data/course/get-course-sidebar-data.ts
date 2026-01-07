@@ -62,7 +62,7 @@ export async function getCourseSidebarData(slug: string) {
     },
   });
 
-  if (!enrollment || enrollment.status !== "Active") {
+  if (!enrollment || enrollment.status !== "Granted") {
     return notFound();
   }
   return {

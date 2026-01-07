@@ -5,6 +5,7 @@ import arcjet, { fixedWindow } from "@/lib/arcjet";
 import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types";
 import { request } from "@arcjet/next";
+import { revalidatePath } from "next/cache";
 
 const aj = arcjet.withRule(
   fixedWindow({
@@ -86,6 +87,9 @@ export async function enrollInCourseAction(
         },
       });
     }
+
+    revalidatePath(`/courses/${course.slug}`);
+    revalidatePath("/admin/requests");
 
     return {
       status: "success",

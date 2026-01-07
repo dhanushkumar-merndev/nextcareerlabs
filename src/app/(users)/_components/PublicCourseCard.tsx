@@ -12,10 +12,13 @@ import Link from "next/link";
 
 interface iAppProps {
   data: PublicCourseType;
-  isEnrolled?: boolean;
+  enrollmentStatus?: string | null;
 }
 
-export function PublicCourseCard({ data, isEnrolled = false }: iAppProps) {
+export function PublicCourseCard({
+  data,
+  enrollmentStatus = null,
+}: iAppProps) {
   const thumbnaiUrl = useConstructUrl(data.fileKey);
 
   return (
@@ -59,7 +62,7 @@ export function PublicCourseCard({ data, isEnrolled = false }: iAppProps) {
         </div>
 
         {/* ⭐ Show BOTH buttons side by side if enrolled */}
-        {isEnrolled ? (
+        {enrollmentStatus === "Granted" ? (
           <div className="mt-4 flex items-center gap-2">
             <Link
               href={`/dashboard/${data.slug}`}
@@ -81,9 +84,12 @@ export function PublicCourseCard({ data, isEnrolled = false }: iAppProps) {
         ) : (
           <Link
             href={`/courses/${data.slug}`}
-            className={buttonVariants({ className: "w-full mt-4" })}
+            className={buttonVariants({
+              className: "w-full mt-4",
+              variant: enrollmentStatus === "Pending" ? "secondary" : "default",
+            })}
           >
-            Learn More
+            {enrollmentStatus === "Pending" ? "Pending Approval" : "Learn More"}
           </Link>
         )}
       </CardContent>

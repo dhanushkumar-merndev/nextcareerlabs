@@ -42,6 +42,11 @@ const data = {
       icon: IconListDetails,
     },
     {
+      title: "Access Requests",
+      url: "/admin/requests",
+      icon: IconUsers,
+    },
+    {
       title: "Analytics",
       url: "#",
       icon: IconChartBar,

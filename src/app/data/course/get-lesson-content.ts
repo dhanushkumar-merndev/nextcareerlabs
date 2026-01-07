@@ -53,7 +53,7 @@ export async function getLessonContent(lessonId: string) {
       status: true,
     },
   });
-  if (!enrollment || enrollment.status !== "Active") {
+  if (!enrollment || enrollment.status !== "Granted") {
     return notFound();
   }
   return lesson;

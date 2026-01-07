@@ -1,12 +1,16 @@
-import { SiteHeader } from "@/components/sidebar/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./_components/DashboardAppSidebar";
+import { SiteHeader } from "@/components/sidebar/site-header";
+import { requireCompleteProfile } from "@/app/data/user/require-complete-profile";
+import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { isComplete } = await requireCompleteProfile();
+  
   return (
     <SidebarProvider
       style={
@@ -16,6 +20,7 @@ export default function DashboardLayout({
         } as React.CSSProperties
       }
     >
+      <PhoneNumberDialog isOpen={!isComplete} />
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />

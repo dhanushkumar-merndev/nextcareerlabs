@@ -34,8 +34,8 @@ async function RenderCourses() {
   // Load enrollments server-side for each course
   const coursesWithEnrollment = await Promise.all(
     courses.map(async (course) => {
-      const isEnrolled = await checkIfCourseBought(course.id);
-      return { ...course, isEnrolled };
+      const enrollmentStatus = await checkIfCourseBought(course.id);
+      return { ...course, enrollmentStatus };
     })
   );
 
@@ -45,7 +45,7 @@ async function RenderCourses() {
         <PublicCourseCard
           key={course.id}
           data={course}
-          isEnrolled={course.isEnrolled}
+          enrollmentStatus={course.enrollmentStatus}
         />
       ))}
     </div>

@@ -2,13 +2,24 @@
 
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
-import { useTransition } from "react";
+import { useTransition, useState, useEffect } from "react";
 import { enrollInCourseAction } from "../actions";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-export function EnrollmentButton({ courseId }: { courseId: string }) {
+export function EnrollmentButton({
+  courseId,
+  status,
+}: {
+  courseId: string;
+  status: string | null;
+}) {
   const [isPending, startTransition] = useTransition();
+  const [currentStatus, setCurrentStatus] = useState(status);
+
+  useEffect(() => {
+    setCurrentStatus(status);
+  }, [status]);
 
   function onSubmit() {
     startTransition(async () => {
@@ -21,19 +32,29 @@ export function EnrollmentButton({ courseId }: { courseId: string }) {
       }
       if (result.status === "success") {
         toast.success(result.message);
+        setCurrentStatus("Pending");
       } else if (result.status === "error") {
         toast.error(result.message);
       }
     });
   }
 
+  const isActuallyPending = currentStatus === "Pending";
+
   return (
-    <Button onClick={onSubmit} disabled={isPending} className="w-full">
+    <Button
+      onClick={onSubmit}
+      disabled={isPending || isActuallyPending}
+      className="w-full"
+      variant={isActuallyPending ? "outline" : "default"}
+    >
       {isPending ? (
         <>
           <Loader2 className="size-4 animate-spin" />
           Loading...
         </>
+      ) : isActuallyPending ? (
+        "Pending Approval"
       ) : (
         "Request Access"
       )}

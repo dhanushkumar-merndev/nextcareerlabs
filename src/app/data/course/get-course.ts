@@ -15,6 +15,7 @@ export async function getIndividualCourse(slug: string) {
       fileKey: true,
       category: true,
       id: true,
+      slug: true,
       description: true,
       chapter: {
         select: {

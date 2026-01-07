@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PreloadPages } from "./PreloadPages";
+import { SmoothScroll } from "@/components/SmoothScroll";
 
 export const metadata: Metadata = {
   title: "Next Career Labs LMS",
@@ -65,7 +66,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
-
+          <SmoothScroll />
           <Toaster />
           <Analytics />
           <SpeedInsights />

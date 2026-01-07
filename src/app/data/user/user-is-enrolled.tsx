@@ -7,7 +7,7 @@ export async function checkIfCourseBought(courseId: string) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
-  if (!session?.user) return false;
+  if (!session?.user) return null;
   const enrollment = await prisma.enrollment.findUnique({
     where: {
       userId_courseId: {
@@ -19,5 +19,5 @@ export async function checkIfCourseBought(courseId: string) {
       status: true,
     },
   });
-  return enrollment?.status === "Active" ? true : false;
+  return enrollment?.status || null;
 }
