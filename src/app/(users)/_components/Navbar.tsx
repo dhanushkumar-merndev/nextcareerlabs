@@ -12,7 +12,7 @@ import { ThemeToggle } from "@/components/ui/themeToggle";
 import { UserDropdown } from "./UserDropdown";
 import { useSignOut } from "@/hooks/use-signout";
 
-type Section = "home" | "programs" | "testimonials" | "contact";
+type Section = "home" | "programs" | "testimonials";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -70,7 +70,7 @@ export function Navbar() {
   useEffect(() => {
     if (!isHomePage) return;
 
-    const sections: Section[] = ["programs", "testimonials", "contact"];
+    const sections: Section[] = ["programs", "testimonials"];
     let ticking = false;
 
     const onScroll = () => {
@@ -252,7 +252,7 @@ export function Navbar() {
                 </Link>
 
                 {isCompact &&
-                  (["programs", "testimonials", "contact"] as Section[]).map(
+                  (["programs", "testimonials"] as Section[]).map(
                     (id, index) => (
                       <button
                         key={id}
@@ -436,24 +436,24 @@ export function Navbar() {
         <nav className="flex flex-col mt-4 px-4 space-y-1">
           {isHomePage ? (
             <>
-              {(
-                ["home", "programs", "testimonials", "contact"] as Section[]
-              ).map((id) => (
-                <button
-                  key={id}
-                  onClick={() => {
-                    setIsOpen(false);
-                    scrollToSection(id);
-                  }}
-                  className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition text-left ${
-                    activeSection === id
-                      ? "text-primary font-semibold"
-                      : "text-foreground hover:text-primary"
-                  }`}
-                >
-                  {id[0].toUpperCase() + id.slice(1)}
-                </button>
-              ))}
+              {(["home", "programs", "testimonials"] as Section[]).map(
+                (id) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setIsOpen(false);
+                      scrollToSection(id);
+                    }}
+                    className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition text-left ${
+                      activeSection === id
+                        ? "text-primary font-semibold"
+                        : "text-foreground hover:text-primary"
+                    }`}
+                  >
+                    {id[0].toUpperCase() + id.slice(1)}
+                  </button>
+                )
+              )}
               <Link
                 href="/courses"
                 onClick={() => setIsOpen(false)}

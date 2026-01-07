@@ -118,11 +118,6 @@ export function Footer() {
             <h4 className="font-semibold mb-4">Support</h4>
             <ul className="space-y-3 text-sm text-muted-foreground">
               <li>
-                <Link href="/contact" className="hover:text-primary">
-                  Contact Us
-                </Link>
-              </li>
-              <li>
                 <Link href="/privacy" className="hover:text-primary">
                   Privacy Policy
                 </Link>
@@ -153,9 +148,6 @@ export function Footer() {
             </Link>
             <Link href="/terms" className="hover:text-primary">
               Terms
-            </Link>
-            <Link href="/contact" className="hover:text-primary">
-              Support
             </Link>
           </div>
         </div>

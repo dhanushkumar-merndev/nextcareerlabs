@@ -236,19 +236,6 @@ export default function PaymentCancelled() {
             </Link>
           </div>
 
-          {/* Footer text */}
-          <p
-            className="mt-12 text-muted-foreground text-xs animate-fade-in"
-            style={{ animationDelay: "0.6s" }}
-          >
-            Need assistance?{" "}
-            <Link
-              href="/support"
-              className="text-primary hover:text-primary/80 underline underline-offset-4"
-            >
-              Contact support
-            </Link>
-          </p>
         </div>
       </div>
     </>

@@ -11,7 +11,6 @@ import { LayersIcon } from "@/components/ui/layers";
 import { ChartColumnIncreasingIcon } from "@/components/ui/chart-column-increasing";
 import { UsersIcon } from "@/components/ui/users";
 import TestimonialBanner from "./_components/TestimonialBanner";
-import ContactForm from "./_components/ContactForm";
 
 const features = [
   {
@@ -82,9 +81,6 @@ export default function Home() {
       </section>
       <section id="testimonials">
         <TestimonialBanner />
-      </section>
-      <section id="contact">
-        <ContactForm />
       </section>
     </>
   );
