@@ -1,9 +1,11 @@
-"use client";
 
 import Link from "next/link";
-import { Github, Linkedin, Twitter, Mail } from "lucide-react";
+import { Github, Linkedin, Twitter, Mail, Youtube, Facebook, Instagram } from "lucide-react";
+import { getAllPublishedCourses } from "@/app/data/course/get-course";
+import { SupportFooterLink } from "@/components/notifications/SupportFooterLink";
 
-export function Footer() {
+export async function Footer() {
+  const courses = await getAllPublishedCourses();
   return (
     <footer className="border-t bg-background">
       <div className="container mx-auto px-4 py-14">
@@ -27,23 +29,23 @@ export function Footer() {
               <Link
                 href="#"
                 className="p-2 rounded-md border hover:bg-accent transition"
-                aria-label="Twitter"
+                aria-label="Instagram"
               >
-                <Twitter className="h-4 w-4" />
+                <Instagram className="h-4 w-4" />
               </Link>
               <Link
                 href="#"
                 className="p-2 rounded-md border hover:bg-accent transition"
-                aria-label="LinkedIn"
+                aria-label="Facebook"
               >
-                <Linkedin className="h-4 w-4" />
+                <Facebook className="h-4 w-4" />
               </Link>
               <Link
                 href="#"
                 className="p-2 rounded-md border hover:bg-accent transition"
-                aria-label="GitHub"
+                aria-label="YouTube"
               >
-                <Github className="h-4 w-4" />
+                <Youtube className="h-4 w-4" />
               </Link>
               <Link
                 href="mailto:support@skillforcecloud.com"
@@ -82,34 +84,19 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* PROGRAMS */}
           <div>
             <h4 className="font-semibold mb-4">Programs</h4>
             <ul className="space-y-3 text-sm text-muted-foreground">
-              <li>
-                <Link
-                  href="/programs/salesforce-development"
-                  className="hover:text-primary"
-                >
-                  Salesforce Development
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/programs/devops-engineering"
-                  className="hover:text-primary"
-                >
-                  DevOps Engineering
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/programs/mern-stack"
-                  className="hover:text-primary"
-                >
-                  MERN Stack Development
-                </Link>
-              </li>
+              {courses.slice(0, 5).map((course) => (
+                <li key={course.id}>
+                  <Link href={`/courses/${course.slug}`} className="hover:text-primary">
+                    {course.title}
+                  </Link>
+                </li>
+              ))}
+              {courses.length === 0 && (
+                <li className="italic opacity-50">No programs available yet</li>
+              )}
             </ul>
           </div>
 
@@ -128,9 +115,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/faq" className="hover:text-primary">
-                  FAQ
-                </Link>
+                <SupportFooterLink courses={courses} />
               </li>
             </ul>
           </div>

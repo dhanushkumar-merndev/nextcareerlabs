@@ -42,3 +42,18 @@ export async function getIndividualCourse(slug: string) {
   }
   return course;
 }
+export async function getAllPublishedCourses() {
+  return await prisma.course.findMany({
+    where: {
+      status: "Published",
+    },
+    select: {
+      id: true,
+      title: true,
+      slug: true,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+}

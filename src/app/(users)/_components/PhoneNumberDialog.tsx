@@ -63,7 +63,10 @@ export function PhoneNumberDialog({ isOpen }: PhoneNumberDialogProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md border-2 shadow-2xl backdrop-blur-sm bg-card/95 overflow-hidden p-0 gap-0">
+      <DialogContent 
+        showCloseButton={false}
+        className="sm:max-w-md border-2 shadow-2xl backdrop-blur-sm bg-card/95 overflow-hidden p-0 gap-0"
+      >
         <div className="p-6 space-y-4">
           <DialogHeader className="space-y-1 text-center">
             <div className="mx-auto size-12 rounded-full bg-primary/10 flex items-center justify-center mb-2 text-primary">

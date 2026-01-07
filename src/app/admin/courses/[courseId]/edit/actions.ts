@@ -60,6 +60,23 @@ export async function editCourse(
       },
     });
 
+    // Auto-create Broadcast Group if Published
+    if (result.data.status === "Published") {
+        const existingGroup = await prisma.chatGroup.findFirst({
+            where: { courseId: courseId }
+        });
+
+        if (!existingGroup) {
+            await prisma.chatGroup.create({
+                data: {
+                    name: `${result.data.title} Group`,
+                    courseId: courseId,
+                    imageUrl: result.data.fileKey 
+                }
+            });
+        }
+    }
+
     return {
       status: "success",
       message: "Course updated successfully",

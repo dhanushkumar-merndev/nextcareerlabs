@@ -59,12 +59,23 @@ export async function CreateCourse(
       };
     }
 
-    await prisma.course.create({
+    const createdCourse = await prisma.course.create({
       data: {
         ...validation.data,
         userId: session.user.id,
       },
     });
+
+    // Auto-create Broadcast Group if Published on creation
+    if (validation.data.status === "Published") {
+      await prisma.chatGroup.create({
+          data: {
+              name: `${validation.data.title} Group`,
+              courseId: createdCourse.id,
+              imageUrl: validation.data.fileKey 
+          }
+      });
+    }
 
     return {
       status: "success",

@@ -30,11 +30,18 @@ model User {
   enrollment    Enrollment[]
   lessonProgress LessonProgress[]
 
+  // Notification relations
+  sentNotifications     Notification[]          @relation("SentNotifications")
+  receivedNotifications Notification[]          @relation("ReceivedNotifications")
+  notificationState     UserNotificationState[]
+  threadStates         UserThreadState[]
+
   role       String?
   phoneNumber String?
   banned     Boolean?  @default(false)
   banReason  String?
   banExpires DateTime?
+  isSupportBanned Boolean? @default(false)
 
   @@unique([email])
   @@map("user")
@@ -107,7 +114,8 @@ model Course {
 
   chapter Chapter[]
   enrollment Enrollment[]
-
+  notifications Notification[]
+  chatGroups ChatGroup[]
 }
 
 enum CourseLevel {
@@ -188,4 +196,95 @@ model LessonProgress {
   lessonId String
 
 @@unique([userId,lessonId])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  title       String
+  content     String
+  type        NotificationType
+  
+  senderId    String
+  sender      User     @relation("SentNotifications", fields: [senderId], references: [id], onDelete: Cascade)
+  
+  // For targeted broadcasts or specific course tickets
+  courseId    String?
+  course      Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  
+  // recipientId is null for broadcasts to "All" or "Course Users"
+  // If specific recipient is needed (like a reply to a ticket)
+  recipientId String?
+  recipient   User?    @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime @default(now())
+  
+  imageUrl    String?
+  feedback    String?
+  resolved    Boolean  @default(false)
+  
+  // For chat-like threading
+  threadId    String?
+
+  // For persistent Chat Groups
+  chatGroupId String?
+  chatGroup   ChatGroup? @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
+
+  userStates  UserNotificationState[]
+
+  @@index([senderId])
+  @@index([courseId])
+  @@index([recipientId])
+  @@index([threadId])
+  @@index([chatGroupId])
+}
+
+model ChatGroup {
+  id        String   @id @default(uuid())
+  name      String
+  courseId  String?  
+  course    Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  
+  imageUrl  String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages  Notification[]
+}
+
+model UserNotificationState {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  read           Boolean  @default(false)
+  
+  @@unique([userId, notificationId])
+  @@index([userId])
+  @@index([notificationId])
+}
+
+enum NotificationType {
+  BROADCAST      // To all users
+  COURSE_MODAL   // To users of a specific course
+  SUPPORT_TICKET // User to Admin
+  ADMIN_REPLY    // Admin to User
+  SYSTEM         // System generated
+  GROUP_CHAT     // Message in a Chat Group
+}
+
+model UserThreadState {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  threadId  String
+  hidden    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, threadId])
+  @@index([userId])
+  @@index([threadId])
 }
