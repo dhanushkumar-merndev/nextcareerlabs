@@ -42,6 +42,7 @@ model User {
   banReason  String?
   banExpires DateTime?
   isSupportBanned Boolean? @default(false)
+  lastSeen      DateTime? @default(now())
 
   @@unique([email])
   @@map("user")
@@ -280,6 +281,7 @@ model UserThreadState {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   threadId  String
   hidden    Boolean  @default(false)
+  muted     Boolean  @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

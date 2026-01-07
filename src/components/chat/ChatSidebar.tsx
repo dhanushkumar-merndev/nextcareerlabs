@@ -56,22 +56,23 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
 
   const fetchThreads = async () => {
     // Check cache first
-    const cached = chatCache.get("threads");
+    const cached = chatCache.get<any[]>("threads");
     if (cached) {
+        console.log("[ChatSidebar] Using cached threads:", cached.length);
         setThreads(cached);
         setLoading(false);
-        // We still fetch in background to keep it fresh, or just skip if user wants strict 10min?
-        // User said: "show that first api call infor after 10 min new one"
-        // This implies: DON'T fetch if cached.
         return;
     }
 
     try {
+      console.log("[ChatSidebar] Fetching threads from server...");
       const data = await getThreadsAction();
+      console.log("[ChatSidebar] Received threads:", data.length, data);
       setThreads(data);
       chatCache.set("threads", data);
+      chatCache.markFetched(); // Mark that we just fetched
     } catch (e) {
-      console.error("Failed to fetch threads");
+      console.error("[ChatSidebar] Failed to fetch threads:", e);
     } finally {
       setLoading(false);
     }
@@ -182,9 +183,14 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
                               </span>
                           )}
                       </div>
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
-                        {formatDistanceToNow(new Date(thread.updatedAt), { addSuffix: false })}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {thread.unreadCount > 0 && (
+                          <div className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)] animate-pulse" />
+                        )}
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
+                          {formatDistanceToNow(new Date(thread.updatedAt), { addSuffix: false })}
+                        </span>
+                      </div>
                    </div>
                    <p className="text-xs text-muted-foreground truncate mt-0.5 pr-2">
                      {/* Clean up the markdown for preview if it's a ticket */}

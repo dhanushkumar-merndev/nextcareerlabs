@@ -44,6 +44,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
            selectedThreadId={selectedThread?.id || null} 
            onSelectThread={setSelectedThread}
            isAdmin={isAdmin}
+           removedIds={removedThreadIds}
          />
       </div>
 

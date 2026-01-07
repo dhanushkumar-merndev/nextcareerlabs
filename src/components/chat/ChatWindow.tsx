@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, markAsReadAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, markThreadAsReadAction, banUserFromSupportAction, resolveThreadAction, hideThreadAction } from "@/app/data/notifications/actions";
+import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, markAsReadAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, markThreadAsReadAction, banUserFromSupportAction, resolveThreadAction, hideThreadAction, updateLastSeenAction, toggleMuteAction, getGroupParticipantsAction } from "@/app/data/notifications/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip } from "lucide-react";
+import { Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip, Users, BellOff, Bell, Info } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { chatCache } from "@/lib/chat-cache";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { MessageContent } from "./MessageContent";
 
 import { ChevronDown } from "lucide-react";
 
@@ -48,6 +49,11 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   const [editImageUrl, setEditImageUrl] = useState("");
   const [isEditUploading, setIsEditUploading] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [isBanned, setIsBanned] = useState(false);
+  const [lastSeen, setLastSeen] = useState<Date | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showGroupInfo, setShowGroupInfo] = useState(false);
+  const [groupParticipants, setGroupParticipants] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastFetchedId = useRef<string | null>(null);
 
@@ -90,7 +96,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   const fetchMessages = async () => {
     // Check cache
     const cacheKey = `messages_${threadId}`;
-    const cached = chatCache.get(cacheKey);
+    const cached = chatCache.get<any[]>(cacheKey);
     if (cached) {
         setMessages(cached);
         setLoading(false);
@@ -100,6 +106,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             const otherUser = cached.find((m: any) => m.senderId !== currentUserId);
             if (otherUser && otherUser.sender) {
                 setIsBanned(!!otherUser.sender.isSupportBanned);
+                if (otherUser.sender.lastSeen) {
+                    setLastSeen(new Date(otherUser.sender.lastSeen));
+                }
             }
         }
         return;
@@ -109,15 +118,23 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       const data = await getThreadMessagesAction(threadId);
       setMessages(data);
       chatCache.set(cacheKey, data);
+      chatCache.markFetched(); // Mark that we just fetched
+      
+      // Clear threads cache to update unread counts in sidebar
+      chatCache.clear("threads");
+      
       setLoading(false);
       
     // Auto-mark thread as read is now handled inside getThreadMessagesAction
     
-    // Check for ban status of the other user
+    // Check for ban status and lastSeen of the other user
     if (!isGroup) {
         const otherUser = data.find((m: any) => m.senderId !== currentUserId);
         if (otherUser && otherUser.sender) {
             setIsBanned(!!otherUser.sender.isSupportBanned);
+            if (otherUser.sender.lastSeen) {
+                setLastSeen(new Date(otherUser.sender.lastSeen));
+            }
         }
     }
     } catch (e) {
@@ -320,12 +337,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       }
   };
 
-  const [isBanned, setIsBanned] = useState(false); // Optimistic or fetched state
-  
-  // We need to know if the OTHER user is banned. 
-  // Ideally, we fetch this user info when loading the thread.
-  // For now, we can just toggle blindly or fetch it.
-  
   const handleBanUser = async () => {
       // We need the recipient ID. 
       // In a 1-on-1 support chat (isAdmin=true, isGroup=false), we find the other user.
@@ -377,6 +388,33 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       }
   };
 
+  const handleToggleMute = async () => {
+      try {
+          const result = await toggleMuteAction(threadId);
+          setIsMuted(result.muted);
+          toast.success(result.muted ? "Chat muted" : "Chat unmuted");
+      } catch (e) {
+          toast.error("Failed to toggle mute");
+      }
+  };
+
+  const handleShowGroupInfo = async () => {
+      if (!isGroup) return;
+      try {
+          const participants = await getGroupParticipantsAction(threadId);
+          setGroupParticipants(participants);
+          setShowGroupInfo(true);
+      } catch (e) {
+          toast.error("Failed to load group info");
+      }
+  };
+
+  // Update last seen on mount and when sending messages
+  useEffect(() => {
+      updateLastSeenAction().catch(() => {});
+  }, [threadId]);
+
+
   const displayAvatar = avatarUrl ? (avatarUrl.startsWith("http") || avatarUrl.startsWith("/") ? avatarUrl : useConstructUrl(avatarUrl)) : undefined;
 
   return (
@@ -394,12 +432,28 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                   {title}
                </h3>
                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"/>
-                  Online
+                  {!isGroup && lastSeen ? (
+                      (new Date().getTime() - new Date(lastSeen).getTime()) < 5 * 60 * 1000 ? (
+                          <>
+                              <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"/>
+                              Online
+                          </>
+                      ) : (
+                          <>
+                              <span className="h-1.5 w-1.5 rounded-full bg-gray-400"/>
+                              Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })}
+                          </>
+                      )
+                  ) : (
+                      <>
+                          <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"/>
+                          {isGroup ? "Group" : "Online"}
+                      </>
+                  )}
                </p>
             </div>
          </div>
-         {isAdmin && !isGroup && (
+         {((isAdmin && !isGroup) || isGroup) && (
              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted text-muted-foreground data-[state=open]:bg-muted">
@@ -407,20 +461,34 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 p-1">
-                    <DropdownMenuItem onClick={() => handleResolveThread()} className="cursor-pointer py-2 mb-1 rounded-md focus:bg-green-50 focus:text-green-700">
-                        <Check className="h-4 w-4 mr-2 text-green-600" /> 
-                        <span className="font-medium">Mark as Resolved</span>
+                    {isGroup && (
+                        <DropdownMenuItem onClick={handleShowGroupInfo} className="cursor-pointer py-2 mb-1 rounded-md focus:bg-primary/5">
+                            <Info className="h-4 w-4 mr-2" /> 
+                            <span className="font-medium">Group Info</span>
+                        </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={handleToggleMute} className="cursor-pointer py-2 mb-1 rounded-md focus:bg-primary/5">
+                        {isMuted ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
+                        <span className="font-medium">{isMuted ? "Unmute" : "Mute"}</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                        onClick={() => handleBanUser()} 
-                        className={cn(
-                            "cursor-pointer py-2 rounded-md focus:bg-destructive/10 focus:text-destructive",
-                            isBanned ? "text-green-600 focus:text-green-700 focus:bg-green-50" : "text-destructive"
-                        )}
-                    >
-                        {isBanned ? <Check className="h-4 w-4 mr-2" /> : <X className="h-4 w-4 mr-2" />}
-                        <span className="font-medium">{isBanned ? "Unban Ticket Access" : "Ban Ticket Access"}</span>
-                    </DropdownMenuItem>
+                    {!isGroup && isAdmin && (
+                        <>
+                            <DropdownMenuItem onClick={() => handleResolveThread()} className="cursor-pointer py-2 mb-1 rounded-md focus:bg-green-50 focus:text-green-700">
+                                <Check className="h-4 w-4 mr-2 text-green-600" /> 
+                                <span className="font-medium">Mark as Resolved</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                                onClick={() => handleBanUser()} 
+                                className={cn(
+                                    "cursor-pointer py-2 rounded-md focus:bg-destructive/10 focus:text-destructive",
+                                    isBanned ? "text-green-600 focus:text-green-700 focus:bg-green-50" : "text-destructive"
+                                )}
+                            >
+                                {isBanned ? <Check className="h-4 w-4 mr-2" /> : <X className="h-4 w-4 mr-2" />}
+                                <span className="font-medium">{isBanned ? "Unban Ticket Access" : "Ban Ticket Access"}</span>
+                            </DropdownMenuItem>
+                        </>
+                    )}
                     <DropdownMenuItem onClick={() => handleRemoveChat()} className="cursor-pointer py-2 rounded-md focus:bg-destructive/10 text-destructive focus:text-destructive">
                         <Trash2 className="h-4 w-4 mr-2" />
                         <span className="font-medium">Remove Chat</span>
@@ -505,7 +573,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                        />
                                     </div>
                                  )}
-                                 <p className="whitespace-pre-wrap">{msg.content}</p>
+                                 <MessageContent content={msg.content} />
                               </div>
                           </div>
                           <span className={cn("text-[10px] text-muted-foreground px-1 block", isMe && "text-right")}>
@@ -542,54 +610,62 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       </div>
 
       {/* INPUT */}
-      <div className="p-4 bg-background border-t">
-         {imageUrl && (
-            <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg w-fit">
-               <span className="text-xs text-muted-foreground">Image attached</span>
-               <button onClick={() => setImageUrl("")}><X className="h-4 w-4" /></button>
-            </div>
-         )}
-         <div className="flex items-end gap-2 bg-muted/30 p-2 rounded-xl border focus-within:ring-1 focus-within:ring-primary/20 transition-all">
-            <Button 
-               size="icon" 
-               variant="ghost" 
-               className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
-               onClick={() => document.getElementById("chat-upload")?.click()}
-               disabled={isUploading || sending}
-            >
-               {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
-            </Button>
-            <input 
-               id="chat-upload"
-               type="file" 
-               accept="image/*" 
-               className="hidden" 
-               onChange={handleImageUpload}
-            />
-            
-            <Textarea
-               value={inputText}
-               onChange={(e) => setInputText(e.target.value)}
-               onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                     e.preventDefault();
-                     handleSendMessage();
-                  }
-               }}
-               placeholder="Type a message..."
-               className="min-h-[40px] max-h-[120px] bg-transparent border-0 focus-visible:ring-0 resize-none py-2.5"
-            />
-            
-            <Button 
-               size="icon" 
-               className="h-10 w-10 shrink-0 rounded-full" 
-               disabled={(!inputText.trim() && !imageUrl) || sending || isUploading}
-               onClick={handleSendMessage}
-            >
-               {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-            </Button>
-         </div>
-      </div>
+      {(isAdmin || !isGroup) ? (
+        <div className="p-4 bg-background border-t">
+           {imageUrl && (
+              <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg w-fit">
+                 <span className="text-xs text-muted-foreground">Image attached</span>
+                 <button onClick={() => setImageUrl("")}><X className="h-4 w-4" /></button>
+              </div>
+           )}
+           <div className="flex items-end gap-2 bg-muted/30 p-2 rounded-xl border focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+              <Button 
+                 size="icon" 
+                 variant="ghost" 
+                 className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
+                 onClick={() => document.getElementById("chat-upload")?.click()}
+                 disabled={isUploading || sending}
+              >
+                 {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
+              </Button>
+              <input 
+                 id="chat-upload"
+                 type="file" 
+                 accept="image/*" 
+                 className="hidden" 
+                 onChange={handleImageUpload}
+              />
+              
+              <Textarea
+                 value={inputText}
+                 onChange={(e) => setInputText(e.target.value)}
+                 onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                       e.preventDefault();
+                       handleSendMessage();
+                    }
+                 }}
+                 placeholder="Type a message..."
+                 className="min-h-[40px] max-h-[120px] bg-transparent border-0 focus-visible:ring-0 resize-none py-2.5"
+              />
+              
+              <Button 
+                 size="icon" 
+                 className="h-10 w-10 shrink-0 rounded-full" 
+                 disabled={(!inputText.trim() && !imageUrl) || sending || isUploading}
+                 onClick={handleSendMessage}
+              >
+                 {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              </Button>
+           </div>
+        </div>
+      ) : (
+        <div className="p-4 bg-muted/5 border-t text-center">
+            <p className="text-xs text-muted-foreground italic">
+                Only admins can send messages in this group.
+            </p>
+        </div>
+      )}
       
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent>

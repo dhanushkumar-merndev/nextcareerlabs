@@ -59,6 +59,45 @@ export async function sendNotificationAction(data: {
     if (session.user.isSupportBanned) {
         throw new Error("You are banned from creating support tickets.");
     }
+    
+    // Check if this user already has an existing support ticket thread
+    // We want to reuse the same thread for all tickets from the same user
+    const existingThread = await prisma.notification.findFirst({
+        where: {
+            senderId: session.user.id,
+            type: "SUPPORT_TICKET",
+            threadId: { not: null }
+        },
+        select: { threadId: true },
+        orderBy: { createdAt: "desc" }
+    });
+    
+    // If an existing thread is found, reuse it
+    if (existingThread && existingThread.threadId) {
+        // Unhide the thread for both parties in case it was removed
+        await unhideThreadForAll(existingThread.threadId);
+        
+        // Use the existing threadId
+        const reusedThreadId = existingThread.threadId;
+        
+        // Create the new ticket message in the existing thread
+        await prisma.notification.create({
+            data: {
+                title: data.title,
+                content: data.content,
+                type: "SUPPORT_TICKET",
+                senderId: session.user.id,
+                threadId: reusedThreadId,
+                imageUrl: data.imageUrl,
+                chatGroupId: chatGroupId
+            }
+        });
+        
+        revalidatePath("/");
+        return { success: true, threadId: reusedThreadId };
+    }
+    
+    // If no existing thread, continue with daily ticket limit check
     const startOfDay = new Date();
     startOfDay.setHours(0,0,0,0);
     
@@ -449,7 +488,7 @@ export async function getThreadMessagesAction(threadId: string) {
   const messages = await prisma.notification.findMany({
     where: { threadId },
     include: {
-      sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true } }
+      sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true, lastSeen: true } }
     },
     orderBy: { createdAt: "asc" }
   });
@@ -844,4 +883,95 @@ async function unhideThreadForAll(threadId: string) {
         where: { threadId },
         data: { hidden: false }
     });
+}
+
+export async function updateLastSeenAction() {
+    const session = await getSession();
+    if (!session) throw new Error("Unauthorized");
+
+    await prisma.user.update({
+        where: { id: session.user.id },
+        data: { lastSeen: new Date() }
+    });
+
+    return { success: true };
+}
+
+export async function toggleMuteAction(threadId: string) {
+    const session = await getSession();
+    if (!session) throw new Error("Unauthorized");
+
+    const existing = await prisma.userThreadState.findUnique({
+        where: {
+            userId_threadId: {
+                userId: session.user.id,
+                threadId
+            }
+        }
+    });
+
+    await prisma.userThreadState.upsert({
+        where: {
+            userId_threadId: {
+                userId: session.user.id,
+                threadId
+            }
+        },
+        update: { muted: !existing?.muted },
+        create: {
+            userId: session.user.id,
+            threadId,
+            muted: true
+        }
+    });
+
+    revalidatePath("/");
+    return { success: true, muted: !existing?.muted };
+}
+
+export async function getGroupParticipantsAction(chatGroupId: string) {
+    const session = await getSession();
+    if (!session) return [];
+
+    const group = await prisma.chatGroup.findUnique({
+        where: { id: chatGroupId },
+        select: { courseId: true, name: true }
+    });
+
+    if (!group) return [];
+
+    // If it's the global Broadcast, return all users
+    if (group.name === "Broadcast" && !group.courseId) {
+        const users = await prisma.user.findMany({
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+                lastSeen: true
+            },
+            take: 100 // Limit for performance
+        });
+        return users;
+    }
+
+    // Otherwise, get enrolled users for the course
+    if (!group.courseId) return [];
+
+    const enrollments = await prisma.enrollment.findMany({
+        where: { courseId: group.courseId },
+        include: {
+            User: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    image: true,
+                    lastSeen: true
+                }
+            }
+        }
+    });
+
+    return enrollments.map(e => e.User);
 }
