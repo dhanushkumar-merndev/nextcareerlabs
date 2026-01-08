@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, markAsReadAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, markThreadAsReadAction, banUserFromSupportAction, resolveThreadAction, hideThreadAction, archiveThreadAction, updateLastSeenAction, toggleMuteAction, getGroupParticipantsAction, deleteThreadMessagesAction, getChatVersionAction, syncChatAction } from "@/app/data/notifications/actions";
+import { apiThrottle, API_THROTTLE_CONFIG } from "@/lib/api-throttle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip, Users, BellOff, Bell, Info, Archive, Trash2, MoreVertical, Pencil, ChevronDown, CheckCheck, CircleCheckBig, CircleX } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isToday, format } from "date-fns";
 import { chatCache } from "@/lib/chat-cache";
 import { cn } from "@/lib/utils";
 import { useConstructUrl } from "@/hooks/use-construct-url";
@@ -31,9 +32,10 @@ interface ChatWindowProps {
   isAdmin: boolean;
   currentUserId: string;
   onRemoveThread?: (threadId: string) => void;
+  externalPresence?: string | null;
 }
 
-export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, currentUserId, onRemoveThread }: ChatWindowProps) {
+export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, currentUserId, onRemoveThread, externalPresence }: ChatWindowProps) {
   const queryClient = useQueryClient();
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
@@ -68,33 +70,13 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     queryFn: ({ pageParam }) => getThreadMessagesAction(threadId, pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: any) => lastPage.nextCursor,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
+    staleTime: 1800000,
+    gcTime: 1800000,
   });
 
-  const messages = data?.pages.flatMap((page: any) => page.messages) || [];
-  const threadState = data?.pages[0]?.state as any;
+  const messages = useMemo(() => data?.pages.flatMap((page: any) => page.messages) || [], [data?.pages]);
+  const threadState = useMemo(() => data?.pages[0]?.state as any, [data?.pages]);
 
-  // Lightweight version check for real-time updates
-  const lastVersionRef = useRef<number | null>(null);
-  const { data: chatVersion } = useQuery({
-    queryKey: ["chatVersion"],
-    queryFn: () => getChatVersionAction(),
-    refetchInterval: 30000, // Check every 30 seconds
-  });
-
-  useEffect(() => {
-    if (chatVersion?.version && chatVersion.version !== lastVersionRef.current) {
-        // Only invalidate if version is actually different (new message)
-        const isInitial = lastVersionRef.current === null;
-        lastVersionRef.current = chatVersion.version;
-        
-        if (!isInitial) {
-            queryClient.invalidateQueries({ queryKey: ["messages"] });
-            queryClient.invalidateQueries({ queryKey: ["threads"] });
-        }
-    }
-  }, [chatVersion?.version, queryClient]);
 
   useEffect(() => {
     // Reset state when switching threads (only if truly new)
@@ -109,6 +91,14 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         setShowGroupInfo(false);
     }
   }, [threadId]);
+
+  // Read status is now updated during message fetch in getThreadMessagesAction
+
+  useEffect(() => {
+    if (externalPresence) {
+        setLastSeen(new Date(externalPresence));
+    }
+  }, [externalPresence]);
 
   useEffect(() => {
     if (threadState) {
@@ -226,18 +216,27 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             threadId
          });
       }
-      
+      if (result && !result.success) {
+          if ((result as any).error === "TICKET_LIMIT_REACHED") {
+              const mins = (result as any).minutesLeft;
+              const hours = Math.floor(mins / 60);
+              const remainingMins = mins % 60;
+              const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
+              toast.error(`Limit reached. Try again in ${timeStr}!`);
+          } else {
+              toast.error("Failed to send message");
+          }
+          return;
+      }
+
       // Invalidate queries to get fresh data
       queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
 
       chatCache.clear(`messages_${threadId}`);
       chatCache.clear("threads");
-      // fetchMessages(); // Optional: We already updated state, but fetch ensures full sync (e.g. sender info)
     } catch (error) {
       console.error(error);
       toast.error("Failed to send message");
-      // Mark as error instead of removing
-      // queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
     } finally {
       setSending(false);
     }
@@ -313,7 +312,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
      } else {
         await resolveTicketAction(id);
      }
-     toast.success("Marked as resolved");
+     toast.success("Feedback submitted");
      refetch();
   };
 
@@ -549,25 +548,26 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                   {showGroupInfo ? "Group Info" : title}
                </h3>
                {!showGroupInfo && (
-                   <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      {!isGroup && lastSeen ? (
-                          (new Date().getTime() - new Date(lastSeen).getTime()) < 5 * 60 * 1000 ? (
-                              <>
-                                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"/>
-                                  Online
-                              </>
-                          ) : (
-                              <>
-                                  <span className="h-1.5 w-1.5 rounded-full bg-gray-400"/>
-                                  Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })}
-                              </>
-                          )
-                      ) : (
-                          <span className="text-[10px] text-muted-foreground">
-                              {isGroup ? "" : "Online"}
-                          </span>
-                      )}
-                   </p>
+                   <div className="text-[10px] text-muted-foreground flex items-center gap-1 leading-none mt-0.5">
+                       {!isGroup && lastSeen ? (
+                           (new Date().getTime() - new Date(lastSeen).getTime()) < 12 * 60 * 1000 ? (
+                               <>
+                                   <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"/>
+                                   {isAdmin ? "Ticket is Online" : "Support Team is Online"}
+                               </>
+                           ) : (
+                               <>
+                                   <span className="h-1.5 w-1.5 rounded-full bg-gray-400"/>
+                                   Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })}
+                               </>
+                           )
+                       ) : (
+                           <span className="flex items-center gap-1">
+                               {!isGroup && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"/>}
+                               {isGroup ? "" : (isAdmin ? "Ticket is Online" : "Support Team is Online")}
+                           </span>
+                       )}
+                   </div>
                )}
                {showGroupInfo && (
                    <p className="text-[10px] text-muted-foreground">
@@ -793,11 +793,13 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                    </div>
                                 </div>
                                 <span className={cn("text-[10px] text-muted-foreground px-1 block", isMe && "text-right")}>
-                                   {formatDistanceToNow(new Date(msg.createdAt))}
+                                   {isToday(new Date(msg.createdAt)) 
+                                      ? format(new Date(msg.createdAt), "h:mm a") 
+                                      : formatDistanceToNow(new Date(msg.createdAt), { addSuffix: true })}
                                 </span>
                                 
                                 {/* FEEDBACK UI etc */}
-                                {!isAdmin && !isMe && msg.type === "ADMIN_REPLY" && !msg.resolved && (
+                                {!isAdmin && !isMe && msg.type === "ADMIN_REPLY" && !msg.resolved && !msg.feedback && (
                                    <div className="mt-2 bg-background border rounded-lg p-2 space-y-2 w-full">
                                       <p className="text-[10px] font-bold text-center">Is this helpful?</p>
                                       <div className="flex gap-2">
@@ -811,16 +813,21 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                    </div>
                                 )}
                                   {/* RESOLVED/DENIED INDICATOR */}
-                                  {msg.resolved ? (
-                                      <div className="flex justify-center w-full mt-1">
-                                          <span className={cn(
-                                              "text-[10px] px-2 py-0.5 rounded-full border",
-                                              msg.feedback === "Denied" 
-                                                  ? "bg-red-50 text-red-700 border-red-200" 
-                                                  : "bg-green-50 text-green-700 border-green-200"
+                                  {(msg.resolved || msg.feedback) ? (
+                                      <div className="flex justify-center w-full mt-2 animate-in zoom-in-95 duration-300">
+                                          <div className={cn(
+                                              "flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] font-semibold shadow-sm",
+                                              (msg.feedback === "Denied" || msg.feedback === "More Help") 
+                                                  ? "bg-red-50 text-red-700 border-red-100 shadow-red-100/20" 
+                                                  : "bg-emerald-50 text-emerald-700 border-emerald-100 shadow-emerald-100/20"
                                           )}>
-                                              {msg.feedback === "Denied" ? "Denied" : "Resolved"}
-                                          </span>
+                                              {(msg.feedback === "Denied" || msg.feedback === "More Help") ? <CircleX className="h-3.5 w-3.5" /> : <CircleCheckBig className="h-3.5 w-3.5" />}
+                                              <span>
+                                                  {msg.feedback === "Denied" ? "Request Denied" : 
+                                                   msg.feedback === "More Help" ? "More Help Requested" : 
+                                                   msg.feedback === "Helpful" ? "Result: Helpful" : "Issue Resolved"}
+                                              </span>
+                                          </div>
                                       </div>
                                   ) : (
                                       !isMe && isAdmin && msg.type === "SUPPORT_TICKET" && (
@@ -852,7 +859,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             </div>
 
             {/* INPUT */}
-            {(isAdmin || !isGroup) ? (
+            {(isAdmin) ? (
               <div className="p-4 bg-background border-t shrink-0">
                  {imageUrl && (
                     <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg w-fit">
@@ -904,7 +911,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             ) : (
               <div className="p-4 bg-muted/5 border-t text-center shrink-0">
                   <p className="text-xs text-muted-foreground italic">
-                      Only admins can send messages in this group.
+                      {isAdmin ? "You are not a member of this group." : "Only admins can send messages in this group."}
                   </p>
               </div>
             )}

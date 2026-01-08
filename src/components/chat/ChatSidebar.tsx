@@ -6,7 +6,7 @@ import { chatCache } from "@/lib/chat-cache";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Users, Archive, ChevronLeft, VolumeX } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isToday, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { useSearchParams } from "next/navigation";
@@ -20,9 +20,11 @@ interface ChatSidebarProps {
   onSelectThread: (thread: { id: string; name: string; image?: string; type?: string }) => void;
   isAdmin: boolean;
   removedIds?: string[];
+  threads: any[];
+  loading?: boolean;
 }
 
-export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removedIds = [] }: ChatSidebarProps) {
+export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removedIds = [], threads = [], loading = false }: ChatSidebarProps) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"All" | "Groups" | "Tickets" | "Resolved">("All");
   const [view, setView] = useState<"recent" | "archived">("recent");
@@ -43,50 +45,19 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
 
   const queryClient = useQueryClient();
 
-  const lastVersionRef = useRef<number | null>(null);
-
-  const { data: chatVersion } = useQuery({
-    queryKey: ["chatVersion"],
-    queryFn: () => getChatVersionAction(),
-    refetchInterval: 30000, // Check every 30 seconds
-  });
-
-  useEffect(() => {
-    if (chatVersion?.version && chatVersion.version !== lastVersionRef.current) {
-        const isInitial = lastVersionRef.current === null;
-        lastVersionRef.current = chatVersion.version;
-        
-        if (!isInitial) {
-            queryClient.invalidateQueries({ queryKey: ["threads"] });
-        }
-    }
-  }, [chatVersion?.version, queryClient]);
-
-  const { data: threads = [], isLoading: loading, refetch } = useQuery<any[]>({
-    queryKey: ["threads"],
-    queryFn: async () => {
-        const data = await getThreadsAction();
-        return data as any[];
-    },
-    staleTime: 10 * 60 * 1000, // 10 mins
-    gcTime: 10 * 60 * 1000, 
-  });
+  const refetch = () => {
+      queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+  };
 
   useEffect(() => {
     const handleThreadUpdate = (e: any) => {
-        // We can manually update the query data if we want absolute responsiveness, 
-        // or just invalidate the query.
-        // Invalidation is safer.
         refetch();
     };
-    
     const handleRefresh = () => {
-        refetch();
+        // refetch();
     };
-
     window.addEventListener("chat-refresh", handleRefresh);
     window.addEventListener("chat-thread-update", handleThreadUpdate);
-    
     return () => {
         window.removeEventListener("chat-refresh", handleRefresh);
         window.removeEventListener("chat-thread-update", handleThreadUpdate);
@@ -95,7 +66,7 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
 
   // Auto-select thread from URL
   useEffect(() => {
-     if (urlThreadId && threads.length > 0 && !selectedThreadId) {
+     if (urlThreadId && threads.length > 0 && selectedThreadId !== urlThreadId) {
          const thread = (threads as any[]).find(t => t.threadId === urlThreadId);
          if (thread) {
              onSelectThread({
@@ -143,7 +114,9 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
       })}
       className={cn(
         "w-full flex items-start gap-3 p-3 rounded-xl transition-all text-left cursor-pointer",
-        selectedThreadId === thread.threadId ? "bg-primary/10" : "hover:bg-muted"
+        selectedThreadId === thread.threadId 
+          ? "bg-primary/10 shadow-sm" 
+          : (thread.unreadCount > 0 ? "bg-blue-50/60 ring-1 ring-blue-100/50 shadow-sm" : "hover:bg-muted")
       )}
       role="button"
       tabIndex={0}
@@ -158,7 +131,7 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
           }
       }}
     >
-      <Avatar className="h-10 w-10 border bg-background">
+      <Avatar className="h-10 w-10 border bg-background shrink-0">
         <AvatarImage src={getAvatarUrl(thread.display.image)} />
         <AvatarFallback className={thread.isGroup ? "bg-primary/5 text-primary" : ""}>
           {thread.isGroup ? <Users className="h-5 w-5" /> : thread.display.name.slice(0, 2).toUpperCase()}
@@ -167,11 +140,16 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
       <div className="flex-1 min-w-0 overflow-hidden">
          <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 overflow-hidden">
-                <span className="font-semibold text-sm truncate">{thread.display.name}</span>
+                <span className={cn(
+                    "font-semibold text-sm truncate",
+                    thread.unreadCount > 0 ? "text-blue-700 font-bold" : "text-foreground"
+                )}>{thread.display.name}</span>
                 {thread.type && (
                   <span className={cn(
-                    "px-1.5 py-0.5 rounded-full text-[9px] font-medium border",
-                    thread.type === "Group" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-orange-50 text-orange-700 border-orange-200"
+                    "px-1.5 py-0.5 rounded-full text-[9px] font-medium border shrink-0",
+                    thread.type === "Group" ? "bg-blue-50 text-blue-700 border-blue-200" : 
+                    thread.type === "Support" ? "bg-orange-50 text-orange-700 border-orange-200" :
+                    "bg-purple-50 text-purple-700 border-purple-200"
                   )}>
                     {thread.type}
                   </span>
@@ -182,12 +160,17 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
                   <div className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)] animate-pulse" />
                 )}
                 <span className="text-[10px] text-muted-foreground whitespace-nowrap ml-2">
-                  {formatDistanceToNow(new Date(thread.updatedAt), { addSuffix: false })}
+                  {isToday(new Date(thread.updatedAt)) 
+                  ? format(new Date(thread.updatedAt), "h:mm a") 
+                  : formatDistanceToNow(new Date(thread.updatedAt), { addSuffix: false })}
                 </span>
               </div>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground truncate mt-0.5 flex-1">
+              <p className={cn(
+                "text-xs truncate mt-0.5 flex-1",
+                thread.unreadCount > 0 ? "text-blue-600/90 font-semibold" : "text-muted-foreground"
+              )}>
                 {thread.lastMessage.startsWith("**Issue Type:**")
                   ? thread.lastMessage.split("**Summary:**")[1]?.split("**Description:**")[0]?.trim() || "Support Ticket"
                   : thread.lastMessage}

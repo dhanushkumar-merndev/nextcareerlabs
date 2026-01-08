@@ -69,18 +69,32 @@ export function SupportTicketDialog({
 
         const formattedContent = `**Issue Type:** ${categoryName}\n**Summary:** ${title}\n\n**Description:**\n${content}`;
 
-        await sendNotificationAction({
+        const res = await sendNotificationAction({
           title: `${prefix} ${title}`,
           content: formattedContent,
           type: "SUPPORT_TICKET",
           courseId: ["general", "app_related"].includes(courseId) ? undefined : courseId,
         });
+
+        if (res && !res.success) {
+            if ((res as any).error === "TICKET_LIMIT_REACHED") {
+                const mins = (res as any).minutesLeft;
+                const hours = Math.floor(mins / 60);
+                const remainingMins = mins % 60;
+                const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
+                toast.error(`Limit reached. Try again in ${timeStr}!`);
+            } else {
+                toast.error("Failed to raise ticket. Please try again.");
+            }
+            return;
+        }
+
         toast.success("Ticket raised successfully! Our team will get back to you.");
         onOpenChange(false);
         setTitle("");
         setContent("");
       } catch (error) {
-        toast.error("Failed to send ticket. Please try again.");
+        toast.error("Failed to raise ticket. Please try again.");
       }
     });
   };

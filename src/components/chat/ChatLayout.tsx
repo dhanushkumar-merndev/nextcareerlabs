@@ -7,8 +7,9 @@ import { ChatWindow } from "./ChatWindow";
 import { ArrowLeft, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SupportTicketDialog } from "@/components/notifications/SupportTicketDialog";
-import { syncChatAction } from "@/app/data/notifications/actions";
+import { getThreadsAction, syncChatAction, getChatVersionAction } from "@/app/data/notifications/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
 interface ChatLayoutProps {
   isAdmin: boolean;
@@ -20,32 +21,34 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
   const [selectedThread, setSelectedThread] = useState<{ id: string; name: string; image?: string; type?: string } | null>(null);
   const [removedThreadIds, setRemovedThreadIds] = useState<string[]>([]);
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
+  const lastVersionRef = useRef<number | null>(null);
 
-  // Unified Sync Call: Combined Threads, Messages, Version and LastSeen
-  const { data: syncData } = useQuery({
-    queryKey: ["chatSync", selectedThread?.id],
-    queryFn: () => syncChatAction(selectedThread?.id),
-    staleTime: 5000, // Very short, just for priming
+  // Centralized Data Fetch (Threads + Courses + Version)
+  const { data: sidebarData, isLoading: loadingSidebar } = useQuery({
+    queryKey: ["sidebarData"],
+    queryFn: () => getThreadsAction(),
+    staleTime: 1800000, 
+    refetchInterval: 1800000,
+    refetchOnWindowFocus: false,
   });
 
+  const threads = (sidebarData as any)?.threads || [];
+  const version = (sidebarData as any)?.version;
+  const enrolledCourses = (sidebarData as any)?.enrolledCourses || [];
+
+  // Handle centralized invalidation
   useEffect(() => {
-    if (syncData) {
-        // Distribute results to individual query caches
-        if (syncData.threads) {
-            queryClient.setQueryData(["threads"], syncData.threads);
-        }
-        if (syncData.chat && selectedThread?.id) {
-            // Prime infinite query structure
-            queryClient.setQueryData(["messages", selectedThread.id], {
-                pages: [syncData.chat],
-                pageParams: [undefined]
-            });
-        }
-        if (typeof syncData.version === "number") {
-            queryClient.setQueryData(["chatVersion"], { version: syncData.version });
+    if (version && version !== lastVersionRef.current) {
+        const isInitial = lastVersionRef.current === null;
+        lastVersionRef.current = version;
+        if (!isInitial) {
+            queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+            if (selectedThread?.id) {
+                queryClient.invalidateQueries({ queryKey: ["messages", selectedThread.id] });
+            }
         }
     }
-  }, [syncData, queryClient, selectedThread?.id]);
+  }, [version, queryClient, selectedThread?.id]);
   
   const handleRemoveThread = (threadId: string) => {
     setRemovedThreadIds(prev => [...prev, threadId]);
@@ -74,6 +77,8 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
            onSelectThread={setSelectedThread}
            isAdmin={isAdmin}
            removedIds={removedThreadIds}
+           threads={threads}
+           loading={loadingSidebar}
          />
       </div>
 
@@ -100,7 +105,8 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
                  isAdmin={isAdmin} 
                  currentUserId={currentUserId}
                  onRemoveThread={handleRemoveThread}
-               />
+                  externalPresence={(sidebarData as any)?.presence || null}
+                />
             </div>
          ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground bg-muted/10 p-8 text-center">
@@ -118,6 +124,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
       <SupportTicketDialog 
          open={isNewTicketOpen} 
          onOpenChange={setIsNewTicketOpen} 
+         courses={enrolledCourses}
       />
     </div>
   );

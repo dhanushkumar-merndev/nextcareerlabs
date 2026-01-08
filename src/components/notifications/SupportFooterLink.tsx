@@ -2,9 +2,17 @@
 
 import { useState } from "react";
 import { SupportTicketDialog } from "./SupportTicketDialog";
+import { getEnrolledCoursesAction } from "@/app/data/notifications/actions";
+import { useQuery } from "@tanstack/react-query";
 
-export function SupportFooterLink({ courses }: { courses: { id: string, title: string }[] }) {
+export function SupportFooterLink({ courses: initialCourses }: { courses: { id: string, title: string }[] }) {
   const [open, setOpen] = useState(false);
+
+  const { data: enrolledCourses } = useQuery({
+    queryKey: ["enrolledCourses"],
+    queryFn: () => getEnrolledCoursesAction(),
+    staleTime: 600000, // 10 minutes
+  });
 
   return (
     <>
@@ -14,7 +22,11 @@ export function SupportFooterLink({ courses }: { courses: { id: string, title: s
       >
         Reach Out / Raise a Ticket
       </button>
-      <SupportTicketDialog open={open} onOpenChange={setOpen} courses={courses} />
+      <SupportTicketDialog 
+        open={open} 
+        onOpenChange={setOpen} 
+        courses={Array.isArray(enrolledCourses) ? enrolledCourses : []} 
+      />
     </>
   );
 }

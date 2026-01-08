@@ -10,6 +10,7 @@ import {
   PopoverTrigger 
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { 
   getMyNotificationsAction, 
@@ -20,48 +21,78 @@ import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { authClient } from "@/lib/auth-client";
+import { apiThrottle, API_THROTTLE_CONFIG } from "@/lib/api-throttle";
+
+
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 export function NotificationCenter() {
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isPending, startTransition] = useTransition();
   const [isOpen, setIsOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
   
   const { data: session } = authClient.useSession();
   const isAdmin = session?.user?.role === "admin";
 
-  const fetchNotifications = async () => {
-    const data = await getMyNotificationsAction({ unreadOnly: true, take: 10 });
-    setNotifications(data);
-    setUnreadCount(data.length);
-  };
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications", "inbox"],
+    queryFn: async () => {
+        return await getMyNotificationsAction({ unreadOnly: true, take: 10 });
+    },
+    refetchInterval: 1800000, // 30 minutes
+    staleTime: 1800000,       // 30 minutes
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
 
-  const initialized = useRef(false);
-
-  useEffect(() => {
-    if (!initialized.current) {
-        initialized.current = true;
-        fetchNotifications();
-    }
-
-    // Poll every 10 minutes for new notifications
-    const interval = setInterval(() => {
-         fetchNotifications();
-    }, 600000);
-    return () => clearInterval(interval);
-  }, []);
+  // Calculate unread count from the fetched data
+  // Logic: In a real app, unread count might be separate, but here we filter the list
+  // The action returns unreadOnly=true by default in prev code, but we should be careful.
+  // Actually the previous code fetched unreadOnly: true. 
+  // Let's stick to that.
+  const unreadCount = notifications.length;
 
   const handleMarkAsRead = async (id: string) => {
-    await markAsReadAction(id);
-    fetchNotifications();
+    // Optimistic Update
+    queryClient.setQueryData(["notifications", "inbox"], (old: any[]) => {
+        return old ? old.filter(n => n.id !== id) : [];
+    });
+    
+    // Check throttling for non-admin users
+    const canCall = isAdmin || apiThrottle.canCall('READ_OPERATIONS', API_THROTTLE_CONFIG.READ_OPERATIONS);
+
+    if (canCall) {
+        await markAsReadAction(id);
+        if (!isAdmin) apiThrottle.recordCall('READ_OPERATIONS');
+    } else {
+        console.log("Individual notification read call throttled.");
+    }
   };
 
   const handleMarkAllAsRead = async () => {
-    startTransition(async () => {
-      await markAllAsReadAction();
-      await fetchNotifications();
+    // Optimistic
+    queryClient.setQueryData(["notifications", "inbox"], []);
+    
+    // Check throttling for non-admin users
+    const canCall = isAdmin || apiThrottle.canCall('READ_OPERATIONS', API_THROTTLE_CONFIG.READ_OPERATIONS);
+    
+    if (canCall) {
+      startTransition(async () => {
+        try {
+          await markAllAsReadAction();
+          if (!isAdmin) apiThrottle.recordCall('READ_OPERATIONS');
+          toast.success("All caught up!");
+          queryClient.invalidateQueries({ queryKey: ["notifications", "inbox"] });
+        } catch (error) {
+          console.error("Failed to mark all as read", error);
+        }
+      });
+    } else {
+      // Throttled: UI already updated optimistically, so just show success
       toast.success("All caught up!");
-    });
+      const nextAvailable = apiThrottle.getTimeUntilNext('READ_OPERATIONS', API_THROTTLE_CONFIG.READ_OPERATIONS);
+      console.log(`Notification API call throttled. Next available in ${Math.round(nextAvailable / 1000 / 60)} mins.`);
+    }
   };
 
   const getIcon = (type: string) => {
@@ -76,11 +107,11 @@ export function NotificationCenter() {
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="icon" className="relative text-blue-500">
+        <Button variant="outline" size="icon" className="relative text-blue-500 hover:bg-muted/50 transition-colors">
           <Bell className="h-[1.2rem] w-[1.2rem]" />
           {unreadCount > 0 && (
             <Badge 
-              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-primary text-[10px] animate-in zoom-in shadow-sm"
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-blue-600 text-[10px] text-white animate-in zoom-in shadow-sm hover:bg-blue-700"
               variant="default"
             >
               {unreadCount > 9 ? "9+" : unreadCount}
@@ -89,16 +120,21 @@ export function NotificationCenter() {
           <span className="sr-only">Notifications</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0 sm:w-96" align="end" sideOffset={8}>
-        <div className="flex items-center justify-between p-4 border-b">
-          <div className="flex flex-col">
-            <h4 className="text-sm font-semibold">Notifications</h4>
+      <PopoverContent className="w-[380px] p-0 border-muted/40 shadow-2xl bg-background/95 backdrop-blur-xl" align="end" sideOffset={10}>
+        <div className="flex items-center justify-between p-4 border-b border-muted/40 bg-muted/20">
+          <div className="flex items-center gap-2">
+            <h4 className="font-semibold text-sm">Notifications</h4>
+            {unreadCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold border border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800">
+                    {unreadCount} new
+                </span>
+            )}
           </div>
           {unreadCount > 0 && (
              <Button 
                variant="ghost" 
                size="sm" 
-               className="text-xs h-8"
+               className="text-[10px] h-7 px-2 hover:bg-background/50 hover:text-primary transition-colors"
                onClick={handleMarkAllAsRead}
                disabled={isPending}
              >
@@ -107,67 +143,87 @@ export function NotificationCenter() {
            )}
         </div>
         
-        <div className="max-h-[400px] overflow-y-auto">
+        <div className="max-h-[450px] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
           {notifications.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="mx-auto w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-3">
-                <Bell className="h-5 w-5 text-muted-foreground" />
+            <div className="py-12 px-6 text-center space-y-3">
+              <div className="mx-auto w-12 h-12 rounded-full bg-muted/30 flex items-center justify-center">
+                <Bell className="h-5 w-5 text-muted-foreground/50" />
               </div>
-              <p className="text-sm text-muted-foreground">No notifications yet</p>
+              <p className="text-sm font-medium text-muted-foreground">No new notifications</p>
+              <p className="text-xs text-muted-foreground/60 w-3/4 mx-auto">We'll let you know when something important arrives.</p>
             </div>
           ) : (
-            <div className="divide-y">
-              {notifications.map((n) => (
+            <div className="divide-y divide-muted/20">
+              {notifications.map((n: any) => (
                 <Link 
                   key={n.id} 
                   href={(isAdmin ? "/admin/notifications" : "/dashboard/notifications") + (n.threadId ? `?threadId=${n.threadId}` : "")}
                   onClick={() => {
                       setIsOpen(false);
-                      // Optimistic Update: Remove from list immediately
-                      setNotifications(prev => prev.filter(item => item.id !== n.id));
-                      setUnreadCount(prev => Math.max(0, prev - 1));
-                      // Server Action
                       handleMarkAsRead(n.id);
                   }}
+                  className={cn(
+                    "flex gap-4 p-4 transition-all hover:bg-muted/40 relative group",
+                    !n.isRead ? "bg-blue-50/30 dark:bg-blue-900/10" : "bg-transparent"
+                  )}
                 >
-                    <div 
-                      className={cn(
-                        "p-4 hover:bg-accent/50 transition-colors relative group block",
-                        !n.isRead && "bg-primary/5"
-                      )}
-                    >
-                      <div className="flex gap-3">
-                        <div className="mt-1">
-                          {getIcon(n.type)}
-                        </div>
-                        <div className="flex-1 space-y-1">
-                          <div className="flex items-center justify-between">
-                            <p className={cn("text-sm font-medium", !n.isRead && "text-primary")}>
-                              {n.title}
-                            </p>
-                            <span className="text-[10px] text-muted-foreground">
-                              {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2">
-                            {n.content}
-                          </p>
-                        </div>
-                      </div>
-                      {!n.isRead && (
-                        <div className="absolute top-4 right-4 h-2 w-2 rounded-full bg-primary" />
-                      )}
+                    <div className="shrink-0 pt-1">
+                        {(!isAdmin && (n.type === "ADMIN_REPLY" || n.type === "SUPPORT_TICKET")) ? (
+                            <Avatar className="h-9 w-9 border shadow-sm">
+                                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-bold">
+                                    SU
+                                </AvatarFallback>
+                            </Avatar>
+                        ) : n.sender ? (
+                            <Avatar className="h-9 w-9 border shadow-sm">
+                                <AvatarImage src={n.sender.image} />
+                                <AvatarFallback className="bg-primary/10 text-primary text-xs font-bold">
+                                    {n.sender.name?.[0]?.toUpperCase() || "?"}
+                                </AvatarFallback>
+                            </Avatar>
+                        ) : (
+                            <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center border shadow-sm">
+                                {getIcon(n.type)}
+                            </div>
+                        )}
                     </div>
+                    
+                    <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                             <p className={cn("text-sm font-semibold truncate", !n.isRead ? "text-foreground" : "text-muted-foreground")}>
+                                {(!isAdmin && (n.type === "ADMIN_REPLY" || n.type === "SUPPORT_TICKET")) 
+                                    ? "Support Team" 
+                                    : (n.sender?.name || (n.type === "BROADCAST" ? "Announcement" : "System"))}
+                             </p>
+                             <span className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+                                {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                             </span>
+                        </div>
+                        <p className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wider">{n.title}</p>
+                        <p className={cn("text-xs line-clamp-2 leading-relaxed", !n.isRead ? "text-foreground/90" : "text-muted-foreground")}>
+                            {n.content}
+                        </p>
+                    </div>
+                    
+                    {!n.isRead && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <div className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                        </div>
+                    )}
                 </Link>
               ))}
             </div>
           )}
         </div>
         
-        <div className="p-2 border-t text-center">
-          <Link href={isAdmin ? "/admin/notifications" : "/dashboard/notifications"} className="block w-full">
-            <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground">
-              View all messages
+        <div className="p-3 bg-muted/20 border-t border-muted/40 text-center">
+          <Link 
+            href={isAdmin ? "/admin/notifications" : "/dashboard/notifications"} 
+            className="block w-full"
+            onClick={() => setIsOpen(false)}
+          >
+            <Button variant="ghost" size="sm" className="w-full text-xs h-8 hover:bg-background/80 hover:text-primary transition-all">
+              See all activity
             </Button>
           </Link>
         </div>
