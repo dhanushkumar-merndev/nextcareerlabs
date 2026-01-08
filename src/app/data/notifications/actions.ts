@@ -30,9 +30,15 @@ export async function sendNotificationAction(data: {
   if (!session) throw new Error("Unauthorized");
 
   // NEW: Generate threadId if not present for tickets
-  // If it's a broadcast to a course, maybe the threadId is the courseId?
-  // Let's stick to unique UUIDs for threads for now.
-  const threadId = data.threadId || crypto.randomUUID();
+  // For Support Tickets, we use a deterministic ID based on the user ID
+  // to group all their tickets into a single conversation.
+  let threadId = data.threadId;
+  if (!threadId && data.type === "SUPPORT_TICKET") {
+    threadId = `support_${session.user.id}`;
+  }
+  
+  // For other types, generate a random one if missing
+  threadId = threadId || crypto.randomUUID();
 
   // Check if threadId is actually a Chat Group
   let chatGroupId: string | undefined;
@@ -54,53 +60,16 @@ export async function sendNotificationAction(data: {
     }
   }
 
-  // Enforcement: 3-ticket limit for users (Only for NEW threads)
-  if (data.type === "SUPPORT_TICKET" && !data.threadId) {
+  // Enforcement: 3-ticket limit for users
+  if (data.type === "SUPPORT_TICKET") {
     if (session.user.isSupportBanned) {
         throw new Error("You are banned from creating support tickets.");
     }
     
-    // Check if this user already has an existing support ticket thread
-    // We want to reuse the same thread for all tickets from the same user
-    const existingThread = await prisma.notification.findFirst({
-        where: {
-            senderId: session.user.id,
-            type: "SUPPORT_TICKET",
-            threadId: { not: null }
-        },
-        select: { threadId: true },
-        orderBy: { createdAt: "desc" }
-    });
-    
-    // If an existing thread is found, reuse it
-    if (existingThread && existingThread.threadId) {
-        // Unhide the thread for both parties in case it was removed
-        await unhideThreadForAll(existingThread.threadId);
-        
-        // Use the existing threadId
-        const reusedThreadId = existingThread.threadId;
-        
-        // Create the new ticket message in the existing thread
-        await prisma.notification.create({
-            data: {
-                title: data.title,
-                content: data.content,
-                type: "SUPPORT_TICKET",
-                senderId: session.user.id,
-                threadId: reusedThreadId,
-                imageUrl: data.imageUrl,
-                chatGroupId: chatGroupId
-            }
-        });
-        
-        revalidatePath("/");
-        return { success: true, threadId: reusedThreadId };
-    }
-    
-    // If no existing thread, continue with daily ticket limit check
     const startOfDay = new Date();
     startOfDay.setHours(0,0,0,0);
     
+    // Check how many messages (tickets) the user has sent today
     const dailyTickets = await prisma.notification.count({
       where: {
         senderId: session.user.id,
@@ -112,6 +81,9 @@ export async function sendNotificationAction(data: {
     if (dailyTickets >= 3) {
       throw new Error("TICKET_LIMIT_REACHED");
     }
+
+    // Ensure the thread is visible for both parties
+    await unhideThreadForAll(threadId);
   }
 
   const notification = await prisma.notification.create({
@@ -462,59 +434,90 @@ export async function getThreadsAction() {
      };
   }));
 
+  // 4. Fetch User states for these threads (archived, hidden)
+  const userStates = await prisma.userThreadState.findMany({
+      where: { userId: session.user.id }
+  });
+  
+  const stateMap = new Map(userStates.map(s => [s.threadId, s]));
+
   // Combine and Sort
-  const allThreads = [...validThreads, ...groupThreads].sort((a, b) => 
+  const allThreads = [...validThreads, ...groupThreads].map(t => {
+      const state = stateMap.get(t.threadId);
+      return {
+          ...t,
+          archived: state?.archived ?? false,
+          hidden: state?.hidden ?? false,
+          muted: state?.muted ?? false
+      };
+  }).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   );
 
   // Filter out hidden threads
-  const hiddenThreads = await prisma.userThreadState.findMany({
-      where: { userId: session.user.id, hidden: true },
-      select: { threadId: true }
-  });
-  const hiddenIds = new Set(hiddenThreads.map(h => h.threadId));
-
-  return allThreads.filter(t => !hiddenIds.has(t.threadId));
+  return allThreads.filter(t => !t.hidden);
 }
 
-export async function getThreadMessagesAction(threadId: string) {
+export async function getThreadMessagesAction(threadId: string, before?: string) {
   const session = await getSession();
-  if (!session) return [];
+  if (!session) return { messages: [], state: null, nextCursor: null };
 
-  // It could be a regular thread OR a group chat
-  // The query is the same because we use threadId on Notification
-  // But for legacy reasons (or consistency), we should ensure new Group Messages have threadId = groupId.
+  const referenceDate = before ? new Date(before) : new Date();
+  const fiveDaysAgo = new Date(referenceDate);
+  fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
 
   const messages = await prisma.notification.findMany({
-    where: { threadId },
+    where: { 
+        threadId,
+        createdAt: {
+            lt: referenceDate,
+            gte: fiveDaysAgo
+        }
+    },
     include: {
       sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true, lastSeen: true } }
     },
-    orderBy: { createdAt: "asc" }
-  });
-  
-  // Auto-mark as read for the current user
-  // We do this asynchronously or blocking? Blocking ensures state is consistent.
-  // Using the same logic as markThreadAsReadAction but inline or calling it.
-  
-  // Find all unread notifications for this thread for this user
-  await prisma.userNotificationState.updateMany({
-    where: {
-        userId: session.user.id,
-        read: false,
-        notification: {
-            threadId: threadId
-        }
-    },
-    data: {
-        read: true
-    }
+    orderBy: { createdAt: "desc" }
   });
 
-  // Revalidate to update sidebar counts immediately
-  revalidatePath("/");
+  const state = await prisma.userThreadState.findUnique({
+    where: {
+      userId_threadId: {
+        userId: session.user.id,
+        threadId
+      }
+    }
+  });
   
-  return messages;
+  if (!before) {
+    await prisma.userNotificationState.updateMany({
+      where: {
+          userId: session.user.id,
+          read: false,
+          notification: { threadId }
+      },
+      data: { read: true }
+    });
+    revalidatePath("/");
+  }
+
+  const oldestEver = await prisma.notification.findFirst({
+      where: { threadId },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true }
+  });
+
+  const nextCursor = (oldestEver && oldestEver.createdAt < fiveDaysAgo) ? fiveDaysAgo.toISOString() : null;
+
+  return {
+    messages: [...messages].reverse(),
+    state: {
+      isMuted: state?.muted ?? false,
+      isArchived: state?.archived ?? false,
+      isHidden: state?.hidden ?? false
+    },
+    nextCursor
+  };
 }
 
 // ... existing helper functions ...
@@ -765,13 +768,16 @@ export async function editMessageAction(id: string, newContent: string, imageUrl
 /**
  * Resolve a ticket
  */
-export async function resolveTicketAction(id: string) {
+export async function resolveTicketAction(id: string, status: "Resolved" | "Denied" = "Resolved") {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
   await prisma.notification.update({
     where: { id },
-    data: { resolved: true }
+    data: { 
+        resolved: true,
+        feedback: status
+    }
   });
 
   revalidatePath("/");
@@ -840,15 +846,26 @@ export async function banUserFromSupportAction(userId: string) {
     return { banned: newStatus };
 }
 
-export async function resolveThreadAction(threadId: string) {
+export async function resolveThreadAction(threadId: string, status: "Resolved" | "Denied" = "Resolved") {
     const session = await getSession();
     if (!session || session.user.role !== "admin") throw new Error("Unauthorized");
 
-    // Mark all notifications in this thread as resolved
-    await prisma.notification.updateMany({
+    // We only want to mark the LATEST message as resolved/denied
+    // to avoid showing the badge on every historical message in the consolidated thread.
+    const latestMsg = await prisma.notification.findFirst({
         where: { threadId },
-        data: { resolved: true }
+        orderBy: { createdAt: "desc" }
     });
+
+    if (latestMsg) {
+        await prisma.notification.update({
+            where: { id: latestMsg.id },
+            data: { 
+                resolved: true,
+                feedback: status // Overriding feedback field to store the custom status
+            }
+        });
+    }
 
     revalidatePath("/");
     return { success: true };
@@ -877,11 +894,48 @@ export async function hideThreadAction(threadId: string) {
     return { success: true };
 }
 
+export async function archiveThreadAction(threadId: string) {
+    const session = await getSession();
+    if (!session) throw new Error("Unauthorized");
+
+    const state = await prisma.userThreadState.findUnique({
+        where: {
+            userId_threadId: {
+                userId: session.user.id,
+                threadId: threadId
+            }
+        }
+    });
+
+    const newArchivedStatus = !(state?.archived ?? false);
+
+    await prisma.userThreadState.upsert({
+        where: {
+            userId_threadId: {
+                userId: session.user.id,
+                threadId: threadId
+            }
+        },
+        update: { archived: newArchivedStatus },
+        create: {
+            userId: session.user.id,
+            threadId: threadId,
+            archived: newArchivedStatus
+        }
+    });
+
+    revalidatePath("/");
+    return { success: true, archived: newArchivedStatus };
+}
+
 async function unhideThreadForAll(threadId: string) {
-    // This finds all states for this thread and unhides them
+    // This finds all states for this thread and unhides/unarchives them
     await prisma.userThreadState.updateMany({
         where: { threadId },
-        data: { hidden: false }
+        data: { 
+            hidden: false,
+            archived: false 
+        }
     });
 }
 
@@ -948,11 +1002,15 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
                 name: true,
                 email: true,
                 image: true,
-                lastSeen: true
+                lastSeen: true,
+                role: true
             },
             take: 100 // Limit for performance
         });
-        return users;
+        return users.map(u => ({
+            user: u,
+            role: u.role === "admin" ? "admin" : "member"
+        }));
     }
 
     // Otherwise, get enrolled users for the course
@@ -967,11 +1025,104 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
                     name: true,
                     email: true,
                     image: true,
-                    lastSeen: true
+                    lastSeen: true,
+                    role: true
                 }
             }
         }
     });
 
-    return enrollments.map(e => e.User);
+    return enrollments.map(e => ({
+        user: e.User,
+        role: e.User.role === "admin" ? "admin" : "member"
+    }));
+}
+
+export async function deleteThreadMessagesAction(threadId: string) {
+    const session = await getSession();
+    if (!session) throw new Error("Unauthorized");
+
+    // 1. Check if thread is a group
+    const group = await prisma.chatGroup.findUnique({
+        where: { id: threadId }
+    });
+
+    if (group) {
+        throw new Error("Cannot delete group or broadcast chats");
+    }
+
+    // 2. Security: Ensure the user belongs to this thread if not admin
+    if (session.user.role !== "admin") {
+        const belongsToThread = await prisma.notification.findFirst({
+            where: {
+                threadId,
+                OR: [
+                    { senderId: session.user.id },
+                    { recipientId: session.user.id }
+                ]
+            }
+        });
+        if (!belongsToThread) throw new Error("Unauthorized");
+    }
+
+    // 3. Delete all notifications in this thread
+    await prisma.notification.deleteMany({
+        where: { threadId }
+    });
+
+    // 4. Cleanup user thread states
+    await prisma.userThreadState.deleteMany({
+        where: { threadId }
+    });
+
+    revalidatePath("/");
+    return { success: true };
+}
+
+export async function getChatVersionAction() {
+    const session = await getSession();
+    if (!session) return { version: null };
+
+    const latest = await prisma.notification.findFirst({
+        where: {
+            OR: [
+                { senderId: session.user.id },
+                { recipientId: session.user.id },
+                { chatGroupId: { not: null } },
+            ]
+        },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true }
+    });
+
+    return { version: latest?.createdAt.getTime() || 0 };
+}
+
+export async function syncChatAction(threadId?: string) {
+    const session = await getSession();
+    if (!session) return { threads: [], chat: null, version: 0 };
+
+    // 1. Mark User as active (Combine with other DB operations later if needed)
+    await prisma.user.update({
+        where: { id: session.user.id },
+        data: { lastSeen: new Date() }
+    });
+
+    // 2. Parallel fetch for efficiency
+    const [threads, versionData] = await Promise.all([
+        getThreadsAction(),
+        getChatVersionAction()
+    ]);
+
+    // 3. Optional Chat Fetch
+    let chat = null;
+    if (threadId) {
+        chat = await getThreadMessagesAction(threadId);
+    }
+
+    return {
+        threads,
+        chat,
+        version: versionData.version
+    };
 }

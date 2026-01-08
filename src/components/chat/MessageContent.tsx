@@ -59,7 +59,7 @@ export function MessageContent({ content, className = "" }: MessageContentProps)
   };
   
   return (
-    <div className={className}>
+    <div className={`wrap-break-word overflow-hidden ${className}`}>
       {parseMarkdown(content)}
     </div>
   );

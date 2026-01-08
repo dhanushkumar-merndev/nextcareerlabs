@@ -281,6 +281,7 @@ model UserThreadState {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   threadId  String
   hidden    Boolean  @default(false)
+  archived  Boolean  @default(false)
   muted     Boolean  @default(false)
 
   createdAt DateTime @default(now())

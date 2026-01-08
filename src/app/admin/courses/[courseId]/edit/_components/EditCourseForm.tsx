@@ -53,7 +53,6 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
       title: data.title,
       description: data.description,
       fileKey: data.fileKey,
-      price: data.price,
       duration: data.duration,
       level: data.level,
       category: data.category as CourseSchemaType["category"],
@@ -252,30 +251,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                   <FormMessage />
                 </FormItem>
               )}
-            />
-
-            <FormField
-              control={form.control}
-              name="price"
-              render={({ field }) => (
-                <FormItem className="w-full">
-                  <FormLabel>Price ($)</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Price"
-                      type="number"
-                      min={0}
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <FormField
+            /> <FormField
             control={form.control}
             name="status"
             render={({ field }) => (
@@ -302,6 +278,8 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
               </FormItem>
             )}
           />
+          </div>
+         
           <Button className="cursor-pointer" type="submit" disabled={isPending}>
             {isPending ? (
               <>

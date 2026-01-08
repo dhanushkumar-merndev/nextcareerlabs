@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PreloadPages } from "./PreloadPages";
+import { Providers } from "@/components/Providers";
 import { SmoothScroll } from "@/components/SmoothScroll";
 
 export const metadata: Metadata = {
@@ -59,19 +60,21 @@ export default function RootLayout({
       </head>
 
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-          <SmoothScroll />
-          <Toaster />
-          <Analytics />
-          <SpeedInsights />
-          <PreloadPages />
-        </ThemeProvider>
+        <Providers>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <SmoothScroll />
+            <Toaster />
+            <Analytics />
+            <SpeedInsights />
+            <PreloadPages />
+          </ThemeProvider>
+        </Providers>
       </body>
     </html>
   );
