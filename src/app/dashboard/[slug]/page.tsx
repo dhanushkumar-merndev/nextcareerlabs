@@ -9,7 +9,7 @@ export default async function CourseSulgPage({ params }: iAppProps) {
   const { slug } = await params;
   const course = await getCourseSidebarData(slug);
   const firstChapter = course.course.chapter[0];
-  const firstLesson = firstChapter.lesson[0];
+  const firstLesson = firstChapter?.lesson?.[0];
 
   if (firstLesson) {
     redirect(`/dashboard/${slug}/${firstLesson.id}`);

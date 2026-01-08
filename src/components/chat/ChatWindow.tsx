@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, markAsReadAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, markThreadAsReadAction, banUserFromSupportAction, resolveThreadAction, hideThreadAction, archiveThreadAction, updateLastSeenAction, toggleMuteAction, getGroupParticipantsAction, deleteThreadMessagesAction, getChatVersionAction, syncChatAction } from "@/app/data/notifications/actions";
-import { apiThrottle, API_THROTTLE_CONFIG } from "@/lib/api-throttle";
+import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, banUserFromSupportAction, resolveThreadAction, hideThreadAction, archiveThreadAction, toggleMuteAction, getGroupParticipantsAction, deleteThreadMessagesAction } from "@/app/data/notifications/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -10,11 +9,10 @@ import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paper
 import { formatDistanceToNow, isToday, format } from "date-fns";
 import { chatCache } from "@/lib/chat-cache";
 import { cn } from "@/lib/utils";
-import { useConstructUrl } from "@/hooks/use-construct-url";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useInfiniteQuery, useQueryClient, useQuery } from "@tanstack/react-query";
-import { ChatWindowSkeleton } from "./ChatSkeleton";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -23,6 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MessageContent } from "./MessageContent";
+import { useConstructUrl } from "@/hooks/use-construct-url";
 
 interface ChatWindowProps {
   threadId: string;
@@ -40,6 +39,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [fileUrl, setFileUrl] = useState("");
+  const [fileName, setFileName] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   
   // Edit Dialog State
@@ -49,12 +50,18 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   const [isEditUploading, setIsEditUploading] = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [isBanned, setIsBanned] = useState(false);
-  const [lastSeen, setLastSeen] = useState<Date | null>(null);
+
   const [isMuted, setIsMuted] = useState(false);
   const [isArchived, setIsArchived] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [groupParticipants, setGroupParticipants] = useState<any[]>([]);
   const [isBusy, setIsBusy] = useState(false);
+
+  // UI REFINEMENTS STATE
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [resolvingMessageId, setResolvingMessageId] = useState<string | null>(null);
+  const [resolveFeedbackText, setResolveFeedbackText] = useState("");
+  const [resolveStatus, setResolveStatus] = useState<"Helpful" | "More Help" | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastThreadId = useRef(threadId);
@@ -88,18 +95,14 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         setIsMuted(false);
         setIsArchived(false);
         setIsBanned(false);
-        setLastSeen(null);
+      
         setShowGroupInfo(false);
     }
   }, [threadId]);
 
   // Read status is now updated during message fetch in getThreadMessagesAction
 
-  useEffect(() => {
-    if (externalPresence) {
-        setLastSeen(new Date(externalPresence));
-    }
-  }, [externalPresence]);
+
 
   useEffect(() => {
     if (threadState) {
@@ -107,14 +110,11 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         setIsArchived(threadState.isArchived);
     }
     
-    // Check for ban status and lastSeen
+    // Check for ban status
     if (!isGroup && messages.length > 0) {
         const otherUser = messages.find((m: any) => m.senderId !== currentUserId);
         if (otherUser && otherUser.sender) {
             setIsBanned(!!otherUser.sender.isSupportBanned);
-            if (otherUser.sender.lastSeen) {
-                setLastSeen(new Date(otherUser.sender.lastSeen));
-            }
         }
     }
   }, [messages, threadState, currentUserId, isGroup]);
@@ -150,9 +150,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   };
 
   const handleSendMessage = async () => {
-    if ((!inputText.trim() && !imageUrl) || sending) return;
+    if ((!inputText.trim() && !imageUrl && !fileUrl) || sending) return;
     
-    const textToSend = inputText;
+    const textToSend = inputText.trim() === "" ? " " : inputText;
     const imgToSend = imageUrl;
     
     setInputText("");
@@ -164,6 +164,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         id: tempId,
         content: textToSend,
         imageUrl: imgToSend || null,
+        fileUrl: fileUrl || null,
+        fileName: fileName || null,
         senderId: currentUserId,
         createdAt: new Date().toISOString(),
         status: "sending",
@@ -194,7 +196,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     window.dispatchEvent(new CustomEvent("chat-thread-update", { 
         detail: { 
             threadId, 
-            lastMessage: textToSend || "Image attached",
+            lastMessage: textToSend.trim() !== "" ? textToSend : (imgToSend ? "Image" : (fileUrl ? fileName || "Document" : "New message")),
             updatedAt: new Date().toISOString(),
             archived: false
         } 
@@ -217,6 +219,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     threadId,
                     recipientId: otherMsg.senderId,
                     content: textToSend,
+                    fileUrl: fileUrl || undefined,
+                    fileName: fileName || undefined
                  });
              } else {
                  throw new Error("Recipient not found");
@@ -226,6 +230,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 threadId,
                 recipientId,
                 content: textToSend,
+                fileUrl: fileUrl || undefined,
+                fileName: fileName || undefined
              });
          }
       } else {
@@ -234,6 +240,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             content: textToSend,
             type: isGroup ? "GROUP_CHAT" : "SUPPORT_TICKET",
             imageUrl: imgToSend || undefined,
+            fileUrl: fileUrl || undefined,
+            fileName: fileName || undefined,
             threadId
          });
       }
@@ -296,6 +304,68 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       });
     } finally {
       setSending(false);
+      setFileUrl("");
+      setFileName("");
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setUploadProgress(0);
+    try {
+      const res = await fetch("/api/s3/upload", {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type || "application/pdf",
+          size: file.size,
+          isImage: false,
+        }),
+      });
+
+      if (res.status === 429) {
+          toast.error("Too many uploads. Please wait a minute.");
+          setIsUploading(false);
+          return;
+      }
+
+      const { presignedUrl, key } = await res.json();
+      
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", presignedUrl, true);
+      xhr.setRequestHeader("Content-Type", file.type || "application/pdf");
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent || 1);
+        }
+      };
+
+      await new Promise((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setIsUploading(false);
+            setUploadProgress(0);
+            resolve(xhr.response);
+          } else {
+            reject(xhr.statusText);
+          }
+        };
+        xhr.onerror = () => reject(xhr.statusText);
+        xhr.send(file);
+      });
+
+      setFileUrl(key);
+      setFileName(file.name);
+    } catch (error) {
+      toast.error("Upload failed");
+    } finally {
+      setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -304,6 +374,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     if (!file) return;
 
     setIsUploading(true);
+    setUploadProgress(0);
     try {
       const res = await fetch("/api/s3/upload", {
         method: "POST",
@@ -315,12 +386,37 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         }),
       });
 
+      if (res.status === 429) {
+          toast.error("Too many uploads. Please wait a minute.");
+          setIsUploading(false);
+          return;
+      }
+
       const { presignedUrl, key } = await res.json();
       
-      await fetch(presignedUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", presignedUrl, true);
+      xhr.setRequestHeader("Content-Type", file.type);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent);
+        }
+      };
+
+      await new Promise((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setIsUploading(false);
+            setUploadProgress(0);
+            resolve(xhr.response);
+          } else {
+            reject(xhr.statusText);
+          }
+        };
+        xhr.onerror = () => reject(xhr.statusText);
+        xhr.send(file);
       });
 
       setImageUrl(key); 
@@ -328,6 +424,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       toast.error("Upload failed");
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -336,6 +433,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     if (!file) return;
 
     setIsEditUploading(true);
+    setUploadProgress(0);
     try {
       const res = await fetch("/api/s3/upload", {
         method: "POST",
@@ -347,12 +445,37 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         }),
       });
 
+      if (res.status === 429) {
+          toast.error("Too many uploads. Please wait a minute.");
+          setIsEditUploading(false);
+          return;
+      }
+
       const { presignedUrl, key } = await res.json();
       
-      await fetch(presignedUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", presignedUrl, true);
+      xhr.setRequestHeader("Content-Type", file.type);
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent);
+        }
+      };
+
+      await new Promise((resolve, reject) => {
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setIsEditUploading(false);
+            setUploadProgress(0);
+            resolve(xhr.response);
+          } else {
+            reject(xhr.statusText);
+          }
+        };
+        xhr.onerror = () => reject(xhr.statusText);
+        xhr.send(file);
       });
 
       setEditImageUrl(key); 
@@ -360,6 +483,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       toast.error("Upload failed");
     } finally {
       setIsEditUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -369,7 +493,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
      } else {
         await resolveTicketAction(id);
      }
-     toast.success("Feedback submitted");
+     setResolvingMessageId(null);
+     setResolveFeedbackText("");
+     setResolveStatus(null);
      refetch();
   };
 
@@ -465,9 +591,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
               ...old,
               pages: old.pages.map((page: any) => ({
                   ...page,
-                  notifications: page.notifications.map((n: any) => 
+                  messages: page.messages?.map((n: any) => 
                       n.id === id ? { ...n, resolved: true, feedback: status } : n
-                  )
+                  ) || page.messages
               }))
           };
       });
@@ -479,8 +605,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
           await resolveTicketAction(id, status);
           chatCache.clear(`messages_${threadId}`);
           chatCache.clear("threads");
-          toast.success(status === "Resolved" ? "Ticket resolved" : "Ticket denied");
-          // refetch(); // Invalidate instead of full refetch for better cache sync
           queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
       } catch (e) {
           queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
@@ -512,11 +636,11 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
               ...old,
               pages: old.pages.map((page: any) => ({
                   ...page,
-                  notifications: page.notifications.map((n: any) => ({
+                  messages: page.messages?.map((n: any) => ({
                       ...n,
                       resolved: true,
                       feedback: n.resolved ? n.feedback : status // Only set feedback if it wasn't already resolved
-                  }))
+                  })) || page.messages
               }))
           };
       });
@@ -525,7 +649,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
           await resolveThreadAction(threadId, status);
           chatCache.clear(`messages_${threadId}`);
           chatCache.clear("threads");
-          toast.success(status === "Resolved" ? "Thread resolved" : "Thread denied");
       } catch (e) {
           queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
           queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
@@ -702,28 +825,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                <h3 className="font-bold text-sm">
                   {showGroupInfo ? "Group Info" : title}
                </h3>
-               {!showGroupInfo && (
-                   <div className="text-[10px] text-muted-foreground flex items-center gap-1 leading-none mt-0.5">
-                       {!isGroup && lastSeen ? (
-                           (new Date().getTime() - new Date(lastSeen).getTime()) < 12 * 60 * 1000 ? (
-                               <>
-                                   <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"/>
-                                   {isAdmin ? "Ticket is Online" : "Support Team is Online"}
-                               </>
-                           ) : (
-                               <>
-                                   <span className="h-1.5 w-1.5 rounded-full bg-gray-400"/>
-                                   Last seen {formatDistanceToNow(new Date(lastSeen), { addSuffix: true })}
-                               </>
-                           )
-                       ) : (
-                           <span className="flex items-center gap-1">
-                               {!isGroup && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"/>}
-                               {isGroup ? "" : (isAdmin ? "Ticket is Online" : "Support Team is Online")}
-                           </span>
-                       )}
-                   </div>
-               )}
                {showGroupInfo && (
                    <p className="text-[10px] text-muted-foreground">
                        {groupParticipants.length} participants
@@ -929,20 +1030,40 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                className="max-w-full max-h-[300px] w-auto h-auto object-contain bg-muted/50" 
                                             />
                                          </div>
-                                      )}
-                                      <MessageContent content={msg.content} />
+                                       )}
+
+                                       {msg.fileUrl && (
+                                          <div className="mb-2 p-3 bg-muted/30 rounded-lg flex items-center gap-3 border group/file hover:bg-muted/50 transition-colors">
+                                             <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+                                                <Paperclip className="h-5 w-5 text-red-600" />
+                                             </div>
+                                             <div className="min-w-0 flex-1">
+                                                <p className="text-xs font-medium truncate">{msg.fileName || "Document"}</p>
+                                                <a 
+                                                   href={useConstructUrl(msg.fileUrl)} 
+                                                   target="_blank" 
+                                                   rel="noopener noreferrer"
+                                                   download={msg.fileName}
+                                                   className="text-[10px] text-primary hover:underline"
+                                                >
+                                                   Download
+                                                </a>
+                                             </div>
+                                          </div>
+                                       )}
+                                       <MessageContent content={msg.content} />
                                       
-                                      {isMe && (
-                                         <div className="absolute bottom-1 right-1.5 flex items-center">
-                                            {msg.status === "sending" ? (
-                                               <div className="h-2.5 w-2.5 rounded-full border-b border-r border-current animate-spin opacity-50" />
-                                            ) : msg.status === "error" ? (
-                                               <CircleX className="h-3 w-3 text-red-400" />
-                                            ) : (
-                                               <CircleCheckBig className={cn("h-3 w-3", msg.status === "sent" ? "text-green-400" : "text-primary-foreground/50")} />
-                                            )}
-                                         </div>
-                                      )}
+                                       {isMe && (
+                                          <div className="absolute bottom-1 right-1.5 flex items-center">
+                                             {msg.status === "sending" ? (
+                                                <div className="h-2.5 w-2.5 rounded-full border-b border-r border-current animate-spin opacity-50" />
+                                             ) : msg.status === "error" ? (
+                                                <CircleX className="h-3 w-3 text-red-400" />
+                                             ) : (
+                                                <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70" />
+                                             )}
+                                          </div>
+                                       )}
                                    </div>
                                 </div>
                                 <span className={cn("text-[10px] text-muted-foreground px-1 block", isMe && "text-right")}>
@@ -953,16 +1074,71 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                 
                                 {/* FEEDBACK UI etc */}
                                 {!isAdmin && !isMe && msg.type === "ADMIN_REPLY" && !msg.resolved && !msg.feedback && (
-                                   <div className="mt-2 bg-background border rounded-lg p-2 space-y-2 w-full">
-                                      <p className="text-[10px] font-bold text-center">Is this helpful?</p>
-                                      <div className="flex gap-2">
-                                         <Button size="sm" variant="outline" className="flex-1 h-7 text-[10px]" onClick={() => handleResolve(msg.id, "Helpful")}>
-                                            <ThumbsUp className="h-3 w-3 mr-1" /> Yes
-                                         </Button>
-                                         <Button size="sm" variant="outline" className="flex-1 h-7 text-[10px] text-orange-600" onClick={() => handleResolve(msg.id, "More Help")}>
-                                            No
-                                         </Button>
-                                      </div>
+                                   <div className="mt-2 bg-background border rounded-lg p-2.5 space-y-2 w-full shadow-sm animate-in fade-in zoom-in-95 duration-200">
+                                      {resolvingMessageId === msg.id ? (
+                                          <div className="space-y-3">
+                                              <div className="flex items-center justify-between">
+                                                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                      {resolveStatus === "Helpful" ? "Quick Feedback (Optional)" : "How can we improve?"}
+                                                  </span>
+                                                  <Button 
+                                                      variant="ghost" 
+                                                      size="icon" 
+                                                      className="h-5 w-5 rounded-full" 
+                                                      onClick={() => {
+                                                          setResolvingMessageId(null);
+                                                          setResolveStatus(null);
+                                                      }}
+                                                  >
+                                                      <X className="h-3 w-3" />
+                                                  </Button>
+                                              </div>
+                                              <Textarea 
+                                                  value={resolveFeedbackText}
+                                                  onChange={(e) => setResolveFeedbackText(e.target.value)}
+                                                  placeholder={resolveStatus === "Helpful" ? "Tell us more..." : "What went wrong?"}
+                                                  className="min-h-[60px] text-xs resize-none"
+                                              />
+                                              <Button 
+                                                  size="sm" 
+                                                  className={cn(
+                                                      "w-full h-8 text-[11px] font-bold",
+                                                      resolveStatus === "Helpful" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-orange-600 hover:bg-orange-700"
+                                                  )}
+                                                  onClick={() => handleResolve(msg.id, resolveFeedbackText || resolveStatus!)}
+                                              >
+                                                  {resolveStatus === "Helpful" ? "Submit & Resolve" : "Request More Help"}
+                                              </Button>
+                                          </div>
+                                      ) : (
+                                         <>
+                                             <p className="text-[10px] font-bold text-center text-muted-foreground">WAS THIS HELPFUL?</p>
+                                             <div className="flex gap-2">
+                                                <Button 
+                                                  size="sm" 
+                                                  variant="outline" 
+                                                  className="flex-1 h-8 text-[11px] font-bold hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all" 
+                                                  onClick={() => {
+                                                      setResolvingMessageId(msg.id);
+                                                      setResolveStatus("Helpful");
+                                                  }}
+                                                >
+                                                   <ThumbsUp className="h-3.5 w-3.5 mr-1.5" /> Yes
+                                                </Button>
+                                                <Button 
+                                                  size="sm" 
+                                                  variant="outline" 
+                                                  className="flex-1 h-8 text-[11px] font-bold hover:bg-orange-50 hover:text-orange-700 hover:border-orange-200 transition-all" 
+                                                  onClick={() => {
+                                                      setResolvingMessageId(msg.id);
+                                                      setResolveStatus("More Help");
+                                                  }}
+                                                >
+                                                   No
+                                                </Button>
+                                             </div>
+                                         </>
+                                      )}
                                    </div>
                                 )}
                                   {/* RESOLVED/DENIED INDICATOR */}
@@ -1011,6 +1187,22 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                )}
             </div>
 
+            {/* UPLOAD PROGRESS BAR */}
+            {isUploading && (
+                <div className="px-4 py-2 border-t bg-muted/30">
+                    <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Uploading Progress</span>
+                        <span className="text-[10px] font-bold text-primary">{uploadProgress}%</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-muted-foreground/10">
+                        <div 
+                            className="h-full bg-primary transition-all duration-300 ease-out shadow-[0_0_8px_rgba(var(--primary),0.4)]" 
+                            style={{ width: `${uploadProgress}%` }} 
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* INPUT */}
             {(isAdmin) ? (
               <div className="p-4 bg-background border-t shrink-0">
@@ -1020,23 +1212,49 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                        <button onClick={() => setImageUrl("")}><X className="h-4 w-4" /></button>
                     </div>
                  )}
+                 {fileUrl && (
+                    <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg w-fit">
+                       <Paperclip className="h-4 w-4 text-primary" />
+                       <span className="text-xs font-medium truncate max-w-[150px]">{fileName}</span>
+                       <button onClick={() => { setFileUrl(""); setFileName(""); }}><X className="h-4 w-4" /></button>
+                    </div>
+                 )}
                  <div className="flex items-end gap-2 bg-muted/30 p-2 rounded-xl border focus-within:ring-1 focus-within:ring-primary/20 transition-all">
-                    <Button 
-                       size="icon" 
-                       variant="ghost" 
-                       className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
-                       onClick={() => document.getElementById("chat-upload")?.click()}
-                       disabled={isUploading || sending}
-                    >
-                       {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
-                    </Button>
-                    <input 
-                       id="chat-upload"
-                       type="file" 
-                       accept="image/*" 
-                       className="hidden" 
-                       onChange={handleImageUpload}
-                    />
+                     <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
+                        onClick={() => document.getElementById("chat-upload")?.click()}
+                        disabled={isUploading || sending}
+                        title="Upload Image"
+                     >
+                        {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+                     </Button>
+                     <input 
+                        id="chat-upload"
+                        type="file" 
+                        accept="image/*" 
+                        className="hidden" 
+                        onChange={handleImageUpload}
+                     />
+
+                     <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
+                        onClick={() => document.getElementById("file-upload")?.click()}
+                        disabled={isUploading || sending}
+                        title="Upload Document"
+                     >
+                        {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
+                     </Button>
+                     <input 
+                        id="file-upload"
+                        type="file" 
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.txt" 
+                        className="hidden" 
+                        onChange={handleFileUpload}
+                     />
                     
                     <Textarea
                        value={inputText}
@@ -1051,12 +1269,12 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                        className="min-h-[40px] max-h-[120px] bg-transparent border-0 focus-visible:ring-0 resize-none py-2.5"
                     />
                     
-                    <Button 
-                       size="icon" 
-                       className="h-10 w-10 shrink-0 rounded-full" 
-                       disabled={(!inputText.trim() && !imageUrl) || sending || isUploading}
-                       onClick={handleSendMessage}
-                    >
+                     <Button 
+                        size="icon" 
+                        className="h-10 w-10 shrink-0 rounded-full" 
+                        disabled={(!inputText.trim() && !imageUrl && !fileUrl) || sending || isUploading}
+                        onClick={handleSendMessage}
+                     >
                        {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
                     </Button>
                  </div>
@@ -1123,4 +1341,22 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       </Dialog>
     </div>
   );
+
+  async function triggerDirectDownload(url: string, fileName: string) {
+      try {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = blobUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+      } catch (error) {
+          console.error("Direct download failed", error);
+          window.open(url, "_blank"); 
+      }
+  }
 }

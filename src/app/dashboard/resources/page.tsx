@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ChatLayout } from "@/components/chat/ChatLayout";
+import { prisma } from "@/lib/db";
 
 export default async function NotificationsPage() {
   const session = await auth.api.getSession({
@@ -11,6 +12,18 @@ export default async function NotificationsPage() {
 
   if (!session) {
     redirect("/");
+  }
+
+  // Check if user has at least one granted enrollment
+  const enrollmentCount = await prisma.enrollment.count({
+    where: {
+      userId: session.user.id,
+      status: "Granted",
+    },
+  });
+
+  if (enrollmentCount === 0) {
+    redirect("/dashboard");
   }
 
   return (

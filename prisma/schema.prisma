@@ -33,7 +33,6 @@ model User {
   // Notification relations
   sentNotifications     Notification[]          @relation("SentNotifications")
   receivedNotifications Notification[]          @relation("ReceivedNotifications")
-  notificationState     UserNotificationState[]
   threadStates         UserThreadState[]
 
   role       String?
@@ -42,7 +41,6 @@ model User {
   banReason  String?
   banExpires DateTime?
   isSupportBanned Boolean? @default(false)
-  lastSeen      DateTime? @default(now())
 
   @@unique([email])
   @@map("user")
@@ -230,7 +228,10 @@ model Notification {
   chatGroupId String?
   chatGroup   ChatGroup? @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
 
-  userStates  UserNotificationState[]
+  
+  // File attachments (PDFs, docs, etc.)
+  fileUrl     String?
+  fileName    String?
 
   @@index([senderId])
   @@index([courseId])
@@ -253,18 +254,7 @@ model ChatGroup {
   messages  Notification[]
 }
 
-model UserNotificationState {
-  id             String   @id @default(uuid())
-  userId         String
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  notificationId String
-  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  read           Boolean  @default(false)
-  
-  @@unique([userId, notificationId])
-  @@index([userId])
-  @@index([notificationId])
-}
+
 
 enum NotificationType {
   BROADCAST      // To all users

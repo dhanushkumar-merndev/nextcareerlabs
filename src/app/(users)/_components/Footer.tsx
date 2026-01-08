@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { Github, Linkedin, Twitter, Mail, Youtube, Facebook, Instagram } from "lucide-react";
 import { getAllPublishedCourses } from "@/app/data/course/get-course";
-import { SupportFooterLink } from "@/components/notifications/SupportFooterLink";
+import { SupportFooterLink } from "@/components/support/SupportFooterLink";
 
 export async function Footer() {
   const courses = await getAllPublishedCourses();

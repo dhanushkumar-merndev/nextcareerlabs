@@ -23,6 +23,7 @@ import {
 import { sendNotificationAction, checkTicketLimitAction } from "@/app/data/notifications/actions";
 import { toast } from "sonner";
 import { Loader2, MessageSquarePlus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function SupportTicketDialog({ 
   open, 
@@ -34,6 +35,7 @@ export function SupportTicketDialog({
   courses?: { id: string, title: string }[]
 }) {
   const [isPending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
   const [courseId, setCourseId] = useState<string>("general");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -90,6 +92,10 @@ export function SupportTicketDialog({
         }
 
         toast.success("Ticket raised successfully! Our team will get back to you.");
+        
+        // Invalidate query to show new thread instantly
+        queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+        
         onOpenChange(false);
         setTitle("");
         setContent("");

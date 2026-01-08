@@ -64,11 +64,7 @@ export function CourseSidebar({ course }: iAppProps) {
 
       {/* CHAPTER LIST — scrolls only on mobile */}
       <div
-        className="
-          pt-4 pb-20 md:pb-0 pr-4 space-y-3
-          flex-1 overflow-y-auto min-h-0 
-          lg:overflow-visible lg:min-h-fit lg:flex-none
-        "
+        className="pt-4 pb-20 md:pb-0 pr-4 space-y-3 flex-1 overflow-y-auto min-h-0 lg:overflow-visible lg:min-h-fit lg:flex-none"
       >
         {course.chapter.map((chapter) => {
           const isOpen = openChapter === chapter.id;

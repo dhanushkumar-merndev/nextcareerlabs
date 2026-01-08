@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatWindow } from "./ChatWindow";
 
 import { ArrowLeft, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SupportTicketDialog } from "@/components/notifications/SupportTicketDialog";
+import { SupportTicketDialog } from "@/components/support/SupportTicketDialog";
 import { getThreadsAction, syncChatAction, getChatVersionAction } from "@/app/data/notifications/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
@@ -18,6 +19,8 @@ interface ChatLayoutProps {
 
 export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [selectedThread, setSelectedThread] = useState<{ id: string; name: string; image?: string; type?: string } | null>(null);
   const [removedThreadIds, setRemovedThreadIds] = useState<string[]>([]);
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
@@ -27,9 +30,9 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
   const { data: sidebarData, isLoading: loadingSidebar } = useQuery({
     queryKey: ["sidebarData"],
     queryFn: () => getThreadsAction(),
-    staleTime: 1800000, 
-    refetchInterval: 1800000,
-    refetchOnWindowFocus: false,
+    staleTime: 30000, // 30 seconds
+    refetchInterval: 30000,
+    refetchOnWindowFocus: true,
   });
 
   const threads = (sidebarData as any)?.threads || [];
@@ -54,6 +57,16 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
     setRemovedThreadIds(prev => [...prev, threadId]);
     setSelectedThread(null);
   };
+
+  // Memoize handleSelectThread to prevent auto-select effect from running repeatedly
+  // Also sync URL when user manually selects a thread
+  const handleSelectThread = useCallback((thread: { id: string; name: string; image?: string; type?: string }) => {
+    setSelectedThread(thread);
+    
+    // Update URL to reflect the selected thread
+    const currentPath = window.location.pathname;
+    router.replace(`${currentPath}?threadId=${thread.id}`, { scroll: false });
+  }, [router]);
   
   // Custom hook or simple check for mobile
   // For simplicity, using CSS display logic mostly, but state helps for "view" mode
@@ -74,7 +87,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
          )}
          <ChatSidebar 
            selectedThreadId={selectedThread?.id || null} 
-           onSelectThread={setSelectedThread}
+           onSelectThread={handleSelectThread}
            isAdmin={isAdmin}
            removedIds={removedThreadIds}
            threads={threads}
@@ -98,6 +111,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
                   </Button>
                </div>
                <ChatWindow 
+                  key={selectedThread.id}
                  threadId={selectedThread.id} 
                  title={selectedThread.name}
                  avatarUrl={selectedThread.image}

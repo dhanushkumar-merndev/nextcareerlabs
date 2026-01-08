@@ -96,20 +96,32 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
     };
   }, [refetch]);
 
-  // Auto-select thread from URL
+  // Auto-select thread from URL (only on initial load or explicit URL change)
+  const hasAutoSelectedRef = useRef(false);
+  
   useEffect(() => {
+     // Only auto-select from URL if:
+     // 1. URL has a threadId
+     // 2. Threads are loaded
+     // 3. We haven't already selected this thread
+     // 4. This is either the first load OR the URL actually changed
      if (urlThreadId && threads.length > 0 && selectedThreadId !== urlThreadId) {
          const thread = (threads as any[]).find(t => t.threadId === urlThreadId);
          if (thread) {
-             onSelectThread({
-                 id: thread.threadId,
-                 name: thread.display.name,
-                 image: thread.display.image,
-                 type: thread.type
-             });
+             // Only trigger auto-select if we haven't done it yet, or if URL genuinely changed
+             if (!hasAutoSelectedRef.current || selectedThreadId === null) {
+                 onSelectThread({
+                     id: thread.threadId,
+                     name: thread.display.name,
+                     image: thread.display.image,
+                     type: thread.type
+                 });
+                 hasAutoSelectedRef.current = true;
+             }
          }
      }
-  }, [urlThreadId, threads, selectedThreadId, onSelectThread]);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlThreadId, threads]);
 
   const filteredThreads = (threads as any[]).filter(t => {
     const matchesSearch = t.display.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -222,33 +234,16 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
     <div className="flex flex-col h-full min-h-0 bg-background overflow-hidden">
       <div className="p-4 border-b space-y-4 shrink-0">
          <div className="flex items-center justify-between px-2">
-            <h2 className="font-bold text-lg">Messages</h2>
-
+            <h2 className="font-bold text-lg">Resources</h2>
          </div>
          <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input 
-              placeholder="Search chat..." 
+              placeholder="Search groups..." 
               className="pl-9 bg-muted/50 border-0 focus-visible:ring-1"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-         </div>
-         
-         {/* Filter Chips */}
-         <div className="flex bg-muted/30 p-1 rounded-lg gap-1">
-             {["All", "Groups", "Tickets", "Resolved"].map((f) => (
-                 <button
-                    key={f}
-                    onClick={() => setFilter(f as any)}
-                    className={cn(
-                        "flex-1 text-[10px] py-1.5 rounded-md font-medium transition-all text-center",
-                        filter === f ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:bg-background/50"
-                    )}
-                 >
-                    {f}
-                 </button>
-             ))}
          </div>
       </div>
       

@@ -3,13 +3,21 @@ import { AppSidebar } from "./_components/DashboardAppSidebar";
 import { SiteHeader } from "@/components/sidebar/site-header";
 import { requireCompleteProfile } from "@/app/data/user/require-complete-profile";
 import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
+import { prisma } from "@/lib/db";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isComplete } = await requireCompleteProfile();
+  const { isComplete, user } = await requireCompleteProfile();
+  
+  const enrollmentCount = await prisma.enrollment.count({
+    where: {
+      userId: user.id,
+      status: "Granted",
+    },
+  });
   
   return (
     <SidebarProvider
@@ -21,7 +29,7 @@ export default async function DashboardLayout({
       }
     >
       <PhoneNumberDialog isOpen={!isComplete} />
-      <AppSidebar variant="inset" />
+      <AppSidebar variant="inset" isEnrolled={enrollmentCount > 0 || user.role === "admin"} />
       <SidebarInset className="overflow-hidden">
         <SiteHeader />
         <div className="flex flex-1 flex-col overflow-hidden">

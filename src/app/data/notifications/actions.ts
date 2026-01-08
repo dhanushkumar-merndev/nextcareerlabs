@@ -15,8 +15,6 @@ async function getSession() {
 /**
  * Send a notification (Broadcast, Ticket, etc.)
  */
-  /* ... existing imports */
-
 export async function sendNotificationAction(data: {
   title: string;
   content: string;
@@ -25,6 +23,8 @@ export async function sendNotificationAction(data: {
   recipientId?: string;
   imageUrl?: string;
   threadId?: string;
+  fileUrl?: string;
+  fileName?: string;
 }) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
@@ -99,21 +99,14 @@ export async function sendNotificationAction(data: {
       courseId: data.courseId,
       recipientId: data.recipientId,
       imageUrl: data.imageUrl,
+      fileUrl: data.fileUrl,
+      fileName: data.fileName,
       threadId: threadId,
       chatGroupId: chatGroupId
     },
   });
 
-  // If it's a specific recipient, create an initial state for them
-  if (data.recipientId) {
-    await prisma.userNotificationState.create({
-      data: {
-        userId: data.recipientId,
-        notificationId: notification.id,
-        read: false,
-      },
-    });
-  }
+
 
   // Unhide for everyone (if it was hidden) - ONLY ONCE
   if (threadId) {
@@ -124,12 +117,12 @@ export async function sendNotificationAction(data: {
   return { success: true, notification };
 }
 
-// ... getMyNotificationsAction ... (omitted for brevity, assume unchanged or updated separately if needed)
-
 export async function replyToTicketAction(data: {
   threadId: string;
   recipientId: string;
   content: string;
+  fileUrl?: string;
+  fileName?: string;
 }) {
   const session = await getSession();
   if (!session || session.user.role !== "admin") throw new Error("Unauthorized");
@@ -142,6 +135,8 @@ export async function replyToTicketAction(data: {
       senderId: session.user.id,
       recipientId: data.recipientId,
       threadId: data.threadId,
+      fileUrl: data.fileUrl,
+      fileName: data.fileName,
     },
   });
 
@@ -162,29 +157,20 @@ export async function getThreadsAction() {
   if (!session) return [];
   const isAdmin = session.user.role === "admin";
 
-  // Ensure default "Support" group and "Broadcast" group exist
-  const defaultGroups = ["Support", "Broadcast"];
-  
-  // Note: We used to loop and create, but it caused duplicates if executed in parallel or multiple times.
-  // Instead, just ensure we fetch one valid one.
-  
-  // SELF-HEAL: Ensure all Published courses have a Broadcast Group
+  // Ensure default "Broadcast" group exists
   if (isAdmin) {
-      const missingGroups = await prisma.course.findMany({
-          where: {
-              status: "Published",
-              chatGroups: { none: {} }
-          }
+      const globGroups = await prisma.chatGroup.findMany({
+          where: { courseId: null }
       });
-      // ... creation logic ...
-  }
-  // Remove the explicit creation loop here to prevent race conditions on every fetch.
-  // Instead, rely on a seed script or just one-time admin check.
-  // OR fix the filtering below to only pick unique IDs.
+      const names = globGroups.map(g => g.name.toLowerCase());
+      
+      if (!names.includes("broadcast")) {
+          await prisma.chatGroup.create({
+              data: { name: "Broadcast" }
+          });
+      }
 
-
-  // SELF-HEAL: Ensure all Published courses have a Broadcast Group
-  if (isAdmin) {
+      // SELF-HEAL: Ensure all Published courses have a Broadcast Group
       const missingGroups = await prisma.course.findMany({
           where: {
               status: "Published",
@@ -206,12 +192,39 @@ export async function getThreadsAction() {
   }
 
   // Strategy: Group by threadId to find unique conversations
-  const whereClause = isAdmin 
-    ? { OR: [{ type: "SUPPORT_TICKET" }, { type: "ADMIN_REPLY" }, { type: "GROUP_CHAT" as any }] }
+  const whereClause: any = isAdmin 
+    ? { 
+        OR: [
+            { type: "SUPPORT_TICKET" }, 
+            { type: "ADMIN_REPLY" }, 
+            { 
+                type: "GROUP_CHAT",
+                NOT: {
+                    chatGroup: {
+                        name: { equals: "Support", mode: "insensitive" }
+                    }
+                }
+            }
+        ],
+      }
     : { 
         OR: [
-           { senderId: session.user.id }, 
-           { recipientId: session.user.id }
+           { 
+                senderId: session.user.id,
+                NOT: {
+                    chatGroup: {
+                        name: { equals: "Support", mode: "insensitive" }
+                    }
+                }
+           }, 
+           { 
+                recipientId: session.user.id,
+                NOT: {
+                    chatGroup: {
+                        name: { equals: "Support", mode: "insensitive" }
+                    }
+                }
+           }
         ]
       };
 
@@ -226,57 +239,36 @@ export async function getThreadsAction() {
   });
 
   const threadIds = threadMaxDates.map(t => t.threadId!).filter(Boolean);
-  if (threadIds.length === 0) return [];
-
+  
   // 2. BATCH FETCH LATEST MESSAGES
-  // Construct OR pairs for exact (threadId, createdAt) match to get the specific latest message
-  const latestMsgs = await prisma.notification.findMany({
-    where: {
-      OR: threadMaxDates.map(t => ({
-        threadId: t.threadId,
-        createdAt: t._max.createdAt!
-      }))
-    },
-    include: {
-      sender: { select: { id: true, name: true, image: true, email: true } },
-      recipient: { select: { id: true, name: true, image: true, email: true } },
-      chatGroup: true
-    }
-  });
-
-  // 3. BATCH FETCH UNREAD COUNTS
-  const unreadCountsResults = await prisma.notification.findMany({
-    where: {
-      threadId: { in: threadIds },
-      userStates: {
-        some: {
-          userId: session.user.id,
-          read: false
+  let latestMsgs: any[] = [];
+  if (threadIds.length > 0) {
+      latestMsgs = await prisma.notification.findMany({
+        where: {
+          OR: threadMaxDates.map(t => ({
+            threadId: t.threadId,
+            createdAt: t._max.createdAt!
+          }))
+        },
+        include: {
+          sender: { select: { id: true, name: true, image: true, email: true } },
+          recipient: { select: { id: true, name: true, image: true, email: true } },
+          chatGroup: true
         }
-      },
-      senderId: { not: session.user.id }
-    },
-    select: { threadId: true }
-  });
+      });
+  }
 
-  // Count occurrences in memory
-  const unreadMap: Record<string, number> = {};
-  unreadCountsResults.forEach(msg => {
-      if (msg.threadId) {
-          unreadMap[msg.threadId] = (unreadMap[msg.threadId] || 0) + 1;
-      }
-  });
+
 
   // 4. BATCH FETCH UNRESOLVED TICKET COUNTS
-  // A thread is only "Resolved" if it has ZERO unresolved SUPPORT_TICKET notifications.
-  const unresolvedTicketsResults = await prisma.notification.findMany({
+  const unresolvedTicketsResults = threadIds.length > 0 ? await prisma.notification.findMany({
     where: {
       threadId: { in: threadIds },
       type: "SUPPORT_TICKET",
       resolved: false
     },
     select: { threadId: true }
-  });
+  }) : [];
 
   const unresolvedMap: Record<string, number> = {};
   unresolvedTicketsResults.forEach(msg => {
@@ -287,7 +279,7 @@ export async function getThreadsAction() {
 
   // 5. BATCH FETCH STUDENT INFO (ADMIN ONLY)
   let studentMap: Record<string, any> = {};
-  if (isAdmin) {
+  if (isAdmin && threadIds.length > 0) {
       const studentMsgs = await prisma.notification.findMany({
           where: {
               threadId: { in: threadIds },
@@ -308,7 +300,7 @@ export async function getThreadsAction() {
   }
 
   // 5. BATCH FETCH CHAT GROUPS (Already fairly efficient, but let's sync)
-  let groupWhere: any = { name: { not: "Support" } };
+  let groupWhere: any = { name: { not: "Support", mode: "insensitive" } };
   if (!isAdmin) {
     const userEnrollments = await prisma.enrollment.findMany({
       where: { userId: session.user.id, status: "Granted" },
@@ -326,7 +318,8 @@ export async function getThreadsAction() {
   // Combine results in memory
   const threadDetails = latestMsgs.map(latestMsg => {
     const threadId = latestMsg.threadId!;
-    const unreadCount = unreadMap[threadId] || 0;
+    // unreadCount removed as per request
+    
     
     let display = {
       name: "Support Team",
@@ -370,7 +363,6 @@ export async function getThreadsAction() {
       threadId,
       lastMessage: latestMsg.content,
       updatedAt: latestMsg.createdAt,
-      unreadCount,
       resolved: isThreadResolved, 
       isGroup: !!latestMsg.chatGroupId,
       type: latestMsg.chatGroupId ? "Group" : (isAdmin ? "Ticket" : "Support"),
@@ -397,14 +389,12 @@ export async function getThreadsAction() {
 
   const groupThreads = Array.from(uniqueGroupsMap.values()).map(g => {
       const threadId = g.id;
-      const unreadCount = unreadMap[threadId] || 0;
       const lastMsg = g.messages[0];
       
       return {
         threadId,
         lastMessage: lastMsg?.content || "No messages yet",
         updatedAt: lastMsg?.createdAt || g.createdAt,
-        unreadCount,
         resolved: true,
         isGroup: true,
         type: "Group",
@@ -489,7 +479,7 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
         }
     },
     include: {
-      sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true, lastSeen: true } }
+      sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true } }
     },
     orderBy: { createdAt: "desc" }
   });
@@ -512,32 +502,6 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
   });
 
   const nextCursor = (oldestEver && oldestEver.createdAt < fiveDaysAgo) ? fiveDaysAgo.toISOString() : null;
-
-  // AUTO-READ LOGIC (Consolidated)
-  // Only for initial load (no before cursor)
-  if (!before) {
-      // Background promise (don't await to avoid blocking message load)
-      // Actually, standard practice for consolidation is to just do it.
-      // We rely on the client's throttle check if they want to call this specifically, 
-      // but here we can just do it since it's one DB write.
-      // However, to keep the 3/30 limit truly effective, we should ideally check it here too?
-      // No, the user said "limit call per 3 per 30 mins". If we merge it, it's 1 call.
-      // Let's just do it. It's efficient now.
-      
-      const notifications = await prisma.notification.findMany({
-          where: { threadId },
-          select: { id: true }
-      });
-
-      await prisma.userNotificationState.updateMany({
-          where: {
-              userId: session.user.id,
-              notificationId: { in: notifications.map(n => n.id) },
-              read: false
-          },
-          data: { read: true }
-      });
-  }
 
   return {
     messages: [...messages].reverse(),
@@ -636,21 +600,10 @@ export async function getMyNotificationsAction(filters?: {
             ...(isAdmin ? [{ type: "SUPPORT_TICKET" as const }] : []) // Admins see all tickets
           ]
         },
-        filters?.type ? { type: filters.type } : {},
-        filters?.unreadOnly && !isSentMode ? {
-          userStates: {
-            none: {
-              userId: session.user.id,
-              read: true
-            }
-          }
-        } : {}
+        filters?.type ? { type: filters.type } : {}
       ]
     },
     include: {
-      userStates: {
-        where: { userId: session.user.id }
-      },
       sender: {
         select: {
           id: true,
@@ -666,106 +619,7 @@ export async function getMyNotificationsAction(filters?: {
     take: filters?.take ?? 50
   });
 
-  return notifications.map(n => ({
-    ...n,
-    isRead: n.userStates.length > 0 ? n.userStates[0].read : false
-  }));
-}
-
-/**
- * Mark a notification as read
- */
-export async function markAsReadAction(notificationId: string) {
-  const session = await getSession();
-  if (!session) throw new Error("Unauthorized");
-
-  await prisma.userNotificationState.upsert({
-    where: {
-      userId_notificationId: {
-        userId: session.user.id,
-        notificationId: notificationId
-      }
-    },
-    update: { read: true },
-    create: {
-      userId: session.user.id,
-      notificationId: notificationId,
-      read: true
-    }
-  });
-
-  return { success: true };
-}
-
-/**
- * Mark all notifications as read
- */
-export async function markAllAsReadAction() {
-  const session = await getSession();
-  if (!session) throw new Error("Unauthorized");
-
-  // This is a bit more complex for broadcasts as we need to create states for all
-  // For now, let's just mark existing states as read.
-  // In a real app, you'd find all relevant notification IDs and upsert states.
-  
-  const notifications = await getMyNotificationsAction();
-  const unreadIds = notifications.filter(n => !n.isRead).map(n => n.id);
-
-  for (const id of unreadIds) {
-    await prisma.userNotificationState.upsert({
-      where: { userId_notificationId: { userId: session.user.id, notificationId: id } },
-      update: { read: true },
-      create: { userId: session.user.id, notificationId: id, read: true }
-    });
-  }
-
-  return { success: true };
-}
-
-/**
- * Mark all notifications in a thread as read
- */
-export async function markThreadAsReadAction(threadId: string) {
-  const session = await getSession();
-  if (!session) throw new Error("Unauthorized");
-
-  // Find all unread notifications in this thread that are NOT sent by me
-  // Actually, we just need to ensure a UserNotificationState exists and is read=true for all relevant notifications
-  
-  // 1. Get all notification IDs in this thread
-  const notifications = await prisma.notification.findMany({
-      where: { threadId },
-      select: { id: true }
-  });
-
-  // 2. Upsert read state for all of them
-  // Prisma doesn't support bulk upsert easily, but we can do updateMany for existing states
-  // and createMany for missing ones?
-  // Simpler approach for now: Loop (inefficient but safe) or just updateMany if we assume states exist (which strictly they might not).
-  // Ideally, when a notification is created, we create state for recipient.
-  // But for Groups, we don't pre-create states for everyone.
-  
-  // OPTIMIZED APPROACH:
-  // 1. Update existing states to read=true
-  await prisma.userNotificationState.updateMany({
-      where: {
-          userId: session.user.id,
-          notificationId: { in: notifications.map(n => n.id) },
-          read: false
-      },
-      data: { read: true }
-  });
-
-  // 2. For those that don't have state yet (e.g. Group messages you haven't seen), create them as read.
-  // This is tricker to do in bulk without raw SQL or known missing list.
-  // For now, the existing "Unread Count" logic relies on `userStates: { some: { read: false } }`.
-  // If no state exists, it technically counts as... wait.
-  // Prisma unread count logic: `userStates: { some: { userId: me, read: false } }`.
-  // So if NO state exists, it is NOT counted as unread?
-  // Let's check `getThreadsAction`: 
-  // `userStates: { some: { userId: session.user.id, read: false } }`.
-  // Yes, so if state is missing, it is NOT unread. Thus, we only need to update EXISTING false states.
-  return { success: true };
+  return notifications;
 }
 
 /**
@@ -781,6 +635,7 @@ export async function deleteNotificationAction(id: string) {
     where: isAdmin ? { id } : { id, recipientId: session.user.id }
   });
 
+  revalidatePath("/");
   return { success: true };
 }
 
@@ -982,18 +837,6 @@ async function unhideThreadForAll(threadId: string) {
     });
 }
 
-export async function updateLastSeenAction() {
-    const session = await getSession();
-    if (!session) throw new Error("Unauthorized");
-
-    await prisma.user.update({
-        where: { id: session.user.id },
-        data: { lastSeen: new Date() }
-    });
-
-    return { success: true };
-}
-
 export async function toggleMuteAction(threadId: string) {
     const session = await getSession();
     if (!session) throw new Error("Unauthorized");
@@ -1045,7 +888,6 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
                 name: true,
                 email: true,
                 image: true,
-                lastSeen: true,
                 role: true
             },
             take: 100 // Limit for performance
@@ -1068,7 +910,6 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
                     name: true,
                     email: true,
                     image: true,
-                    lastSeen: true,
                     role: true
                 }
             }
@@ -1126,11 +967,7 @@ export async function getChatVersionAction(threadId?: string) {
     const session = await getSession();
     if (!session) return { version: null };
 
-    // Update current user's lastSeen on every version check (even with low polling)
-    await prisma.user.update({
-        where: { id: session.user.id },
-        data: { lastSeen: new Date() }
-    });
+
 
     const latest = await prisma.notification.findFirst({
         where: {
@@ -1144,15 +981,7 @@ export async function getChatVersionAction(threadId?: string) {
         select: { createdAt: true }
     });
 
-    // If threadId is provided and it's a private support context, fetch other user's presence
     let otherPresence = null;
-    if (threadId && threadId.startsWith("support_")) {
-        const otherMsg = await prisma.notification.findFirst({
-            where: { threadId, senderId: { not: session.user.id } },
-            select: { sender: { select: { lastSeen: true } } }
-        });
-        otherPresence = otherMsg?.sender?.lastSeen?.toISOString() || null;
-    }
 
     return { 
         version: latest?.createdAt.getTime() || 0,
@@ -1164,11 +993,7 @@ export async function syncChatAction(threadId?: string) {
     const session = await getSession();
     if (!session) return { threads: [], chat: null, version: 0 };
 
-    // 1. Mark User as active (Combine with other DB operations later if needed)
-    await prisma.user.update({
-        where: { id: session.user.id },
-        data: { lastSeen: new Date() }
-    });
+
 
     // 2. Parallel fetch for efficiency
     const [threads, versionData, enrolledCourses] = await Promise.all([
@@ -1191,18 +1016,4 @@ export async function syncChatAction(threadId?: string) {
     };
 }
 
-export async function setOfflineAction() {
-    const session = await getSession();
-    if (!session) return { success: false };
 
-    // Set lastSeen to 20 minutes ago to ensure they show as offline immediately
-    const twentyMinutesAgo = new Date();
-    twentyMinutesAgo.setMinutes(twentyMinutesAgo.getMinutes() - 40);
-
-    await prisma.user.update({
-        where: { id: session.user.id },
-        data: { lastSeen: twentyMinutesAgo }
-    });
-
-    return { success: true };
-}

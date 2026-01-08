@@ -2,7 +2,6 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import ThemeToggleClient from "./ThemeToggleClient";
 import { ThemeToggle } from "../ui/themeToggle";
-import { NotificationCenter } from "../notifications/NotificationCenter";
 
 export function SiteHeaderWrapper() {
   const isClient = typeof window !== "undefined";
@@ -20,9 +19,8 @@ export function SiteHeaderWrapper() {
           <h1 className="text-base font-medium">Next Career Labs LMS</h1>
         </div>
 
-        {/* RIGHT SIDE — Theme Toggle & Notifications */}
+        {/* RIGHT SIDE — Theme Toggle */}
         <div className="ml-auto flex items-center gap-2">
-          <NotificationCenter />
           <ThemeToggle />
         </div>
       </div>

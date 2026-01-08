@@ -16,7 +16,7 @@ const fileUploadSchema = z.object({
   isImage: z.boolean(),
 });
 
-const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
+const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 20 }));
 
 export async function POST(request: Request) {
   const session = await requireAdmin();
