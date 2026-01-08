@@ -56,6 +56,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   const [groupParticipants, setGroupParticipants] = useState<any[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const lastThreadId = useRef(threadId);
 
   const {
@@ -132,12 +133,18 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
   useEffect(() => {
     if (!loading && messages.length > 0 && !isFetchingNextPage) {
-        scrollToBottom();
+        scrollToBottom(true); // Instant on load
     }
   }, [loading, threadId, messages.length]); 
 
-  const scrollToBottom = () => {
-    if (scrollRef.current) {
+  const scrollToBottom = (instant = false) => {
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ 
+        behavior: instant ? "auto" : "smooth",
+        block: "end"
+      });
+    } else if (scrollRef.current) {
+      // Fallback
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   };
@@ -145,43 +152,57 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   const handleSendMessage = async () => {
     if ((!inputText.trim() && !imageUrl) || sending) return;
     
+    const textToSend = inputText;
+    const imgToSend = imageUrl;
+    
+    setInputText("");
+    setImageUrl("");
     setSending(true);
 
     const tempId = `temp-${Date.now()}`;
     const optimisticMessage = {
         id: tempId,
-        content: inputText,
-        imageUrl: imageUrl || null,
+        content: textToSend,
+        imageUrl: imgToSend || null,
         senderId: currentUserId,
         createdAt: new Date().toISOString(),
         status: "sending",
         sender: {
             id: currentUserId,
-            name: "You", // Will be corrected on fetch
-            image: "" // Will be corrected on fetch
+            name: "You",
+            image: "" 
         },
         type: isGroup ? "GROUP_CHAT" : "SUPPORT_TICKET"
     };
 
-    // OPTIMISTIC UPDATE via Query Data would be complex for infinite query
-    // Simple approach: show sending state and invalidate on success
-    
+    // OPTIMISTIC UPDATE via Query Data
+    queryClient.setQueryData(["messages", threadId], (oldData: any) => {
+        if (!oldData) return oldData;
+        const newPages = [...oldData.pages];
+        // Add to the first page (latest messages)
+        newPages[0] = {
+            ...newPages[0],
+            messages: [...newPages[0].messages, optimisticMessage]
+        };
+        return {
+            ...oldData,
+            pages: newPages
+        };
+    });
     
     // UPDATE SIDEBAR INSTANTLY
     window.dispatchEvent(new CustomEvent("chat-thread-update", { 
         detail: { 
             threadId, 
-            lastMessage: inputText || "Image attached",
+            lastMessage: textToSend || "Image attached",
             updatedAt: new Date().toISOString(),
             archived: false
         } 
     }));
 
-    const textToSend = inputText;
-    const imgToSend = imageUrl;
-
-    setInputText("");
-    setImageUrl("");
+    // GUARANTEE SCROLL TO BOTTOM
+    setTimeout(() => scrollToBottom(true), 50);
+    setTimeout(() => scrollToBottom(true), 150); 
 
     try {
       let result;
@@ -216,7 +237,19 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             threadId
          });
       }
+
       if (result && !result.success) {
+          // Revert optimistic update
+          queryClient.setQueryData(["messages", threadId], (oldData: any) => {
+              if (!oldData) return oldData;
+              const newPages = [...oldData.pages];
+              newPages[0] = {
+                  ...newPages[0],
+                  messages: newPages[0].messages.filter((m: any) => m.id !== tempId)
+              };
+              return { ...oldData, pages: newPages };
+          });
+
           if ((result as any).error === "TICKET_LIMIT_REACHED") {
               const mins = (result as any).minutesLeft;
               const hours = Math.floor(mins / 60);
@@ -229,14 +262,38 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
           return;
       }
 
-      // Invalidate queries to get fresh data
-      queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
+      // Update the optimistic message with the real one
+      if (result && result.success && result.notification) {
+          queryClient.setQueryData(["messages", threadId], (oldData: any) => {
+              if (!oldData) return oldData;
+              const newPages = [...oldData.pages];
+              newPages[0] = {
+                  ...newPages[0],
+                  messages: newPages[0].messages.map((m: any) => 
+                      m.id === tempId ? { ...result.notification, status: "sent" } : m
+                  )
+              };
+              return { ...oldData, pages: newPages };
+          });
+      } else {
+          queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
+      }
 
       chatCache.clear(`messages_${threadId}`);
       chatCache.clear("threads");
     } catch (error) {
       console.error(error);
       toast.error("Failed to send message");
+      // Revert on catch
+      queryClient.setQueryData(["messages", threadId], (oldData: any) => {
+          if (!oldData) return oldData;
+          const newPages = [...oldData.pages];
+          newPages[0] = {
+              ...newPages[0],
+              messages: newPages[0].messages.filter((m: any) => m.id !== tempId)
+          };
+          return { ...oldData, pages: newPages };
+      });
     } finally {
       setSending(false);
     }
@@ -401,13 +458,32 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       if (isBusy) return;
       setIsBusy(true);
 
+      // OPTIMISTIC UPDATE MESSAGES
+      queryClient.setQueryData(["messages", threadId], (old: any) => {
+          if (!old || !old.pages) return old;
+          return {
+              ...old,
+              pages: old.pages.map((page: any) => ({
+                  ...page,
+                  notifications: page.notifications.map((n: any) => 
+                      n.id === id ? { ...n, resolved: true, feedback: status } : n
+                  )
+              }))
+          };
+      });
+
+      // We might want to check if this was the last unresolved ticket to update sidebar,
+      // but simpler to just invalidate seeds or assume it might resolve if it's a 1-on-1.
+      
       try {
           await resolveTicketAction(id, status);
           chatCache.clear(`messages_${threadId}`);
           chatCache.clear("threads");
           toast.success(status === "Resolved" ? "Ticket resolved" : "Ticket denied");
-          refetch();
+          // refetch(); // Invalidate instead of full refetch for better cache sync
+          queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
       } catch (e) {
+          queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
           toast.error("Failed to update ticket status");
       } finally {
           setIsBusy(false);
@@ -418,48 +494,100 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       if (isBusy) return;
       setIsBusy(true);
 
+      // 1. OPTIMISTIC UPDATE SIDEBAR
+      queryClient.setQueryData(["sidebarData"], (old: any) => {
+          if (!old || !old.threads) return old;
+          return {
+              ...old,
+              threads: old.threads.map((t: any) => 
+                  t.threadId === threadId ? { ...t, resolved: true } : t
+              )
+          };
+      });
+
+      // 2. OPTIMISTIC UPDATE MESSAGES
+      queryClient.setQueryData(["messages", threadId], (old: any) => {
+          if (!old || !old.pages) return old;
+          return {
+              ...old,
+              pages: old.pages.map((page: any) => ({
+                  ...page,
+                  notifications: page.notifications.map((n: any) => ({
+                      ...n,
+                      resolved: true,
+                      feedback: n.resolved ? n.feedback : status // Only set feedback if it wasn't already resolved
+                  }))
+              }))
+          };
+      });
+
       try {
           await resolveThreadAction(threadId, status);
           chatCache.clear(`messages_${threadId}`);
           chatCache.clear("threads");
           toast.success(status === "Resolved" ? "Thread resolved" : "Thread denied");
-          refetch();
       } catch (e) {
+          queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+          queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
           toast.error("Failed to update status");
       } finally {
           setIsBusy(false);
       }
   };
 
-   const handleArchiveChat = async () => {
-       if (isBusy) return;
-       setIsBusy(true);
+    const handleArchiveChat = async () => {
+        if (isBusy) return;
+        setIsBusy(true);
 
-       const originalArchived = isArchived;
-       const nextArchived = !isArchived;
-       
-       // OPTIMISTIC UPDATE
-       setIsArchived(nextArchived);
-       window.dispatchEvent(new CustomEvent("chat-thread-update", { 
-           detail: { threadId, archived: nextArchived } 
-       }));
-       
-       try {
-           await archiveThreadAction(threadId);
-           chatCache.clear(`messages_${threadId}`);
-           chatCache.clear("threads");
-       } catch (e) {
-           // REVERT ON FAILURE
-           setIsArchived(originalArchived);
-           window.dispatchEvent(new CustomEvent("chat-thread-update", { 
-               detail: { threadId, archived: originalArchived } 
-           }));
-           toast.error("Failed to archive chat");
-           console.error("Failed to archive chat", e);
-       } finally {
-           setIsBusy(false);
-       }
-   };
+        const nextArchived = !isArchived;
+        
+        // 1. OPTIMISTIC UPDATE LOCAL STATE
+        setIsArchived(nextArchived);
+
+        // 2. OPTIMISTIC UPDATE SIDEBAR CACHE
+        queryClient.setQueryData(["sidebarData"], (old: any) => {
+            if (!old || !old.threads) return old;
+            return {
+                ...old,
+                threads: old.threads.map((t: any) => 
+                    t.threadId === threadId ? { ...t, archived: nextArchived } : t
+                )
+            };
+        });
+
+        // 3. OPTIMISTIC UPDATE MESSAGES STATE
+        queryClient.setQueryData(["messages", threadId], (old: any) => {
+            if (!old || !old.pages) return old;
+            const newPages = [...old.pages];
+            if (newPages[0]) {
+                newPages[0] = {
+                    ...newPages[0],
+                    state: { ...newPages[0].state, isArchived: nextArchived }
+                };
+            }
+            return { ...old, pages: newPages };
+        });
+        
+        window.dispatchEvent(new CustomEvent("chat-thread-update", { 
+            detail: { threadId, archived: nextArchived } 
+        }));
+        
+        try {
+            await archiveThreadAction(threadId);
+            chatCache.clear(`messages_${threadId}`);
+            chatCache.clear("threads");
+        } catch (e) {
+            // REVERT ON FAILURE
+            setIsArchived(!nextArchived);
+            queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
+            
+            toast.error("Failed to archive chat");
+            console.error("Failed to archive chat", e);
+        } finally {
+            setIsBusy(false);
+        }
+    };
 
    const handleRemoveChat = async () => {
        if (isBusy) return;
@@ -493,8 +621,33 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
        const originalMuted = isMuted;
        const nextMuted = !isMuted;
 
-       // OPTIMISTIC UPDATE
+       // 1. OPTIMISTIC UPDATE LOCAL STATE
        setIsMuted(nextMuted);
+
+       // 2. OPTIMISTIC UPDATE SIDEBAR CACHE
+       queryClient.setQueryData(["sidebarData"], (old: any) => {
+           if (!old || !old.threads) return old;
+           return {
+               ...old,
+               threads: old.threads.map((t: any) => 
+                   t.threadId === threadId ? { ...t, muted: nextMuted } : t
+               )
+           };
+       });
+
+       // 3. OPTIMISTIC UPDATE MESSAGES STATE
+       queryClient.setQueryData(["messages", threadId], (old: any) => {
+           if (!old || !old.pages) return old;
+           const newPages = [...old.pages];
+           if (newPages[0]) {
+               newPages[0] = {
+                   ...newPages[0],
+                   state: { ...newPages[0].state, isMuted: nextMuted }
+               };
+           }
+           return { ...old, pages: newPages };
+       });
+
        window.dispatchEvent(new CustomEvent("chat-thread-update", { 
            detail: { threadId, muted: nextMuted } 
        }));
@@ -502,12 +655,14 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
        try {
            const result = await toggleMuteAction(threadId);
            setIsMuted(result.muted);
-           // toast.success(result.muted ? "Chat muted" : "Chat unmuted");
+           // Sync with actual result if different
+           if (result.muted !== nextMuted) {
+               queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+           }
        } catch (e) {
            setIsMuted(originalMuted);
-           window.dispatchEvent(new CustomEvent("chat-thread-update", { 
-               detail: { threadId, muted: originalMuted } 
-           }));
+           queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+           queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
            toast.error("Failed to toggle mute");
        } finally {
            setIsBusy(false);
@@ -596,11 +751,10 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                         </DropdownMenuItem>
                     )}
                     <DropdownMenuItem 
-                        disabled={isBusy}
                         onClick={handleToggleMute} 
                         className="cursor-pointer py-2 mb-1 rounded-md focus:bg-primary/5"
                     >
-                        {isBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : (isMuted ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />)}
+                        {isMuted ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
                         <span className="font-medium">{isMuted ? "Unmute" : "Mute"}</span>
                     </DropdownMenuItem>
                     {!isGroup && isAdmin && (
@@ -618,11 +772,10 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                         </>
                     )}
                     <DropdownMenuItem 
-                        disabled={isBusy}
                         onClick={() => handleArchiveChat()} 
                         className="cursor-pointer py-2 rounded-md focus:bg-primary/5"
                     >
-                        {isBusy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Archive className="h-4 w-4 mr-2" />}
+                        <Archive className="h-4 w-4 mr-2" />
                         <span className="font-medium">{isArchived ? "Unarchive Chat" : "Archive Chat"}</span>
                     </DropdownMenuItem>
                     {!isGroup && (

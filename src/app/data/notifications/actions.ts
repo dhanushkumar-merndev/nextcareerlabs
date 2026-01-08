@@ -87,7 +87,7 @@ export async function sendNotificationAction(data: {
     }
 
     // Ensure the thread is visible for both parties
-    await unhideThreadForAll(threadId);
+    // Moved to be called once at the end or conditionally
   }
 
   const notification = await prisma.notification.create({
@@ -115,8 +115,10 @@ export async function sendNotificationAction(data: {
     });
   }
 
-  // Unhide for everyone (if it was hidden)
-  await unhideThreadForAll(threadId);
+  // Unhide for everyone (if it was hidden) - ONLY ONCE
+  if (threadId) {
+    await unhideThreadForAll(threadId);
+  }
 
   revalidatePath("/");
   return { success: true, notification };
@@ -132,7 +134,7 @@ export async function replyToTicketAction(data: {
   const session = await getSession();
   if (!session || session.user.role !== "admin") throw new Error("Unauthorized");
 
-  await prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: {
       title: `RE: Support Ticket`,
       content: data.content,
@@ -150,7 +152,7 @@ export async function replyToTicketAction(data: {
   // For now, let's leave read status logic to the view.
 
   revalidatePath("/");
-  return { success: true };
+  return { success: true, notification };
 }
 
 // NEW ACTIONS
@@ -265,7 +267,25 @@ export async function getThreadsAction() {
       }
   });
 
-  // 4. BATCH FETCH STUDENT INFO (ADMIN ONLY)
+  // 4. BATCH FETCH UNRESOLVED TICKET COUNTS
+  // A thread is only "Resolved" if it has ZERO unresolved SUPPORT_TICKET notifications.
+  const unresolvedTicketsResults = await prisma.notification.findMany({
+    where: {
+      threadId: { in: threadIds },
+      type: "SUPPORT_TICKET",
+      resolved: false
+    },
+    select: { threadId: true }
+  });
+
+  const unresolvedMap: Record<string, number> = {};
+  unresolvedTicketsResults.forEach(msg => {
+      if (msg.threadId) {
+          unresolvedMap[msg.threadId] = (unresolvedMap[msg.threadId] || 0) + 1;
+      }
+  });
+
+  // 5. BATCH FETCH STUDENT INFO (ADMIN ONLY)
   let studentMap: Record<string, any> = {};
   if (isAdmin) {
       const studentMsgs = await prisma.notification.findMany({
@@ -344,12 +364,14 @@ export async function getThreadsAction() {
       }
     }
 
+    const isThreadResolved = !(unresolvedMap[threadId] > 0);
+
     return {
       threadId,
       lastMessage: latestMsg.content,
       updatedAt: latestMsg.createdAt,
       unreadCount,
-      resolved: latestMsg.resolved, 
+      resolved: isThreadResolved, 
       isGroup: !!latestMsg.chatGroupId,
       type: latestMsg.chatGroupId ? "Group" : (isAdmin ? "Ticket" : "Support"),
       display
@@ -879,22 +901,14 @@ export async function resolveThreadAction(threadId: string, status: "Resolved" |
     const session = await getSession();
     if (!session || session.user.role !== "admin") throw new Error("Unauthorized");
 
-    // We only want to mark the LATEST message as resolved/denied
-    // to avoid showing the badge on every historical message in the consolidated thread.
-    const latestMsg = await prisma.notification.findFirst({
+    // Robust resolution: mark ALL notifications in this thread as resolved
+    await prisma.notification.updateMany({
         where: { threadId },
-        orderBy: { createdAt: "desc" }
+        data: { 
+            resolved: true,
+            feedback: status 
+        }
     });
-
-    if (latestMsg) {
-        await prisma.notification.update({
-            where: { id: latestMsg.id },
-            data: { 
-                resolved: true,
-                feedback: status // Overriding feedback field to store the custom status
-            }
-        });
-    }
 
     revalidatePath("/");
     return { success: true };

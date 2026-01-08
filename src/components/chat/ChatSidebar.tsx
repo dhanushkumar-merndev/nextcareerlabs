@@ -51,7 +51,39 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
 
   useEffect(() => {
     const handleThreadUpdate = (e: any) => {
-        refetch();
+        const { threadId, archived, muted, lastMessage, updatedAt, hidden } = e.detail;
+        
+        // AUTO-SWITCH VIEW IF CURRENT THREAD IS UNARCHIVED
+        if (threadId === selectedThreadId && archived === false && viewRef.current === "archived") {
+            setView("recent");
+        }
+        
+        queryClient.setQueryData(["sidebarData"], (old: any) => {
+            if (!old || !old.threads) return old;
+            
+            let updatedThreads = [...old.threads];
+            const index = updatedThreads.findIndex(t => t.threadId === threadId);
+            
+            if (index !== -1) {
+                // UPDATE EXISTING THREAD
+                updatedThreads[index] = {
+                    ...updatedThreads[index],
+                    ...(archived !== undefined && { archived }),
+                    ...(muted !== undefined && { muted }),
+                    ...(hidden !== undefined && { hidden }),
+                    ...(lastMessage !== undefined && { lastMessage }),
+                    ...(updatedAt !== undefined && { updatedAt }),
+                };
+            } else if (!hidden) {
+                // If thread doesn't exist and isn't being hidden, we should probably refetch 
+                // to get the full thread details, but for now we'll just wait for the next sync.
+                // Or we could trigger a slow refetch in the background.
+                setTimeout(() => refetch(), 100);
+                return old;
+            }
+
+            return { ...old, threads: updatedThreads.filter(t => !t.hidden) };
+        });
     };
     const handleRefresh = () => {
         // refetch();
