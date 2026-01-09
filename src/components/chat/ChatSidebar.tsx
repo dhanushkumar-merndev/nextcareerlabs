@@ -176,7 +176,12 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
       }}
     >
       <Avatar className="h-10 w-10 border bg-background shrink-0">
-        <AvatarImage src={getAvatarUrl(thread.display.image)} />
+        <AvatarImage 
+          src={getAvatarUrl(thread.display.image)} 
+          className="object-cover"
+          width={200}
+          height={200}
+        />
         <AvatarFallback className={thread.isGroup ? "bg-primary/5 text-primary" : ""}>
           {thread.isGroup ? <Users className="h-5 w-5" /> : thread.display.name.slice(0, 2).toUpperCase()}
         </AvatarFallback>

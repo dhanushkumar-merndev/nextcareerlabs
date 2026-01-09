@@ -113,7 +113,7 @@ export async function sendNotificationAction(data: {
     await unhideThreadForAll(threadId);
   }
 
-  revalidatePath("/");
+  revalidatePath("/admin/resources");
   return { success: true, notification };
 }
 
@@ -146,7 +146,7 @@ export async function replyToTicketAction(data: {
   // Mark all messages in thread as read for admin? Or just specific ones?
   // For now, let's leave read status logic to the view.
 
-  revalidatePath("/");
+  revalidatePath("/admin/resources");
   return { success: true, notification };
 }
 
@@ -157,39 +157,40 @@ export async function getThreadsAction() {
   if (!session) return [];
   const isAdmin = session.user.role === "admin";
 
-  // Ensure default "Broadcast" group exists
+  // Ensure default "Broadcast" group exists (Fast check: only if not present)
   if (isAdmin) {
-      const globGroups = await prisma.chatGroup.findMany({
-          where: { courseId: null }
+      const missingGroupsCount = await prisma.course.count({
+          where: { status: "Published", chatGroups: { none: {} } }
       });
-      const names = globGroups.map(g => g.name.toLowerCase());
+      const broadcastExist = await prisma.chatGroup.findFirst({
+          where: { name: "Broadcast", courseId: null },
+          select: { id: true }
+      });
       
-      if (!names.includes("broadcast")) {
-          await prisma.chatGroup.create({
-              data: { name: "Broadcast" }
-          });
-      }
-
-      // SELF-HEAL: Ensure all Published courses have a Broadcast Group
-      const missingGroups = await prisma.course.findMany({
-          where: {
-              status: "Published",
-              chatGroups: { none: {} }
+      if (missingGroupsCount > 0 || !broadcastExist) {
+          // Trigger full initialization logic only if something is missing
+          if (!broadcastExist) {
+              await prisma.chatGroup.create({ data: { name: "Broadcast" } });
           }
-      });
-
-      if (missingGroups.length > 0) {
-          await Promise.all(missingGroups.map(c => 
-              prisma.chatGroup.create({
-                  data: {
-                      name: `${c.title} Group`,
-                      courseId: c.id,
-                      imageUrl: c.fileKey
-                  }
-              })
-          ));
+          const missingGroups = await prisma.course.findMany({
+              where: { status: "Published", chatGroups: { none: {} } }
+          });
+          if (missingGroups.length > 0) {
+              await Promise.all(missingGroups.map(c => 
+                  prisma.chatGroup.create({
+                      data: {
+                          name: `${c.title} Group`,
+                          courseId: c.id,
+                          imageUrl: c.fileKey
+                      }
+                  })
+              ));
+          }
+           // Use the specific revalidation path we established
+           revalidatePath("/admin/resources");
       }
   }
+
 
   // Strategy: Group by threadId to find unique conversations
   const whereClause: any = isAdmin 
@@ -240,66 +241,7 @@ export async function getThreadsAction() {
 
   const threadIds = threadMaxDates.map(t => t.threadId!).filter(Boolean);
   
-  // 2. BATCH FETCH LATEST MESSAGES
-  let latestMsgs: any[] = [];
-  if (threadIds.length > 0) {
-      latestMsgs = await prisma.notification.findMany({
-        where: {
-          OR: threadMaxDates.map(t => ({
-            threadId: t.threadId,
-            createdAt: t._max.createdAt!
-          }))
-        },
-        include: {
-          sender: { select: { id: true, name: true, image: true, email: true } },
-          recipient: { select: { id: true, name: true, image: true, email: true } },
-          chatGroup: true
-        }
-      });
-  }
-
-
-
-  // 4. BATCH FETCH UNRESOLVED TICKET COUNTS
-  const unresolvedTicketsResults = threadIds.length > 0 ? await prisma.notification.findMany({
-    where: {
-      threadId: { in: threadIds },
-      type: "SUPPORT_TICKET",
-      resolved: false
-    },
-    select: { threadId: true }
-  }) : [];
-
-  const unresolvedMap: Record<string, number> = {};
-  unresolvedTicketsResults.forEach(msg => {
-      if (msg.threadId) {
-          unresolvedMap[msg.threadId] = (unresolvedMap[msg.threadId] || 0) + 1;
-      }
-  });
-
-  // 5. BATCH FETCH STUDENT INFO (ADMIN ONLY)
-  let studentMap: Record<string, any> = {};
-  if (isAdmin && threadIds.length > 0) {
-      const studentMsgs = await prisma.notification.findMany({
-          where: {
-              threadId: { in: threadIds },
-              sender: {
-                  OR: [
-                      { role: null },
-                      { role: { not: "admin" } }
-                  ]
-              }
-          },
-          distinct: ['threadId'],
-          orderBy: { createdAt: 'asc' },
-          include: { sender: { select: { id: true, name: true, image: true, email: true } } }
-      });
-      studentMsgs.forEach(m => {
-          if (m.threadId) studentMap[m.threadId] = m.sender;
-      });
-  }
-
-  // 5. BATCH FETCH CHAT GROUPS (Already fairly efficient, but let's sync)
+  // 5. BATCH FETCH CHAT GROUPS WHERE CLAUSE
   let groupWhere: any = { name: { not: "Support", mode: "insensitive" } };
   if (!isAdmin) {
     const userEnrollments = await prisma.enrollment.findMany({
@@ -315,17 +257,101 @@ export async function getThreadsAction() {
     };
   }
 
+  // 2. PARALLEL FETCH REMAINING DATA
+  const [
+    latestMsgs,
+    unresolvedTicketsResults,
+    studentMsgs,
+    groups,
+    userStates,
+    enrollmentData,
+    latestNotification
+  ] = await Promise.all([
+    // Latest Messages (The big one)
+    threadIds.length > 0 ? prisma.notification.findMany({
+      where: {
+        OR: threadMaxDates.map(t => ({
+          threadId: t.threadId,
+          createdAt: t._max.createdAt!
+        }))
+      },
+      include: {
+        sender: { select: { id: true, name: true, image: true, email: true } },
+        recipient: { select: { id: true, name: true, image: true, email: true } },
+        chatGroup: true
+      }
+    }) : Promise.resolve([]),
+
+    // Unresolved Tickets
+    threadIds.length > 0 ? prisma.notification.findMany({
+      where: {
+        threadId: { in: threadIds },
+        type: "SUPPORT_TICKET",
+        resolved: false
+      },
+      select: { threadId: true }
+    }) : Promise.resolve([]),
+
+    // Student Info (Admin only)
+    isAdmin && threadIds.length > 0 ? prisma.notification.findMany({
+      where: {
+        threadId: { in: threadIds },
+        sender: {
+            OR: [ { role: null }, { role: { not: "admin" } } ]
+        }
+      },
+      distinct: ['threadId'],
+      orderBy: { createdAt: 'asc' },
+      include: { sender: { select: { id: true, name: true, image: true, email: true } } }
+    }) : Promise.resolve([]),
+
+    // Chat Groups
+    prisma.chatGroup.findMany({
+      where: groupWhere,
+      include: { messages: { take: 1, orderBy: { createdAt: 'desc' } } }
+    }),
+
+    // User Thread States
+    prisma.userThreadState.findMany({ where: { userId: session.user.id } }),
+
+    // Enrolled Courses for Meta
+    prisma.enrollment.findMany({
+      where: { userId: session.user.id, status: "Granted" },
+      include: { Course: { select: { id: true, title: true } } }
+    }),
+
+    // Version Check
+    prisma.notification.findFirst({
+        where: {
+            OR: [
+                { recipientId: session.user.id },
+                { senderId: session.user.id },
+                { type: "BROADCAST" }
+            ]
+        },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true }
+    })
+  ]);
+
+  // Transform Maps
+  const unresolvedMap: Record<string, number> = {};
+  unresolvedTicketsResults.forEach(msg => {
+      if (msg.threadId) unresolvedMap[msg.threadId] = (unresolvedMap[msg.threadId] || 0) + 1;
+  });
+
+  const studentMap: Record<string, any> = {};
+  if (isAdmin) {
+      studentMsgs.forEach(m => { if (m.threadId) studentMap[m.threadId] = m.sender; });
+  }
+
+  const enrollmentCourses = enrollmentData.map(e => e.Course);
+  const stateMap = new Map((userStates as any[]).map(s => [s.threadId, s]));
+
   // Combine results in memory
-  const threadDetails = latestMsgs.map(latestMsg => {
+  const threadDetails = (latestMsgs as any[]).map(latestMsg => {
     const threadId = latestMsg.threadId!;
-    // unreadCount removed as per request
-    
-    
-    let display = {
-      name: "Support Team",
-      image: "",
-      email: "support@platform.com"
-    };
+    let display = { name: "Support Team", image: "", email: "support@platform.com" };
 
     if (latestMsg.chatGroupId && latestMsg.chatGroup) {
         display = {
@@ -334,31 +360,15 @@ export async function getThreadsAction() {
             email: "Group"
         };
     } else if (isAdmin) {
-      let targetUser = null;
-      if (latestMsg.senderId !== session.user.id) {
-          targetUser = latestMsg.sender;
-      } else if (latestMsg.recipient) {
-          targetUser = latestMsg.recipient;
-      }
-      
-      // Fallback to the first student who messaged in this thread
-      if (!targetUser) {
-          targetUser = studentMap[threadId];
-      }
-
+      let targetUser = (latestMsg.senderId !== session.user.id) ? latestMsg.sender : (latestMsg.recipient || studentMap[threadId]);
       if (targetUser) {
-        display = {
-           name: targetUser.name || targetUser.email || "Student",
-           image: targetUser.image || "",
-           email: targetUser.email
-        };
+        display = { name: targetUser.name || targetUser.email || "Student", image: targetUser.image || "", email: targetUser.email };
       } else {
-         display = { name: "Ticket User", image: "", email: "" };
+        display = { name: "Ticket User", image: "", email: "" };
       }
     }
 
     const isThreadResolved = !(unresolvedMap[threadId] > 0);
-
     return {
       threadId,
       lastMessage: latestMsg.content,
@@ -370,17 +380,6 @@ export async function getThreadsAction() {
     };
   });
 
-  // 6. Handle groups that might not have messages yet
-  const groups = await prisma.chatGroup.findMany({
-    where: groupWhere,
-    include: {
-        messages: {
-            take: 1,
-            orderBy: { createdAt: 'desc' }
-        }
-    }
-  });
-
   const uniqueGroupsMap = new Map<string, any>();
   groups.forEach(g => {
       const key = g.courseId ? g.id : `GLOBAL_NAME_${g.name}`;
@@ -390,7 +389,6 @@ export async function getThreadsAction() {
   const groupThreads = Array.from(uniqueGroupsMap.values()).map(g => {
       const threadId = g.id;
       const lastMsg = g.messages[0];
-      
       return {
         threadId,
         lastMessage: lastMsg?.content || "No messages yet",
@@ -398,33 +396,14 @@ export async function getThreadsAction() {
         resolved: true,
         isGroup: true,
         type: "Group",
-        display: {
-            name: g.name,
-            image: g.imageUrl || "",
-            email: ""
-        }
+        display: { name: g.name, image: g.imageUrl || "", email: "" }
       };
   });
 
-  // 7. Sync user thread states (archived, hidden)
-  const userStates = await prisma.userThreadState.findMany({
-      where: { userId: session.user.id }
-  });
-  const stateMap = new Map(userStates.map(s => [s.threadId, s]));
-
-  // Combine and deduplicate (in case a thread is both in details and groups)
   const allThreadsMap = new Map<string, any>();
-  
   [...threadDetails, ...groupThreads].forEach(t => {
       const state = stateMap.get(t.threadId);
-      const merged = {
-          ...t,
-          archived: state?.archived ?? false,
-          hidden: state?.hidden ?? false,
-          muted: state?.muted ?? false
-      };
-      
-      // If we have duplicates, keep the one with the later updatedAt
+      const merged = { ...t, archived: state?.archived ?? false,  hidden: state?.hidden ?? false, muted: state?.muted ?? false };
       const existing = allThreadsMap.get(t.threadId);
       if (!existing || new Date(merged.updatedAt) > new Date(existing.updatedAt)) {
           allThreadsMap.set(t.threadId, merged);
@@ -435,32 +414,18 @@ export async function getThreadsAction() {
     .filter(t => !t.hidden)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  // Consolidate metadata
-  const enrollments = await prisma.enrollment.findMany({
-      where: { userId: session.user.id, status: "Granted" },
-      include: { Course: { select: { id: true, title: true } } }
-  });
-  const enrolledCourses = enrollments.map(e => e.Course);
-
-  const latestNotification = await prisma.notification.findFirst({
-      where: {
-          OR: [
-              { recipientId: session.user.id },
-              { senderId: session.user.id },
-              { type: "BROADCAST" }
-          ]
-      },
-      orderBy: { createdAt: "desc" },
-      select: { createdAt: true }
-  });
-
   return { 
       threads: finalThreads, 
-      version: latestNotification?.createdAt.getTime() ?? Date.now(),
-      enrolledCourses,
+      version: latestNotification?.createdAt.getTime() ?? 0,
+      enrolledCourses: enrollmentCourses,
       presence: null 
   };
 }
+
+/**
+ * NEW: Manual or triggered initialization of chat groups.
+ * Call this when a course is published or when an admin enters the dashboard.
+ */
 
 export async function getThreadMessagesAction(threadId: string, before?: string) {
   const session = await getSession();
@@ -527,7 +492,7 @@ export async function createChatGroupAction(name: string, courseId: string) {
         }
     });
 
-    revalidatePath("/");
+    revalidatePath("/admin/resources");
     return group;
 }
 
@@ -625,17 +590,51 @@ export async function getMyNotificationsAction(filters?: {
 /**
  * Delete a notification
  */
+
+import { DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3 } from "@/lib/S3Client";
+import { env } from "@/lib/env";
+
 export async function deleteNotificationAction(id: string) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
   const isAdmin = session.user.role === "admin";
   
-  await prisma.notification.delete({
-    where: isAdmin ? { id } : { id, recipientId: session.user.id }
+  // 1. Fetch message to check for attachments
+  const message = await prisma.notification.findUnique({
+      where: isAdmin ? { id } : { id, recipientId: session.user.id }
   });
 
-  revalidatePath("/");
+  if (!message) return { success: false, error: "Message not found" };
+
+  // 2. Delete from S3 if attachment exists
+  try {
+      if (message.imageUrl) {
+          const command = new DeleteObjectCommand({
+              Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
+              Key: message.imageUrl,
+          });
+          await S3.send(command);
+      }
+      if (message.fileUrl) {
+           const command = new DeleteObjectCommand({
+              Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
+              Key: message.fileUrl,
+          });
+          await S3.send(command);
+      }
+  } catch (error) {
+      console.error("Failed to delete S3 object:", error);
+      // Proceed with DB deletion anyway
+  }
+
+  // 3. Delete from DB
+  await prisma.notification.delete({
+    where: { id }
+  });
+
+  revalidatePath("/admin/resources");
   return { success: true };
 }
 
@@ -665,7 +664,7 @@ export async function editMessageAction(id: string, newContent: string, imageUrl
     }
   });
 
-  revalidatePath("/");
+  revalidatePath("/admin/resources");
   return { success: true };
 }
 
@@ -686,7 +685,7 @@ export async function resolveTicketAction(id: string, status: "Resolved" | "Deni
     }
   });
 
-  revalidatePath("/");
+  revalidatePath("/admin/resources");
   return { success: true };
 }
 
@@ -708,7 +707,7 @@ export async function submitFeedbackAction(data: {
     }
   });
 
-  revalidatePath("/");
+  revalidatePath("/admin/resources");
   return { success: true };
 }
 
@@ -748,7 +747,7 @@ export async function banUserFromSupportAction(userId: string) {
         data: { isSupportBanned: newStatus }
     });
 
-    revalidatePath("/");
+    revalidatePath("/admin/resources");
     return { banned: newStatus };
 }
 
@@ -765,7 +764,7 @@ export async function resolveThreadAction(threadId: string, status: "Resolved" |
         }
     });
 
-    revalidatePath("/");
+    revalidatePath("/admin/resources");
     return { success: true };
 }
 
@@ -788,7 +787,7 @@ export async function hideThreadAction(threadId: string) {
         }
     });
 
-    revalidatePath("/");
+    revalidatePath("/admin/resources");
     return { success: true };
 }
 
@@ -822,7 +821,7 @@ export async function archiveThreadAction(threadId: string) {
         }
     });
 
-    revalidatePath("/");
+    revalidatePath("/admin/resources");
     return { success: true, archived: newArchivedStatus };
 }
 
@@ -865,7 +864,7 @@ export async function toggleMuteAction(threadId: string) {
         }
     });
 
-    revalidatePath("/");
+    revalidatePath("/admin/resources");
     return { success: true, muted: !existing?.muted };
 }
 
@@ -959,7 +958,7 @@ export async function deleteThreadMessagesAction(threadId: string) {
         where: { threadId }
     });
 
-    revalidatePath("/");
+    revalidatePath("/admin/resources");
     return { success: true };
 }
 

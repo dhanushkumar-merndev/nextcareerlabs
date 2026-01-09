@@ -44,7 +44,7 @@ export function SectionCards({ stats }: SectionCardsProps) {
       />
 
       <SimpleStatCard
-        title="Total Customers"
+        title="Total Subscribers"
         value={enrolledUsers}
         description="Users who have enrolled in courses"
         icon={<IconUsers className="size-6 text-primary" />}

@@ -30,8 +30,8 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
   const { data: sidebarData, isLoading: loadingSidebar } = useQuery({
     queryKey: ["sidebarData"],
     queryFn: () => getThreadsAction(),
-    staleTime: 30000, // 30 seconds
-    refetchInterval: 30000,
+    staleTime: 60000, // 1 minute
+    refetchInterval: 60000, // 60 seconds (reduced from 30)
     refetchOnWindowFocus: true,
   });
 
@@ -39,17 +39,21 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
   const version = (sidebarData as any)?.version;
   const enrolledCourses = (sidebarData as any)?.enrolledCourses || [];
 
+  // Group initialization is now handled more efficiently inside getThreadsAction
+
   // Handle centralized invalidation
   useEffect(() => {
-    if (version && version !== lastVersionRef.current) {
+    // Only invalidate if version is GREATER than last seen version
+    // version === 0 means no notifications yet, so don't trigger anything unless it's the first load
+    if (version !== undefined && version !== null) {
         const isInitial = lastVersionRef.current === null;
-        lastVersionRef.current = version;
-        if (!isInitial) {
+        if (!isInitial && version > (lastVersionRef.current || 0)) {
             queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
             if (selectedThread?.id) {
                 queryClient.invalidateQueries({ queryKey: ["messages", selectedThread.id] });
             }
         }
+        lastVersionRef.current = version;
     }
   }, [version, queryClient, selectedThread?.id]);
   
@@ -58,15 +62,17 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
     setSelectedThread(null);
   };
 
+
   // Memoize handleSelectThread to prevent auto-select effect from running repeatedly
   // Also sync URL when user manually selects a thread
   const handleSelectThread = useCallback((thread: { id: string; name: string; image?: string; type?: string }) => {
     setSelectedThread(thread);
     
-    // Update URL to reflect the selected thread
-    const currentPath = window.location.pathname;
-    router.replace(`${currentPath}?threadId=${thread.id}`, { scroll: false });
-  }, [router]);
+    // Silent URL update to avoid redundant server-side render
+    const url = new URL(window.location.href);
+    url.searchParams.set("threadId", thread.id);
+    window.history.replaceState(null, "", url.toString());
+  }, []);
   
   // Custom hook or simple check for mobile
   // For simplicity, using CSS display logic mostly, but state helps for "view" mode

@@ -5,7 +5,7 @@ import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, r
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip, Users, BellOff, Bell, Info, Archive, Trash2, MoreVertical, Pencil, ChevronDown, CheckCheck, CircleCheckBig, CircleX } from "lucide-react";
+import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip, Users, BellOff, Bell, Info, Archive, Trash2, MoreVertical, Pencil, ChevronDown, CheckCheck, CircleCheckBig, CircleX, Download } from "lucide-react";
 import { formatDistanceToNow, isToday, format } from "date-fns";
 import { chatCache } from "@/lib/chat-cache";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   const [isBusy, setIsBusy] = useState(false);
 
   // UI REFINEMENTS STATE
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [resolvingMessageId, setResolvingMessageId] = useState<string | null>(null);
   const [resolveFeedbackText, setResolveFeedbackText] = useState("");
@@ -361,6 +362,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
       setFileUrl(key);
       setFileName(file.name);
+      
+      // Reset input value to allow re-uploading same file
+      if (e.target) e.target.value = "";
     } catch (error) {
       toast.error("Upload failed");
     } finally {
@@ -420,11 +424,40 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       });
 
       setImageUrl(key); 
+      
+      // Reset input value to allow re-uploading same file
+      if (e.target) e.target.value = "";
     } catch (error) {
       toast.error("Upload failed");
     } finally {
       setIsUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const handleRemoveAttachment = async (key: string, type: "image" | "file") => {
+    try {
+        // Optimistically clear UI
+        if (type === "image") {
+            setImageUrl("");
+            const el = document.getElementById("chat-upload") as HTMLInputElement;
+            if (el) el.value = "";
+        } else {
+            setFileUrl("");
+            setFileName("");
+            const el = document.getElementById("file-upload") as HTMLInputElement;
+            if (el) el.value = "";
+        }
+
+        // Delete from S3
+        await fetch("/api/s3/delete", {
+            method: "DELETE",
+            body: JSON.stringify({ key }),
+            headers: { "Content-Type": "application/json" }
+        });
+    } catch (error) {
+        console.error("Failed to delete from S3:", error);
+        // We don't toast error here to avoid annoying the user if cleanup fails
     }
   };
 
@@ -479,6 +512,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       });
 
       setEditImageUrl(key); 
+      
+      // Reset input value to allow re-uploading same file
+      if (e.target) e.target.value = "";
     } catch (error) {
       toast.error("Upload failed");
     } finally {
@@ -523,13 +559,21 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
   const handleDelete = async (id: string) => {
       // Optimistic delete
-      
+      queryClient.setQueryData(["messages", threadId], (old: any) => {
+          if (!old || !old.pages) return old;
+          return {
+              ...old,
+              pages: old.pages.map((page: any) => ({
+                  ...page,
+                  messages: page.messages?.filter((msg: any) => msg.id !== id) || []
+              }))
+          };
+      });
       
       try {
           await deleteMessageAction(id);
           chatCache.clear(`messages_${threadId}`);
           chatCache.clear("threads");
-          toast.success("Message deleted");
       } catch (e) {
           queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
           toast.error("Failed to delete");
@@ -818,7 +862,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 </Button>
             )}
             <Avatar>
-               <AvatarImage src={displayAvatar} />
+               <AvatarImage src={displayAvatar} className="object-cover" width={200} height={200} />
                <AvatarFallback>{title.slice(0, 2).toUpperCase()}</AvatarFallback> 
             </Avatar>
             <div>
@@ -902,7 +946,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                   {/* Group Profile Large */}
                   <div className="flex flex-col items-center text-center space-y-3">
                       <Avatar className="h-24 w-24 border-4 border-muted shadow-lg">
-                          <AvatarImage src={displayAvatar} />
+                          <AvatarImage src={displayAvatar} className="object-cover" width={200} height={200} />
                           <AvatarFallback className="text-2xl">{title.slice(0, 2).toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <div className="space-y-1">
@@ -932,7 +976,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                               <div key={p.user.id} className="flex items-center justify-between p-2 rounded-xl hover:bg-muted/50 transition-colors">
                                   <div className="flex items-center gap-3">
                                       <Avatar className="h-10 w-10 border">
-                                          <AvatarImage src={p.user.image} />
+                                          <AvatarImage src={p.user.image} className="object-cover" width={200} height={200} />
                                           <AvatarFallback>{p.user.name?.[0] || "?"}</AvatarFallback>
                                       </Avatar>
                                       <div className="flex flex-col">
@@ -981,7 +1025,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                          <div key={msg.id} className={cn("flex gap-3 max-w-[80%] animate-in fade-in slide-in-from-bottom-2 duration-300", isMe ? "ml-auto flex-row-reverse" : "")}>
                              {showAvatar ? (
                                 <Avatar className="h-8 w-8 mt-1 border">
-                                   <AvatarImage src={msg.sender?.image} />
+                                   <AvatarImage src={msg.sender?.image} className="object-cover" width={200} height={200} />
                                    <AvatarFallback>{msg.sender?.name?.[0] || "?"}</AvatarFallback>
                                 </Avatar>
                              ) : <div className="w-8" />}
@@ -1033,22 +1077,27 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                        )}
 
                                        {msg.fileUrl && (
-                                          <div className="mb-2 p-3 bg-muted/30 rounded-lg flex items-center gap-3 border group/file hover:bg-muted/50 transition-colors">
+                                          <div className="mb-2 p-3 bg-muted/30 rounded-lg flex items-center gap-3 border group/file hover:bg-muted/50 transition-colors pr-4">
                                              <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
                                                 <Paperclip className="h-5 w-5 text-red-600" />
                                              </div>
-                                             <div className="min-w-0 flex-1">
+                                             <div className="min-w-0 flex-1 mr-2">
                                                 <p className="text-xs font-medium truncate">{msg.fileName || "Document"}</p>
-                                                <a 
-                                                   href={useConstructUrl(msg.fileUrl)} 
-                                                   target="_blank" 
-                                                   rel="noopener noreferrer"
-                                                   download={msg.fileName}
-                                                   className="text-[10px] text-primary hover:underline"
-                                                >
-                                                   Download
-                                                </a>
+                                                <p className="text-[10px] text-muted-foreground">Attached File</p>
                                              </div>
+                                             <Button
+                                                variant="ghost" 
+                                                size="icon"
+                                                className="h-8 w-8 hover:bg-background rounded-full shrink-0"
+                                                onClick={() => triggerDirectDownload(useConstructUrl(msg.fileUrl), msg.fileName || "download", msg.id)}
+                                                disabled={downloadingFileId === msg.id}
+                                             >
+                                                {downloadingFileId === msg.id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                                ) : (
+                                                    <Download className="h-4 w-4 text-muted-foreground group-hover/file:text-primary transition-colors" />
+                                                )}
+                                             </Button>
                                           </div>
                                        )}
                                        <MessageContent content={msg.content} />
@@ -1058,9 +1107,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                              {msg.status === "sending" ? (
                                                 <div className="h-2.5 w-2.5 rounded-full border-b border-r border-current animate-spin opacity-50" />
                                              ) : msg.status === "error" ? (
-                                                <CircleX className="h-3 w-3 text-red-400" />
+                                                <CircleX className="h-2.5 w-2.5 text-red-400" />
                                              ) : (
-                                                <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70" />
+                                                <CircleCheckBig className="h-2.5 w-2.5 text-primary-foreground/70" />
                                              )}
                                           </div>
                                        )}
@@ -1150,7 +1199,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                   ? "bg-red-50 text-red-700 border-red-100 shadow-red-100/20" 
                                                   : "bg-emerald-50 text-emerald-700 border-emerald-100 shadow-emerald-100/20"
                                           )}>
-                                              {(msg.feedback === "Denied" || msg.feedback === "More Help") ? <CircleX className="h-3.5 w-3.5" /> : <CircleCheckBig className="h-3.5 w-3.5" />}
+                                              {(msg.feedback === "Denied" || msg.feedback === "More Help") ? <CircleX className="h-3 w-3" /> : <CircleCheckBig className="h-3 w-3" />}
                                               <span>
                                                   {msg.feedback === "Denied" ? "Request Denied" : 
                                                    msg.feedback === "More Help" ? "More Help Requested" : 
@@ -1209,14 +1258,18 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                  {imageUrl && (
                     <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg w-fit">
                        <span className="text-xs text-muted-foreground">Image attached</span>
-                       <button onClick={() => setImageUrl("")}><X className="h-4 w-4" /></button>
+                       <button onClick={() => handleRemoveAttachment(imageUrl, "image")}>
+                          <X className="h-4 w-4" />
+                       </button>
                     </div>
                  )}
                  {fileUrl && (
                     <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg w-fit">
                        <Paperclip className="h-4 w-4 text-primary" />
                        <span className="text-xs font-medium truncate max-w-[150px]">{fileName}</span>
-                       <button onClick={() => { setFileUrl(""); setFileName(""); }}><X className="h-4 w-4" /></button>
+                       <button onClick={() => handleRemoveAttachment(fileUrl, "file")}>
+                          <X className="h-4 w-4" />
+                       </button>
                     </div>
                  )}
                  <div className="flex items-end gap-2 bg-muted/30 p-2 rounded-xl border focus-within:ring-1 focus-within:ring-primary/20 transition-all">
@@ -1342,7 +1395,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     </div>
   );
 
-  async function triggerDirectDownload(url: string, fileName: string) {
+  async function triggerDirectDownload(url: string, fileName: string, id: string) {
+      if (downloadingFileId) return;
+      setDownloadingFileId(id);
       try {
           const response = await fetch(url);
           const blob = await response.blob();
@@ -1357,6 +1412,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
       } catch (error) {
           console.error("Direct download failed", error);
           window.open(url, "_blank"); 
+      } finally {
+          setDownloadingFileId(null);
       }
   }
 }
