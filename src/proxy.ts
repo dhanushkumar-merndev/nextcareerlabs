@@ -24,6 +24,14 @@ async function mainMiddleware(request: NextRequest) {
 
   // Clean up multiple sessions
   if (session) {
+    if (session.user.banned && path !== "/banned") {
+      return NextResponse.redirect(new URL("/banned", request.url));
+    }
+    
+    if (!session.user.banned && path === "/banned") {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+
     await prisma.session.deleteMany({
       where: {
         userId: session.user.id,

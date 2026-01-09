@@ -1,10 +1,12 @@
 import "server-only";
 import { requireUser } from "../user/require-user";
 import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 export async function getCourseSidebarData(slug: string) {
   const session = await requireUser();
+  
+
   const course = await prisma.course.findUnique({
     where: {
       slug: slug,

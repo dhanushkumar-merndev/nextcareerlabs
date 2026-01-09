@@ -30,6 +30,10 @@ export const auth = betterAuth({
         type: "boolean",
         required: false,
       },
+      banned: {
+        type: "boolean",
+        required: false,
+      },
     },
   },
   socialProviders: {
