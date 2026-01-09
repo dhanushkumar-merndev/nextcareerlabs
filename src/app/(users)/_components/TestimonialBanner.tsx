@@ -97,7 +97,7 @@ export default function TestimonialMasonry() {
   const [showAll, setShowAll] = useState(false);
 
   return (
-    <section className="py-16 md:py-28 px-4">
+    <section className="pt-16 md:py-28 px-4 -mb-20">
       <div className="mx-auto max-w-7xl">
         {/* TITLE */}
         <div className="mb-12 text-center">
@@ -165,7 +165,7 @@ export default function TestimonialMasonry() {
           {/* FADE + BUTTON (OVERLAY) */}
           {!showAll && (
             <>
-              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-background to-transparent" />
+              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 bg-linear-to-t from-background to-transparent" />
 
               <div className="absolute bottom-0 md:-bottom-10 left-1/2 -translate-x-1/2">
                 <button

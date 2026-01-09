@@ -2,11 +2,7 @@
 
 import { prisma } from "@/lib/db";
 
-// Fallback if needed, but implicit any fixes below
-interface ChartData {
-    name: string;
-    value: number;
-}
+
 
 export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
   try {

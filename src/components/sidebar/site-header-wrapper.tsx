@@ -16,7 +16,7 @@ export function SiteHeaderWrapper() {
             orientation="vertical"
             className="mx-2 data-[orientation=vertical]:h-4"
           />
-          <h1 className="text-base font-medium">Next Career Labs LMS</h1>
+          <h1 className="text-base font-medium">Skillforce Cloud</h1>
         </div>
 
         {/* RIGHT SIDE — Theme Toggle */}

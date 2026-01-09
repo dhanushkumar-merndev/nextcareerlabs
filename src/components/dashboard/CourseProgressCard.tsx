@@ -34,7 +34,7 @@ export function CourseProgressCard({
             <span>{completedLessons} / {totalLessons} Lessons</span>
             {!hideResumeButton && (
                 <Button asChild size="sm" variant="ghost" className="h-auto p-0 px-2">
-                    <Link href={`/courses/${slug}`}>
+                    <Link href={`/dashboard/${slug}`}>
                         {progress === 100 ? "Review" : "Resume"}
                     </Link>
                 </Button>

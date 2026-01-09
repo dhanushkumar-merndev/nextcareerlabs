@@ -148,7 +148,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
 
                 <span className="text-base font-semibold ml-2">
-                  Next Career Labs LMS
+                  Skillforce Cloud
                 </span>
               </Link>
             </SidebarMenuButton>

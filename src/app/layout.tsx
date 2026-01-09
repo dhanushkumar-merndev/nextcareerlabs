@@ -10,7 +10,7 @@ import { Providers } from "@/components/Providers";
 import { SmoothScroll } from "@/components/SmoothScroll";
 
 export const metadata: Metadata = {
-  title: "Next Career Labs LMS",
+  title: "Skillforce Cloud",
   description:
     "Our LMS is a complete e-learning solution with modern, interactive learning.",
 };

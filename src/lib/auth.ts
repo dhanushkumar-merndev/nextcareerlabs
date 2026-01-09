@@ -49,10 +49,10 @@ export const auth = betterAuth({
     emailOTP({
       async sendVerificationOTP({ email, otp }) {
         await resend.emails.send({
-          from: "Next Career Labs <no-reply@nextcareerlabs.online>",
+          from: "Skillforce Cloud <no-reply@nextcareerlabs.online>",
           to: [email],
-          subject: "Next Career Labs - Verify your email",
-          html: `<!-- Email Template for Next Career Labs -->
+          subject: "Skillforce Cloud - Verify your email",
+          html: `<!-- Email Template for Skillforce Cloud -->
 <div style="
   font-family: 'Segoe UI', Arial, sans-serif;
   background-color: #f9fafb;
@@ -66,7 +66,7 @@ export const auth = betterAuth({
       color: #1a202c; /* dark heading */
       font-size: 22px;
     ">
-    Next Career Labs — Email Verification
+    Skillforce Cloud — Email Verification
   </h2>
 
   <p style="
@@ -110,7 +110,7 @@ export const auth = betterAuth({
       font-size: 12px;
       text-align: center;
     ">
-    © ${date} Next Career Labs. All rights reserved.
+    © ${date} Skillforce Cloud. All rights reserved.
   </p>
 </div>
 `,

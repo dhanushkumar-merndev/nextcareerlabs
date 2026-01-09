@@ -117,7 +117,7 @@ export function PhoneNumberDialog({ isOpen }: PhoneNumberDialogProps) {
             </form>
           </Form>
           <p className="text-[10px] text-muted-foreground uppercase text-center mt-4 tracking-tight opacity-50">
-            Next Career Labs — Empowering Your Growth
+            Skillforce Cloud — Empowering Your Growth
           </p>
         </div>
       </DialogContent>

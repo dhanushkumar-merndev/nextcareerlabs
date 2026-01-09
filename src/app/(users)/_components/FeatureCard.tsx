@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AnimatedIconHandle } from "@/lib/icon-animation";
 import type { HTMLAttributes } from "react";
@@ -17,34 +17,46 @@ interface FeatureCardProps {
 export function FeatureCard({ title, description, Icon }: FeatureCardProps) {
   const iconRef = useRef<AnimatedIconHandle | null>(null);
 
-  /* ================= DETECT MOBILE (NO STATE) ================= */
-  const isMobile = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia("(max-width: 767px)").matches;
+  /* ================= DETECT MOBILE (STATE + EFFECT) ================= */
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.matchMedia("(max-width: 767px)").matches);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
   /* ================= MOBILE: INFINITE ANIMATION ================= */
   useEffect(() => {
     if (!isMobile) return;
 
-    const icon = iconRef.current;
-    if (!icon) return;
+    // Small delay to ensure mount and ref ready
+    const timer = setTimeout(() => {
+        const icon = iconRef.current;
+        if (!icon) return;
 
-    let cancelled = false;
+        let cancelled = false;
 
-    const loop = async () => {
-      while (!cancelled) {
-        await icon.startAnimation();
-        await new Promise((r) => setTimeout(r, 1200));
-      }
-    };
+        const loop = async () => {
+            while (!cancelled) {
+                if (icon) await icon.startAnimation();
+                if (cancelled) break;
+                await new Promise((r) => setTimeout(r, 1200));
+            }
+        };
 
-    loop();
+        loop();
 
-    return () => {
-      cancelled = true;
-      icon.stopAnimation();
-    };
+        return () => {
+          cancelled = true;
+          icon?.stopAnimation();
+        };
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [isMobile]);
 
   return (

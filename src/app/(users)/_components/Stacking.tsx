@@ -2,6 +2,8 @@
 
 import { ChevronRight } from "lucide-react";
 import { useEffect, useRef } from "react";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 
 export default function Stacking() {
   const containerRef = useRef<HTMLUListElement>(null);
@@ -176,15 +178,15 @@ Build scalable web and mobile applications.
                       {program.description}
                     </p>
 
-                    <a
-                      href={`/programs/${program.title
-                        .toLowerCase()
-                        .replace(/\s+/g, "-")}`}
-                      className="inline-flex items-center gap-1 text-primary font-medium hover:underline underline-offset-4"
-                    >
-                      View Course
-                      <ChevronRight className="h-4 w-4" />
-                    </a>
+                    <div className="flex justify-end">
+                      <Link
+                        href="/courses"
+                        className={buttonVariants({ className: "gap-2" , variant:"outline" })}
+                      >
+                        View
+                        <ChevronRight className="h-4 w-4" />
+                      </Link>
+                    </div>
                   </div>
 
                   {/* IMAGE — DESKTOP */}

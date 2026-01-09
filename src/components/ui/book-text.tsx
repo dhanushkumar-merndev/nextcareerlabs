@@ -2,7 +2,7 @@
 
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
-import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -20,12 +20,25 @@ const BookTextIcon = forwardRef<BookTextIconHandle, BookTextIconProps>(
     const controls = useAnimation();
     const isControlledRef = useRef(false);
 
+    const isMounted = useRef(false);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
     useImperativeHandle(ref, () => {
       isControlledRef.current = true;
 
       return {
-        startAnimation: () => controls.start("animate"),
-        stopAnimation: () => controls.start("normal"),
+        startAnimation: () => {
+            if (isMounted.current) controls.start("animate");
+        },
+        stopAnimation: () => {
+            if (isMounted.current) controls.start("normal");
+        },
       };
     });
 

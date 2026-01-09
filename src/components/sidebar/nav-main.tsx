@@ -20,6 +20,7 @@ export function NavMain({
     title: string;
     url: string;
     icon?: Icon;
+    isActive?: boolean;
   }[];
 }) {
   const pathname = usePathname();
@@ -49,13 +50,13 @@ export function NavMain({
                 <Link
                   href={item.url}
                   className={cn(
-                    pathname === item.url &&
+                    (item.isActive || pathname === item.url) &&
                       "bg-accent/50 text-accent-foreground"
                   )}
                 >
                   {item.icon && (
                     <item.icon
-                      className={cn(pathname === item.url && "text-primary")}
+                      className={cn((item.isActive || pathname === item.url) && "text-primary")}
                     />
                   )}
                   <span>{item.title}</span>

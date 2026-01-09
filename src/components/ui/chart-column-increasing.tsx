@@ -3,7 +3,7 @@
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
-import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -29,23 +29,36 @@ const ChartColumnIncreasingIcon = forwardRef<
   const controls = useAnimation();
   const isControlledRef = useRef(false);
 
-  useImperativeHandle(ref, () => {
+    const isMounted = useRef(false);
+
+    useEffect(() => {
+        isMounted.current = true;
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
+    useImperativeHandle(ref, () => {
     isControlledRef.current = true;
 
     return {
       startAnimation: async () => {
+        if (!isMounted.current) return;
         await controls.start((i) => ({
           pathLength: 0,
           opacity: 0,
           transition: { delay: i * 0.1, duration: 0.3 },
         }));
+        if (!isMounted.current) return;
         await controls.start((i) => ({
           pathLength: 1,
           opacity: 1,
           transition: { delay: i * 0.1, duration: 0.3 },
         }));
       },
-      stopAnimation: () => controls.start("visible"),
+      stopAnimation: () => {
+        if (isMounted.current) controls.start("visible");
+      },
     };
   });
 
