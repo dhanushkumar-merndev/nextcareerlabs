@@ -59,12 +59,12 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
 
     return (
         <>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between space-y-4 sm:space-y-0 pb-7">
                 <div className="space-y-1">
                     <CardTitle>User Growth</CardTitle>
                     <CardDescription>New user registrations over time</CardDescription>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <Popover open={isPopoverOpen} onOpenChange={(open) => {
                         setIsPopoverOpen(open);
                         if (open) setTempDate(date);
@@ -74,7 +74,7 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
                                 id="date"
                                 variant={"outline"}
                                 className={cn(
-                                    "w-[240px] justify-start text-left font-bold uppercase tracking-widest text-[10px] h-8 rounded-xl bg-muted/30 border-border/40 hover:bg-muted/50 transition-all shadow-sm",
+                                    "w-full sm:w-[240px] justify-start text-left font-bold uppercase tracking-widest text-[10px] h-10 sm:h-8 rounded-xl bg-muted/30 border-border/40 hover:bg-muted/50 transition-all shadow-sm",
                                     !date && "text-muted-foreground"
                                 )}
                             >
@@ -121,7 +121,7 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
                             variant="ghost" 
                             size="icon" 
                             onClick={handleClear}
-                            className="h-8 w-8 rounded-xl text-destructive hover:text-destructive/80 hover:bg-destructive/10 border border-border/40 shrink-0"
+                            className="h-10 w-full sm:h-8 sm:w-8 rounded-xl text-destructive hover:text-destructive/80 hover:bg-destructive/10 border border-border/40 shrink-0"
                         >
                             <XCircle className="size-4" />
                         </Button>
