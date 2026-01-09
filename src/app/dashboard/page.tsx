@@ -1,33 +1,69 @@
-import Link from "next/link";
+import { getUserDashboardData } from "@/actions/analytics";
+import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
+import { CourseProgressCard } from "@/components/dashboard/CourseProgressCard";
+import { getCurrentUser } from "@/lib/session";
+import { BookOpen, CheckCircle, GraduationCap } from "lucide-react";
+import { redirect } from "next/navigation";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const user = await getCurrentUser();
+  
+  if (!user) {
+    redirect("/auth/sign-in");
+  }
+
+  const data = await getUserDashboardData(user.id);
+
+  if (!data) {
+      return <div>Failed to load dashboard data.</div>;
+  }
+
   return (
-    <div className="px-4 lg:px-6 py-10 space-y-10">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-      <p className="text-muted-foreground">
-        Quick access to your learning sections.
-      </p>
+    <div className="flex-1 space-y-4 p-8 pt-6">
+      <div className="flex items-center justify-between space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-xl">
-        <Link
-          href="/dashboard/my-courses"
-          className="p-6 border rounded-xl hover:bg-muted transition"
-        >
-          <h2 className="font-semibold text-xl mb-1">My Courses</h2>
-          <p className="text-muted-foreground text-sm">
-            View your enrolled courses and continue learning.
-          </p>
-        </Link>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <AnalyticsCard
+          title="Enrolled Courses"
+          value={data.enrolledCoursesCount}
+          icon={BookOpen}
+          description="Active learning paths"
+        />
+         <AnalyticsCard
+          title="Completed Courses"
+          value={data.completedCoursesCount}
+          icon={CheckCircle}
+          description="Fully finished courses"
+        />
+        <AnalyticsCard
+          title="Average Progress"
+           // Calculate average progress
+          value={`${data.enrolledCoursesCount > 0 ? Math.round(data.coursesProgress.reduce((acc, c) => acc + c.progress, 0) / data.enrolledCoursesCount) : 0}%`}
+          icon={GraduationCap}
+          description="Across all courses"
+        />
+      </div>
 
-        <Link
-          href="/dashboard/available-courses"
-          className="p-6 border rounded-xl hover:bg-muted transition"
-        >
-          <h2 className="font-semibold text-xl mb-1">Available Courses</h2>
-          <p className="text-muted-foreground text-sm">
-            Browse courses you can enroll in.
-          </p>
-        </Link>
+      <div className="space-y-4">
+        <h3 className="text-xl font-semibold">My Learning</h3>
+        {data.coursesProgress.length === 0 ? (
+            <p className="text-muted-foreground">You are not enrolled in any courses yet.</p>
+        ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {data.coursesProgress.map((course) => (
+                    <CourseProgressCard
+                        key={course.id}
+                        title={course.title}
+                        progress={course.progress}
+                        slug={course.slug}
+                        completedLessons={course.completedLessons}
+                        totalLessons={course.totalLessons}
+                    />
+                ))}
+            </div>
+        )}
       </div>
     </div>
   );

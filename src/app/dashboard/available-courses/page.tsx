@@ -25,7 +25,7 @@ export default async function AvailableCoursesPage() {
         <EmptyState
           title="No courses available"
           description="You have already enrolled in all courses."
-          buttonText="Back to Dashboard"
+          buttonText="Back to Analytics"
           href="/dashboard"
         />
       ) : (
