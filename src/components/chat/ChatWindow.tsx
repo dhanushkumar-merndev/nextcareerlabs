@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, banUserFromSupportAction, resolveThreadAction, hideThreadAction, archiveThreadAction, toggleMuteAction, getGroupParticipantsAction, deleteThreadMessagesAction } from "@/app/data/notifications/actions";
+import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, banUserFromSupportAction, resolveThreadAction, hideThreadAction, archiveThreadAction, getGroupParticipantsAction, deleteThreadMessagesAction } from "@/app/data/notifications/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip, Users, BellOff, Bell, Info, Archive, Trash2, MoreVertical, Pencil, ChevronDown, CheckCheck, CircleCheckBig, CircleX, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip, Users, Info, Archive, Trash2, MoreVertical, Pencil, ChevronDown, CheckCheck, CircleCheckBig, CircleX, Download } from "lucide-react";
 import { formatDistanceToNow, isToday, format } from "date-fns";
 import { chatCache } from "@/lib/chat-cache";
 import { cn } from "@/lib/utils";
@@ -51,7 +51,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [isBanned, setIsBanned] = useState(false);
 
-  const [isMuted, setIsMuted] = useState(false);
   const [isArchived, setIsArchived] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [groupParticipants, setGroupParticipants] = useState<any[]>([]);
@@ -93,7 +92,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         lastThreadId.current = threadId;
         setInputText("");
         setImageUrl(""); 
-        setIsMuted(false);
         setIsArchived(false);
         setIsBanned(false);
       
@@ -107,7 +105,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
   useEffect(() => {
     if (threadState) {
-        setIsMuted(threadState.isMuted);
         setIsArchived(threadState.isArchived);
     }
     
@@ -781,60 +778,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
        }
    };
 
-   const handleToggleMute = async () => {
-       if (isBusy) return;
-       setIsBusy(true);
-
-       const originalMuted = isMuted;
-       const nextMuted = !isMuted;
-
-       // 1. OPTIMISTIC UPDATE LOCAL STATE
-       setIsMuted(nextMuted);
-
-       // 2. OPTIMISTIC UPDATE SIDEBAR CACHE
-       queryClient.setQueryData(["sidebarData"], (old: any) => {
-           if (!old || !old.threads) return old;
-           return {
-               ...old,
-               threads: old.threads.map((t: any) => 
-                   t.threadId === threadId ? { ...t, muted: nextMuted } : t
-               )
-           };
-       });
-
-       // 3. OPTIMISTIC UPDATE MESSAGES STATE
-       queryClient.setQueryData(["messages", threadId], (old: any) => {
-           if (!old || !old.pages) return old;
-           const newPages = [...old.pages];
-           if (newPages[0]) {
-               newPages[0] = {
-                   ...newPages[0],
-                   state: { ...newPages[0].state, isMuted: nextMuted }
-               };
-           }
-           return { ...old, pages: newPages };
-       });
-
-       window.dispatchEvent(new CustomEvent("chat-thread-update", { 
-           detail: { threadId, muted: nextMuted } 
-       }));
-
-       try {
-           const result = await toggleMuteAction(threadId);
-           setIsMuted(result.muted);
-           // Sync with actual result if different
-           if (result.muted !== nextMuted) {
-               queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
-           }
-       } catch (e) {
-           setIsMuted(originalMuted);
-           queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
-           queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
-           toast.error("Failed to toggle mute");
-       } finally {
-           setIsBusy(false);
-       }
-   };
 
   const handleShowGroupInfo = async () => {
       if (!isGroup) return;
@@ -895,13 +838,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                             <span className="font-medium">Group Info</span>
                         </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem 
-                        onClick={handleToggleMute} 
-                        className="cursor-pointer py-2 mb-1 rounded-md focus:bg-primary/5"
-                    >
-                        {isMuted ? <Bell className="h-4 w-4 mr-2" /> : <BellOff className="h-4 w-4 mr-2" />}
-                        <span className="font-medium">{isMuted ? "Unmute" : "Mute"}</span>
-                    </DropdownMenuItem>
                     {!isGroup && isAdmin && (
                         <>
                             <DropdownMenuItem 

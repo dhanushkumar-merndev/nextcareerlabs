@@ -2,8 +2,8 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { ChatLayout } from "@/components/chat/ChatLayout";
 import { prisma } from "@/lib/db";
+import { ChatLayoutLoader } from "@/components/chat/ChatLayoutLoader";
 
 export default async function NotificationsPage() {
   const session = await auth.api.getSession({
@@ -31,7 +31,7 @@ export default async function NotificationsPage() {
        {/* Use full height container for chat */}
        <div className="flex-1 min-h-0 p-4 md:p-6 h-full"> 
          <div className="rounded-xl border bg-card h-full min-h-0 overflow-hidden shadow-sm">
-            <ChatLayout isAdmin={false} currentUserId={session.user.id} />
+            <ChatLayoutLoader isAdmin={false} currentUserId={session.user.id} />
          </div>
        </div>
     </div>

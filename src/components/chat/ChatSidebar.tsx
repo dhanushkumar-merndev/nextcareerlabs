@@ -5,7 +5,7 @@ import { getThreadsAction, archiveThreadAction, getChatVersionAction, syncChatAc
 import { chatCache } from "@/lib/chat-cache";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
-import { Search, Loader2, Users, Archive, ChevronLeft, VolumeX } from "lucide-react";
+import { Search, Loader2, Users, Archive, ChevronLeft } from "lucide-react";
 import { formatDistanceToNow, isToday, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useConstructUrl } from "@/hooks/use-construct-url";
@@ -224,14 +224,13 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
                   ? thread.lastMessage.split("**Summary:**")[1]?.split("**Description:**")[0]?.trim() || "Support Ticket"
                   : thread.lastMessage}
               </p>
-              {thread.muted && <VolumeX className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />}
+              </div>
             </div>
-          </div>
       {thread.unreadCount > 0 && selectedThreadId !== thread.threadId && (
-                   <div className="h-5 min-w-5 px-1.5 rounded-full bg-blue-600 text-[10px] font-bold text-white flex items-center justify-center">
-                      {thread.unreadCount}
-                   </div>
-                )}
+        <div className="h-5 min-w-5 px-1.5 rounded-full bg-blue-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
+            {thread.unreadCount}
+        </div>
+      )}
     </div>
   );
 
