@@ -142,6 +142,8 @@ export function SimplePieChart({ data, className }: ChartProps) {
                     dataKey="value" 
                     nameKey="name" 
                     strokeWidth={5}
+                    innerRadius={60}
+                    outerRadius={85}
                 />
             </PieChart>
         </ChartContainer>

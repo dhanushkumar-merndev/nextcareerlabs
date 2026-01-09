@@ -251,21 +251,25 @@ export function RequestsTable({ initialData }: { initialData: Request[] }) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <Tabs value={statusFilter} onValueChange={handleFilterChange} className="sm:w-auto">
-          <TabsList className="bg-muted/50 p-1 rounded-xl border border-border/50">
+    <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        {/* Tabs */}
+        <Tabs value={statusFilter} onValueChange={handleFilterChange} className="w-full lg:w-auto">
+          <TabsList className="bg-muted/50 p-1 rounded-xl border border-border/50 w-full lg:w-auto grid grid-cols-2 lg:flex">
             <TabsTrigger value="Pending" className="rounded-lg px-6 font-bold uppercase tracking-widest text-[10px]">New (Pending)</TabsTrigger>
             <TabsTrigger value="All" className="rounded-lg px-6 font-bold uppercase tracking-widest text-[10px]">All Requests</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto sm:ml-auto">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted/30 px-4 py-2 rounded-full border border-border/40 shadow-sm shrink-0">
+        {/* Right Side Controls */}
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto text-sm">
+           {/* Count Badge */}
+          <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted/30 px-4 h-10 w-full sm:w-auto rounded-xl border border-border/40 shadow-sm shrink-0">
              <Filter className="size-3 text-primary/60" />
-             Found {data.length} {data.length === 1 ? 'request' : 'requests'}
+             <span>Found {data.length}</span>
           </div>
 
+          {/* Date Picker Group */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Popover open={isPopoverOpen} onOpenChange={(open) => {
               setIsPopoverOpen(open);
@@ -276,7 +280,7 @@ export function RequestsTable({ initialData }: { initialData: Request[] }) {
                   id="date"
                   variant={"outline"}
                   className={cn(
-                    "w-full sm:w-[300px] justify-start text-left font-bold uppercase tracking-widest text-[10px] h-10 rounded-xl bg-muted/30 border-border/40 hover:bg-muted/50 transition-all shadow-sm",
+                    "w-full sm:w-[260px] justify-start text-left font-bold uppercase tracking-widest text-[10px] h-10 rounded-xl bg-muted/30 border-border/40 hover:bg-muted/50 transition-all shadow-sm",
                     !date && "text-muted-foreground"
                   )}
                 >

@@ -58,7 +58,7 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
     };
 
     return (
-        <Card className="col-span-4">
+        <>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7">
                 <div className="space-y-1">
                     <CardTitle>User Growth</CardTitle>
@@ -138,6 +138,6 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
                     <SimpleLineChart data={data} />
                 </div>
             </CardContent>
-        </Card>
+        </>
     );
 }

@@ -56,9 +56,11 @@ export default async function AdminAnalyticsPage() {
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <GrowthChartWithFilter initialData={data.chartData} />
-        <Card className="col-span-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+          <GrowthChartWithFilter initialData={data.chartData} />
+        </Card>
+        <Card className="col-span-1 md:col-span-2 lg:col-span-3">
           <CardHeader>
             <CardTitle>Enrollment Distribution</CardTitle>
             <CardDescription>Status of enrollments</CardDescription>
@@ -69,8 +71,8 @@ export default async function AdminAnalyticsPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-4">
             <CardHeader>
                 <CardTitle>Popular Courses</CardTitle>
                 <CardDescription>Top 5 courses by enrollment</CardDescription>
@@ -79,7 +81,7 @@ export default async function AdminAnalyticsPage() {
                 <SimpleBarChart data={data.popularCoursesChartData} />
             </CardContent>
         </Card>
-         <Card className="col-span-3">
+         <Card className="col-span-1 md:col-span-2 lg:col-span-3">
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>Recent Users</CardTitle>
@@ -92,41 +94,43 @@ export default async function AdminAnalyticsPage() {
                 </Button>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>User</TableHead>
-                            <TableHead>Joined</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {data.recentUsers.map((user: { id: string; name: string; email: string; createdAt: Date; image: string | null }) => (
-                            <TableRow key={user.id}>
-                                <TableCell>
-                                    <div className="flex items-center gap-3">
-                                         <Avatar className="h-8 w-8">
-                                            <AvatarImage src={user.image || ""} />
-                                            <AvatarFallback>{user.name?.charAt(0) || "U"}</AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex flex-col">
-                                            <span className="font-medium">{user.name}</span>
-                                            <span className="text-xs text-muted-foreground">{user.email}</span>
-                                        </div>
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                                    {new Date(user.createdAt).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Button variant="outline" size="sm" className="h-7 px-3 text-[10px]" asChild>
-                                        <Link href={`/admin/analytics/users/${user.id}`}>View</Link>
-                                    </Button>
-                                </TableCell>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="min-w-[200px]">User</TableHead>
+                                <TableHead className="min-w-[100px] hidden md:table-cell">Joined</TableHead>
+                                <TableHead className="text-right">Action</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {data.recentUsers.map((user: { id: string; name: string; email: string; createdAt: Date; image: string | null }) => (
+                                <TableRow key={user.id}>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                             <Avatar className="h-8 w-8">
+                                                <AvatarImage src={user.image || ""} />
+                                                <AvatarFallback>{user.name?.charAt(0) || "U"}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">{user.name}</span>
+                                                <span className="text-xs text-muted-foreground">{user.email}</span>
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap hidden md:table-cell">
+                                        {new Date(user.createdAt).toLocaleDateString()}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="outline" size="sm" className="h-7 px-3 text-[10px]" asChild>
+                                            <Link href={`/admin/analytics/users/${user.id}`}>View</Link>
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
       </div>
