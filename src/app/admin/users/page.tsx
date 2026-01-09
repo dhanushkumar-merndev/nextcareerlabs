@@ -12,8 +12,8 @@ interface PageProps {
 export default async function AdminUsersPage(props: PageProps) {
     const searchParams = await props.searchParams;
     const search = searchParams.search || "";
-    // Fetch initial data (page 1, limit 100)
-    const { users, hasNextPage, totalUsers } = await getAllUsers(search, 1, 100);
+    // Fetch initial data (page 1, limit 100, default role 'user')
+    const { users, hasNextPage, totalUsers } = await getAllUsers(search, 1, 100, "user");
 
     return (
             <div className="flex flex-col gap-6 p-6">

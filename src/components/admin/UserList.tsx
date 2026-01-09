@@ -87,12 +87,16 @@ export function UserList({
   // Update URL when search changes
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
-    if (debouncedSearch) {
-      params.set("search", debouncedSearch);
-    } else {
-      params.delete("search");
+    const currentSearch = params.get("search") || "";
+    
+    if (debouncedSearch !== currentSearch) {
+        if (debouncedSearch) {
+            params.set("search", debouncedSearch);
+        } else {
+            params.delete("search");
+        }
+        router.replace(`?${params.toString()}`);
     }
-    router.replace(`?${params.toString()}`);
   }, [debouncedSearch, router, searchParams]);
 
   const {
@@ -113,7 +117,7 @@ export function UserList({
       return lastPage.hasNextPage ? allPages.length + 1 : undefined;
     },
     initialPageParam: 1,
-    initialData: activeTab === "users" && !debouncedSearch ? {
+    initialData: activeTab === "users" ? {
       pages: [
         {
           users: initialUsers,
@@ -122,7 +126,7 @@ export function UserList({
         },
       ],
       pageParams: [1],
-    } : undefined, // Only use initial data for default tab/search to avoid staleness when switching
+    } : undefined, // Only use initial data for default "users" tab. Admin tab will fetch fresh.
     staleTime: 1000 * 60 * 5, 
   });
 

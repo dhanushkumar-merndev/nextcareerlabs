@@ -12,7 +12,7 @@ export default async function AdminRequestsPage() {
   const requests = await adminGetEnrollmentRequests(0, 100, "Pending");
 
   return (
-    <div className="flex flex-col gap-6 px-4 lg:px-6 ">
+    <div className="flex flex-col gap-6 px-4 lg:px-6 py-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Access Requests</h1>
         <p className="text-muted-foreground">
