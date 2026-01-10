@@ -12,7 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Users, BookOpen, GraduationCap, FileText } from "lucide-react";
+import { UsersIcon } from "@/components/ui/users";
+import { BookTextIcon } from "@/components/ui/book-text";
+import { PlayIcon } from "@/components/ui/play";
+import { FileTextIcon } from "@/components/ui/file-text";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -34,29 +37,29 @@ export default async function AdminAnalyticsPage() {
         </p>
       </div>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <AnalyticsCard
           title="Users & Enrollments"
           value={data.totalUsers}
-          icon={Users}
+          icon={UsersIcon}
           description={`Total registered users (${data.totalEnrollments} enrollments)`}
         />
         <AnalyticsCard
           title="Courses & Lessons"
           value={`${data.totalLessons}`}
-          icon={BookOpen}
+          icon={BookTextIcon}
           description={`${data.totalCourses} Published courses`}
         />
         <AnalyticsCard
           title="Success Rate"
-          value={`${data.totalCompletedLessons} / ${data.totalPotentialLessons}`}
-          icon={GraduationCap}
-          description={`Completed / Total lessons (${data.averageProgress}%)`}
+          value={`${data.averageProgress}%`}
+          icon={PlayIcon}
+          description="Average lesson completion rate"
         />
         <AnalyticsCard
           title="Shared Resources"
           value={`${data.totalResources}`}
-          icon={FileText}
+          icon={FileTextIcon}
           description="Total PDF & file uploads shared"
         />
       </div>

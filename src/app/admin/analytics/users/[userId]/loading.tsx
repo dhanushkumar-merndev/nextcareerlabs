@@ -21,12 +21,7 @@ export default function Loading() {
         </div>
       </div>
 
-      {/* Stats Cards Skeleton */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-xl" />
-        ))}
-      </div>
+    
 
       <div className="space-y-4">
         <Skeleton className="h-7 w-36" />

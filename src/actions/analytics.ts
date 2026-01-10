@@ -55,13 +55,30 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
     const enrollRatio = totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
 
     // --- Optimized Average Progress Calculation ---
-    // Instead of iterating every enrollment (N+1), we utilize aggregate data.
+    // Success Rate = (Total Completed Lessons by Enrolled Users) / (Total Users × Total Lessons)
+    // Example: 10 users, 2 lessons
+    //   - 5 users completed both lessons = 10 completed
+    //   - 5 users completed 1 lesson = 5 completed
+    //   - Total completed = 15
+    //   - Total possible = 10 × 2 = 20
+    //   - Success rate = 15/20 = 75%
     
-    // 1. Total Completed Lessons
-    // Approximation: Count all completed lesson progress records. 
-    // This assumes progress is mostly relevant to active enrollments.
+    // 1. Total Completed Lessons (only for users with granted enrollments)
+    // Get all users who have at least one granted enrollment
+    const usersWithGrantedEnrollment = await prisma.enrollment.findMany({
+        where: { status: "Granted" },
+        select: { userId: true },
+        distinct: ['userId']
+    });
+    
+    const grantedUserIds = usersWithGrantedEnrollment.map(e => e.userId);
+    
+    // Count completed lessons only for these users
     const totalCompleted = await prisma.lessonProgress.count({
-        where: { completed: true }
+        where: { 
+            completed: true,
+            userId: { in: grantedUserIds }
+        }
     });
 
     // 2. Total Potential Lessons

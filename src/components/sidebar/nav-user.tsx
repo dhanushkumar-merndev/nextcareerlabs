@@ -30,13 +30,16 @@ import { HomeIcon, Tv2 } from "lucide-react";
 import { useSignOut } from "@/hooks/use-signout";
 
 export function NavUser() {
-  const { isMobile, setOpen } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const router = useRouter();
   const handleSignOut = useSignOut();
 
   // 🔥 Navigation with forced reload
   const handleNavigate = (href: string) => {
-    setOpen(false);
+    // Close sidebar on mobile when navigating
+    if (isMobile) {
+      setOpenMobile(false);
+    }
     router.push(href);
 
     setTimeout(() => {

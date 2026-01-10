@@ -26,6 +26,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
 import Image from "next/image";
@@ -118,6 +119,14 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleLogoClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -127,7 +136,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
-              <Link href="/">
+              <Link href="/" onClick={handleLogoClick}>
                 <div className="relative top-0.5 w-8 h-8">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"

@@ -7,36 +7,38 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-export interface UsersIconHandle {
+export interface UserIconHandle {
   startAnimation: () => void;
   stopAnimation: () => void;
 }
 
-interface UsersIconProps extends HTMLAttributes<HTMLDivElement> {
+interface UserIconProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;
 }
 
-const PATH_VARIANTS: Variants = {
-  normal: {
-    translateX: 0,
-    transition: {
-      type: "spring",
-      stiffness: 200,
-      damping: 13,
-    },
-  },
+const PATH_VARIANT: Variants = {
+  normal: { pathLength: 1, opacity: 1, pathOffset: 0 },
   animate: {
-    translateX: [-6, 0],
-    transition: {
-      delay: 0.1,
-      type: "spring",
-      stiffness: 200,
-      damping: 13,
-    },
+    pathLength: [0, 1],
+    opacity: [0, 1],
+    pathOffset: [1, 0],
   },
 };
 
-const UsersIcon = forwardRef<UsersIconHandle, UsersIconProps>(
+const CIRCLE_VARIANT: Variants = {
+  normal: {
+    pathLength: 1,
+    pathOffset: 0,
+    scale: 1,
+  },
+  animate: {
+    pathLength: [0, 1],
+    pathOffset: [1, 0],
+    scale: [0.5, 1],
+  },
+};
+
+const UserIcon = forwardRef<UserIconHandle, UserIconProps>(
   ({ onMouseEnter, onMouseLeave, className, size = 28, ...props }, ref) => {
     const controls = useAnimation();
     const isControlledRef = useRef(false);
@@ -71,7 +73,6 @@ const UsersIcon = forwardRef<UsersIconHandle, UsersIconProps>(
       },
       [controls, onMouseLeave]
     );
-
     return (
       <div
         className={cn(className)}
@@ -90,17 +91,22 @@ const UsersIcon = forwardRef<UsersIconHandle, UsersIconProps>(
           width={size}
           xmlns="http://www.w3.org/2000/svg"
         >
-          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <motion.path
+          <motion.circle
             animate={controls}
-            d="M22 21v-2a4 4 0 0 0-3-3.87"
-            variants={PATH_VARIANTS}
+            cx="12"
+            cy="8"
+            r="5"
+            variants={CIRCLE_VARIANT}
           />
+
           <motion.path
             animate={controls}
-            d="M16 3.13a4 4 0 0 1 0 7.75"
-            variants={PATH_VARIANTS}
+            d="M20 21a8 8 0 0 0-16 0"
+            transition={{
+              delay: 0.2,
+              duration: 0.4,
+            }}
+            variants={PATH_VARIANT}
           />
         </svg>
       </div>
@@ -108,6 +114,6 @@ const UsersIcon = forwardRef<UsersIconHandle, UsersIconProps>(
   }
 );
 
-UsersIcon.displayName = "UsersIcon";
+UserIcon.displayName = "UserIcon";
 
-export { UsersIcon };
+export { UserIcon };

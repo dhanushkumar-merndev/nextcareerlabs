@@ -1,26 +1,67 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LucideIcon } from "lucide-react";
+"use client"
+import { useRef } from "react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
 
 interface AnalyticsCardProps {
   title: string;
   value: string | number;
-  icon: LucideIcon;
+  icon: React.ForwardRefExoticComponent<any>;
   description?: string;
 }
 
-export function AnalyticsCard({ title, value, icon: Icon, description }: AnalyticsCardProps) {
+export function AnalyticsCard({
+  title,
+  value,
+  icon: Icon,
+  description,
+}: AnalyticsCardProps) {
+  const iconRef = useRef<{ startAnimation: () => void; stopAnimation: () => void }>(null);
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <Icon className="h-4 w-4 text-muted-foreground" />
+    <Card
+      onMouseEnter={() => iconRef.current?.startAnimation()}
+      onMouseLeave={() => iconRef.current?.stopAnimation()}
+      className="
+        group rounded-xl border bg-card
+        transition-all duration-300
+        hover:shadow-lg hover:-translate-y-1
+        cursor-default
+      "
+    >
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <CardDescription className="text-sm font-medium">
+            {title}
+          </CardDescription>
+          <CardTitle className="text-3xl font-semibold tabular-nums mt-1">
+            {value}
+          </CardTitle>
+        </div>
+
+        {/* Animated Icon Container */}
+        <div
+          className="
+            p-2 rounded-md bg-primary/10 
+            transition-all duration-300
+            group-hover:scale-110 group-hover:rotate-6 
+            group-hover:bg-primary/20
+          "
+        >
+          <Icon ref={iconRef} className="size-6 text-primary" size={24} />
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
-        {description && (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        )}
-      </CardContent>
+
+      {description && (
+        <CardFooter className="pb-4">
+          <p className="text-muted-foreground text-sm">{description}</p>
+        </CardFooter>
+      )}
     </Card>
   );
 }

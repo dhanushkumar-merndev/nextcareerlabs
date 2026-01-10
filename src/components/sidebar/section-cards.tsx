@@ -1,9 +1,9 @@
-import {
-  IconUsers,
-  IconUserPlus,
-  IconBook2,
-  IconVideo,
-} from "@tabler/icons-react";
+"use client"
+import { useRef } from "react";
+import { UserIcon } from "@/components/ui/user";
+import { UsersIcon } from "@/components/ui/users";
+import { BookTextIcon } from "@/components/ui/book-text";
+import { PlayIcon } from "@/components/ui/play";
 
 import {
   Card,
@@ -28,7 +28,7 @@ interface SimpleCardProps {
   title: string;
   value: number | string;
   description: string;
-  icon: React.ReactNode;
+  icon: React.ForwardRefExoticComponent<any>;
 }
 
 export function SectionCards({ stats }: SectionCardsProps) {
@@ -40,40 +40,45 @@ export function SectionCards({ stats }: SectionCardsProps) {
         title="Total Sign-Ups"
         value={totalUsers}
         description="Registered users on this platform"
-        icon={<IconUserPlus className="size-6 text-primary" />}
+        icon={UserIcon}
       />
 
       <SimpleStatCard
         title="Total Subscribers"
         value={enrolledUsers}
         description="Users who have enrolled in courses"
-        icon={<IconUsers className="size-6 text-primary" />}
+        icon={UsersIcon}
       />
 
       <SimpleStatCard
         title="Total Courses"
         value={totalCourses}
         description="Available courses on the platform"
-        icon={<IconBook2 className="size-6 text-primary" />}
+        icon={BookTextIcon}
       />
 
       <SimpleStatCard
         title="Total Lessons"
         value={totalLessons}
         description="Total learning content available"
-        icon={<IconVideo className="size-6 text-primary" />}
+        icon={PlayIcon}
       />
     </div>
   );
 }
 
-function SimpleStatCard({ title, value, description, icon }: SimpleCardProps) {
+function SimpleStatCard({ title, value, description, icon: Icon }: SimpleCardProps) {
+  const iconRef = useRef<{ startAnimation: () => void; stopAnimation: () => void }>(null);
+
   return (
     <Card
+      onMouseEnter={() => iconRef.current?.startAnimation()}
+      onMouseLeave={() => iconRef.current?.stopAnimation()}
       className="
         group rounded-xl border bg-card
         transition-all duration-300
         hover:shadow-lg hover:-translate-y-1
+        cursor-default
       "
     >
       <CardHeader className="flex flex-row items-center justify-between">
@@ -93,7 +98,7 @@ function SimpleStatCard({ title, value, description, icon }: SimpleCardProps) {
             group-hover:bg-primary/20
           "
         >
-          {icon}
+          <Icon ref={iconRef} className="size-6 text-primary" size={24} />
         </div>
       </CardHeader>
 

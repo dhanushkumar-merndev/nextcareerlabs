@@ -9,14 +9,17 @@ export default function LoadingAnalyticsPage() {
       <Skeleton className="h-4 w-80 max-w-full" />
 
       {/* Top Analytics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-7 w-20" />
+          <Card key={i} className="rounded-xl border bg-card shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-8 w-16" />
+              </div>
+              <Skeleton className="h-10 w-10 rounded-md" />
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-4">
               <Skeleton className="h-3 w-full" />
             </CardContent>
           </Card>

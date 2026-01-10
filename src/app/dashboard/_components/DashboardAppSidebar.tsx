@@ -24,6 +24,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
 import Image from "next/image";
@@ -113,6 +114,13 @@ const data = {
 
 export function AppSidebar({ isEnrolled, ...props }: React.ComponentProps<typeof Sidebar> & { isEnrolled: boolean }) {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleLogoClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   const filteredNavMain = data.navMain.map(item => {
       // Logic to keep "My Courses" active when viewing a specific course (e.g. /dashboard/salesforce)
@@ -143,7 +151,7 @@ export function AppSidebar({ isEnrolled, ...props }: React.ComponentProps<typeof
               asChild
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
-              <Link href="/">
+              <Link href="/" onClick={handleLogoClick}>
                 <div className="w-7 h-7">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"

@@ -21,47 +21,62 @@ export default function LoadingAdminRequestsPage() {
           <Skeleton className="h-4 w-80 max-w-full" />
         </CardHeader>
 
-        <CardContent className="px-0 sm:px-6">
-          {/* Table Header Row */}
-          <div className="border-b px-4 sm:px-0">
-            <div className="grid grid-cols-6 gap-4 py-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-full" />
+        <CardContent className="px-0 lg:px-6">
+          {/* DESKTOP TABLE SKELETON */}
+          <div className="hidden lg:block overflow-hidden">
+             <div className="border-b">
+              <div className="grid grid-cols-6 gap-4 py-4 px-6">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-4 w-full" />
+                ))}
+              </div>
+            </div>
+            
+            <div className="divide-y">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="grid grid-cols-6 gap-4 items-center py-4 px-6">
+                  <div className="flex items-center gap-3 col-span-2">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-40" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className="h-6 w-24 rounded-full" />
+                  <div className="flex gap-2 justify-end">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                  </div>
+                </div>
               ))}
             </div>
           </div>
 
-          {/* Table Body Rows */}
-          <div className="divide-y">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <div
-                key={i}
-                className="grid grid-cols-6 gap-4 items-center px-4 sm:px-0 py-4"
-              >
-                {/* User */}
-                <div className="flex items-center gap-3 col-span-2">
-                  <Skeleton className="h-8 w-8 rounded-full" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-3 w-48" />
+          {/* MOBILE CARD SKELETON */}
+          <div className="grid grid-cols-1 gap-4 lg:hidden p-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Card key={i} className="p-5 space-y-5 bg-card/40 border-border/40 rounded-3xl animate-pulse">
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2 flex-1">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-32" />
                   </div>
+                  <Skeleton className="h-6 w-16 rounded-full" />
                 </div>
-
-                {/* Course */}
-                <Skeleton className="h-4 w-32" />
-
-                {/* Requested At */}
-                <Skeleton className="h-4 w-24" />
-
-                {/* Status */}
-                <Skeleton className="h-6 w-20 rounded-full" />
-
-                {/* Actions */}
-                <div className="flex gap-2 justify-end">
-                  <Skeleton className="h-8 w-20 rounded-md" />
-                  <Skeleton className="h-8 w-20 rounded-md" />
+                <div className="space-y-3 py-5 border-y border-border/20">
+                  {Array.from({ length: 4 }).map((_, j) => (
+                    <div key={j} className="flex justify-between">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  ))}
                 </div>
-              </div>
+                <div className="flex justify-end">
+                  <Skeleton className="h-8 w-8 rounded-full" />
+                </div>
+              </Card>
             ))}
           </div>
         </CardContent>

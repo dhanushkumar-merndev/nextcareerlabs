@@ -7,36 +7,33 @@ import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
-export interface UsersIconHandle {
+export interface PlayIconHandle {
   startAnimation: () => void;
   stopAnimation: () => void;
 }
 
-interface UsersIconProps extends HTMLAttributes<HTMLDivElement> {
+interface PlayIconProps extends HTMLAttributes<HTMLDivElement> {
   size?: number;
 }
 
 const PATH_VARIANTS: Variants = {
   normal: {
-    translateX: 0,
-    transition: {
-      type: "spring",
-      stiffness: 200,
-      damping: 13,
-    },
+    x: 0,
+    rotate: 0,
   },
   animate: {
-    translateX: [-6, 0],
+    x: [0, -1, 2, 0],
+    rotate: [0, -10, 0, 0],
     transition: {
-      delay: 0.1,
-      type: "spring",
-      stiffness: 200,
-      damping: 13,
+      duration: 0.5,
+      times: [0, 0.2, 0.5, 1],
+      stiffness: 260,
+      damping: 20,
     },
   },
 };
 
-const UsersIcon = forwardRef<UsersIconHandle, UsersIconProps>(
+const PlayIcon = forwardRef<PlayIconHandle, PlayIconProps>(
   ({ onMouseEnter, onMouseLeave, className, size = 28, ...props }, ref) => {
     const controls = useAnimation();
     const isControlledRef = useRef(false);
@@ -71,7 +68,6 @@ const UsersIcon = forwardRef<UsersIconHandle, UsersIconProps>(
       },
       [controls, onMouseLeave]
     );
-
     return (
       <div
         className={cn(className)}
@@ -79,7 +75,7 @@ const UsersIcon = forwardRef<UsersIconHandle, UsersIconProps>(
         onMouseLeave={handleMouseLeave}
         {...props}
       >
-        <svg
+        <motion.svg
           fill="none"
           height={size}
           stroke="currentColor"
@@ -90,24 +86,17 @@ const UsersIcon = forwardRef<UsersIconHandle, UsersIconProps>(
           width={size}
           xmlns="http://www.w3.org/2000/svg"
         >
-          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <motion.path
+          <motion.polygon
             animate={controls}
-            d="M22 21v-2a4 4 0 0 0-3-3.87"
+            points="6 3 20 12 6 21 6 3"
             variants={PATH_VARIANTS}
           />
-          <motion.path
-            animate={controls}
-            d="M16 3.13a4 4 0 0 1 0 7.75"
-            variants={PATH_VARIANTS}
-          />
-        </svg>
+        </motion.svg>
       </div>
     );
   }
 );
 
-UsersIcon.displayName = "UsersIcon";
+PlayIcon.displayName = "PlayIcon";
 
-export { UsersIcon };
+export { PlayIcon };
