@@ -189,6 +189,9 @@ export function UserList({
                 User Profile
               </TableHead>
               <TableHead className="text-center font-black uppercase tracking-widest text-[10px]">
+                User ID
+              </TableHead>
+              <TableHead className="text-center font-black uppercase tracking-widest text-[10px]">
                 Email
               </TableHead>
               <TableHead className="text-center font-black uppercase tracking-widest text-[10px]">
@@ -196,9 +199,6 @@ export function UserList({
               </TableHead>
               <TableHead className="text-center font-black uppercase tracking-widest text-[10px]">
                 Role
-              </TableHead>
-              <TableHead className="text-center font-black uppercase tracking-widest text-[10px]">
-                Enrollments
               </TableHead>
               <TableHead className="text-right pr-6 font-black uppercase tracking-widest text-[10px]">
                 Actions
@@ -249,16 +249,19 @@ export function UserList({
                             {user.name}
                           </span>
                         </div>
-                        <button
-                          onClick={() => copyToClipboard(user.id, "User ID")}
-                          className="flex items-center gap-1.5 text-[9px] text-muted-foreground/60 hover:text-primary transition-colors uppercase tracking-widest font-medium"
-                        >
-                          <span className="truncate w-32 text-left">
-                            {user.id}
-                          </span>
-                        </button>
                       </div>
                     </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <button
+                        onClick={() => copyToClipboard(user.id, "User ID")}
+                        className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground/60 hover:text-primary transition-colors uppercase tracking-widest font-mono font-medium group/id"
+                    >
+                        <span className="truncate w-24">
+                        {user.id}
+                        </span>
+                        <Copy className="size-2.5 opacity-0 group-hover/id:opacity-100 transition-opacity" />
+                    </button>
                   </TableCell>
                   <TableCell className="text-center">
                     <button
@@ -311,14 +314,6 @@ export function UserList({
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
-                        <Badge variant="secondary" className="font-bold">
-                            <BookOpen className="mr-1 h-3 w-3" />
-                            {user._count?.enrollment || 0}
-                        </Badge>
-                    </div>
                   </TableCell>
                   <TableCell className="text-right pr-6">
                     <Button asChild size="sm" variant="default" className="h-8 text-[10px] uppercase font-black tracking-widest">
@@ -433,15 +428,6 @@ export function UserList({
                             </button>
                         </div>
                     )}
-                     <div className="flex items-start justify-between text-[11px]">
-                         <div className="flex items-center gap-2 text-muted-foreground/60 font-black uppercase tracking-widest">
-                            <BookOpen className="size-3.5" />
-                            <span>Enrollments</span>
-                         </div>
-                         <span className="font-bold text-foreground text-right tracking-tight truncate ml-4">
-                             {user._count?.enrollment || 0}
-                         </span>
-                    </div>
                      <div className="flex items-start justify-between text-[11px]">
                          <div className="flex items-center gap-2 text-muted-foreground/60 font-black uppercase tracking-widest">
                             <ShieldCheck className="size-3.5" />
