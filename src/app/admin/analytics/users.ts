@@ -31,7 +31,7 @@ export async function updateUserRole(userId: string, newRole: string) {
       data: { role: newRole },
     });
 
-    revalidatePath("/admin/users");
+    revalidatePath("/admin/analytics/users");
     return { success: true };
   } catch (error) {
     console.error("Error updating user role:", error);

@@ -74,12 +74,7 @@ function SimpleStatCard({ title, value, description, icon: Icon }: SimpleCardPro
     <Card
       onMouseEnter={() => iconRef.current?.startAnimation()}
       onMouseLeave={() => iconRef.current?.stopAnimation()}
-      className="
-        group rounded-xl border bg-card
-        transition-all duration-300
-        hover:shadow-lg hover:-translate-y-1
-        cursor-default
-      "
+      className="group rounded-xl border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-default"
     >
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
@@ -90,14 +85,7 @@ function SimpleStatCard({ title, value, description, icon: Icon }: SimpleCardPro
         </div>
 
         {/* Animated Icon Container */}
-        <div
-          className="
-            p-2 rounded-md bg-primary/10 
-            transition-all duration-300
-            group-hover:scale-110 group-hover:rotate-6 
-            group-hover:bg-primary/20
-          "
-        >
+        <div className="p-2 rounded-md bg-primary/10 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-primary/20">
           <Icon ref={iconRef} className="size-6 text-primary" size={24} />
         </div>
       </CardHeader>

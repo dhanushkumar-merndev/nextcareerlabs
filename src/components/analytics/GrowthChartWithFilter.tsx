@@ -13,7 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { SimpleLineChart } from "./Charts";
-import { getAdminAnalytics } from "@/actions/analytics";
+import { getAdminAnalytics } from "@/app/admin/analytics/analytics";
 
 import {
   Card,

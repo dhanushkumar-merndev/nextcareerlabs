@@ -1,8 +1,7 @@
-import { getUserDashboardData } from "@/actions/analytics";
+import { getUserDashboardData } from "@/app/admin/analytics/analytics";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { CourseProgressCard } from "@/components/dashboard/CourseProgressCard";
 import { getCurrentUser } from "@/lib/session";
-import { BookOpen, CheckCircle, GraduationCap } from "lucide-react";
 import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
@@ -28,20 +27,20 @@ export default async function DashboardPage() {
         <AnalyticsCard
           title="Enrolled Courses"
           value={data.enrolledCoursesCount}
-          icon={BookOpen}
+          icon="book-text"
           description="Active learning paths"
         />
          <AnalyticsCard
           title="Completed Courses"
           value={data.completedCoursesCount}
-          icon={CheckCircle}
+          icon="circle-check"
           description="Fully finished courses"
         />
         <AnalyticsCard
           title="Average Progress"
            // Calculate average progress
           value={`${data.enrolledCoursesCount > 0 ? Math.round(data.coursesProgress.reduce((acc, c) => acc + c.progress, 0) / data.enrolledCoursesCount) : 0}%`}
-          icon={GraduationCap}
+          icon="clipboard-check"
           description="Across all courses"
         />
       </div>

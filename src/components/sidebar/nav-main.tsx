@@ -54,27 +54,34 @@ export function NavMain({
           </SidebarMenu>
         )}
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title} asChild>
-                <Link
-                  href={item.url}
-                  onClick={handleLinkClick}
-                  className={cn(
-                    (item.isActive || pathname === item.url) &&
-                      "bg-accent/50 text-accent-foreground"
-                  )}
-                >
-                  {item.icon && (
-                    <item.icon
-                      className={cn((item.isActive || pathname === item.url) && "text-primary")}
-                    />
-                  )}
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {items.map((item) => {
+            const isItemActive = 
+              item.isActive || 
+              (item.url === "/admin" || item.url === "/dashboard" 
+                ? pathname === item.url 
+                : pathname.startsWith(item.url));
+
+            return (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton tooltip={item.title} asChild>
+                  <Link
+                    href={item.url}
+                    onClick={handleLinkClick}
+                    className={cn(
+                      isItemActive && "bg-accent/50 text-accent-foreground"
+                    )}
+                  >
+                    {item.icon && (
+                      <item.icon
+                        className={cn(isItemActive && "text-primary")}
+                      />
+                    )}
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

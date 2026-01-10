@@ -1,5 +1,5 @@
-import { getAllUsers } from "@/actions/analytics";
-import { UserList } from "@/components/admin/UserList";
+import { getAllUsers } from "@/app/admin/analytics/analytics";
+import { UserList } from "@/app/admin/analytics/_components/UserList";
 
 interface SearchParams {
     search?: string;

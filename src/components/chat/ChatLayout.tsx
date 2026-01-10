@@ -7,7 +7,7 @@ import { ChatWindow } from "./ChatWindow";
 
 import { ArrowLeft, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SupportTicketDialog } from "@/components/support/SupportTicketDialog";
+import { SupportTicketDialog } from "@/app/(users)/_components/support/SupportTicketDialog";
 import { getThreadsAction, syncChatAction, getChatVersionAction } from "@/app/data/notifications/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";

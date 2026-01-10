@@ -1,4 +1,4 @@
-import { getAdminAnalytics } from "@/actions/analytics";
+import { getAdminAnalytics } from "@/app/admin/analytics/analytics";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { SimpleBarChart, SimplePieChart } from "@/components/analytics/Charts";
 import { GrowthChartWithFilter } from "@/components/analytics/GrowthChartWithFilter";
@@ -12,10 +12,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { UsersIcon } from "@/components/ui/users";
-import { BookTextIcon } from "@/components/ui/book-text";
-import { PlayIcon } from "@/components/ui/play";
-import { FileTextIcon } from "@/components/ui/file-text";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -41,25 +37,25 @@ export default async function AdminAnalyticsPage() {
         <AnalyticsCard
           title="Users & Enrollments"
           value={data.totalUsers}
-          icon={UsersIcon}
+          icon="users"
           description={`Total registered users (${data.totalEnrollments} enrollments)`}
         />
         <AnalyticsCard
           title="Courses & Lessons"
           value={`${data.totalLessons}`}
-          icon={BookTextIcon}
+          icon="book-text"
           description={`${data.totalCourses} Published courses`}
         />
         <AnalyticsCard
           title="Success Rate"
           value={`${data.averageProgress}%`}
-          icon={PlayIcon}
+          icon="play"
           description="Average lesson completion rate"
         />
         <AnalyticsCard
           title="Shared Resources"
           value={`${data.totalResources}`}
-          icon={FileTextIcon}
+          icon="file-text"
           description="Total PDF & file uploads shared"
         />
       </div>
@@ -98,7 +94,7 @@ export default async function AdminAnalyticsPage() {
                     </CardDescription>
                 </div>
                 <Button variant="default" size="sm" asChild>
-                    <Link href="/admin/users">View All</Link>
+                    <Link href="/admin/analytics/users">View All</Link>
                 </Button>
             </CardHeader>
             <CardContent>
