@@ -1,4 +1,5 @@
-export const dynamic = "force-static";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -38,7 +39,14 @@ const features = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  const dashboardHref =
+    session?.user.role === "admin" ? "/admin" : "/dashboard";
+
   return (
     <>
       {/* HERO */}
@@ -60,9 +68,9 @@ export default function Home() {
             </Link>
             <Link
               className={buttonVariants({ size: "lg", variant: "outline" })}
-              href="/dashboard"
+              href={session ? dashboardHref : "/dashboard"}
             >
-              Get Started
+              {session ? "Goto Dashboard" : "Get Started"}
             </Link>
           </div>
         </div>
