@@ -1,6 +1,6 @@
 
 import Link from "next/link";
-import { Mail, Youtube, Facebook, Instagram, GraduationCap, ArrowRight } from "lucide-react";
+import { Mail, Youtube, Facebook, Instagram, GraduationCap } from "lucide-react";
 import { getAllPublishedCourses } from "@/app/data/course/get-course";
 import { SupportFooterLink } from "./SupportFooterLink";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,7 +45,7 @@ export async function Footer() {
   return (
     <footer className="border-t bg-background relative overflow-hidden">
       {/* Decorative background element */}
-      <div className="absolute top-0 left-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 pointer-events-none" />
+      
       
       <div className="container mx-auto px-4 py-16 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
@@ -157,22 +157,17 @@ export async function Footer() {
               </li>
               <li>
                 <Link 
-                  href="/sitemap.xml" 
+                  href="https://www.google.com/maps/search/?api=1&query=952,+27th+A+Main+Rd,+Putlanpalya,+Jayanagara+9th+Block,+Jayanagar,+Bengaluru,+Karnataka+560041" 
+                  target="_blank"
                   className="text-muted-foreground hover:text-primary relative py-1 w-fit block text-sm transition-colors duration-300 group"
                 >
-                  Sitemap
+                  Location
                   <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
                 </Link>
               </li>
-              <li className="pt-2 text-muted-foreground text-xs leading-relaxed max-w-[200px]">
-                952, 27th A Main Rd, <br />
-                Putlanpalya, Jayanagara 9th Block, <br />
-                Jayanagar, Bengaluru, <br />
-                Karnataka 560041
-              </li>
               <li>
-                <div className="flex items-center gap-2 text-sm group cursor-pointer relative py-1 w-fit mt-2">
-                   <SupportFooterLink courses={courses} />
+                <div className="text-muted-foreground flex items-center gap-2 text-sm group cursor-pointer relative py-1 w-fit mt-1">
+                   <SupportFooterLink  />
                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
                 </div>
               </li>
@@ -181,22 +176,10 @@ export async function Footer() {
         </div>
 
         {/* BOTTOM BAR */}
-        <div className="mt-16 pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
+        <div className="mt-16 pt-8 border-t flex flex-col md:flex-row items-center justify-center gap-6 text-sm">
           <p className="text-muted-foreground order-2 md:order-1">
             © {new Date().getFullYear()} <span className="text-foreground font-semibold">Skill Force Cloud</span>. All rights reserved.
           </p>
-
-          <div className="flex gap-8 order-1 md:order-2">
-            <Link href="/privacy" className="text-muted-foreground hover:text-primary transition-colors">
-              Privacy
-            </Link>
-            <Link href="/terms" className="text-muted-foreground hover:text-primary transition-colors">
-              Terms
-            </Link>
-            <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
-              Sitemap
-            </Link>
-          </div>
         </div>
       </div>
     </footer>
