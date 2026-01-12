@@ -90,7 +90,7 @@ export async function Footer() {
                 { label: "Courses", href: "/courses" },
                 { label: "Dashboard", href: "/dashboard" },
                 { label: "Login", href: "/login" },
-                { label: "Get Started", href: "/register" },
+                { label: "Get Started", href: "/login" },
               ].map((link) => (
                 <li key={link.label}>
                   <Link 
