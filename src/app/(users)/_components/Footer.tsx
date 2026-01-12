@@ -1,139 +1,200 @@
 
 import Link from "next/link";
-import { Github, Linkedin, Twitter, Mail, Youtube, Facebook, Instagram } from "lucide-react";
+import { Mail, Youtube, Facebook, Instagram, GraduationCap, ArrowRight } from "lucide-react";
 import { getAllPublishedCourses } from "@/app/data/course/get-course";
 import { SupportFooterLink } from "./SupportFooterLink";
+import { Skeleton } from "@/components/ui/skeleton";
 
+export function FooterSkeleton() {
+  return (
+    <footer className="border-t bg-background/50 backdrop-blur-sm">
+      <div className="container mx-auto px-4 py-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-40" />
+            <Skeleton className="h-20 w-full text-foreground/20" />
+            <div className="flex gap-3">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-9 w-9 rounded-md" />
+              ))}
+            </div>
+          </div>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-4 lg:ml-auto">
+              <Skeleton className="h-6 w-24" />
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((j) => (
+                  <Skeleton key={j} className="h-4 w-32" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-16 pt-8 border-t flex flex-col md:flex-row justify-between items-center gap-4">
+          <Skeleton className="h-4 w-64" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+      </div>
+    </footer>
+  );
+}
 
 export async function Footer() {
   const courses = await getAllPublishedCourses();
+  
   return (
-    <footer className="border-t bg-background">
-      <div className="container mx-auto px-4 py-14">
-        {/* TOP GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
-          {/* BRAND */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
-                <span className="font-bold text-primary">S</span>
+    <footer className="border-t bg-background relative overflow-hidden">
+      {/* Decorative background element */}
+      <div className="absolute top-0 left-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl -translate-y-1/2 pointer-events-none" />
+      
+      <div className="container mx-auto px-4 py-16 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
+          {/* BRAND SECTION */}
+          <div className="space-y-6">
+            <Link href="/" className="flex items-center gap-2 group w-fit">
+              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-all duration-300">
+                <GraduationCap className="h-6 w-6 text-primary" />
               </div>
-              <span className="font-semibold text-lg">Skill Force Cloud</span>
-            </div>
+              <span className="font-bold text-xl tracking-tight">Skill Force Cloud</span>
+            </Link>
 
-            <p className="text-sm text-muted-foreground leading-relaxed">
+            <p className="text-muted-foreground leading-relaxed text-sm max-w-xs">
               Industry-focused training platform helping learners become
-              job-ready with real-world skills.
+              job-ready with real-world skills and expert guidance.
             </p>
 
             <div className="flex items-center gap-3">
-              <Link
-                href="#"
-                className="p-2 rounded-md border hover:bg-accent transition"
-                aria-label="Instagram"
-              >
-                <Instagram className="h-4 w-4" />
-              </Link>
-              <Link
-                href="#"
-                className="p-2 rounded-md border hover:bg-accent transition"
-                aria-label="Facebook"
-              >
-                <Facebook className="h-4 w-4" />
-              </Link>
-              <Link
-                href="#"
-                className="p-2 rounded-md border hover:bg-accent transition"
-                aria-label="YouTube"
-              >
-                <Youtube className="h-4 w-4" />
-              </Link>
-              <Link
-                href="mailto:support@skillforcecloud.com"
-                className="p-2 rounded-md border hover:bg-accent transition"
-                aria-label="Email"
-              >
-                <Mail className="h-4 w-4" />
-              </Link>
+              {[
+                { icon: Instagram, label: "Instagram", href: "#" },
+                { icon: Facebook, label: "Facebook", href: "#" },
+                { icon: Youtube, label: "YouTube", href: "#" },
+                { icon: Mail, label: "Email", href: "mailto:support@skillforcecloud.com" },
+              ].map((social) => (
+                <Link
+                  key={social.label}
+                  href={social.href}
+                  className="p-2.5 rounded-xl border bg-background hover:bg-primary hover:text-primary-foreground hover:border-primary hover:-translate-y-1 transition-all duration-300 shadow-sm"
+                  aria-label={social.label}
+                >
+                  <social.icon className="h-4 w-4" />
+                </Link>
+              ))}
             </div>
           </div>
 
-          {/* LINKS */}
-          <div>
-            <h4 className="font-semibold mb-4">Platform</h4>
-            <ul className="space-y-3 text-sm text-muted-foreground">
-              <li>
-                <Link href="/courses" className="hover:text-primary">
-                  Courses
-                </Link>
-              </li>
-              <li>
-                <Link href="/dashboard" className="hover:text-primary">
-                  Dashboard
-                </Link>
-              </li>
-              <li>
-                <Link href="/login" className="hover:text-primary">
-                  Login
-                </Link>
-              </li>
-              <li>
-                <Link href="/register" className="hover:text-primary">
-                  Get Started
-                </Link>
-              </li>
+          {/* PLATFORM LINKS */}
+          <div className="lg:ml-auto">
+            <h4 className="font-bold text-sm uppercase tracking-wider mb-6 text-foreground/70">Platform</h4>
+            <ul className="space-y-3">
+              {[
+                { label: "Courses", href: "/courses" },
+                { label: "Dashboard", href: "/dashboard" },
+                { label: "Login", href: "/login" },
+                { label: "Get Started", href: "/register" },
+              ].map((link) => (
+                <li key={link.label}>
+                  <Link 
+                    href={link.href} 
+                    className="text-muted-foreground hover:text-primary relative py-1 w-fit block text-sm transition-colors duration-300 group"
+                  >
+                    {link.label}
+                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
+                  </Link>
+                </li>
+              ))}
             </ul>
           </div>
 
-          <div>
-            <h4 className="font-semibold mb-4">Programs</h4>
-            <ul className="space-y-3 text-sm text-muted-foreground">
-              {courses.slice(0, 5).map((course) => (
+          {/* PROGRAMS LINKS */}
+          <div className="lg:ml-auto">
+            <h4 className="font-bold text-sm uppercase tracking-wider mb-6 text-foreground/70">Our Programs</h4>
+            <ul className="space-y-3">
+              {courses.slice(0, 4).map((course) => (
                 <li key={course.id}>
-                  <Link href={`/courses/${course.slug}`} className="hover:text-primary">
-                    {course.title}
+                  <Link 
+                    href={`/courses/${course.slug}`} 
+                    className="text-muted-foreground hover:text-primary relative py-1 w-fit block text-sm transition-colors duration-300 group"
+                  >
+                    <span className="truncate max-w-[180px] block">{course.title}</span>
+                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
                   </Link>
                 </li>
               ))}
               {courses.length === 0 && (
-                <li className="italic opacity-50">No programs available yet</li>
+                <li className="text-muted-foreground/50 text-xs italic">No programs available yet</li>
+              )}
+              {courses.length > 4 && (
+                <li>
+                  <Link href="/courses" className="text-primary text-xs font-semibold hover:underline">
+                    View all courses
+                  </Link>
+                </li>
               )}
             </ul>
           </div>
 
-          {/* SUPPORT */}
-          <div>
-            <h4 className="font-semibold mb-4">Support</h4>
-            <ul className="space-y-3 text-sm text-muted-foreground">
+          {/* SUPPORT LINKS */}
+          <div className="lg:ml-auto">
+            <h4 className="font-bold text-sm uppercase tracking-wider mb-6 text-foreground/70">Support</h4>
+            <ul className="space-y-3">
               <li>
-                <Link href="/privacy" className="hover:text-primary">
+                <Link 
+                  href="/privacy" 
+                  className="text-muted-foreground hover:text-primary relative py-1 w-fit block text-sm transition-colors duration-300 group"
+                >
                   Privacy Policy
+                  <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
                 </Link>
               </li>
               <li>
-                <Link href="/terms" className="hover:text-primary">
+                <Link 
+                  href="/terms" 
+                  className="text-muted-foreground hover:text-primary relative py-1 w-fit block text-sm transition-colors duration-300 group"
+                >
                   Terms & Conditions
+                  <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
                 </Link>
               </li>
               <li>
-                <SupportFooterLink courses={courses} />
+                <Link 
+                  href="/sitemap.xml" 
+                  className="text-muted-foreground hover:text-primary relative py-1 w-fit block text-sm transition-colors duration-300 group"
+                >
+                  Sitemap
+                  <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
+                </Link>
+              </li>
+              <li className="pt-2 text-muted-foreground text-xs leading-relaxed max-w-[200px]">
+                952, 27th A Main Rd, <br />
+                Putlanpalya, Jayanagara 9th Block, <br />
+                Jayanagar, Bengaluru, <br />
+                Karnataka 560041
+              </li>
+              <li>
+                <div className="flex items-center gap-2 text-sm group cursor-pointer relative py-1 w-fit mt-2">
+                   <SupportFooterLink courses={courses} />
+                   <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
+                </div>
               </li>
             </ul>
           </div>
         </div>
 
         {/* BOTTOM BAR */}
-        <div className="mt-12 pt-6 border-t flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <p>
-            © {new Date().getFullYear()} Skill Force Cloud. All rights reserved.
+        <div className="mt-16 pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-6 text-sm">
+          <p className="text-muted-foreground order-2 md:order-1">
+            © {new Date().getFullYear()} <span className="text-foreground font-semibold">Skill Force Cloud</span>. All rights reserved.
           </p>
 
-          <div className="flex gap-4">
-            <Link href="/privacy" className="hover:text-primary">
+          <div className="flex gap-8 order-1 md:order-2">
+            <Link href="/privacy" className="text-muted-foreground hover:text-primary transition-colors">
               Privacy
             </Link>
-            <Link href="/terms" className="hover:text-primary">
+            <Link href="/terms" className="text-muted-foreground hover:text-primary transition-colors">
               Terms
+            </Link>
+            <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
+              Sitemap
             </Link>
           </div>
         </div>
