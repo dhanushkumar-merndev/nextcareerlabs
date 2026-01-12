@@ -129,8 +129,6 @@ export default function TermsPage() {
       </section>
 
       <main className="max-w-4xl mx-auto px-6 relative">
-        {/* Timeline Line */}
-        <div className="absolute left-1/2 top-0 bottom-0 w-px bg-linear-to-b from-primary/20 via-primary/5 to-transparent hidden lg:block -translate-x-1/2" />
 
         <div className="space-y-4">
           {sections.map((section, idx) => (
