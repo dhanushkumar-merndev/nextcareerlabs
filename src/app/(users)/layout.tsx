@@ -10,10 +10,12 @@ export default function LayoutUser({
   return (
     <div className="flex flex-col min-h-screen">
       <NavbarWrapper />
-      <main className="flex-1 container mx-auto mb-32">{children}</main>
-      <Suspense fallback={<FooterSkeleton />}>
-        <Footer />
-      </Suspense>
+      <main className="flex-1 container mx-auto">{children}</main>
+      <div className="min-h-[400px]">
+        <Suspense fallback={<FooterSkeleton />}>
+          <Footer />
+        </Suspense>
+      </div>
     </div>
   );
 }

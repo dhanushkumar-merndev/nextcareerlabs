@@ -7,22 +7,31 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function FooterSkeleton() {
   return (
-    <footer className="border-t bg-background/50 backdrop-blur-sm">
-      <div className="container mx-auto px-4 py-16">
+    <footer className="border-t bg-background relative overflow-hidden">
+      <div className="container mx-auto px-4 py-16 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
-          <div className="space-y-4">
-            <Skeleton className="h-8 w-40" />
-            <Skeleton className="h-20 w-full text-foreground/20" />
+          {/* BRAND SECTION SKELETON */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-10 w-10 rounded-xl" />
+              <Skeleton className="h-6 w-32" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
             <div className="flex gap-3">
               {[1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-9 w-9 rounded-md" />
+                <Skeleton key={i} className="h-10 w-10 rounded-xl" />
               ))}
             </div>
           </div>
+
+          {/* LINKS SKELETONS */}
           {[1, 2, 3].map((i) => (
-            <div key={i} className="space-y-4 lg:ml-auto">
-              <Skeleton className="h-6 w-24" />
-              <div className="space-y-2">
+            <div key={i} className="lg:ml-auto space-y-6">
+              <Skeleton className="h-5 w-24 mb-6" />
+              <div className="space-y-4">
                 {[1, 2, 3, 4].map((j) => (
                   <Skeleton key={j} className="h-4 w-32" />
                 ))}
@@ -30,9 +39,8 @@ export function FooterSkeleton() {
             </div>
           ))}
         </div>
-        <div className="mt-16 pt-8 border-t flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="mt-16 pt-8 border-t flex flex-col md:flex-row items-center justify-center gap-6">
           <Skeleton className="h-4 w-64" />
-          <Skeleton className="h-4 w-32" />
         </div>
       </div>
     </footer>
