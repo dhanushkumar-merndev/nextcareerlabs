@@ -31,10 +31,11 @@ interface ChatWindowProps {
     isAdmin: boolean;
     currentUserId: string;
     onRemoveThread?: (threadId: string) => void;
+    onBack?: () => void;
     externalPresence?: string | null;
 }
 
-export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, currentUserId, onRemoveThread, externalPresence }: ChatWindowProps) {
+export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, currentUserId, onRemoveThread, onBack, externalPresence }: ChatWindowProps) {
     const queryClient = useQueryClient();
     const [inputText, setInputText] = useState("");
     const [sending, setSending] = useState(false);
@@ -740,8 +741,19 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             {/* HEADER */}
             <div className="p-4 border-b bg-background flex items-center justify-between shadow-sm z-10 shrink-0">
                 <div className="flex items-center gap-3">
+                    {!showGroupInfo && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 lg:hidden"
+                            onClick={() => onBack?.()}
+                        >
+                            <ArrowLeft className="h-5 w-5" />
+                        </Button>
+                    )}
+
                     {showGroupInfo && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8 -ml-1" onClick={() => setShowGroupInfo(false)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowGroupInfo(false)}>
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
                     )}
