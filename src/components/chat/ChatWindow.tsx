@@ -1031,12 +1031,21 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                                     <X className="h-3 w-3" />
                                                                 </Button>
                                                             </div>
-                                                            <Textarea
-                                                                value={resolveFeedbackText}
-                                                                onChange={(e) => setResolveFeedbackText(e.target.value)}
-                                                                placeholder={resolveStatus === "Helpful" ? "Tell us more..." : "What went wrong?"}
-                                                                className="min-h-[60px] text-xs resize-none"
-                                                            />
+                                                            <div className="relative">
+                                                                <Textarea
+                                                                    value={resolveFeedbackText}
+                                                                    onChange={(e) => setResolveFeedbackText(e.target.value)}
+                                                                    placeholder={resolveStatus === "Helpful" ? "Tell us more..." : "What went wrong?"}
+                                                                    className="min-h-[60px] text-xs resize-none pr-12"
+                                                                    maxLength={300}
+                                                                />
+                                                                <span className={cn(
+                                                                    "absolute bottom-2 right-2 text-[9px] font-medium",
+                                                                    resolveFeedbackText.length >= 280 ? "text-orange-500" : "text-muted-foreground/50"
+                                                                )}>
+                                                                    {resolveFeedbackText.length}/300
+                                                                </span>
+                                                            </div>
                                                             <Button
                                                                 size="sm"
                                                                 className={cn(
@@ -1083,17 +1092,27 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                             {(msg.resolved || msg.feedback) ? (
                                                 <div className="flex justify-center w-full mt-2 animate-in zoom-in-95 duration-300">
                                                     <div className={cn(
-                                                        "flex items-center gap-2 px-3 py-1.5 rounded-xl border text-[11px] font-semibold shadow-sm",
+                                                        "flex flex-col gap-1 px-3 py-1.5 rounded-xl border text-[11px] font-semibold shadow-sm",
                                                         (msg.feedback === "Denied" || msg.feedback === "More Help")
                                                             ? "bg-red-50 text-red-700 border-red-100 shadow-red-100/20"
                                                             : "bg-emerald-50 text-emerald-700 border-emerald-100 shadow-emerald-100/20"
                                                     )}>
-                                                        {(msg.feedback === "Denied" || msg.feedback === "More Help") ? <CircleX className="h-3 w-3" /> : <CircleCheckBig className="h-3 w-3" />}
-                                                        <span>
-                                                            {msg.feedback === "Denied" ? "Request Denied" :
-                                                                msg.feedback === "More Help" ? "More Help Requested" :
-                                                                    msg.feedback === "Helpful" ? "Result: Helpful" : "Issue Resolved"}
-                                                        </span>
+                                                        <div className="flex items-center gap-2">
+                                                            {(msg.feedback === "Denied" || msg.feedback === "More Help") ? <CircleX className="h-3 w-3" /> : <CircleCheckBig className="h-3 w-3" />}
+                                                            <span>
+                                                                {msg.feedback === "Denied" ? "Request Denied" :
+                                                                    msg.feedback === "More Help" ? "More Help Requested" :
+                                                                        msg.feedback === "Helpful" ? "Result: Helpful" :
+                                                                            (msg.feedback && !["Resolved", "Helpful", "More Help", "Denied"].includes(msg.feedback))
+                                                                                ? "Feedback Provided" : "Issue Resolved"}
+                                                            </span>
+                                                        </div>
+
+                                                        {msg.feedback && !["Resolved", "Helpful", "More Help", "Denied"].includes(msg.feedback) && (
+                                                            <div className="mt-1 pt-1 border-t border-current/10 text-[10px] italic font-medium opacity-90 leading-relaxed max-w-[250px] wrap-break-word">
+                                                                "{msg.feedback}"
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             ) : (

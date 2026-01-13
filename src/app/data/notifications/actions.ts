@@ -699,6 +699,10 @@ export async function submitFeedbackAction(data: {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
+  if (data.feedback.length > 300) {
+    throw new Error("Feedback exceeds 300 characters");
+  }
+
   await prisma.notification.update({
     where: { id: data.notificationId },
     data: { 
