@@ -290,7 +290,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             chatCache.clear(`messages_${threadId}`);
             chatCache.clear("threads");
         } catch (error) {
-            console.error(error);
+           
             toast.error("Failed to send message");
             // Revert on catch
             queryClient.setQueryData(["messages", threadId], (oldData: any) => {
@@ -455,8 +455,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 headers: { "Content-Type": "application/json" }
             });
         } catch (error) {
-            console.error("Failed to delete from S3:", error);
-            // We don't toast error here to avoid annoying the user if cleanup fails
+           
         }
     };
 
@@ -690,7 +689,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
 
             toast.error("Failed to archive chat");
-            console.error("Failed to archive chat", e);
+        
         } finally {
             setIsBusy(false);
         }
@@ -1300,7 +1299,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             document.body.removeChild(link);
             window.URL.revokeObjectURL(blobUrl);
         } catch (error) {
-            console.error("Direct download failed", error);
+         
             window.open(url, "_blank");
         } finally {
             setDownloadingFileId(null);

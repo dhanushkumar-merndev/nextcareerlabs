@@ -1,4 +1,6 @@
+"use client";
 import { type Editor } from "@tiptap/react";
+import { useState, useEffect } from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -29,6 +31,24 @@ interface iAppProps {
 }
 
 export function Menubar({ editor }: iAppProps) {
+  const [, setUpdate] = useState(0);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleUpdate = () => {
+      setUpdate((prev) => prev + 1);
+    };
+
+    editor.on("selectionUpdate", handleUpdate);
+    editor.on("transaction", handleUpdate);
+
+    return () => {
+      editor.off("selectionUpdate", handleUpdate);
+      editor.off("transaction", handleUpdate);
+    };
+  }, [editor]);
+
   if (!editor) {
     return null;
   }
@@ -38,205 +58,199 @@ export function Menubar({ editor }: iAppProps) {
         <div className=" flex flex-wrap gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive("bold")}
-                onPressedChange={() =>
-                  editor.chain().focus().toggleBold().run()
-                }
-                className={cn(
-                  editor.isActive("bold") && "text-muted-foreground bg-muted"
-                )}
+                variant={editor.isActive("bold") ? "secondary" : "ghost"}
+                type="button"
+                onClick={() => editor.chain().focus().toggleBold().run()}
               >
                 <Bold />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Bold</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive("italic")}
-                onPressedChange={() =>
-                  editor.chain().focus().toggleItalic().run()
-                }
-                className={cn(
-                  editor.isActive("italic") && "text-muted-foreground bg-muted"
-                )}
+                variant={editor.isActive("italic") ? "secondary" : "ghost"}
+                type="button"
+                onClick={() => editor.chain().focus().toggleItalic().run()}
               >
                 <Italic />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Italic</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive("strike")}
-                onPressedChange={() =>
-                  editor.chain().focus().toggleStrike().run()
-                }
-                className={cn(
-                  editor.isActive("strike") && "text-muted-foreground bg-muted"
-                )}
+                variant={editor.isActive("strike") ? "secondary" : "ghost"}
+                type="button"
+                onClick={() => editor.chain().focus().toggleStrike().run()}
               >
                 <Strikethrough />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Strike</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive("heading", { level: 1 })}
-                onPressedChange={() =>
+                variant={
+                  editor.isActive("heading", { level: 1 })
+                    ? "secondary"
+                    : "ghost"
+                }
+                type="button"
+                onClick={() =>
                   editor.chain().focus().toggleHeading({ level: 1 }).run()
                 }
-                className={cn(
-                  editor.isActive("heading", { level: 1 }) &&
-                    "text-muted-foreground bg-muted"
-                )}
               >
                 <Heading1Icon />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Heading 1</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive("heading", { level: 2 })}
-                onPressedChange={() =>
+                variant={
+                  editor.isActive("heading", { level: 2 })
+                    ? "secondary"
+                    : "ghost"
+                }
+                type="button"
+                onClick={() =>
                   editor.chain().focus().toggleHeading({ level: 2 }).run()
                 }
-                className={cn(
-                  editor.isActive("heading", { level: 2 }) &&
-                    "text-muted-foreground bg-muted"
-                )}
               >
                 <Heading2Icon />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Heading 2</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive("heading", { level: 3 })}
-                onPressedChange={() =>
+                variant={
+                  editor.isActive("heading", { level: 3 })
+                    ? "secondary"
+                    : "ghost"
+                }
+                type="button"
+                onClick={() =>
                   editor.chain().focus().toggleHeading({ level: 3 }).run()
                 }
-                className={cn(
-                  editor.isActive("heading", { level: 3 }) &&
-                    "text-muted-foreground bg-muted"
-                )}
               >
                 <Heading3Icon />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Heading 3</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive("bulletList")}
-                onPressedChange={() =>
-                  editor.chain().focus().toggleBulletList().run()
-                }
-                className={cn(
-                  editor.isActive("bulletList") &&
-                    "text-muted-foreground bg-muted"
-                )}
+                variant={editor.isActive("bulletList") ? "secondary" : "ghost"}
+                type="button"
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
               >
                 <ListIcon />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Bullet List</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive("orderedList")}
-                onPressedChange={() =>
-                  editor.chain().focus().toggleOrderedList().run()
-                }
-                className={cn(
-                  editor.isActive("orderedList") &&
-                    "text-muted-foreground bg-muted"
-                )}
+                variant={editor.isActive("orderedList") ? "secondary" : "ghost"}
+                type="button"
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
               >
                 <ListOrdered />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Ordered List</TooltipContent>
           </Tooltip>
         </div>
+
         <div className="w-px h-6 bg-border mx-2"></div>
+
         <div className="flex flew-warp gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive({ textAlign: "left" })}
-                onPressedChange={() =>
+                variant={
+                  editor.isActive({ textAlign: "left" }) ? "secondary" : "ghost"
+                }
+                type="button"
+                onClick={() =>
                   editor.chain().focus().setTextAlign("left").run()
                 }
-                className={cn(
-                  editor.isActive({ textAlign: "left" }) &&
-                    "text-muted-foreground bg-muted"
-                )}
               >
                 <AlignLeft />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Align Left</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive({ textAlign: "center" })}
-                onPressedChange={() =>
+                variant={
+                  editor.isActive({ textAlign: "center" })
+                    ? "secondary"
+                    : "ghost"
+                }
+                type="button"
+                onClick={() =>
                   editor.chain().focus().setTextAlign("center").run()
                 }
-                className={cn(
-                  editor.isActive({ textAlign: "center" }) &&
-                    "text-muted-foreground bg-muted"
-                )}
               >
                 <AlignCenter />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Align Center</TooltipContent>
           </Tooltip>
+
           <Tooltip>
             <TooltipTrigger asChild>
-              <Toggle
+              <Button
                 size="sm"
-                pressed={editor.isActive({ textAlign: "right" })}
-                onPressedChange={() =>
+                variant={
+                  editor.isActive({ textAlign: "right" })
+                    ? "secondary"
+                    : "ghost"
+                }
+                type="button"
+                onClick={() =>
                   editor.chain().focus().setTextAlign("right").run()
                 }
-                className={cn(
-                  editor.isActive({ textAlign: "right" }) &&
-                    "text-muted-foreground bg-muted"
-                )}
               >
                 <AlignRight />
-              </Toggle>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>Align Right</TooltipContent>
           </Tooltip>
         </div>
 
         <div className="w-px h-6 bg-border mx-2"></div>
+
         <div className="flex flex-wrap gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
