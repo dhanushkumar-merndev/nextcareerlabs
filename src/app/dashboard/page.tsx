@@ -1,4 +1,4 @@
-import { getUserDashboardData } from "@/app/admin/analytics/analytics";
+import { getUserDashboardData } from "@/app/dashboard/actions";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { CourseProgressCard } from "@/components/dashboard/CourseProgressCard";
 import { getCurrentUser } from "@/lib/session";
@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
-  
+
   if (!user) {
     redirect("/auth/sign-in");
   }
@@ -14,7 +14,7 @@ export default async function DashboardPage() {
   const data = await getUserDashboardData(user.id);
 
   if (!data) {
-      return <div>Failed to load dashboard data.</div>;
+    return <div>Failed to load dashboard data.</div>;
   }
 
   return (
@@ -30,7 +30,7 @@ export default async function DashboardPage() {
           icon="book-text"
           description="Active learning paths"
         />
-         <AnalyticsCard
+        <AnalyticsCard
           title="Completed Courses"
           value={data.completedCoursesCount}
           icon="circle-check"
@@ -38,7 +38,7 @@ export default async function DashboardPage() {
         />
         <AnalyticsCard
           title="Average Progress"
-           // Calculate average progress
+          // Calculate average progress
           value={`${data.enrolledCoursesCount > 0 ? Math.round(data.coursesProgress.reduce((acc, c) => acc + c.progress, 0) / data.enrolledCoursesCount) : 0}%`}
           icon="clipboard-check"
           description="Across all courses"
@@ -48,20 +48,20 @@ export default async function DashboardPage() {
       <div className="space-y-4">
         <h3 className="text-xl font-semibold">My Learning</h3>
         {data.coursesProgress.length === 0 ? (
-            <p className="text-muted-foreground">You are not enrolled in any courses yet.</p>
+          <p className="text-muted-foreground">You are not enrolled in any courses yet.</p>
         ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {data.coursesProgress.map((course) => (
-                    <CourseProgressCard
-                        key={course.id}
-                        title={course.title}
-                        progress={course.progress}
-                        slug={course.slug}
-                        completedLessons={course.completedLessons}
-                        totalLessons={course.totalLessons}
-                    />
-                ))}
-            </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {data.coursesProgress.map((course) => (
+              <CourseProgressCard
+                key={course.id}
+                title={course.title}
+                progress={course.progress}
+                slug={course.slug}
+                completedLessons={course.completedLessons}
+                totalLessons={course.totalLessons}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

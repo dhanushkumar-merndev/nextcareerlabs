@@ -8,19 +8,19 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
 } from "@/components/ui/popover";
 import { SimpleLineChart } from "./Charts";
-import { getAdminAnalytics } from "@/app/admin/analytics/analytics";
+import { getAdminAnalytics } from "@/app/admin/analytics/actions";
 
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
+
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
 } from "@/components/ui/card";
 
 interface GrowthChartWithFilterProps {
@@ -37,7 +37,7 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
     const handleApplyFilter = () => {
         setIsPopoverOpen(false);
         setDate(tempDate);
-        
+
         startTransition(async () => {
             const result = await getAdminAnalytics(tempDate?.from, tempDate?.to);
             if (result) {
@@ -105,8 +105,8 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
                                 className="p-4"
                             />
                             <div className="p-4 border-t border-border/40 bg-muted/20 flex justify-end">
-                                <Button 
-                                    size="sm" 
+                                <Button
+                                    size="sm"
                                     onClick={handleApplyFilter}
                                     className="font-bold uppercase tracking-widest text-[10px] px-6 h-8 rounded-lg shadow-lg shadow-primary/20"
                                 >
@@ -117,9 +117,9 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
                     </Popover>
 
                     {date && (
-                        <Button 
-                            variant="ghost" 
-                            size="icon" 
+                        <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={handleClear}
                             className="h-10 w-full sm:h-8 sm:w-8 rounded-xl text-destructive hover:text-destructive/80 hover:bg-destructive/10 border border-border/40 shrink-0"
                         >

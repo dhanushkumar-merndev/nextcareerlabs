@@ -1,4 +1,4 @@
-import { getUserAnalyticsAdmin } from "@/app/admin/analytics/analytics";
+import { getUserAnalyticsAdmin } from "@/app/admin/analytics/actions";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -37,7 +37,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                     <span>/</span>
                     <span className="text-foreground font-medium">{user.name}</span>
                 </div>
-                
+
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex items-center gap-5">
                         <Avatar className="size-20 border-4 border-primary/10 shadow-xl">
@@ -117,12 +117,12 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                                     {/* Course Thumbnail placeholder/derived */}
                                     <div className="w-full md:w-32 aspect-video rounded-lg bg-muted relative overflow-hidden shrink-0 border border-border/20">
                                         {course.imageUrl ? (
-                                             // eslint-disable-next-line @next/next/no-img-element
-                                             <img 
-                                                src={`https://next-career-labs-assets.t3.storage.dev/${course.imageUrl}`} 
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img
+                                                src={`https://next-career-labs-assets.t3.storage.dev/${course.imageUrl}`}
                                                 alt={course.title}
                                                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                                             />
+                                            />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center bg-primary/5">
                                                 <BookOpen className="size-6 text-primary/40" />
@@ -151,7 +151,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                                                 </span>
                                             </div>
                                         </div>
-                                        
+
                                         <div className="space-y-1.5">
                                             <Progress value={course.progress} className="h-2.5 bg-primary/10" />
                                             <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">

@@ -59,7 +59,7 @@ export default function RootLayout({
         <link rel="manifest" href="/site.webmanifest" />
       </head>
 
-      <body>
+      <body suppressHydrationWarning>
         <Providers>
           <ThemeProvider
             attribute="class"
