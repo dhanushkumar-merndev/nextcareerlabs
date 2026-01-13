@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip, Users, Info, Archive, Trash2, MoreVertical, Pencil, ChevronDown, CheckCheck, CircleCheckBig, CircleX, Download } from "lucide-react";
 import { formatDistanceToNow, isToday, format } from "date-fns";
-import { chatCache } from "@/lib/chat-cache";
+
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MessageContent } from "./MessageContent";
 import { useConstructUrl } from "@/hooks/use-construct-url";
+import { chatCache } from "@/lib/chat-cache";
 
 interface ChatWindowProps {
     threadId: string;
