@@ -2,7 +2,7 @@ import { env } from "@/lib/env";
 import arcjet, { createMiddleware, detectBot } from "@arcjet/next";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "./lib/db";
+import { prisma } from "@/lib/db";
 
 const aj = arcjet({
   key: env.ARCJET_KEY!,
@@ -17,21 +17,26 @@ const aj = arcjet({
 async function mainMiddleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  // Get session using Better Auth
+
+  if (path.startsWith("/api/auth")) {
+    return NextResponse.next();
+  }
+
+ 
+  if (
+    path.startsWith("/_next") ||
+    path === "/favicon.ico"
+  ) {
+    return NextResponse.next();
+  }
+
+
   const session = await auth.api.getSession({
     headers: request.headers,
   });
 
-  // Clean up multiple sessions
+ 
   if (session) {
-    if (session.user.banned && path !== "/banned") {
-      return NextResponse.redirect(new URL("/banned", request.url));
-    }
-    
-    if (!session.user.banned && path === "/banned") {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
-
     await prisma.session.deleteMany({
       where: {
         userId: session.user.id,
@@ -40,21 +45,12 @@ async function mainMiddleware(request: NextRequest) {
     });
   }
 
-  // Allow Better Auth internal routes
-  if (path.startsWith("/api/auth")) return NextResponse.next();
-
-  //
-  // 🔐 PROTECT DASHBOARD ROUTES
-  //
-  if (path.startsWith("/dashboard")) {
-    if (!session) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
+ 
+  if (path.startsWith("/dashboard") && !session) {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  //
-  // 🔐 PROTECT ADMIN ROUTES
-  //
+  
   if (path.startsWith("/admin")) {
     if (!session) {
       return NextResponse.redirect(new URL("/login", request.url));
@@ -69,9 +65,7 @@ async function mainMiddleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico|api/auth).*)"],
+  matcher: ["/((?!_next|favicon.ico).*)"],
 };
 
-export default createMiddleware(aj, async (request: NextRequest) => {
-  return mainMiddleware(request);
-});
+export default createMiddleware(aj, mainMiddleware);

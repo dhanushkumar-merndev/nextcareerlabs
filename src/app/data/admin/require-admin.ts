@@ -8,10 +8,17 @@ export const requireAdmin = cache(async () => {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
+
   if (!session) {
-    return redirect("/login");
+    redirect("/login");
   }
-  if (session.user.role !== "admin") return redirect("/not-admin");
+  if (session.user.banned) {
+    redirect("/banned");
+  }
+
+  if (session.user.role !== "admin") {
+    redirect("/not-admin");
+  }
 
   return session;
 });

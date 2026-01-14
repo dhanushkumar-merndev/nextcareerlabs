@@ -10,7 +10,12 @@ export const requireUser = cache(async () => {
   });
 
   if (!session) {
-    return redirect("/login");
+    redirect("/login");
   }
+
+  if (session.user.banned) {
+    redirect("/banned");
+  }
+
   return session.user;
 });

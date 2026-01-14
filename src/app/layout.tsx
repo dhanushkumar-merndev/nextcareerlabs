@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/ui/theme-provider";
 import { Toaster } from "sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { PreloadPages } from "./PreloadPages";
+
 import { Providers } from "@/components/Providers";
 import { SmoothScroll } from "@/components/SmoothScroll";
 
@@ -72,7 +72,7 @@ export default function RootLayout({
             <Toaster />
             <Analytics />
             <SpeedInsights />
-            <PreloadPages />
+       
           </ThemeProvider>
         </Providers>
       </body>
