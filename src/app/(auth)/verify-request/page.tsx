@@ -44,9 +44,16 @@ function VerifyRequest() {
             toast.success("Email Verified");
             router.push("/");
           },
-          onError: () => {
-            toast.error("Error Verifying Email/Otp");
-          },
+         onError: (ctx) => {
+  const message =
+    ctx.error instanceof Error
+      ? ctx.error.message
+      : "Error verifying email or OTP";
+
+  toast.error(message);
+},
+
+
         },
       });
     });
