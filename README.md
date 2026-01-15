@@ -1,6 +1,6 @@
 ## TO INSTALL PACKAGES
 
-pnpm install
+pnpm install or pnpm i
 
 ## TO INSTALL DEPENDENCIES
 
