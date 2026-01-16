@@ -70,9 +70,20 @@ export function LoginForm() {
             toast.success("Email Sent");
             router.push(`/verify-request?email=${email}`);
           },
-          onError: () => {
-            toast.error("Error sending Email");
-          },
+          onError: (ctx) => {
+  const message =
+    typeof ctx.error === "string"
+      ? ctx.error
+      : ctx.error?.message ?? "Error verifying email or OTP";
+
+  if (message.toLowerCase().includes("google")) {
+    toast.error("This email is linked with Google. Please sign in using Google.");
+    return;
+  }
+
+  toast.error(message);
+}
+
         },
       });
     });
