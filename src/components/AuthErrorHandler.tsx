@@ -4,13 +4,26 @@ import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-export default function AuthErrorHandler() {
+interface AuthErrorHandlerProps {
+  /** If true, redirects to /login without showing toast for account linking errors */
+  skipAccountLinkingToast?: boolean;
+}
+
+export default function AuthErrorHandler({ skipAccountLinkingToast = false }: AuthErrorHandlerProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   useEffect(() => {
     const error = searchParams.get("error");
     const description = searchParams.get("error_description") || "";
+
+    if (!error) return;
+
+    // Check if this is an account linking error
+    const isAccountLinkingError =
+      description.toLowerCase().includes("linking") ||
+      description.toLowerCase().includes("already exists") ||
+      error.toLowerCase().includes("account");
 
     if (error === "banned") {
       toast.error(
@@ -22,25 +35,24 @@ export default function AuthErrorHandler() {
     }
 
     // Handle account linking errors (email OTP user trying Google sign-in)
-    if (
-      error &&
-      (description.toLowerCase().includes("linking") ||
-        description.toLowerCase().includes("already exists") ||
-        error.toLowerCase().includes("account"))
-    ) {
-      toast.error(
-        "This email was registered with OTP. Please use email sign-in instead."
-      );
-      router.replace("/login");
+    if (isAccountLinkingError) {
+      if (skipAccountLinkingToast) {
+        // Silently redirect to login - let login page handle the error
+        router.replace(`/login?error=${error}&error_description=${encodeURIComponent(description)}`);
+      } else {
+        // Show toast and stay on login
+        toast.error(
+          "This email was registered with OTP. Please use email sign-in instead."
+        );
+        router.replace("/login");
+      }
       return;
     }
 
     // Handle any other auth errors
-    if (error) {
-      toast.error(description || "Authentication failed. Please try again.");
-      router.replace("/login");
-    }
-  }, [searchParams, router]);
+    toast.error(description || "Authentication failed. Please try again.");
+    router.replace("/login");
+  }, [searchParams, router, skipAccountLinkingToast]);
 
   return null;
 }

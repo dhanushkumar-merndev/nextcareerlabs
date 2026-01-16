@@ -17,7 +17,7 @@ export default async function AdminIndexPage() {
 
   return (
     <>
-     <AuthErrorHandler/>
+     <AuthErrorHandler skipAccountLinkingToast />
       <SectionCards stats={stats} />
 
       <div className="px-4 lg:px-6">
