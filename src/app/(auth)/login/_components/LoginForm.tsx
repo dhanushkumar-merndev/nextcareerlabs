@@ -73,17 +73,8 @@ export function LoginForm() {
           onSuccess: () => {
             toast.success("Signed in with Google, you will be redirected...");
           },
-          onError: (ctx) => {
-            const message = ctx.error?.message?.toLowerCase() || "";
-            
-            // Check if error is about account linking being disabled
-            if (message.includes("linking") || message.includes("already exists")) {
-              toast.error(
-                "This email was registered with OTP. Please use email sign-in instead."
-              );
-            } else {
-              toast.error("Sign in failed. Please try again.");
-            }
+          onError: () => {
+            toast.error("Internal Server Error");
           },
         },
       });
