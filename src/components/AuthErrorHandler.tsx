@@ -9,13 +9,15 @@ interface AuthErrorHandlerProps {
   skipAccountLinkingToast?: boolean;
 }
 
-export default function AuthErrorHandler({ skipAccountLinkingToast = false }: AuthErrorHandlerProps) {
+export default function AuthErrorHandler({
+  skipAccountLinkingToast = false,
+}: AuthErrorHandlerProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
 
   useEffect(() => {
     const error = searchParams.get("error");
-    const description = searchParams.get("error_description");
+    const description = searchParams.get("error_description") ?? "";
 
     if (!error) return;
 
@@ -27,27 +29,26 @@ export default function AuthErrorHandler({ skipAccountLinkingToast = false }: Au
 
     if (error === "banned") {
       toast.error(
-        description ??
+        description ||
           "You have been banned from this application. Please contact support."
       );
 
-      // ✅ Clean the URL after showing message
+      // Clean the URL after showing message
       router.replace("/");
-<<<<<<< HEAD
       return;
     }
 
-    // Handle account linking errors (email OTP user trying Google sign-in)
+    // Handle account linking errors
     if (isAccountLinkingError) {
       if (skipAccountLinkingToast) {
-        // Silently redirect to login - let login page handle the error
-        router.replace(`/login?error=${error}&error_description=${encodeURIComponent(description)}`);
+        router.replace(
+          `/login?error=${error}&error_description=${encodeURIComponent(description)}`
+        );
       } else {
-        // Show toast and stay on login
         toast.error(
           "This email was registered with OTP. Please use email sign-in instead."
         );
-        router.replace("/login");
+        router.replace("/");
       }
       return;
     }
@@ -56,10 +57,6 @@ export default function AuthErrorHandler({ skipAccountLinkingToast = false }: Au
     toast.error(description || "Authentication failed. Please try again.");
     router.replace("/login");
   }, [searchParams, router, skipAccountLinkingToast]);
-=======
-    }
-  }, [searchParams, router]);
->>>>>>> parent of 96cea87 (Deployment version 1.1.0.2)
 
-  return null; // no UI
+  return null;
 }
