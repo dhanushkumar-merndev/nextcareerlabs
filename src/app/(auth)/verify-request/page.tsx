@@ -74,6 +74,7 @@ function VerifyRequest() {
             onChange={(value) => setOtp(value)}
             maxLength={6}
             className="gap-2"
+            autoComplete="one-time-code"
           >
             <InputOTPGroup>
               <InputOTPSlot index={0} />

@@ -60,34 +60,55 @@ export function LoginForm() {
     });
   }
 
-  function signInWithEmail() {
-    startEmailTransition(async () => {
-      await authClient.emailOtp.sendVerificationOtp({
-        email: email,
-        type: "sign-in",
-        fetchOptions: {
-          onSuccess: () => {
-            toast.success("Email Sent");
-            router.push(`/verify-request?email=${email}`);
-          },
-          onError: (ctx) => {
-  const message =
-    typeof ctx.error === "string"
-      ? ctx.error
-      : ctx.error?.message ?? "Error verifying email or OTP";
-
-  if (message.toLowerCase().includes("google")) {
-    toast.error("This email is linked with Google. Please sign in using Google.");
+ function signInWithEmail() {
+  if (!email) {
+    toast.error("Please enter your email");
     return;
   }
 
-  toast.error(message);
-}
+  startEmailTransition(async () => {
+    try {
+      // 🔍 STEP 1: Ask backend which provider this email uses
+      const res = await fetch("/api/auth/check-provider", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
 
+      const data = await res.json();
+
+      // 🔒 If email belongs to Google account
+      if (data.provider === "google") {
+        toast.error(
+          "This email is linked with Google. Please sign in using Google."
+        );
+        return;
+      }
+
+      // ✉️ STEP 2: Proceed with Email OTP
+      await authClient.emailOtp.sendVerificationOtp({
+        email,
+        type: "sign-in",
+        fetchOptions: {
+          onSuccess: () => {
+            toast.success("OTP sent to your email");
+            router.push(`/verify-request?email=${email}`);
+          },
+          onError: (ctx) => {
+            const message =
+              typeof ctx.error === "string"
+                ? ctx.error
+                : ctx.error?.message ?? "Failed to send OTP";
+
+            toast.error(message);
+          },
         },
       });
-    });
-  }
+    } catch (err) {
+      toast.error("Something went wrong. Please try again.");
+    }
+  });
+}
 
   return (
     <Card>
