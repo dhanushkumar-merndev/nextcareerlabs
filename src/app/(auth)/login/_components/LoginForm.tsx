@@ -72,6 +72,7 @@ export function LoginForm() {
         fetchOptions: {
           onSuccess: () => {
             toast.success("Signed in with Google, you will be redirected...");
+            window.location.href = "/";
           },
           onError: () => {
             toast.error("Internal Server Error");

@@ -42,7 +42,9 @@ function VerifyRequest() {
         fetchOptions: {
           onSuccess: () => {
             toast.success("Email Verified");
-            router.push("/");
+            // Use window.location for a hard redirect to ensure session cookies 
+            // are properly recognized by the server and pre-fetch caches are cleared.
+            window.location.href = "/";
           },
          onError: (ctx) => {
   const message =
