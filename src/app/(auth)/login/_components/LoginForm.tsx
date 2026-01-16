@@ -59,8 +59,7 @@ export function LoginForm() {
       });
     });
   }
-
- function signInWithEmail() {
+async function signInWithEmail() {
   if (!email) {
     toast.error("Please enter your email");
     return;
@@ -68,30 +67,34 @@ export function LoginForm() {
 
   startEmailTransition(async () => {
     try {
-      // 🔍 STEP 1: Ask backend which provider this email uses
+      // 🔍 STEP 1: Check provider
       const res = await fetch("/api/auth/check-provider", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
 
+      if (!res.ok) {
+        toast.error("Unable to verify login method. Please try again.");
+        return;
+      }
+
       const data = await res.json();
 
-      // 🔒 If email belongs to Google account
+      // 🔒 Google-only account
       if (data.provider === "google") {
         toast.error(
-          "This email is linked with Google. Please sign in using Google."
+          "You previously signed in with Google. Please continue with Google sign-in."
         );
         return;
       }
 
-      // ✉️ STEP 2: Proceed with Email OTP
+      // ✉️ STEP 2: Send Email OTP
       await authClient.emailOtp.sendVerificationOtp({
         email,
         type: "sign-in",
         fetchOptions: {
           onSuccess: () => {
-            toast.success("OTP sent to your email");
             router.push(`/verify-request?email=${email}`);
           },
           onError: (ctx) => {
@@ -104,11 +107,12 @@ export function LoginForm() {
           },
         },
       });
-    } catch (err) {
+    } catch (error) {
       toast.error("Something went wrong. Please try again.");
     }
   });
 }
+
 
   return (
     <Card>
