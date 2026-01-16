@@ -12,6 +12,7 @@ import { LayersIcon } from "@/components/ui/layers";
 import { ChartColumnIncreasingIcon } from "@/components/ui/chart-column-increasing";
 import { UsersIcon } from "@/components/ui/users";
 import TestimonialBanner from "./_components/TestimonialBanner";
+import AuthErrorHandler from "@/components/AuthErrorHandler";
 
 const features = [
   {
@@ -49,7 +50,7 @@ export default async function Home() {
 
   return (
     <>
-
+<AuthErrorHandler/>
       {/* HERO */}
       <main className="relative py-18 px-4 lg:px-10 lg:py-24 xl:py-28">
         <div className="flex flex-col items-center text-center max-w-3xl mx-auto space-y-6">
