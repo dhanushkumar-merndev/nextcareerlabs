@@ -45,6 +45,11 @@ export const auth = betterAuth({
       prompt: "select_account consent",
     },
   },
+  account: {
+    accountLinking: {
+      enabled: false, // Prevent auto-linking accounts - users must use original auth method
+    },
+  },
   plugins: [
     emailOTP({
       async sendVerificationOTP({ email, otp }) {

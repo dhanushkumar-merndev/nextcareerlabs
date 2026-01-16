@@ -12,10 +12,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // 🔍 Check if user exists
+    // 🔍 Lean query - only fetch what we need
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { accounts: true },
+      select: {
+        accounts: {
+          select: { providerId: true },
+        },
+      },
     });
 
     // 🆕 New user → allow email OTP
@@ -23,15 +27,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ provider: "email" });
     }
 
-    // 🔗 Check linked providers
-    const providers = user.accounts.map((acc) => acc.providerId);
+    // 🔗 Check if Google is linked
+    const hasGoogle = user.accounts.some((acc) => acc.providerId === "google");
 
-    if (providers.includes("google")) {
-      return NextResponse.json({ provider: "google" });
-    }
-
-    // 📧 Email-based account
-    return NextResponse.json({ provider: "email" });
+    return NextResponse.json({ provider: hasGoogle ? "google" : "email" });
   } catch (error) {
     console.error("check-provider error:", error);
     return NextResponse.json(

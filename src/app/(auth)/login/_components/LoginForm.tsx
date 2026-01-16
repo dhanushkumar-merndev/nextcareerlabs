@@ -45,6 +45,27 @@ export function LoginForm() {
 
   async function signInWithGoogle() {
     startGoogleTransition(async () => {
+      // If user entered email, check if it's an email-only account
+      if (email) {
+        try {
+          const res = await fetch("/api/auth/check-provider", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email }),
+          });
+          const data = await res.json();
+          
+          if (data.provider === "email") {
+            toast.error(
+              "This email was registered with OTP. Please use email sign-in."
+            );
+            return;
+          }
+        } catch {
+          // If check fails, proceed with Google sign-in anyway
+        }
+      }
+
       await authClient.signIn.social({
         provider: "google",
         callbackURL: "/",
