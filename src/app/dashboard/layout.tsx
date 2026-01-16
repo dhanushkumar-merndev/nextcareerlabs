@@ -28,7 +28,7 @@ export default async function DashboardLayout({
         } as React.CSSProperties
       }
     >
-      <PhoneNumberDialog isOpen={!isComplete} />
+      <PhoneNumberDialog isOpen={!isComplete} requireName={!user.name} />
       <AppSidebar variant="inset" isEnrolled={enrollmentCount > 0 || user.role === "admin"} />
       <SidebarInset className="overflow-hidden">
         <SiteHeader />

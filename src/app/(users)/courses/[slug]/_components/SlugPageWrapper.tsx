@@ -49,16 +49,18 @@ interface SlugPageWrapperProps {
   };
   enrollmentStatus: EnrollmentStatus | null;
   isProfileComplete: boolean;
+  requireName?: boolean;
 }
 
 export function SlugPageWrapper({
   course,
   enrollmentStatus,
   isProfileComplete,
+  requireName = false,
 }: SlugPageWrapperProps) {
   return (
     <>
-      <PhoneNumberDialog isOpen={!isProfileComplete} />
+      <PhoneNumberDialog isOpen={!isProfileComplete} requireName={requireName} />
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
         <div className="order-1 lg:col-span-2">
           <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">

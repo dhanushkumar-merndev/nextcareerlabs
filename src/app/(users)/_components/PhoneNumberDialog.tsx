@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -23,10 +23,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { updatePhoneNumberAction } from "@/app/data/user/user-actions";
-import { Loader2, Phone, Sparkles } from "lucide-react";
+import { updateProfileAction } from "@/app/data/user/user-actions";
+import { AlertTriangle, Loader2, Phone, Sparkles, User } from "lucide-react";
 
 const formSchema = z.object({
+  name: z.string().min(2, {
+    message: "Name must be at least 2 characters.",
+  }).optional().or(z.literal("")),
   phoneNumber: z.string().min(10, {
     message: "Phone number must be at least 10 digits.",
   }).regex(/^\+?[0-9\s-]+$/, {
@@ -36,22 +39,33 @@ const formSchema = z.object({
 
 interface PhoneNumberDialogProps {
   isOpen: boolean;
+  requireName?: boolean; // true for email OTP users without a name
 }
 
-export function PhoneNumberDialog({ isOpen }: PhoneNumberDialogProps) {
+export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+    resolver: zodResolver(
+      requireName
+        ? formSchema.extend({
+            name: z.string().min(2, { message: "Name is required." }),
+          })
+        : formSchema
+    ),
     defaultValues: {
+      name: "",
       phoneNumber: "",
     },
   });
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
-      const result = await updatePhoneNumberAction(values.phoneNumber);
+      const result = await updateProfileAction({
+        name: requireName ? values.name : undefined,
+        phoneNumber: values.phoneNumber,
+      });
       if (result.status === "success") {
         toast.success(result.message);
         router.refresh();
@@ -74,12 +88,38 @@ export function PhoneNumberDialog({ isOpen }: PhoneNumberDialogProps) {
             </div>
             <DialogTitle className="text-2xl font-black tracking-tight uppercase">One Last Step</DialogTitle>
             <DialogDescription className="text-muted-foreground text-sm">
-              Please provide your phone number to continue accessing our premium courses.
+              {requireName 
+                ? "Please provide your name and phone number to continue accessing our premium courses."
+                : "Please provide your phone number to continue accessing our premium courses."
+              }
             </DialogDescription>
           </DialogHeader>
           
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {requireName && (
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="font-bold uppercase text-[10px] tracking-widest text-muted-foreground">Full Name</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                          <Input 
+                            placeholder="John Doe" 
+                            className="pl-10 h-10 bg-muted/30 border-2 focus-visible:ring-primary/20" 
+                            {...field} 
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-[10px]" />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name="phoneNumber"
@@ -100,6 +140,15 @@ export function PhoneNumberDialog({ isOpen }: PhoneNumberDialogProps) {
                   </FormItem>
                 )}
               />
+
+              {/* Warning message */}
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="size-4 mt-0.5 shrink-0" />
+                <p className="text-[11px] leading-relaxed">
+                  <strong>One-time setup:</strong> This information cannot be changed later. For any updates, please contact our support team.
+                </p>
+              </div>
+
               <Button 
                   type="submit" 
                   className="w-full h-11 font-bold uppercase tracking-widest transition-all hover:scale-[1.01] active:scale-[0.99]" 

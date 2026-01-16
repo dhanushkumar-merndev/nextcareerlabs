@@ -13,10 +13,12 @@ export default async function SlugPage({ params }: { params: Params }) {
   });
 
   let isProfileComplete = true;
+  let requireName = false;
 
   if (session) {
     const profile = await requireCompleteProfile();
     isProfileComplete = profile.isComplete;
+    requireName = !profile.user.name;
   }
 
   const { slug } = await params;
@@ -28,6 +30,7 @@ export default async function SlugPage({ params }: { params: Params }) {
       course={course} 
       enrollmentStatus={enrollmentStatus} 
       isProfileComplete={isProfileComplete}
+      requireName={requireName}
     />
   );
 }
