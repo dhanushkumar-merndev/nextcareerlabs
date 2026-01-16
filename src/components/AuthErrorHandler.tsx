@@ -4,14 +4,7 @@ import { useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-interface AuthErrorHandlerProps {
-  /** If true, redirects to /login without showing toast for account linking errors */
-  skipAccountLinkingToast?: boolean;
-}
-
-export default function AuthErrorHandler({
-  skipAccountLinkingToast = false,
-}: AuthErrorHandlerProps) {
+export default function AuthErrorHandler() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -32,31 +25,25 @@ export default function AuthErrorHandler({
         description ||
           "You have been banned from this application. Please contact support."
       );
-
-      // Clean the URL after showing message
       router.replace("/");
       return;
     }
 
-    // Handle account linking errors
     if (isAccountLinkingError) {
-      if (skipAccountLinkingToast) {
-        router.replace(
-          `/login?error=${error}&error_description=${encodeURIComponent(description)}`
-        );
-      } else {
-        toast.error(
-          "This email was registered with OTP. Please use email sign-in instead."
-        );
-        router.replace("/");
-      }
-      return;
+      toast.error(
+        "This email was registered with OTP. Please use email sign-in instead."
+      );
+    } else {
+      toast.error(description || "Authentication failed. Please try again.");
     }
 
-    // Handle any other auth errors
-    toast.error(description || "Authentication failed. Please try again.");
-    router.replace("/login");
-  }, [searchParams, router, skipAccountLinkingToast]);
+    // ✅ Clean the URL while staying on the current page
+    // This removes ?error=... from the address bar
+    const url = new URL(window.location.href);
+    url.searchParams.delete("error");
+    url.searchParams.delete("error_description");
+    router.replace(url.pathname);
+  }, [searchParams, router]);
 
   return null;
 }

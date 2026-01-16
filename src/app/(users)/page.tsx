@@ -50,7 +50,7 @@ export default async function Home() {
 
   return (
     <>
-<AuthErrorHandler skipAccountLinkingToast />
+<AuthErrorHandler />
       {/* HERO */}
       <main className="relative py-18 px-4 lg:px-10 lg:py-24 xl:py-28">
         <div className="flex flex-col items-center text-center max-w-3xl mx-auto space-y-6">
