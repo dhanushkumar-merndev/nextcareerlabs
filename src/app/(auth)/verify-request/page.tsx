@@ -46,14 +46,15 @@ function VerifyRequest() {
             // are properly recognized by the server and pre-fetch caches are cleared.
             window.location.href = "/";
           },
-         onError: (ctx) => {
-  const message =
-    ctx.error instanceof Error
-      ? ctx.error.message
-      : "Error verifying email or OTP";
-
-  toast.error(message);
-},
+          onError: (ctx) => {
+            const message = ctx.error?.message || "Error verifying email or OTP";
+            
+            if (message.toLowerCase().includes("banned")) {
+              toast.error("Your account has been banned. Please contact support.");
+            } else {
+              toast.error("Invalid or expired OTP. Please try again.");
+            }
+          },
 
 
         },

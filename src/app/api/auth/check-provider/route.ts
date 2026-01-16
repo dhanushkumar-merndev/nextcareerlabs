@@ -16,6 +16,7 @@ export async function POST(req: Request) {
     const user = await prisma.user.findUnique({
       where: { email },
       select: {
+        banned: true,
         accounts: {
           select: { providerId: true },
         },
@@ -25,6 +26,14 @@ export async function POST(req: Request) {
     // 🆕 New user → allow email OTP
     if (!user) {
       return NextResponse.json({ provider: "email" });
+    }
+
+    // 🚫 Banned user → block access
+    if (user.banned) {
+      return NextResponse.json({ 
+        provider: "banned", 
+        message: "You have been banned from this application. Please contact support." 
+      });
     }
 
     // 🔗 Check if Google is linked

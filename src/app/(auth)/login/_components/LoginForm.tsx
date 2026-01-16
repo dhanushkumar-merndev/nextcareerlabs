@@ -103,6 +103,12 @@ async function signInWithEmail() {
 
       const data = await res.json();
 
+      // 🚫 Banned user
+      if (data.provider === "banned") {
+        toast.error(data.message || "Your account has been banned.");
+        return;
+      }
+
       // 🔒 Google-only account
       if (data.provider === "google") {
         toast.error(
