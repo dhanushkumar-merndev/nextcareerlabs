@@ -8,6 +8,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { Providers } from "@/components/Providers";
 import { SmoothScroll } from "@/components/SmoothScroll";
+import AuthErrorHandler from "@/components/AuthErrorHandler";
 
 export const metadata: Metadata = {
   title: "Skillforce Cloud",
@@ -67,15 +68,20 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
+            {/* 🔐 Global auth error handling (banned, etc.) */}
+            <AuthErrorHandler />
+
             {children}
+
+            {/* UI / utilities */}
             <SmoothScroll />
             <Toaster />
             <Analytics />
             <SpeedInsights />
-       
           </ThemeProvider>
         </Providers>
       </body>
+
     </html>
   );
 }
