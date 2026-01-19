@@ -745,6 +745,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                         <Button
                             variant="ghost"
                             size="icon"
+                            aria-label="Back to threads"
                             className="h-8 w-8 lg:hidden"
                             onClick={() => onBack?.()}
                         >
@@ -753,7 +754,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     )}
 
                     {showGroupInfo && (
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowGroupInfo(false)}>
+                        <Button variant="ghost" size="icon" aria-label="Close group info" className="h-8 w-8" onClick={() => setShowGroupInfo(false)}>
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
                     )}
@@ -779,6 +780,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                 disabled={loading || isBusy}
                                 variant="ghost"
                                 size="icon"
+                                aria-label="Thread options"
                                 className="h-8 w-8 hover:bg-muted text-muted-foreground data-[state=open]:bg-muted"
                             >
                                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreVertical className="h-5 w-5" />}
@@ -939,7 +941,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                                             <DropdownMenu>
                                                                 <DropdownMenuTrigger asChild>
-                                                                    <Button variant="ghost" size="icon" className="h-5 w-5 rounded-full hover:bg-black/10 p-0">
+                                                                    <Button variant="ghost" size="icon" aria-label="Message options" className="h-5 w-5 rounded-full hover:bg-black/10 p-0">
                                                                         <ChevronDown className={cn("h-3 w-3", isMe ? "text-primary-foreground/70" : "text-muted-foreground")} />
                                                                     </Button>
                                                                 </DropdownMenuTrigger>
@@ -1184,6 +1186,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                 <Button
                                     size="icon"
                                     variant="ghost"
+                                    aria-label="Upload Image"
                                     className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
                                     onClick={() => document.getElementById("chat-upload")?.click()}
                                     disabled={isUploading || sending}
@@ -1202,6 +1205,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                 <Button
                                     size="icon"
                                     variant="ghost"
+                                    aria-label="Upload Document"
                                     className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
                                     onClick={() => document.getElementById("file-upload")?.click()}
                                     disabled={isUploading || sending}
@@ -1232,6 +1236,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
                                 <Button
                                     size="icon"
+                                    aria-label="Send message"
                                     className="h-10 w-10 shrink-0 rounded-full"
                                     disabled={(!inputText.trim() && !imageUrl && !fileUrl) || sending || isUploading}
                                     onClick={handleSendMessage}

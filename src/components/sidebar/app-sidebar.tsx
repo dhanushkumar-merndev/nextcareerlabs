@@ -109,11 +109,7 @@ const data = {
   ],
   navSecondary: [
  
-    {
-      title: "Get Help",
-      url: "#",
-      icon: IconHelp,
-    },
+  
 
   ],
 };

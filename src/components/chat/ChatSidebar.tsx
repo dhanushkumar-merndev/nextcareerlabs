@@ -243,6 +243,7 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
           <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search groups..."
+            aria-label="Search groups and messages"
             className="pl-9 bg-muted/50 border-0 focus-visible:ring-1"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -261,6 +262,7 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
             {view === "recent" && archivedThreads.length > 0 && (
               <button
                 onClick={() => setView("archived")}
+                aria-label="View archived chats"
                 className="w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left hover:bg-muted mb-2 group"
               >
                 <div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center text-primary group-hover:bg-primary/10 transition-colors">
@@ -280,6 +282,7 @@ export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removed
             {view === "archived" && (
               <button
                 onClick={() => setView("recent")}
+                aria-label="Back to recent chats"
                 className="w-full flex items-center gap-3 p-2 rounded-lg transition-all text-left hover:bg-muted mb-4 text-primary"
               >
                 <ChevronLeft className="h-4 w-4" />
