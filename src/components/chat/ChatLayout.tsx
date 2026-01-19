@@ -28,8 +28,8 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
    const { data: sidebarData, isLoading: loadingSidebar } = useQuery({
       queryKey: ["sidebarData"],
       queryFn: () => getThreadsAction(),
-      staleTime: 60000, // 1 minute
-      refetchInterval: 60000, // 60 seconds (reduced from 30)
+      staleTime: 1800000, // 30 minutes
+      refetchInterval: 1800000, // 30 minutes
       refetchOnWindowFocus: true,
    });
 
