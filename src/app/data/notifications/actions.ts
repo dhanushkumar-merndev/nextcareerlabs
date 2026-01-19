@@ -431,16 +431,31 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
   const session = await getSession();
   if (!session) return { messages: [], state: null, nextCursor: null };
 
-  const referenceDate = before ? new Date(before) : new Date();
-  const fiveDaysAgo = new Date(referenceDate);
-  fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+  let referenceDate = before ? new Date(before) : new Date();
+
+  // If initial load (no cursor), find the latest message to start the window from there
+  if (!before) {
+    const latest = await prisma.notification.findFirst({
+        where: { threadId },
+        orderBy: { createdAt: "desc" },
+        select: { createdAt: true }
+    });
+    
+    if (latest) {
+        // Set reference date to slightly after the latest message to ensure it's included
+        referenceDate = new Date(latest.createdAt.getTime() + 1000);
+    }
+  }
+
+  const sevenDaysAgo = new Date(referenceDate);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
   const messages = await prisma.notification.findMany({
     where: { 
         threadId,
         createdAt: {
             lt: referenceDate,
-            gte: fiveDaysAgo
+            gte: sevenDaysAgo
         }
     },
     include: {
@@ -466,7 +481,7 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
       select: { createdAt: true }
   });
 
-  const nextCursor = (oldestEver && oldestEver.createdAt < fiveDaysAgo) ? fiveDaysAgo.toISOString() : null;
+  const nextCursor = (oldestEver && oldestEver.createdAt < sevenDaysAgo) ? sevenDaysAgo.toISOString() : null;
 
   return {
     messages: [...messages].reverse(),
@@ -529,73 +544,12 @@ export async function getEnrolledCoursesAction() {
     return enrollments.map(e => e.Course);
 }
 
-/**
- * Fetch notifications for the current user
- * This includes direct messages and relevant broadcasts
- */
-export async function getMyNotificationsAction(filters?: { 
-  unreadOnly?: boolean; 
-  type?: NotificationType;
-  take?: number;
-  mode?: 'inbox' | 'sent';
-}) {
-  const session = await getSession();
-  if (!session) return [];
-
-  const userEnrollments = await prisma.enrollment.findMany({
-    where: { userId: session.user.id, status: "Granted" },
-    select: { courseId: true }
-  });
-  const courseIds = userEnrollments.map(e => e.courseId);
-  const isAdmin = session.user.role === "admin";
-
-  const isSentMode = filters?.mode === 'sent';
-
-  const notifications = await prisma.notification.findMany({
-    where: {
-      AND: [
-        isSentMode ? { senderId: session.user.id } : {
-          OR: [
-            { recipientId: session.user.id }, // Direct
-            { type: "BROADCAST" },           // All
-            { 
-              type: "COURSE_MODAL",        // Specific Course
-              courseId: { in: courseIds } 
-            },
-            ...(isAdmin ? [{ type: "SUPPORT_TICKET" as const }] : []) // Admins see all tickets
-          ]
-        },
-        filters?.type ? { type: filters.type } : {}
-      ]
-    },
-    include: {
-      sender: {
-        select: {
-          id: true,
-          name: true,
-          image: true
-        }
-      },
-      course: {
-        select: { title: true }
-      }
-    },
-    orderBy: { createdAt: "desc" },
-    take: filters?.take ?? 50
-  });
-
-  return notifications;
-}
-
-/**
- * Delete a notification
- */
 
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { S3 } from "@/lib/S3Client";
 import { env } from "@/lib/env";
 
-export async function deleteNotificationAction(id: string) {
+export async function deleteMessageAction(id: string) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
@@ -638,9 +592,6 @@ export async function deleteNotificationAction(id: string) {
   return { success: true };
 }
 
-export async function deleteMessageAction(id: string) {
-   return deleteNotificationAction(id);
-}
 
 export async function editMessageAction(id: string, newContent: string, imageUrl?: string | null) {
   const session = await getSession();
@@ -755,45 +706,7 @@ export async function banUserFromSupportAction(userId: string) {
     return { banned: newStatus };
 }
 
-export async function resolveThreadAction(threadId: string, status: "Resolved" | "Denied" = "Resolved") {
-    const session = await getSession();
-    if (!session || session.user.role !== "admin") throw new Error("Unauthorized");
 
-    // Robust resolution: mark ALL notifications in this thread as resolved
-    await prisma.notification.updateMany({
-        where: { threadId },
-        data: { 
-            resolved: true,
-            feedback: status 
-        }
-    });
-
-    revalidatePath("/admin/resources");
-    return { success: true };
-}
-
-export async function hideThreadAction(threadId: string) {
-    const session = await getSession();
-    if (!session) throw new Error("Unauthorized");
-
-    await prisma.userThreadState.upsert({
-        where: {
-            userId_threadId: {
-                userId: session.user.id,
-                threadId
-            }
-        },
-        update: { hidden: true },
-        create: {
-            userId: session.user.id,
-            threadId,
-            hidden: true
-        }
-    });
-
-    revalidatePath("/admin/resources");
-    return { success: true };
-}
 
 export async function archiveThreadAction(threadId: string) {
     const session = await getSession();
@@ -838,38 +751,6 @@ async function unhideThreadForAll(threadId: string) {
             archived: false 
         }
     });
-}
-
-export async function toggleMuteAction(threadId: string) {
-    const session = await getSession();
-    if (!session) throw new Error("Unauthorized");
-
-    const existing = await prisma.userThreadState.findUnique({
-        where: {
-            userId_threadId: {
-                userId: session.user.id,
-                threadId
-            }
-        }
-    });
-
-    await prisma.userThreadState.upsert({
-        where: {
-            userId_threadId: {
-                userId: session.user.id,
-                threadId
-            }
-        },
-        update: { muted: !existing?.muted },
-        create: {
-            userId: session.user.id,
-            threadId,
-            muted: true
-        }
-    });
-
-    revalidatePath("/admin/resources");
-    return { success: true, muted: !existing?.muted };
 }
 
 export async function getGroupParticipantsAction(chatGroupId: string) {

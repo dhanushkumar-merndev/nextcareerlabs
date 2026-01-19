@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, banUserFromSupportAction, resolveThreadAction, hideThreadAction, archiveThreadAction, getGroupParticipantsAction, deleteThreadMessagesAction } from "@/app/data/notifications/actions";
+import { getThreadMessagesAction, replyToTicketAction, sendNotificationAction, resolveTicketAction, submitFeedbackAction, deleteMessageAction, editMessageAction, banUserFromSupportAction, archiveThreadAction, getGroupParticipantsAction, deleteThreadMessagesAction } from "@/app/data/notifications/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip, Users, Info, Archive, Trash2, MoreVertical, Pencil, ChevronDown, CheckCheck, CircleCheckBig, CircleX, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Send, Image as ImageIcon, X, Check, ThumbsUp, Paperclip,  Info, Archive, Trash2, MoreVertical, Pencil, ChevronDown,  CircleCheckBig, CircleX, Download } from "lucide-react";
 import { formatDistanceToNow, isToday, format } from "date-fns";
 
 import { cn } from "@/lib/utils";
