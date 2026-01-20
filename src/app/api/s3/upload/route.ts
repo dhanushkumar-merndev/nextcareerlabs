@@ -9,14 +9,18 @@ import arcjet, { fixedWindow } from "@/lib/arcjet";
 
 import { requireAdmin } from "@/app/data/admin/require-admin";
 
-const fileUploadSchema = z.object({
+const fileItemSchema = z.object({
   fileName: z.string().min(1, { message: "File name is required" }),
   contentType: z.string().min(1, { message: "Content type is required" }),
-  size: z.number().min(1, { message: "Size is required" }),
+  size: z.number().min(0, { message: "Size is required" }),
   isImage: z.boolean(),
+  isKeyDirect: z.boolean().optional(),
+  customKey: z.string().optional(),
 });
 
-const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 20 }));
+const fileUploadSchema = z.union([fileItemSchema, z.array(fileItemSchema)]);
+
+const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 200 }));
 
 export async function POST(request: Request) {
   const session = await requireAdmin();
@@ -32,32 +36,41 @@ export async function POST(request: Request) {
     const validation = fileUploadSchema.safeParse(body);
 
     if (!validation.success) {
+      console.error("S3 Upload Validation Error:", validation.error.format());
       return NextResponse.json(
-        { error: "Invaild Request Body" },
+        { error: "Invalid Request Body", details: validation.error.format() },
         { status: 400 }
       );
     }
 
-    const { fileName, contentType, size } = validation.data;
-    const uniqueKey = `${uuidv4()}-${fileName}`;
+    const items = Array.isArray(validation.data)
+      ? validation.data
+      : [validation.data];
 
-    const command = new PutObjectCommand({
-      Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
-      ContentType: contentType,
-      ContentLength: size,
-      Key: uniqueKey,
-    });
+    const results = await Promise.all(
+      items.map(async (item) => {
+        const { fileName, contentType, size, isKeyDirect, customKey } = item;
+        const key =
+          isKeyDirect && customKey ? customKey : `${uuidv4()}-${fileName}`;
 
-    const presignedUrl = await getSignedUrl(S3, command, {
-      expiresIn: 360, //url expires in 6 mins
-    });
+        const command = new PutObjectCommand({
+          Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
+          ContentType: contentType,
+          ContentLength: size,
+          Key: key,
+        });
 
-    const response = {
-      presignedUrl,
-      key: uniqueKey,
-    };
-    return NextResponse.json(response);
-  } catch {
+        const presignedUrl = await getSignedUrl(S3, command, {
+          expiresIn: 360, // url expires in 6 mins
+        });
+
+        return { presignedUrl, key };
+      })
+    );
+
+    return NextResponse.json(Array.isArray(validation.data) ? results : results[0]);
+  } catch (err) {
+    console.error("S3 Presigned Error:", err);
     return NextResponse.json(
       { error: "Failed to generate presigned URL" },
       { status: 500 }

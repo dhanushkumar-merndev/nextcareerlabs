@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { Loader2 } from "lucide-react";
+import { transcodeToHLS } from "@/lib/client-video-processor";
 
 interface iAppProps {
   value?: string | null;
@@ -58,139 +59,142 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
       }));
 
       try {
-        //get presignedUrl
+        if (fileTypeAccepted === "video") {
+          // 1. Transcode locally on client
+          setFileState((s) => ({
+            ...s,
+            transcoding: true,
+            transcodingProgress: 0,
+          }));
+          const { m3u8, segments } = await transcodeToHLS(file, (p) => {
+            setFileState((s) => ({ ...s, transcodingProgress: p }));
+          });
+          setFileState((s) => ({ ...s, transcoding: false }));
 
-        const presignedResponse = await fetch("/api/s3/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            contentType: file.type,
-            size: file.size,
-            isImage: fileTypeAccepted === "image" ? true : false,
-          }),
-        });
+          // 2. Prepare for upload
+          setFileState((s) => ({ ...s, uploading: true, progress: 0 }));
+          const baseKey = `${uuidv4()}-${file.name.replace(/\.[^/.]+$/, "")}`;
 
-        if (!presignedResponse.ok) {
-          toast.error("Failed to get presigned URL");
+          // Create the list of all files that need pre-signed URLs
+          const uploadRequests = [
+            {
+              fileName: `hls/${baseKey}/master.m3u8`,
+              contentType: "application/x-mpegURL",
+              size: m3u8.size,
+              isImage: false,
+              isKeyDirect: true,
+              customKey: `hls/${baseKey}/master.m3u8`,
+            },
+            ...segments.map((segment) => ({
+              fileName: `hls/${baseKey}/${segment.name}`,
+              contentType: "video/MP2T",
+              size: segment.blob.size,
+              isImage: false,
+              isKeyDirect: true,
+              customKey: `hls/${baseKey}/${segment.name}`,
+            })),
+          ];
+
+          // Batch request all pre-signed URLs at once
+          const presignedRes = await fetch("/api/s3/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(uploadRequests),
+          });
+
+          if (!presignedRes.ok) throw new Error("Failed to get pre-signed URLs");
+          const presignedUrls: { presignedUrl: string; key: string }[] = await presignedRes.json();
+
+          // 3. Upload Master Playlist (it's the first in our batch)
+          const m3u8Data = presignedUrls[0];
+          await fetch(m3u8Data.presignedUrl, {
+            method: "PUT",
+            body: m3u8,
+            headers: { "Content-Type": "application/x-mpegURL" },
+          });
+
+          // 4. Upload Segments (the rest of the batch)
+          let uploadedSegments = 0;
+          for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            const { presignedUrl } = presignedUrls[i + 1]; // +1 because master was at 0
+            
+            await fetch(presignedUrl, {
+              method: "PUT",
+              body: segment.blob,
+              headers: { "Content-Type": "video/MP2T" },
+            });
+            
+            uploadedSegments++;
+            setFileState((s) => ({
+              ...s,
+              progress: Math.round((uploadedSegments / segments.length) * 100),
+            }));
+          }
+
+          const finalKey = `${baseKey}.${file.name.split(".").pop()}`;
           setFileState((prevState) => ({
             ...prevState,
             uploading: false,
-            progress: 0,
-            error: true,
+            progress: 100,
+            key: finalKey,
           }));
-          return;
-        }
+          onChange?.(finalKey);
+          toast.success("Video processed and uploaded successfully");
+        } else {
+          // Image Upload (Keep existing flow)
+          const presignedResponse = await fetch("/api/s3/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fileName: file.name,
+              contentType: file.type,
+              size: file.size,
+              isImage: true,
+            }),
+          });
 
-        const { presignedUrl, key } = await presignedResponse.json();
+          if (!presignedResponse.ok) throw new Error("Failed to get presigned URL");
+          const { presignedUrl, key } = await presignedResponse.json();
 
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const progress = (event.loaded / event.total) * 100;
-              setFileState((prevState) => ({
-                ...prevState,
-                progress: Math.round(progress),
-              }));
-            }
-          };
-          xhr.onload = () => {
-            if (xhr.status === 200 || xhr.status === 204) {
-              setFileState((prevState) => ({
-                ...prevState,
-                uploading: false,
-                progress: 100,
-                key: key,
-              }));
-              onChange?.(key);
-
-              toast.success("File uploaded successfully");
-
-              // Trigger HLS Processing if it's a video
-              if (fileTypeAccepted === "video") {
+          await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.upload.onprogress = (event) => {
+              if (event.lengthComputable) {
+                setFileState((s) => ({
+                  ...s,
+                  progress: Math.round((event.loaded / event.total) * 100),
+                }));
+              }
+            };
+            xhr.onload = () => {
+              if (xhr.status === 200 || xhr.status === 204) {
                 setFileState((prevState) => ({
                   ...prevState,
-                  transcoding: true,
-                  transcodingProgress: 0,
+                  uploading: false,
+                  progress: 100,
+                  key: key,
                 }));
-
-                console.log("[UPLOADER] Starting video processing for:", key);
-                
-                // Call the process API
-                fetch("/api/video/process", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ videoKey: key }),
-                })
-                .then(res => {
-                  console.log("[UPLOADER] Process API response received");
-                  return res.json();
-                })
-                .catch(err => {
-                  console.error("[UPLOADER] Process API error:", err);
-                });
-
-                // Poll for progress
-                let pollCount = 0;
-                const maxPolls = 1200; // 1200 * 3s = 1 hour
-
-                const pollInterval = setInterval(async () => {
-                  pollCount++;
-                  if (pollCount > maxPolls) {
-                    clearInterval(pollInterval);
-                    setFileState((prevState) => ({ ...prevState, transcoding: false }));
-                    return;
-                  }
-
-                  try {
-                    const res = await fetch(`/api/video/status?videoKey=${key}`);
-                    if (res.ok) {
-                      const { progress, isComplete } = await res.json();
-                      console.log(`[UPLOADER] Transcoding progress for ${key}: ${progress}%`);
-                      
-                      setFileState((prevState) => ({
-                        ...prevState,
-                        transcodingProgress: progress,
-                      }));
-
-                      if (isComplete) {
-                        clearInterval(pollInterval);
-                        setFileState((prevState) => ({
-                          ...prevState,
-                          transcoding: false,
-                        }));
-                        toast.success("Video processed and ready for streaming!");
-                      }
-                    }
-                  } catch (error) {
-                    console.error("Polling error:", error);
-                  }
-                }, 3000);
-
-                // Cleanup interval on unmount
-                return () => clearInterval(pollInterval);
+                onChange?.(key);
+                toast.success("Image uploaded successfully");
+                resolve();
+              } else {
+                reject(new Error("File upload failed"));
               }
-
-              resolve();
-            } else {
-              reject(new Error("File upload failed"));
-            }
-          };
-          xhr.onerror = () => {
-            reject(new Error("File upload failed"));
-          };
-          xhr.open("PUT", presignedUrl);
-          xhr.setRequestHeader("Content-Type", file.type);
-          xhr.send(file);
-        });
-      } catch {
-        toast.error("Something went wrong");
+            };
+            xhr.onerror = () => reject(new Error("File upload failed"));
+            xhr.open("PUT", presignedUrl);
+            xhr.setRequestHeader("Content-Type", file.type);
+            xhr.send(file);
+          });
+        }
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast.error("Something went wrong during upload");
         setFileState((prevState) => ({
           ...prevState,
           uploading: false,
+          transcoding: false,
           progress: 0,
           error: true,
         }));
@@ -224,7 +228,7 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
         uploadFile(file);
       }
     },
-    [fileState.objectUrl, uploadFile, fileTypeAccepted] // <-- FIX
+    [fileState.objectUrl, uploadFile, fileTypeAccepted]
   );
 
   async function handleRemoveFile() {
