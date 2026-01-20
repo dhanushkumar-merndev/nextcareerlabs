@@ -107,15 +107,16 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
 
           // 3. Upload Master Playlist (it's the first in our batch)
           const m3u8Data = presignedUrls[0];
-          await fetch(m3u8Data.presignedUrl, {
+          const masterRes = await fetch(m3u8Data.presignedUrl, {
             method: "PUT",
             body: m3u8,
             headers: { "Content-Type": "application/x-mpegURL" },
           });
+          if (!masterRes.ok) throw new Error("Failed to upload master playlist");
 
           // 4. Upload Segments (Parallel with Concurrency Control)
           let uploadedSegments = 0;
-          const CONCURRENCY_LIMIT = 10;
+          const CONCURRENCY_LIMIT = 20;
           
           for (let i = 0; i < segments.length; i += CONCURRENCY_LIMIT) {
             const batch = segments.slice(i, i + CONCURRENCY_LIMIT);
@@ -124,11 +125,13 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
                 const globalIndex = i + indexInBatch;
                 const { presignedUrl } = presignedUrls[globalIndex + 1]; // +1 because master was at 0
                 
-                await fetch(presignedUrl, {
+                const res = await fetch(presignedUrl, {
                   method: "PUT",
                   body: segment.blob,
                   headers: { "Content-Type": "video/MP2T" },
                 });
+                
+                if (!res.ok) throw new Error("Failed to upload segment");
                 
                 uploadedSegments++;
                 setFileState((s) => ({

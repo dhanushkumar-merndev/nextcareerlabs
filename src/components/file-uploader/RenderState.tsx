@@ -89,6 +89,7 @@ export function RenderUploadedState({
             className="object-contain p-2"
             sizes="300px"
             loading="eager"
+            crossOrigin="anonymous"
           />
         </div>
       )}

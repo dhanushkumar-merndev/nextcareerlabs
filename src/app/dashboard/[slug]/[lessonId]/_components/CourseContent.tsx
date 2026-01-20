@@ -114,6 +114,7 @@ function VideoPlayer({
         controlsList="nodownload"
         onContextMenu={(e) => e.preventDefault()}
         poster={thumbnailUrl}
+        crossOrigin="anonymous"
       >
         {hlsUrl ? (
           // HLS is being handled by hls.js via ref, but we can provide a native fallback here too
