@@ -62,7 +62,6 @@ export async function getUserDashboardData(userId: string) {
             coursesProgress
         };
     } catch (error) {
-        console.error("Error fetching user dashboard data:", error);
         return null;
     }
 }

@@ -579,7 +579,6 @@ export async function deleteMessageAction(id: string) {
           await S3.send(command);
       }
   } catch (error) {
-      console.error("Failed to delete S3 object:", error);
       // Proceed with DB deletion anyway
   }
 

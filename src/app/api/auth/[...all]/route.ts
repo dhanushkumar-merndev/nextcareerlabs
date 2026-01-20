@@ -93,7 +93,6 @@ export const POST = async (req: NextRequest) => {
   // Skip Arcjet protection for email OTP routes (verify-email, send-otp)
   // This allows already-authenticated users (e.g., Google login) to verify email via OTP
   if (pathname.includes("/email-otp/")) {
-    console.log("Skipping Arcjet for email-otp route:", pathname);
     return authHandlers.POST(req);
   }
 
@@ -101,7 +100,6 @@ export const POST = async (req: NextRequest) => {
 
 
   if (decision.isDenied()) {
-    console.log("Denial reason:", JSON.stringify(decision.reason, null, 2));
     if (decision.reason.isRateLimit()) {
       return new Response(null, { status: 429 });
     } else if (decision.reason.isEmail()) {

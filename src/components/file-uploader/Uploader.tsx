@@ -189,7 +189,6 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
           });
         }
       } catch (error) {
-        console.error("Upload error:", error);
         toast.error("Something went wrong during upload");
         setFileState((prevState) => ({
           ...prevState,

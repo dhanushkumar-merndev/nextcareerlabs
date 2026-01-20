@@ -172,7 +172,6 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
             popularCoursesChartData
         };
     } catch (error) {
-        console.error("Error fetching admin analytics:", error);
         return null;
     }
 }
@@ -200,7 +199,6 @@ export async function getUserAnalyticsAdmin(userId: string) {
         };
 
     } catch (error) {
-        console.error("Error fetching user admin analytics:", error);
         return null;
     }
 }
@@ -268,7 +266,6 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
             totalUsers
         };
     } catch (error) {
-        console.error("Error fetching all users:", error);
         return {
             users: [],
             hasNextPage: false,
@@ -288,7 +285,6 @@ export async function updateUserRole(userId: string, newRole: string) {
         revalidatePath("/admin/analytics/users");
         return { success: true };
     } catch (error) {
-        console.error("Error updating user role:", error);
         return { success: false, error: "Failed to update role" };
     }
 }

@@ -36,7 +36,6 @@ export async function POST(request: Request) {
     const validation = fileUploadSchema.safeParse(body);
 
     if (!validation.success) {
-      console.error("S3 Upload Validation Error:", validation.error.format());
       return NextResponse.json(
         { error: "Invalid Request Body", details: validation.error.format() },
         { status: 400 }
@@ -70,7 +69,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(Array.isArray(validation.data) ? results : results[0]);
   } catch (err) {
-    console.error("S3 Presigned Error:", err);
     return NextResponse.json(
       { error: "Failed to generate presigned URL" },
       { status: 500 }

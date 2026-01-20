@@ -42,18 +42,18 @@ function VideoPlayer({
 
     // Try to get HLS URL first
     const hlsKey = `hls/${videoKey.replace(/\.[^/.]+$/, "")}/master.m3u8`;
-    console.log("[VideoPlayer] Looking for HLS at:", hlsKey);
+    
     getSignedVideoUrl(hlsKey).then((url) => {
-      console.log("[VideoPlayer] HLS URL result:", url ? "Found" : "Not found");
+    
       if (url) {
         setHlsUrl(url);
       }
     });
 
     // Get MP4 URL as fallback
-    console.log("[VideoPlayer] Looking for MP4 at:", videoKey);
+    
     getSignedVideoUrl(videoKey).then((url) => {
-      console.log("[VideoPlayer] MP4 URL result:", url ? "Found" : "Not found");
+      
       setVideoUrl(url);
     });
   }, [videoKey]);
@@ -68,7 +68,6 @@ function VideoPlayer({
         
         hls.on(Hls.Events.ERROR, (event, data) => {
           if (data.fatal) {
-            console.warn("HLS fatal error, falling back to MP4:", data.type);
             setHlsUrl(null); // This will trigger the MP4 fallback in render
             hls.destroy();
           }
@@ -78,7 +77,6 @@ function VideoPlayer({
       } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
         video.src = hlsUrl;
         video.onerror = () => {
-          console.warn("Native HLS error, falling back to MP4");
           setHlsUrl(null);
         };
       }

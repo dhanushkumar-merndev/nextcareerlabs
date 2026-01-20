@@ -35,7 +35,7 @@ export async function DELETE(request: Request) {
     try {
       await tigris.send(command);
     } catch (err) {
-      console.warn("Raw file deletion failed (maybe already deleted):", err);
+      // Raw file deletion failed (maybe already deleted)
     }
 
     // 2. Delete the specific HLS folder for this video from Tigris
@@ -59,7 +59,6 @@ export async function DELETE(request: Request) {
           )
         );
         await Promise.all(deletePromises);
-        console.log(`Deleted HLS segments for ${key}`);
       }
     } catch (err) {
       console.error("Failed to delete HLS segments:", err);

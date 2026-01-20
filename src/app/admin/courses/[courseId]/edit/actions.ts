@@ -390,7 +390,6 @@ export async function deleteChapter({
       message: "Chapter deleted successfully",
     };
   } catch (error) {
-    console.error("DELETE CHAPTER ERROR:", error);
     return {
       status: "error",
       message: "Failed to delete chapter",

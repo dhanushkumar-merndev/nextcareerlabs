@@ -41,7 +41,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ provider: hasGoogle ? "google" : "email" });
   } catch (error) {
-    console.error("check-provider error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

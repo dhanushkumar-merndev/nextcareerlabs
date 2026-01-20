@@ -82,7 +82,6 @@ export async function CreateCourse(
       message: "Course Created Successfully",
     };
   } catch (error) {
-    console.error("Error creating course:", error);
     return {
       status: "error",
       message: "Failed to create course",
