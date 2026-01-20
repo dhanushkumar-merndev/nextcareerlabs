@@ -4,7 +4,6 @@ import { SiteHeader } from "@/components/sidebar/site-header";
 import { requireCompleteProfile } from "@/app/data/user/require-complete-profile";
 import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 import { prisma } from "@/lib/db";
-import { CourseProgressProvider } from "@/providers/CourseProgressProvider";
 
 export default async function DashboardLayout({
   children,
@@ -21,8 +20,7 @@ export default async function DashboardLayout({
   });
   
   return (
-    <CourseProgressProvider>
-      <SidebarProvider
+    <SidebarProvider
         style={
           {
             "--sidebar-width": "calc(var(--spacing) * 72)",
@@ -43,6 +41,5 @@ export default async function DashboardLayout({
           </div>
         </SidebarInset>
       </SidebarProvider>
-    </CourseProgressProvider>
   );
 }

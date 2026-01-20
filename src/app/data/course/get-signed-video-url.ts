@@ -9,7 +9,7 @@ export async function getSignedVideoUrl(key: string) {
   if (!key) return null;
 
   const command = new GetObjectCommand({
-    Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES!,
+    Bucket: env.S3_BUCKET_NAME!,
     Key: key,
   });
 

@@ -1,17 +1,15 @@
 "use client";
 
 import { LessonContentType } from "@/app/data/course/get-lesson-content";
-import { cn } from "@/lib/utils";
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-import { BookIcon, CheckCircle } from "lucide-react";
+import { BookIcon, CheckCircle, X } from "lucide-react";
 import { markLessonComplete } from "../actions";
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { X } from "lucide-react";
 import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
 import {
   Drawer,
@@ -27,14 +25,9 @@ interface iAppProps {
   data: LessonContentType;
 }
 
-export function CourseContent({ data }: iAppProps) {
-  const [isPending, startTransition] = useTransition();
-  const { triggerConfetti } = useConfetti2();
-  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
-
-  // ==============================
-  // VIDEO PLAYER COMPONENT
-  // ==============================
+// ==============================
+// VIDEO PLAYER COMPONENT
+// ==============================
 
 function VideoPlayer({
   thumbnailkey,
@@ -47,50 +40,54 @@ function VideoPlayer({
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const thumbnailUrl = useConstructUrl(thumbnailkey);
+  const hlsRef = useRef<Hls | null>(null);
 
   useEffect(() => {
     if (!videoKey) return;
 
-    // Try to get HLS URL first
     const hlsKey = `hls/${videoKey.replace(/\.[^/.]+$/, "")}/master.m3u8`;
-    
+
     getSignedVideoUrl(hlsKey).then((url) => {
-    
       if (url) {
         setHlsUrl(url);
+      } else {
+        getSignedVideoUrl(videoKey).then(setVideoUrl);
       }
-    });
-
-    // Get MP4 URL as fallback
-    
-    getSignedVideoUrl(videoKey).then((url) => {
-      
-      setVideoUrl(url);
     });
   }, [videoKey]);
 
   useEffect(() => {
-    if (hlsUrl && videoRef.current) {
-      const video = videoRef.current;
-      if (Hls.isSupported()) {
-        const hls = new Hls();
-        hls.loadSource(hlsUrl);
-        hls.attachMedia(video);
-        
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            setHlsUrl(null); // This will trigger the MP4 fallback in render
-            hls.destroy();
-          }
-        });
+    if (!hlsUrl || !videoRef.current) return;
 
-        return () => hls.destroy();
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = hlsUrl;
-        video.onerror = () => {
+    const video = videoRef.current;
+
+    // Safari native HLS
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+      video.src = hlsUrl;
+      return;
+    }
+
+    if (Hls.isSupported()) {
+      hlsRef.current?.destroy();
+
+      const hls = new Hls();
+      hlsRef.current = hls;
+
+      hls.loadSource(hlsUrl);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.ERROR, (_, data) => {
+        if (data.fatal) {
+          hls.destroy();
+          hlsRef.current = null;
           setHlsUrl(null);
-        };
-      }
+        }
+      });
+
+      return () => {
+        hls.destroy();
+        hlsRef.current = null;
+      };
     }
   }, [hlsUrl]);
 
@@ -128,7 +125,6 @@ function VideoPlayer({
         crossOrigin="anonymous"
       >
         {hlsUrl ? (
-          // HLS is being handled by hls.js via ref, but we can provide a native fallback here too
           <source src={hlsUrl} type="application/x-mpegURL" />
         ) : (
           videoUrl && <source src={videoUrl} type="video/mp4" />
@@ -139,36 +135,46 @@ function VideoPlayer({
   );
 }
 
+export function CourseContent({ data }: iAppProps) {
+  const [isPending, startTransition] = useTransition();
+  const { triggerConfetti } = useConfetti2();
+  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
+  const [optimisticCompleted, setOptimisticCompleted] = useState(false);
+
   // ==============================
   // MARK COMPLETE HANDLER
   // ==============================
   function onSubmit() {
+    setOptimisticCompleted(true);
+    triggerConfetti();
+    
     startTransition(async () => {
       const { data: result, error } = await tryCatch(
         markLessonComplete(data.id, data.Chapter.Course.slug)
       );
 
       if (error) {
+        setOptimisticCompleted(false);
         toast.error("An unexpected error occurred. Please try again later.");
         return;
       }
 
       if (result.status === "success") {
         toast.success(result.message);
-        triggerConfetti();
       } else {
+        setOptimisticCompleted(false);
         toast.error(result.message);
       }
     });
   }
 
-  const isCompleted = data.lessonProgress?.length > 0;
+  const isCompleted = optimisticCompleted || data.lessonProgress?.length > 0;
   const hasVideo = Boolean(data.videoKey);
 
   return (
     <div className="relative flex flex-col md:flex-row bg-background h-full overflow-hidden">
       {/* MAIN CONTENT AREA */}
-      <div className="flex-1 flex flex-col py-2  md:pl-6 overflow-y-auto">
+      <div className="flex-1 flex flex-col py-2 md:pl-6 overflow-y-auto">
         {/* VIDEO PLAYER */}
         <div className="order-2 md:order-1 w-full">
           <VideoPlayer
@@ -178,14 +184,14 @@ function VideoPlayer({
         </div>
 
         {/* LESSON TITLE */}
-        <div className="order-3 md:order-2 pt-4  md:pb-4">
+        <div className="order-3 md:order-2 pt-4 md:pb-4">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
             {data.title}
           </h1>
         </div>
 
         {/* ACTION BUTTONS */}
-        <div className="order-1 md:order-3 flex items-center justify-between gap-4 pb-6  md:pt-6 md:pb-0 md:border-t mb-0">
+        <div className="order-1 md:order-3 flex items-center justify-between gap-4 pb-6 md:pt-6 md:pb-0 md:border-t mb-0">
           <div className="flex items-center gap-2">
             {isCompleted ? (
               <Button disabled className="gap-2">
@@ -249,21 +255,31 @@ function VideoPlayer({
 
       {/* BOTTOM DESCRIPTION PANEL (DESKTOP OVERLAY) */}
       {data.description && isDescriptionOpen && (
-        <div className="absolute bottom-0 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col border-t border-border bg-background/95  transition-all duration-500 animate-in slide-in-from-bottom overflow-hidden shrink-0 rounded-t-3xl">
-           <div className="flex items-center justify-between p-4 border-b border-border">
-              <h2 className="font-bold text-lg flex items-center gap-2">
-                <IconFileText className="size-5 text-primary" />
-                Description
-              </h2>
-              <Button variant="ghost" size="icon" onClick={() => setIsDescriptionOpen(false)}>
-                <X className="size-4" />
-              </Button>
-           </div>
-           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        <div className="absolute bottom-0 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col 
+          min-h-0
+          border border-border shadow-xl
+          bg-background/95 transition-all duration-500 
+          animate-in slide-in-from-bottom overflow-hidden shrink-0 rounded-t-3xl">
+
+          <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
+            <h2 className="font-bold text-lg flex items-center gap-2">
+              <IconFileText className="size-5 text-primary" />
+              Description
+            </h2>
+            <Button variant="ghost" size="icon" onClick={() => setIsDescriptionOpen(false)}>
+              <X className="size-4" />
+            </Button>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto p-6 transition-all duration-300 scrollbar-thin scrollbar-thumb-primary/20">
+            <div className="pb-32">
               <RenderDescription json={JSON.parse(data.description)} />
-           </div>
+            </div>
+          </div>
+
         </div>
       )}
+
     </div>
-  )
+  );
 }
