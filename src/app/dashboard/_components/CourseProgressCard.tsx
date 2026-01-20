@@ -39,6 +39,7 @@ export function CourseProgressCard({ data }: iAppProps) {
         height={400}
         className="w-full aspect-video h-full object-cover rounded-t-xl"
         priority
+        crossOrigin="anonymous"
       />
 
       <CardContent className="p-4 space-y-3">

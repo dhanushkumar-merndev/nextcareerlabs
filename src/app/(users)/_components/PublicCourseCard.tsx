@@ -35,6 +35,7 @@ export function PublicCourseCard({
         height={400}
         className="w-full aspect-video h-full object-cover rounded-t-lg"
         priority
+        crossOrigin="anonymous"
       />
 
       <CardContent className="p-4">

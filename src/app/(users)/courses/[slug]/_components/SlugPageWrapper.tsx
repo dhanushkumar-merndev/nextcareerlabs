@@ -26,6 +26,7 @@ import { EnrollmentStatus, CourseLevel } from "@/generated/prisma";
 import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 import { JSX } from "react";
 import { EnrollmentButton } from "./EnrollmentButton";
+import { useConstructUrl } from "@/hooks/use-construct-url";
 
 interface SlugPageWrapperProps {
   course: {
@@ -65,11 +66,12 @@ export function SlugPageWrapper({
         <div className="order-1 lg:col-span-2">
           <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">
             <Image
-              src={`https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${course.fileKey}`}
+              src={useConstructUrl(course.fileKey)}
               alt="Thumbnail"
               fill
               className="object-cover"
               priority
+              crossOrigin="anonymous"
             />
             <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent"></div>
           </div>

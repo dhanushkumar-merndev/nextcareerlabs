@@ -113,23 +113,30 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
             headers: { "Content-Type": "application/x-mpegURL" },
           });
 
-          // 4. Upload Segments (the rest of the batch)
+          // 4. Upload Segments (Parallel with Concurrency Control)
           let uploadedSegments = 0;
-          for (let i = 0; i < segments.length; i++) {
-            const segment = segments[i];
-            const { presignedUrl } = presignedUrls[i + 1]; // +1 because master was at 0
-            
-            await fetch(presignedUrl, {
-              method: "PUT",
-              body: segment.blob,
-              headers: { "Content-Type": "video/MP2T" },
-            });
-            
-            uploadedSegments++;
-            setFileState((s) => ({
-              ...s,
-              progress: Math.round((uploadedSegments / segments.length) * 100),
-            }));
+          const CONCURRENCY_LIMIT = 10;
+          
+          for (let i = 0; i < segments.length; i += CONCURRENCY_LIMIT) {
+            const batch = segments.slice(i, i + CONCURRENCY_LIMIT);
+            await Promise.all(
+              batch.map(async (segment, indexInBatch) => {
+                const globalIndex = i + indexInBatch;
+                const { presignedUrl } = presignedUrls[globalIndex + 1]; // +1 because master was at 0
+                
+                await fetch(presignedUrl, {
+                  method: "PUT",
+                  body: segment.blob,
+                  headers: { "Content-Type": "video/MP2T" },
+                });
+                
+                uploadedSegments++;
+                setFileState((s) => ({
+                  ...s,
+                  progress: Math.round((uploadedSegments / segments.length) * 100),
+                }));
+              })
+            );
           }
 
           const finalKey = `${baseKey}.${file.name.split(".").pop()}`;
