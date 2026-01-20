@@ -9,6 +9,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { buttonVariants } from "@/components/ui/button";
 import { env } from "@/lib/env";
 import {
@@ -17,6 +24,7 @@ import {
   IconChartBar,
   IconChevronDown,
   IconClock,
+  IconFileText,
   IconPlayerPlay,
 } from "@tabler/icons-react";
 import { CheckIcon, TimerIcon } from "lucide-react";
@@ -187,7 +195,7 @@ export function SlugPageWrapper({
           </div>
         </div>
         <div className="order-2 lg:col-span-1">
-          <div className="sticky top-20">
+          <div className="sticky top-20 h-[calc(100vh-(--spacing(24)))] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
             <div className="relative">
               <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
                 <CardContent className="p-6 space-y-8">
@@ -285,6 +293,29 @@ export function SlugPageWrapper({
           </div>
         </div>
       </div>
+
+      {/* Floating Description Button */}
+      <Drawer>
+        <DrawerTrigger asChild>
+          <button className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-2xl hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 group">
+            <IconFileText className="size-5 group-hover:rotate-12 transition-transform" />
+            <span className="font-semibold text-sm">View Description</span>
+          </button>
+        </DrawerTrigger>
+        <DrawerContent className="max-h-[85vh]">
+          <div className="max-w-4xl mx-auto w-full overflow-y-auto px-4 pb-12">
+            <DrawerHeader className="px-0">
+              <DrawerTitle className="text-2xl font-bold flex items-center gap-2">
+                <IconFileText className="size-6 text-primary" />
+                Course Description
+              </DrawerTitle>
+            </DrawerHeader>
+            <div className="mt-4">
+              <RenderDescription json={JSON.parse(course.description)} />
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </>
   );
 }

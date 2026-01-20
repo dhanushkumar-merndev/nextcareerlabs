@@ -131,6 +131,7 @@ export default function TestimonialMasonry() {
                       className="h-10 w-10 rounded-full object-cover"
                       loading="lazy"
                       referrerPolicy="no-referrer"
+                      crossOrigin="anonymous"
                     />
                     <div>
                       <p className="font-semibold leading-none">{t.name}</p>
@@ -156,6 +157,7 @@ export default function TestimonialMasonry() {
                       fill
                       className="object-cover"
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      crossOrigin="anonymous"
                     />
                   </div>
                 )}

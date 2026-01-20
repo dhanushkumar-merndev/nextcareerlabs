@@ -54,6 +54,7 @@ function AvatarImage({
       width={width}
       height={height}
       src={src}
+      crossOrigin="anonymous"
       {...props}
     />
   );

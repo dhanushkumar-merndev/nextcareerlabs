@@ -11,6 +11,14 @@ import { markLessonComplete } from "../actions";
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { IconFileText } from "@tabler/icons-react";
 import Hls from "hls.js";
 
 interface iAppProps {
@@ -155,54 +163,79 @@ function VideoPlayer({
   const hasVideo = Boolean(data.videoKey);
 
   return (
-    <div className="flex flex-col h-full bg-background md:pl-4 lg:pl-6">
+    <div className="flex flex-col bg-background md:pl-4 lg:pl-6">
       {/* ======================= */}
       {/* VIDEO PLAYER */}
-      {/* ======================= */}
-      <VideoPlayer
-        thumbnailkey={data.thumbnailKey ?? ""}
-        videoKey={data.videoKey ?? ""}
-      />
-
-      {/* ======================= */}
-      {/* ACTION BUTTON */}
-      {/* ======================= */}
-      <div className="py-4 border-b border-border bg-background">
-        {isCompleted ? (
-          <Button disabled className="gap-2">
-            <CheckCircle className="size-4" />
-            Completed
-          </Button>
-        ) : (
-          <Button
-            disabled={isPending || !hasVideo}
-            onClick={onSubmit}
-            className="gap-2"
-          >
-            {hasVideo ? (
-              <>
-                <CheckCircle className="size-4" />
-                Mark as Completed
-              </>
-            ) : (
-              "No Video Available"
-            )}
-          </Button>
-        )}
+      {/* Order 2 on mobile, Order 1 on desktop */}
+      <div className="order-2 md:order-1 w-full">
+        <VideoPlayer
+          thumbnailkey={data.thumbnailKey ?? ""}
+          videoKey={data.videoKey ?? ""}
+        />
       </div>
 
       {/* ======================= */}
-      {/* LESSON DESCRIPTION */}
-      {/* ======================= */}
-      <div className="space-y-3 pt-4 pb-10">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+      {/* LESSON TITLE */}
+      {/* Order 3 on mobile, Order 2 on desktop */}
+      <div className="order-3 md:order-2 pt-6 pb-2 md:pb-6">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
           {data.title}
         </h1>
+      </div>
+
+      {/* ======================= */}
+      {/* ACTION BUTTONS */}
+      {/* Order 1 on mobile, Order 3 on desktop */}
+      <div className="order-1 md:order-3 flex items-center justify-between gap-4 pb-4 pt-2 md:pt-6 md:pb-0 md:border-t md:border-b-0 mb-0">
+        <div className="flex items-center gap-2">
+          {isCompleted ? (
+            <Button disabled className="gap-2">
+              <CheckCircle className="size-4" />
+              Completed
+            </Button>
+          ) : (
+            <Button
+              disabled={isPending || !hasVideo}
+              onClick={onSubmit}
+              className="gap-2"
+            >
+              {hasVideo ? (
+                <>
+                  <CheckCircle className="size-4" />
+                   Mark as Completed
+             
+                </>
+              ) : (
+                "No Video Available"
+              )}
+            </Button>
+          )}
+        </div>
 
         {data.description && (
-          <RenderDescription json={JSON.parse(data.description)} />
+          <Drawer>
+            <DrawerTrigger asChild>
+              <Button variant="outline" className="gap-2 shrink-0">
+                <IconFileText className="size-4" />
+                View Description
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent className="max-h-[85vh]">
+              <div className="max-w-4xl mx-auto w-full overflow-y-auto px-4 pb-8">
+                <DrawerHeader className="px-0">
+                  <DrawerTitle className="text-2xl font-bold flex items-center gap-2">
+                    <IconFileText className="size-6 text-primary" />
+                    {data.title}
+                  </DrawerTitle>
+                </DrawerHeader>
+                <div className="mt-4">
+                  <RenderDescription json={JSON.parse(data.description)} />
+                </div>
+              </div>
+            </DrawerContent>
+          </Drawer>
         )}
       </div>
     </div>
-  );
+  )
 }

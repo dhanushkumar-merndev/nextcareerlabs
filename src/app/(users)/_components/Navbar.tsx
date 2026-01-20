@@ -420,6 +420,7 @@ export function Navbar() {
               width={70}
               height={70}
               className="rounded-full border"
+              crossOrigin="anonymous"
             />
 
             <h3 className="mt-3 text-lg font-semibold">

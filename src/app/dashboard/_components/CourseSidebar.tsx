@@ -3,24 +3,39 @@
 import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Progress } from "@/components/ui/progress";
+
 import { CollapsibleContent } from "@radix-ui/react-collapsible";
 import { ChevronDown, Play } from "lucide-react";
 import { LessonItem } from "./LessonItem";
 import { usePathname } from "next/navigation";
-import { useCourseProgress } from "@/hooks/use-course-progress";
+import { CourseProgressBar } from "./CourseProgressBar";
+import { CircularProgress } from "@/components/ui/circular-progress";
 import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ListVideo } from "lucide-react";
 
 interface iAppProps {
   course: CourseSidebarDataType["course"];
 }
 
+const getChapterProgress = (chapter: CourseSidebarDataType["course"]["chapter"][0]) => {
+  const total = chapter.lesson.length;
+  if (total === 0) return 0;
+  const completed = chapter.lesson.filter(l => 
+    l.lessonProgress.some(p => p.completed)
+  ).length;
+  return Math.round((completed / total) * 100);
+};
+
 export function CourseSidebar({ course }: iAppProps) {
   const pathname = usePathname();
   const currentLessonId = pathname.split("/").pop();
-
-  const { completedLessons, totalLessons, progressPercentage } =
-    useCourseProgress({ courseData: course });
 
   const [openChapter, setOpenChapter] = useState<string | null>(
     course.chapter[0]?.id || null
@@ -32,42 +47,93 @@ export function CourseSidebar({ course }: iAppProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* HEADER (Fixed on top) */}
-      <div className="pb-4 pr-4 border-b border-border shrink-0">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="size-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-            <Play className="size-5 text-primary" />
+      {/* HEADER (Desktop Only) */}
+      <div className="hidden md:block">
+        <CourseProgressBar course={course} />
+      </div>
+
+      {/* MOBILE ONLY: CHAPTER SELECTOR AND PLAYLIST */}
+      <div className="md:hidden ">
+        <div className="flex items-center justify-between gap-4 pt-5 pb-4 ">
+          <div className="flex-1 min-w-0">
+           
+            <h3 className="font-bold text-lg truncate">
+              {course.chapter.find((c) => c.id === openChapter)?.title ||
+                "Select a Chapter"}
+            </h3>
           </div>
 
-          <div className="flex-1 min-w-0">
-            <h1 className="font-semibold text-base truncate">{course.title}</h1>
-            <p className="text-sm text-muted-foreground mt-1 truncate">
-              {course.category}
-            </p>
-          </div>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="secondary" size="sm" className="gap-2 shrink-0">
+                <ListVideo className="size-4" />
+                Chapters
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[calc(100%-2rem)] rounded-xl">
+              <DialogHeader>
+                <DialogTitle>Select Chapter</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-2 mt-4 max-h-[60vh] overflow-y-auto pr-2">
+                {course.chapter.map((chapter) => {
+                  const chapterProgress = getChapterProgress(chapter);
+                  return (
+                    <Button
+                      key={chapter.id}
+                      variant={openChapter === chapter.id ? "secondary" : "ghost"}
+                      className="w-full justify-between h-auto p-3 text-left border border-transparent hover:border-border transition-all"
+                      onClick={() => {
+                        setOpenChapter(chapter.id);
+                      }}
+                    >
+                      <div className="flex flex-col min-w-0 pr-2">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-0.5">
+                          Chapter {chapter.position}
+                        </span>
+                        <span className="font-semibold text-sm truncate">
+                          {chapter.title}
+                        </span>
+                      </div>
+                      <CircularProgress 
+                        value={chapterProgress} 
+                        size={34} 
+                        showCircle={false}
+                        strokeWidth={2.5} 
+                        progressClassName={openChapter === chapter.id ? "text-secondary-foreground" : "text-primary"}
+                        bgClassName={openChapter === chapter.id ? "text-secondary-foreground/30" : "text-muted-foreground/25"}
+                        textClassName={openChapter === chapter.id ? "text-secondary-foreground" : "text-primary"}
+                      />
+                    </Button>
+                  );
+                })}
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        {/* Progress */}
-        <div className="space-y-4">
-          <div className="flex justify-between text-xs">
-            <span>Progress</span>
-            <span>
-              {completedLessons}/{totalLessons} Lessons
-            </span>
-          </div>
-          <Progress value={progressPercentage} className="h-1.5" />
-          <p className="text-xs text-muted-foreground">
-            {progressPercentage}% completed
-          </p>
+        {/* Playlist Items */}
+        <div className="space-y-2 mt-4">
+          {course.chapter
+            .find((c) => c.id === openChapter)
+            ?.lesson.map((lesson) => (
+              <LessonItem
+                key={lesson.id}
+                lesson={lesson}
+                slug={course.slug}
+                isActive={currentLessonId === lesson.id}
+                completed={
+                  lesson.lessonProgress.some((p) => p.completed) || false
+                }
+              />
+            ))}
         </div>
       </div>
 
-      {/* CHAPTER LIST — scrolls only on mobile */}
-      <div
-        className="pt-4 pb-20 md:pb-0 pr-4 space-y-3 flex-1 overflow-y-auto min-h-0 lg:overflow-visible lg:min-h-fit lg:flex-none"
-      >
+      {/* DESKTOP ONLY: COLLAPSIBLE CHAPTER LIST */}
+      <div className="hidden md:block pt-4 pr-4 space-y-3 flex-1 overflow-y-auto min-h-0">
         {course.chapter.map((chapter) => {
           const isOpen = openChapter === chapter.id;
+          const chapterProgress = getChapterProgress(chapter);
 
           return (
             <Collapsible key={chapter.id} open={isOpen}>
@@ -83,7 +149,7 @@ export function CourseSidebar({ course }: iAppProps) {
                     }`}
                   />
 
-                  <div className="flex-1 pl-1 text-left min-w-0">
+                  <div className="flex-1 pl-1 text-left min-w-0 pr-1">
                     <p className="font-semibold text-sm truncate text-foreground">
                       {chapter.position}: {chapter.title}
                     </p>
@@ -91,6 +157,13 @@ export function CourseSidebar({ course }: iAppProps) {
                       {chapter.lesson.length} lessons
                     </p>
                   </div>
+
+                  <CircularProgress 
+                    value={chapterProgress} 
+                    size={30} 
+                    strokeWidth={2.5} 
+                    showText={false}
+                  />
                 </Button>
               </CollapsibleTrigger>
 

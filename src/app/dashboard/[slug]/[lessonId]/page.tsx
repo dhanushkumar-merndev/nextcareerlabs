@@ -14,12 +14,12 @@ export default async function LessonContentPage({
 
   return (
     <Suspense fallback={<LessonContentSkeleton />}>
-      <LessonContentLoader lessonId={lessonId} />;
+      <LessonContentLoader lessonId={lessonId} />
     </Suspense>
   );
 }
 
 async function LessonContentLoader({ lessonId }: { lessonId: string }) {
   const data = await getLessonContent(lessonId);
-  return <CourseContent data={data} />;
+  return <CourseContent data={data} />
 }
