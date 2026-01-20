@@ -1,6 +1,7 @@
 "use client";
 
 import { CircularProgress } from "@/components/ui/circular-progress";
+import { Progress } from "@/components/ui/progress";
 import { useCourseProgress } from "@/hooks/use-course-progress";
 import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { Play } from "lucide-react";
@@ -17,18 +18,24 @@ export function CourseProgressBar({ course }: { course: CourseSidebarDataType["c
           </div>
 
           <div className="flex-1 min-w-0">
-            <h1 className="font-semibold text-base truncate">{course.title}</h1>
             <p className="text-sm text-muted-foreground truncate">
               {course.category}
             </p>
             <p className="text-[10px] text-muted-foreground mt-0.5">
               {completedLessons}/{totalLessons} Lessons
             </p>
+          
           </div>
         </div>
 
-        <CircularProgress value={progressPercentage} size={42} strokeWidth={3} />
-      </div>
+        <CircularProgress 
+          value={progressPercentage} 
+          size={36} 
+          strokeWidth={3} 
+          showCircle={false}
+          textClassName="text-primary font-bold text-xs"
+        />
+      </div><div className="mt-4 pr-5"><Progress value={progressPercentage} className="h-1.5" /></div>
     </div>
   );
 }

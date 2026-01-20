@@ -1,6 +1,7 @@
 "use client";
 
 import { LessonContentType } from "@/app/data/course/get-lesson-content";
+import { cn } from "@/lib/utils";
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
@@ -10,6 +11,7 @@ import { BookIcon, CheckCircle } from "lucide-react";
 import { markLessonComplete } from "../actions";
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { X } from "lucide-react";
 import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
 import {
   Drawer,
@@ -28,6 +30,7 @@ interface iAppProps {
 export function CourseContent({ data }: iAppProps) {
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
+  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
 
   // ==============================
   // VIDEO PLAYER COMPONENT
@@ -163,79 +166,104 @@ function VideoPlayer({
   const hasVideo = Boolean(data.videoKey);
 
   return (
-    <div className="flex flex-col bg-background md:pl-4 lg:pl-6">
-      {/* ======================= */}
-      {/* VIDEO PLAYER */}
-      {/* Order 2 on mobile, Order 1 on desktop */}
-      <div className="order-2 md:order-1 w-full">
-        <VideoPlayer
-          thumbnailkey={data.thumbnailKey ?? ""}
-          videoKey={data.videoKey ?? ""}
-        />
-      </div>
-
-      {/* ======================= */}
-      {/* LESSON TITLE */}
-      {/* Order 3 on mobile, Order 2 on desktop */}
-      <div className="order-3 md:order-2 pt-6 pb-2 md:pb-6">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
-          {data.title}
-        </h1>
-      </div>
-
-      {/* ======================= */}
-      {/* ACTION BUTTONS */}
-      {/* Order 1 on mobile, Order 3 on desktop */}
-      <div className="order-1 md:order-3 flex items-center justify-between gap-4 pb-4 pt-2 md:pt-6 md:pb-0 md:border-t md:border-b-0 mb-0">
-        <div className="flex items-center gap-2">
-          {isCompleted ? (
-            <Button disabled className="gap-2">
-              <CheckCircle className="size-4" />
-              Completed
-            </Button>
-          ) : (
-            <Button
-              disabled={isPending || !hasVideo}
-              onClick={onSubmit}
-              className="gap-2"
-            >
-              {hasVideo ? (
-                <>
-                  <CheckCircle className="size-4" />
-                   Mark as Completed
-             
-                </>
-              ) : (
-                "No Video Available"
-              )}
-            </Button>
-          )}
+    <div className="relative flex flex-col md:flex-row bg-background h-full overflow-hidden">
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 flex flex-col py-2  md:pl-6 overflow-y-auto">
+        {/* VIDEO PLAYER */}
+        <div className="order-2 md:order-1 w-full">
+          <VideoPlayer
+            thumbnailkey={data.thumbnailKey ?? ""}
+            videoKey={data.videoKey ?? ""}
+          />
         </div>
 
-        {data.description && (
-          <Drawer>
-            <DrawerTrigger asChild>
-              <Button variant="outline" className="gap-2 shrink-0">
-                <IconFileText className="size-4" />
-                View Description
+        {/* LESSON TITLE */}
+        <div className="order-3 md:order-2 pt-4  md:pb-4">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
+            {data.title}
+          </h1>
+        </div>
+
+        {/* ACTION BUTTONS */}
+        <div className="order-1 md:order-3 flex items-center justify-between gap-4 pb-6  md:pt-6 md:pb-0 md:border-t mb-0">
+          <div className="flex items-center gap-2">
+            {isCompleted ? (
+              <Button disabled className="gap-2">
+                <CheckCircle className="size-4" />
+                Completed
               </Button>
-            </DrawerTrigger>
-            <DrawerContent className="max-h-[85vh]">
-              <div className="max-w-4xl mx-auto w-full overflow-y-auto px-4 pb-8">
-                <DrawerHeader className="px-0">
-                  <DrawerTitle className="text-2xl font-bold flex items-center gap-2">
-                    <IconFileText className="size-6 text-primary" />
-                    {data.title}
-                  </DrawerTitle>
-                </DrawerHeader>
-                <div className="mt-4">
-                  <RenderDescription json={JSON.parse(data.description)} />
-                </div>
-              </div>
-            </DrawerContent>
-          </Drawer>
-        )}
+            ) : (
+              <Button
+                disabled={isPending || !hasVideo}
+                onClick={onSubmit}
+                className="gap-2"
+              >
+                {hasVideo ? (
+                  <>
+                    <CheckCircle className="size-4" />
+                    Mark as Completed
+                  </>
+                ) : (
+                  "No Video Available"
+                )}
+              </Button>
+            )}
+          </div>
+
+          {data.description && (
+            <div className="flex items-center gap-2">
+              <Button 
+                variant={isDescriptionOpen ? "secondary" : "outline"}
+                className="gap-2 shrink-0 hidden md:flex"
+                onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
+              >
+                <IconFileText className="size-4" />
+                {isDescriptionOpen ? "Hide Description" : "View Description"}
+              </Button>
+
+              <Drawer>
+                <DrawerTrigger asChild>
+                  <Button variant="outline" className="gap-2 shrink-0 md:hidden">
+                    <IconFileText className="size-4" />
+                    View Description
+                  </Button>
+                </DrawerTrigger>
+                <DrawerContent className="max-h-[85vh]">
+                  <div className="max-w-4xl mx-auto w-full overflow-y-auto px-4 pb-8">
+                    <DrawerHeader className="px-0">
+                      <DrawerTitle className="text-2xl font-bold flex items-center gap-2">
+                        <IconFileText className="size-6 text-primary" />
+                        {data.title}
+                      </DrawerTitle>
+                    </DrawerHeader>
+                    <div className="mt-4">
+                      <RenderDescription json={JSON.parse(data.description)} />
+                    </div>
+                  </div>
+                </DrawerContent>
+              </Drawer>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* BOTTOM DESCRIPTION PANEL (DESKTOP OVERLAY) */}
+      {data.description && isDescriptionOpen && (
+        <div className="absolute bottom-0 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col border-t border-border bg-background/95  transition-all duration-500 animate-in slide-in-from-bottom overflow-hidden shrink-0 rounded-t-3xl">
+           <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="font-bold text-lg flex items-center gap-2">
+                <IconFileText className="size-5 text-primary" />
+                Description
+              </h2>
+              <Button variant="ghost" size="icon" onClick={() => setIsDescriptionOpen(false)}>
+                <X className="size-4" />
+              </Button>
+           </div>
+           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+              <RenderDescription json={JSON.parse(data.description)} />
+           </div>
+        </div>
+      )}
     </div>
   )
 }

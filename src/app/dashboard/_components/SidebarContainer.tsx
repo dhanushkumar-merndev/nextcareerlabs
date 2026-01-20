@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+
 import { CourseSidebar } from "./CourseSidebar";
-import { CourseProgressBar } from "./CourseProgressBar";
+
 import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { usePathname } from "next/navigation";
 import { useCourseProgressContext } from "@/providers/CourseProgressProvider";
@@ -19,16 +19,20 @@ export function SidebarContainer({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  const { setProgressPercentage, setShowProgress } = useCourseProgressContext();
+  const { setProgressPercentage, setShowProgress, setCourseTitle } = useCourseProgressContext();
   const { progressPercentage } = useCourseProgress({ courseData: course });
 
   // Sync progress context
   useEffect(() => {
     setProgressPercentage(progressPercentage);
+    setCourseTitle(course.title);
     setShowProgress(true);
     
-    return () => setShowProgress(false);
-  }, [progressPercentage, setProgressPercentage, setShowProgress]);
+    return () => {
+      setShowProgress(false);
+      setCourseTitle("");
+    };
+  }, [progressPercentage, course.title, setProgressPercentage, setShowProgress, setCourseTitle]);
 
   // -------------------------------------------------
   // 🚫 FIX: Close sidebar when navigating to a new page

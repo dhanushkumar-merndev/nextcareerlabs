@@ -6,6 +6,8 @@ interface CourseProgressContextType {
   setProgressPercentage: (value: number) => void;
   showProgress: boolean;
   setShowProgress: (value: boolean) => void;
+  courseTitle: string;
+  setCourseTitle: (value: string) => void;
 }
 
 const CourseProgressContext = createContext<CourseProgressContextType | undefined>(undefined);
@@ -13,9 +15,17 @@ const CourseProgressContext = createContext<CourseProgressContextType | undefine
 export function CourseProgressProvider({ children }: { children: ReactNode }) {
   const [progressPercentage, setProgressPercentage] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
+  const [courseTitle, setCourseTitle] = useState("");
 
   return (
-    <CourseProgressContext.Provider value={{ progressPercentage, setProgressPercentage, showProgress, setShowProgress }}>
+    <CourseProgressContext.Provider value={{ 
+      progressPercentage, 
+      setProgressPercentage, 
+      showProgress, 
+      setShowProgress,
+      courseTitle,
+      setCourseTitle
+    }}>
       {children}
     </CourseProgressContext.Provider>
   );

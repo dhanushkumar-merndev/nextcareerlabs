@@ -6,7 +6,7 @@ import { CircularProgress } from "../ui/circular-progress";
 import { useCourseProgressContext } from "@/providers/CourseProgressProvider";
 
 export function SiteHeaderWrapper() {
-  const { progressPercentage, showProgress } = useCourseProgressContext();
+  const { progressPercentage, showProgress, courseTitle } = useCourseProgressContext();
 
   return (
     <header className="flex h-[--header-height] shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-[--header-height]">
@@ -19,7 +19,7 @@ export function SiteHeaderWrapper() {
             orientation="vertical"
             className="mx-2 data-[orientation=vertical]:h-4"
           />
-          <h1 className="text-base font-medium">Skillforce Cloud</h1>
+          <h1 className="text-base font-medium">{courseTitle || "Skillforce Cloud"}</h1>
         </div>
 
         {/* RIGHT SIDE — Theme Toggle */}
@@ -28,7 +28,7 @@ export function SiteHeaderWrapper() {
             <div className="md:hidden flex items-center ml-1">
               <CircularProgress 
                 value={progressPercentage} 
-                size={32} 
+                size={38} 
                 strokeWidth={3} 
               />
             </div>

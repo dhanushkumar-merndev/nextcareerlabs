@@ -162,7 +162,7 @@ export function CourseSidebar({ course }: iAppProps) {
                     value={chapterProgress} 
                     size={30} 
                     strokeWidth={2.5} 
-                    showText={false}
+                   showCircle={false}
                   />
                 </Button>
               </CollapsibleTrigger>
