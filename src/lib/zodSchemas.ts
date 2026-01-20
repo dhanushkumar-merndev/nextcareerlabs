@@ -65,8 +65,9 @@ export const lessonSchema = z.object({
   thumbnailKey: z
     .string()
     .min(1, { message: "Thumbnail must be selected" })
+    .nullable()
     .optional(),
-  videoKey: z.string().min(1, { message: "Video must be selected" }).optional(),
+  videoKey: z.string().min(1, { message: "Video must be selected" }).nullable().optional(),
 });
 
 export type CourseSchemaType = z.infer<typeof courseSchema>;

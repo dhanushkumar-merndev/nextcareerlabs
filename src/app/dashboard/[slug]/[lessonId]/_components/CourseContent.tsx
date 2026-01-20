@@ -9,7 +9,9 @@ import { useConstructUrl } from "@/hooks/use-construct-url";
 import { BookIcon, CheckCircle } from "lucide-react";
 import { markLessonComplete } from "../actions";
 import { toast } from "sonner";
-import { useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
+import Hls from "hls.js";
 
 interface iAppProps {
   data: LessonContentType;
@@ -22,46 +24,110 @@ export function CourseContent({ data }: iAppProps) {
   // ==============================
   // VIDEO PLAYER COMPONENT
   // ==============================
-  function VideoPlayer({
-    thumbnailkey,
-    videoKey,
-  }: {
-    thumbnailkey: string;
-    videoKey: string;
-  }) {
-    const videoUrl = useConstructUrl(videoKey);
-    const thumbnailUrl = useConstructUrl(thumbnailkey);
 
-    // No video case
-    if (!videoKey) {
-      return (
-        <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border">
-          <BookIcon className="size-16 text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">
-            This lesson does not have a video yet
-          </p>
-        </div>
-      );
+function VideoPlayer({
+  thumbnailkey,
+  videoKey,
+}: {
+  thumbnailkey: string;
+  videoKey: string;
+}) {
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [hlsUrl, setHlsUrl] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const thumbnailUrl = useConstructUrl(thumbnailkey);
+
+  useEffect(() => {
+    if (!videoKey) return;
+
+    // Try to get HLS URL first
+    const hlsKey = `hls/${videoKey.replace(/\.[^/.]+$/, "")}/master.m3u8`;
+    console.log("[VideoPlayer] Looking for HLS at:", hlsKey);
+    getSignedVideoUrl(hlsKey).then((url) => {
+      console.log("[VideoPlayer] HLS URL result:", url ? "Found" : "Not found");
+      if (url) {
+        setHlsUrl(url);
+      }
+    });
+
+    // Get MP4 URL as fallback
+    console.log("[VideoPlayer] Looking for MP4 at:", videoKey);
+    getSignedVideoUrl(videoKey).then((url) => {
+      console.log("[VideoPlayer] MP4 URL result:", url ? "Found" : "Not found");
+      setVideoUrl(url);
+    });
+  }, [videoKey]);
+
+  useEffect(() => {
+    if (hlsUrl && videoRef.current) {
+      const video = videoRef.current;
+      if (Hls.isSupported()) {
+        const hls = new Hls();
+        hls.loadSource(hlsUrl);
+        hls.attachMedia(video);
+        
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            console.warn("HLS fatal error, falling back to MP4:", data.type);
+            setHlsUrl(null); // This will trigger the MP4 fallback in render
+            hls.destroy();
+          }
+        });
+
+        return () => hls.destroy();
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = hlsUrl;
+        video.onerror = () => {
+          console.warn("Native HLS error, falling back to MP4");
+          setHlsUrl(null);
+        };
+      }
     }
+  }, [hlsUrl]);
 
-    // With video
+  // No video case
+  if (!videoKey) {
     return (
-      <div className="aspect-video bg-muted rounded-lg border overflow-hidden relative">
-        <video
-          className="w-full h-full object-cover"
-          controls
-          controlsList="nodownload"
-          onContextMenu={(e) => e.preventDefault()} // Disable right-click
-          poster={thumbnailUrl}
-        >
-          <source src={videoUrl} type="video/mp4" />
-          <source src={videoUrl} type="video/webm" />
-          <source src={videoUrl} type="video/ogg" />
-          Your browser does not support HTML5 video.
-        </video>
+      <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border">
+        <BookIcon className="size-16 text-primary mx-auto mb-4" />
+        <p className="text-muted-foreground">
+          This lesson does not have a video yet
+        </p>
       </div>
     );
   }
+
+  // Loading signed URL
+  if (!videoUrl && !hlsUrl) {
+    return (
+      <div className="aspect-video bg-muted rounded-lg border animate-pulse" />
+    );
+  }
+
+  // With video (STREAMING)
+  return (
+    <div className="aspect-video bg-muted rounded-lg border overflow-hidden">
+      <video
+        ref={videoRef}
+        className="w-full h-full object-contain"
+        controls
+        preload="metadata"
+        playsInline
+        controlsList="nodownload"
+        onContextMenu={(e) => e.preventDefault()}
+        poster={thumbnailUrl}
+      >
+        {hlsUrl ? (
+          // HLS is being handled by hls.js via ref, but we can provide a native fallback here too
+          <source src={hlsUrl} type="application/x-mpegURL" />
+        ) : (
+          videoUrl && <source src={videoUrl} type="video/mp4" />
+        )}
+        Your browser does not support HTML5 video.
+      </video>
+    </div>
+  );
+}
 
   // ==============================
   // MARK COMPLETE HANDLER

@@ -12,10 +12,11 @@ import {
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { useConstructUrl } from "@/hooks/use-construct-url";
+import { Loader2 } from "lucide-react";
 
 interface iAppProps {
-  value?: string;
-  onChange?: (value: string) => void;
+  value?: string | null;
+  onChange: (value: string | null) => void;
   fileTypeAccepted: "image" | "video";
 }
 interface UploaderState {
@@ -23,11 +24,13 @@ interface UploaderState {
   file: File | null;
   uploading: boolean;
   progress: number;
-  key?: string;
+  key?: string | null;
   isDeleting: boolean;
   error: boolean;
   objectUrl?: string;
   fileType: "image" | "video";
+  transcoding: boolean;
+  transcodingProgress: number;
 }
 
 export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
@@ -42,6 +45,8 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
     fileType: fileTypeAccepted,
     key: value,
     objectUrl: value ? fileUrl : undefined,
+    transcoding: false,
+    transcodingProgress: 0,
   });
 
   const uploadFile = useCallback(
@@ -103,6 +108,72 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
               onChange?.(key);
 
               toast.success("File uploaded successfully");
+
+              // Trigger HLS Processing if it's a video
+              if (fileTypeAccepted === "video") {
+                setFileState((prevState) => ({
+                  ...prevState,
+                  transcoding: true,
+                  transcodingProgress: 0,
+                }));
+
+                console.log("[UPLOADER] Starting video processing for:", key);
+                
+                // Call the process API
+                fetch("/api/video/process", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ videoKey: key }),
+                })
+                .then(res => {
+                  console.log("[UPLOADER] Process API response received");
+                  return res.json();
+                })
+                .catch(err => {
+                  console.error("[UPLOADER] Process API error:", err);
+                });
+
+                // Poll for progress
+                let pollCount = 0;
+                const maxPolls = 1200; // 1200 * 3s = 1 hour
+
+                const pollInterval = setInterval(async () => {
+                  pollCount++;
+                  if (pollCount > maxPolls) {
+                    clearInterval(pollInterval);
+                    setFileState((prevState) => ({ ...prevState, transcoding: false }));
+                    return;
+                  }
+
+                  try {
+                    const res = await fetch(`/api/video/status?videoKey=${key}`);
+                    if (res.ok) {
+                      const { progress, isComplete } = await res.json();
+                      console.log(`[UPLOADER] Transcoding progress for ${key}: ${progress}%`);
+                      
+                      setFileState((prevState) => ({
+                        ...prevState,
+                        transcodingProgress: progress,
+                      }));
+
+                      if (isComplete) {
+                        clearInterval(pollInterval);
+                        setFileState((prevState) => ({
+                          ...prevState,
+                          transcoding: false,
+                        }));
+                        toast.success("Video processed and ready for streaming!");
+                      }
+                    }
+                  } catch (error) {
+                    console.error("Polling error:", error);
+                  }
+                }, 3000);
+
+                // Cleanup interval on unmount
+                return () => clearInterval(pollInterval);
+              }
+
               resolve();
             } else {
               reject(new Error("File upload failed"));
@@ -146,6 +217,8 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
           id: uuidv4(),
           isDeleting: false,
           fileType: fileTypeAccepted,
+          transcoding: false,
+          transcodingProgress: 0,
         });
 
         uploadFile(file);
@@ -182,7 +255,7 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
         URL.revokeObjectURL(fileState.objectUrl);
       }
 
-      onChange?.("");
+      onChange?.(null);
 
       setFileState((prevState) => ({
         ...prevState,
@@ -194,6 +267,8 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
         id: null,
         isDeleting: false,
         objectUrl: undefined,
+        transcoding: false,
+        transcodingProgress: 0,
       }));
 
       toast.success("File removed successfully");
@@ -225,11 +300,12 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
   }
 
   function renderContent() {
-    if (fileState.uploading) {
+    if (fileState.uploading || fileState.transcoding) {
       return (
         <RenderUploadingState
-          progress={fileState.progress}
-          file={fileState.file as File}
+          progress={fileState.transcoding ? fileState.transcodingProgress : fileState.progress}
+          file={fileState.file}
+          label={fileState.transcoding ? "Optimizing for streaming..." : "Uploading..."}
         />
       );
     }
@@ -237,9 +313,24 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
       return <RenderErrorState />;
     }
     if (fileState.objectUrl) {
+      if (fileState.isDeleting) {
+        return (
+          <div className="flex flex-col items-center justify-center space-y-4 w-full h-full">
+            <Loader2 className="size-8 animate-spin text-muted-foreground" />
+            <p className="text-sm font-medium animate-pulse">Removing from storage...</p>
+          </div>
+        );
+      }
+      // Use HLS only for existing videos from the DB. 
+      // For fresh uploads, stick to the local blob URL to avoid 404s during storage sync.
+      const isExistingVideo = !fileState.file;
+      const hlsKey = (isExistingVideo && fileState.key) ? `hls/${fileState.key.replace(/\.[^/.]+$/, "")}/master.m3u8` : undefined;
+      const hlsUrl = hlsKey ? useConstructUrl(hlsKey) : undefined;
+
       return (
         <RenderUploadedState
           previewUrl={fileState.objectUrl}
+          hlsUrl={hlsUrl}
           handleRemoveFile={handleRemoveFile}
           isDeleting={fileState.isDeleting}
           fileType={fileTypeAccepted}
@@ -264,7 +355,7 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
     maxSize:
       fileTypeAccepted === "video" ? 2 * 1024 * 1024 * 1024 : 5 * 1024 * 1024,
     onDropRejected: rejectedFiles,
-    disabled: fileState.uploading || !!fileState.objectUrl,
+    disabled: fileState.uploading || !!fileState.objectUrl || fileState.transcoding,
   });
   return (
     <Card

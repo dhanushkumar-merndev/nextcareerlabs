@@ -51,7 +51,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
     },
   });
 
-  async function onSubmit(values: LessonSchemaType) {
+  async function onSubmit(values: LessonSchemaType, skipRedirect = false) {
     startTransition(async () => {
       const { data: result, error } = await tryCatch(
         updateLesson(values, data.id)
@@ -61,8 +61,12 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
         return;
       }
       if (result.status === "success") {
-        toast.success(result.message);
-        router.push(`/admin/courses/${courseId}/edit`);
+        if (!skipRedirect) {
+          toast.success(result.message);
+          router.push(`/admin/courses/${courseId}/edit`);
+        } else {
+          router.refresh();
+        }
       } else if (result.status === "error") {
         toast.error(result.message);
       }
@@ -86,7 +90,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+            <form className="space-y-6" onSubmit={form.handleSubmit((values) => onSubmit(values, false))}>
               <FormField
                 control={form.control}
                 name="name"
@@ -138,7 +142,17 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                     <FormLabel>Video File</FormLabel>
                     <FormControl>
                       <Uploader
-                        onChange={field.onChange}
+                        onChange={(val: string | null) => {
+                          field.onChange(val);
+                          // Auto-save to DB only on successful upload (when val is truthy)
+                          // This prevents losing the key if the user refreshes during transcoding.
+                          if (val) {
+                            onSubmit({
+                              ...form.getValues(),
+                              videoKey: val
+                            }, true);
+                          }
+                        }}
                         value={field.value}
                         fileTypeAccepted="video"
                       />
