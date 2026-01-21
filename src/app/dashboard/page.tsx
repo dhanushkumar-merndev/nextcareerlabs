@@ -1,6 +1,6 @@
 import { getUserDashboardData } from "@/app/dashboard/actions";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
-import { CourseProgressCard } from "@/components/dashboard/CourseProgressCard";
+import { HorizontalCourseCard } from "@/app/dashboard/_components/HorizontalCourseCard";
 import { getCurrentUser } from "@/lib/session";
 import { redirect } from "next/navigation";
 
@@ -23,7 +23,7 @@ export default async function DashboardPage() {
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <AnalyticsCard
           title="Enrolled Courses"
           value={data.enrolledCoursesCount}
@@ -34,31 +34,42 @@ export default async function DashboardPage() {
           title="Completed Courses"
           value={data.completedCoursesCount}
           icon="circle-check"
-          description="Fully finished courses"
+          description="Successfully finished"
         />
         <AnalyticsCard
-          title="Average Progress"
-          // Calculate average progress
-          value={`${data.enrolledCoursesCount > 0 ? Math.round(data.coursesProgress.reduce((acc, c) => acc + c.progress, 0) / data.enrolledCoursesCount) : 0}%`}
-          icon="clipboard-check"
-          description="Across all courses"
+          title="Chapters Finished"
+          value={data.completedChaptersCount}
+          icon="layers"
+          description="Milestones reached"
+        />
+        <AnalyticsCard
+          title="Lessons Finished"
+          value={data.totalCompletedLessons}
+          icon="check-circle"
+          description="Total content consumption"
         />
       </div>
 
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold">My Learning</h3>
+      <div className="space-y-6 pt-6">
+        <div className="flex flex-col gap-1">
+            <h3 className="text-xl font-black tracking-tight text-foreground uppercase">
+                Course Progress
+            </h3>
+            <p className="text-sm text-muted-foreground/60 font-medium">
+                Detailed breakdown of learning progress for each course.
+            </p>
+        </div>
+
         {data.coursesProgress.length === 0 ? (
-          <p className="text-muted-foreground">You are not enrolled in any courses yet.</p>
+          <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-dashed border-border/20 bg-muted/5">
+             <p className="text-muted-foreground font-medium italic">You are not enrolled in any courses yet.</p>
+          </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="flex flex-col gap-4">
             {data.coursesProgress.map((course) => (
-              <CourseProgressCard
+              <HorizontalCourseCard
                 key={course.id}
-                title={course.title}
-                progress={course.progress}
-                slug={course.slug}
-                completedLessons={course.completedLessons}
-                totalLessons={course.totalLessons}
+                course={course as any}
               />
             ))}
           </div>

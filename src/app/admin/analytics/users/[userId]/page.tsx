@@ -21,21 +21,21 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
         notFound();
     }
 
-    const { user, enrolledCoursesCount, completedCoursesCount, coursesProgress } = data;
+    const { user, enrolledCoursesCount, completedCoursesCount, completedChaptersCount, coursesProgress } = data;
 
     // Calculate total lessons completed across all courses
     const totalLessonsCompleted = coursesProgress.reduce((acc, course) => acc + course.completedLessons, 0);
 
     return (
-        <div className="flex flex-col gap-8 p-4 lg:p-6 w-full">
+        <div className="flex flex-col gap-8 p-4 lg:p-6 w-full  mx-auto">
             {/* Header & Breadcrumb */}
-            <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex flex-col gap-6">
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
                     <Link href="/admin/analytics" className="hover:text-primary transition-colors">Analytics</Link>
-                    <span>/</span>
+                    <span className="opacity-40">/</span>
                     <Link href="/admin/analytics/users" className="hover:text-primary transition-colors">Users</Link>
-                    <span>/</span>
-                    <span className="text-foreground font-medium">{user.name}</span>
+                    <span className="opacity-40">/</span>
+                    <span className="text-foreground tracking-widest">{user.name}</span>
                 </div>
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -69,7 +69,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
             <Separator className="bg-border/40" />
 
             {/* Overall Stats */}
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
                 <AnalyticsCard
                     title="Enrolled Courses"
                     value={enrolledCoursesCount}
@@ -81,6 +81,12 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                     value={completedCoursesCount}
                     icon="circle-check"
                     description="Successfully finished"
+                />
+                <AnalyticsCard
+                    title="Chapters Finished"
+                    value={completedChaptersCount}
+                    icon="layers"
+                    description="Milestones reached"
                 />
                 <AnalyticsCard
                     title="Lessons Finished"
@@ -112,7 +118,12 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                 ) : (
                     <div className="grid gap-4">
                         {coursesProgress.map((course) => (
-                            <Card key={course.id} className="group overflow-hidden border-border/40 hover:border-primary/20 transition-all duration-300">
+                            <Link 
+                                key={course.id} 
+                                href={`/admin/analytics/users/${userId}/${course.id}`}
+                                className="block group active:scale-[0.99] transition-all"
+                            >
+                                <Card className="overflow-hidden border-border/40 group-hover:border-primary/40 group-hover:shadow-lg group-hover:bg-primary/5 transition-all duration-300">
                                 <div className="flex flex-col md:flex-row md:items-center gap-6 px-8">
                                     {/* Course Thumbnail placeholder/derived */}
                                     <div className="w-full md:w-32 aspect-video rounded-lg bg-muted relative overflow-hidden shrink-0 border border-border/20">
@@ -162,6 +173,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                                     </div>
                                 </div>
                             </Card>
+                        </Link>
                         ))}
                     </div>
                 )}

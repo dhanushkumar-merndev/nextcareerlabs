@@ -8,19 +8,23 @@ export default function Loading() {
       </div>
 
       {/* Stats Cards Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Skeleton className="h-[120px] rounded-xl" />
-        <Skeleton className="h-[120px] rounded-xl" />
-        <Skeleton className="h-[120px] rounded-xl" />
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Skeleton className="h-[100px] rounded-xl" />
+        <Skeleton className="h-[100px] rounded-xl" />
+        <Skeleton className="h-[100px] rounded-xl" />
+        <Skeleton className="h-[100px] rounded-xl" />
       </div>
 
       {/* Courses Section */}
-      <div className="space-y-4">
-        <Skeleton className="h-6 w-32" />
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-             <Skeleton className="h-[140px] rounded-xl" />
-             <Skeleton className="h-[140px] rounded-xl" />
-             <Skeleton className="h-[140px] rounded-xl" />
+      <div className="space-y-6 pt-6">
+        <div className="space-y-2">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="flex flex-col gap-4">
+             <Skeleton className="h-32 w-full rounded-2xl" />
+             <Skeleton className="h-32 w-full rounded-2xl" />
+             <Skeleton className="h-32 w-full rounded-2xl" />
         </div>
       </div>
     </div>

@@ -46,19 +46,44 @@ export async function getUserDashboardData(userId: string) {
             return {
                 id: course.id,
                 title: course.title,
-                imageUrl: course.fileKey, // Assuming thumbnail is fileKey for now or derive it
+                imageUrl: course.fileKey, 
                 progress,
                 totalLessons,
                 completedLessons,
-                slug: course.slug
+                slug: course.slug,
+                level: course.level
             };
         }));
 
         const completedCoursesCount = coursesProgress.filter((c: any) => c.progress === 100).length;
+        const totalCompletedLessons = coursesProgress.reduce((acc, c) => acc + c.completedLessons, 0);
+
+        // Calculate completed chapters count
+        let completedChaptersCount = 0;
+        for (const enrollment of enrollments) {
+            for (const chapter of enrollment.Course.chapter) {
+                const totalLessonsInChapter = chapter.lesson.length;
+                if (totalLessonsInChapter === 0) continue;
+
+                const completedLessonsInChapter = await prisma.lessonProgress.count({
+                    where: {
+                        userId,
+                        completed: true,
+                        lessonId: { in: chapter.lesson.map((l: any) => l.id) }
+                    }
+                });
+
+                if (completedLessonsInChapter === totalLessonsInChapter) {
+                    completedChaptersCount++;
+                }
+            }
+        }
 
         return {
             enrolledCoursesCount,
             completedCoursesCount,
+            completedChaptersCount,
+            totalCompletedLessons,
             coursesProgress
         };
     } catch (error) {

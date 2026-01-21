@@ -203,6 +203,42 @@ export async function getUserAnalyticsAdmin(userId: string) {
     }
 }
 
+export async function getUserCourseDetailedProgress(userId: string, courseId: string) {
+    await requireAdmin();
+    try {
+        const [user, course] = await Promise.all([
+            prisma.user.findUnique({
+                where: { id: userId },
+                select: { id: true, name: true, image: true, email: true, role: true, createdAt: true }
+            }),
+            prisma.course.findUnique({
+                where: { id: courseId },
+                include: {
+                    chapter: {
+                        orderBy: { position: 'asc' },
+                        include: {
+                            lesson: {
+                                orderBy: { position: 'asc' },
+                                include: {
+                                    lessonProgress: {
+                                        where: { userId }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            })
+        ]);
+
+        if (!user || !course) return null;
+
+        return { user, course };
+    } catch (error) {
+        return null;
+    }
+}
+
 export async function getAllUsers(search?: string, page: number = 1, limit: number = 100, roleFilter?: string) {
     await requireAdmin();
     try {
