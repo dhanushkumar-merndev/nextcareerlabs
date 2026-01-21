@@ -29,19 +29,24 @@ export async function getUserDashboardData(userId: string) {
             const course = enrollment.Course;
             const totalLessons = course.chapter.reduce((acc: number, chapter: any) => acc + chapter.lesson.length, 0);
 
-            const completedLessons = await prisma.lessonProgress.count({
+            const completedLessonsData = await prisma.lessonProgress.findMany({
                 where: {
                     userId,
-                    completed: true,
                     Lesson: {
                         Chapter: {
                             courseId: course.id
                         }
                     }
+                },
+                select: {
+                    completed: true,
+                    actualWatchTime: true
                 }
             });
 
-            const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+            const completedLessonsCount = completedLessonsData.filter(lp => lp.completed).length;
+            const actualWatchTime = completedLessonsData.reduce((acc, lp) => acc + (lp.actualWatchTime || 0), 0);
+            const progress = totalLessons > 0 ? Math.round((completedLessonsCount / totalLessons) * 100) : 0;
 
             return {
                 id: course.id,
@@ -49,7 +54,8 @@ export async function getUserDashboardData(userId: string) {
                 imageUrl: course.fileKey, 
                 progress,
                 totalLessons,
-                completedLessons,
+                completedLessons: completedLessonsCount,
+                actualWatchTime,
                 slug: course.slug,
                 level: course.level
             };
@@ -57,6 +63,7 @@ export async function getUserDashboardData(userId: string) {
 
         const completedCoursesCount = coursesProgress.filter((c: any) => c.progress === 100).length;
         const totalCompletedLessons = coursesProgress.reduce((acc, c) => acc + c.completedLessons, 0);
+        const totalPlatformActualWatchTime = coursesProgress.reduce((acc, c: any) => acc + c.actualWatchTime, 0);
 
         // Calculate completed chapters count
         let completedChaptersCount = 0;
@@ -84,6 +91,7 @@ export async function getUserDashboardData(userId: string) {
             completedCoursesCount,
             completedChaptersCount,
             totalCompletedLessons,
+            totalPlatformActualWatchTime,
             coursesProgress
         };
     } catch (error) {

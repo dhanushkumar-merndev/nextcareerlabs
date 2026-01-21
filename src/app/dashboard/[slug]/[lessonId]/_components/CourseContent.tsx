@@ -32,14 +32,18 @@ function VideoPlayer({
   videoKey,
   lessonId,
   initialTime = 0,
+  initialActualTime = 0,
 }: {
   thumbnailkey: string;
   videoKey: string;
   lessonId: string;
   initialTime?: number;
+  initialActualTime?: number;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const timerRef = useRef<NodeJS.Timeout|null>(null);
+  const actualTimeRef = useRef<number>(initialActualTime);
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
@@ -47,6 +51,50 @@ function VideoPlayer({
   const [currentLevel, setCurrentLevel] = useState<number>(-1); // Auto
 
   const thumbnailUrl = useConstructUrl(thumbnailkey);
+
+  /* ---------------- COOKIE HELPERS ---------------- */
+  const setCookie = (name: string, value: string, days = 7) => {
+    const expires = new Date(Date.now() + days * 864e5).toUTCString();
+    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
+  };
+
+  const getCookie = (name: string) => {
+    return document.cookie.split('; ').reduce((r, v) => {
+      const parts = v.split('=');
+      return parts[0] === name ? decodeURIComponent(parts[1]) : r;
+    }, '');
+  };
+
+  /* ---------------- TIMER LOGIC ---------------- */
+  const startTimer = () => {
+    if (timerRef.current) return;
+    timerRef.current = setInterval(() => {
+      if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) {
+        stopTimer();
+        return;
+      }
+      actualTimeRef.current += 1;
+      
+      // Update cookie every 5 seconds
+      if (Math.floor(actualTimeRef.current) % 5 === 0) {
+        setCookie(`actual-watch-${lessonId}`, actualTimeRef.current.toString());
+      }
+    }, 1000);
+  };
+
+  const stopTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    const savedActual = getCookie(`actual-watch-${lessonId}`);
+    if (savedActual) {
+      actualTimeRef.current = parseFloat(savedActual);
+    }
+  }, [lessonId]);
 
   /* ---------------- HLS URL (NO HEAD CHECK) ---------------- */
   useEffect(() => {
@@ -103,9 +151,35 @@ function VideoPlayer({
       return () => {
         hls.destroy();
         hlsRef.current = null;
+        stopTimer();
+        // Final sync on unmount
+        if (videoRef.current) {
+           updateVideoProgress(lessonId, videoRef.current.currentTime, actualTimeRef.current);
+        }
       };
     }
   }, [hlsUrl, videoKey]);
+
+  // Handle page refresh/close sync
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (videoRef.current) {
+        // We can't use server actions reliably in beforeunload, 
+        // but we've synced to cookie already. 
+        // The most important thing is the cookie.
+        setCookie(`actual-watch-${lessonId}`, actualTimeRef.current.toString());
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      // Also sync to DB on unmount
+      if (videoRef.current) {
+         updateVideoProgress(lessonId, videoRef.current.currentTime, actualTimeRef.current);
+      }
+    };
+  }, [lessonId]);
 
   /* ---------------- PROGRESS TRACKING ---------------- */
   const saveProgress = (time: number) => {
@@ -132,6 +206,12 @@ function VideoPlayer({
       }
     }
   };
+
+  /* ---------------- EVENT HANDLERS ---------------- */
+  const onPlay = () => startTimer();
+  const onPause = () => stopTimer();
+  const onEnded = () => stopTimer();
+  const onWaiting = () => stopTimer();
 
   /* ---------------- QUALITY SWITCH ---------------- */
   const changeQuality = (level: number) => {
@@ -196,6 +276,10 @@ function VideoPlayer({
         crossOrigin="anonymous"
         onLoadedMetadata={onLoadedMetadata}
         onTimeUpdate={onTimeUpdate}
+        onPlay={onPlay}
+        onPause={onPause}
+        onEnded={onEnded}
+        onWaiting={onWaiting}
       >
         {!hlsUrl && videoUrl && (
           <source src={videoUrl} type="video/mp4" />
@@ -212,18 +296,42 @@ export function CourseContent({ data }: iAppProps) {
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
 
-  // Sync LocalStorage progress to DB on mount (if it exists)
+  // Sync LocalStorage & Cookies to DB on mount (e.g. on page refresh)
   useEffect(() => {
+    const getCookie = (name: string) => {
+      return document.cookie.split('; ').reduce((r, v) => {
+        const parts = v.split('=');
+        return parts[0] === name ? decodeURIComponent(parts[1]) : r;
+      }, '');
+    };
+
     const savedProgress = localStorage.getItem(`video-progress-${data.id}`);
+    const cookieActual = parseFloat(getCookie(`actual-watch-${data.id}`) || "0");
+    
+    const dbLastWatched = data.lessonProgress?.[0]?.lastWatched ?? 0;
+    const dbActual = data.lessonProgress?.[0]?.actualWatchTime ?? 0;
+
+    let shouldSync = false;
+    let syncLastWatched = dbLastWatched;
+    let syncActual = dbActual;
+
     if (savedProgress) {
-      const time = parseFloat(savedProgress);
-      // Only sync if significantly different from DB to avoid redundant writes
-      const dbProgress = data.lessonProgress?.[0]?.lastWatched ?? 0;
-      if (Math.abs(time - dbProgress) > 5) {
-        updateVideoProgress(data.id, time);
-      }
+        const time = parseFloat(savedProgress);
+        if (Math.abs(time - dbLastWatched) > 5) {
+            syncLastWatched = time;
+            shouldSync = true;
+        }
     }
-  }, [data.id, data.lessonProgress]);
+
+    if (cookieActual > dbActual) {
+        syncActual = cookieActual;
+        shouldSync = true;
+    }
+
+    if (shouldSync) {
+        updateVideoProgress(data.id, syncLastWatched, syncActual);
+    }
+  }, [data.id]);
 
   // Close description when lesson changes
   useEffect(() => {
@@ -271,6 +379,7 @@ export function CourseContent({ data }: iAppProps) {
             videoKey={data.videoKey ?? ""}
             lessonId={data.id}
             initialTime={data.lessonProgress?.[0]?.lastWatched ?? 0}
+            initialActualTime={data.lessonProgress?.[0]?.actualWatchTime ?? 0}
           />
         </div>
 

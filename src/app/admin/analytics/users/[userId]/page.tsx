@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { BookOpen, Calendar, Mail, User } from "lucide-react";
+import { BookOpen, Calendar, CheckCircle2, Clock, Mail, PlayCircle, User } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -25,6 +25,17 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
 
     // Calculate total lessons completed across all courses
     const totalLessonsCompleted = coursesProgress.reduce((acc, course) => acc + course.completedLessons, 0);
+    const totalTimeSpent = coursesProgress.reduce((acc, course: any) => acc + course.actualWatchTime, 0);
+
+    const formatTime = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        
+        if (h > 0) return `${h}H ${m}M ${s}S`;
+        if (m > 0) return `${m}M ${s}S`;
+        return `${s}S`;
+    };
 
     return (
         <div className="flex flex-col gap-8 p-4 lg:p-6 w-full  mx-auto">
@@ -60,6 +71,10 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                                     <Calendar className="size-3.5" />
                                     Joined {new Date(user.createdAt).toLocaleDateString()}
                                 </div>
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                                    <Clock className="size-3.5" />
+                                    Spent {Math.floor(totalTimeSpent / 60)} Mins
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -69,30 +84,30 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
             <Separator className="bg-border/40" />
 
             {/* Overall Stats */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 lg:gap-6">
                 <AnalyticsCard
-                    title="Enrolled Courses"
+                    title="Enrolled"
                     value={enrolledCoursesCount}
                     icon="book-text"
-                    description="Active learning paths"
+                    description="Active courses"
                 />
                 <AnalyticsCard
-                    title="Completed Courses"
+                    title="Completed"
                     value={completedCoursesCount}
                     icon="circle-check"
-                    description="Successfully finished"
+                    description="Fully finished"
                 />
                 <AnalyticsCard
-                    title="Chapters Finished"
+                    title="Chapters"
                     value={completedChaptersCount}
                     icon="layers"
-                    description="Milestones reached"
+                    description="Milestones"
                 />
                 <AnalyticsCard
-                    title="Lessons Finished"
+                    title="Lessons"
                     value={totalLessonsCompleted}
                     icon="clipboard-check"
-                    description="Total content consumption"
+                    description="Consumption"
                 />
             </div>
 

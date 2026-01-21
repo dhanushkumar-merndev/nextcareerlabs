@@ -25,6 +25,7 @@ export async function getLessonContent(lessonId: string) {
           completed: true,
           lessonId: true,
           lastWatched: true,
+          actualWatchTime: true,
         },
       },
       Chapter: {

@@ -27,15 +27,18 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
 
     const { user, course } = data;
 
-    // Helper to format duration/lastWatched
+    const totalCourseSpent = course.chapter.reduce((acc: number, c: any) => 
+        acc + c.lesson.reduce((lAcc: number, l: any) => 
+            lAcc + (l.lessonProgress[0]?.actualWatchTime || 0), 0
+        ), 0
+    );
+
     const formatTime = (seconds: number) => {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         const s = Math.floor(seconds % 60);
         
-        if (h > 0) {
-            return `${h}H ${m}M ${s}S`;
-        }
+        if (h > 0) return `${h}H ${m}M ${s}S`;
         return `${m}M ${s}S`;
     };
 
@@ -63,7 +66,7 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                         </Avatar>
                         <div className="flex flex-col gap-1">
                             <h1 className="text-3xl font-black tracking-tight uppercase leading-tight">{user.name}</h1>
-                            <div className="flex flex-wrap items-center gap-3 mt-1">
+                            <div className="flex flex-wrap items-center gap-4 mt-1">
                                 <Badge variant="outline" className="rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-widest bg-primary/5 text-primary border-primary/20">
                                     {user.role || "User"}
                                 </Badge>
@@ -75,12 +78,12 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                                     <Calendar className="size-3.5" />
                                     Joined {new Date(user.createdAt).toLocaleDateString()}
                                 </div>
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+                                    <Clock className="size-3.5" />
+                                    Course Spent {Math.floor(totalCourseSpent / 60)} Mins
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1 px-4 py-2 bg-muted/30 rounded-2xl border border-border/20">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Viewing Course</span>
-                        <span className="text-sm font-bold text-primary uppercase">{course.title}</span>
                     </div>
                 </div>
             </div>
@@ -117,26 +120,33 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                                                         <h4 className="font-bold text-sm text-foreground truncate">
                                                             {lesson.title}
                                                         </h4>
-                                                        <p className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-wider">
-                                                            Lesson {lesson.position}
-                                                        </p>
+                                                        <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-6 mt-1.5">
+                                                            <p className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-wider">
+                                                                Lesson {lesson.position}
+                                                            </p>
+                                                            {progress && (
+                                                                <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-6">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[9px] font-black text-primary uppercase tracking-widest">Completed</span>
+                                                                        <span className="text-[9px] font-black text-foreground uppercase tracking-widest leading-none">{formatTime(progress.lastWatched)}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[9px] font-black text-primary uppercase tracking-widest">Actual Time Spent</span>
+                                                                        <span className="text-[9px] font-black text-foreground uppercase tracking-widest leading-none">{formatTime(progress.actualWatchTime || 0)}</span>
+                                                                    </div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-[9px] font-black text-primary uppercase tracking-widest">Last Watched</span>
+                                                                        <span className="text-[9px] font-black text-foreground uppercase tracking-widest leading-none">
+                                                                            {format(new Date(progress.updatedAt), "MMM d, yyyy hh:mm a")}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex items-center gap-6 shrink-0">
-                                                    {progress && (
-                                                        <div className="hidden sm:flex items-center gap-4">
-                                                            <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest">Completed</span>
-                                                                <span className="text-[10px] font-black text-foreground uppercase tracking-widest leading-none">{formatTime(progress.lastWatched)}</span>
-                                                            </div>
-                                                            <span className="text-primary text-xs font-black select-none ">Last Watched</span>
-                                                            <div className="flex items-center gap-1.5 whitespace-nowrap">
-                                                                <span className="text-[10px] font-black text-foreground uppercase tracking-widest leading-none">{format(new Date(progress.updatedAt), "MMM d, yyyy hh:mm a")}</span>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    
                                                     {isCompleted ? (
                                                         <Badge className="bg-primary hover:bg-primary/90 text-white border-none rounded-full px-5 py-1 text-[10px] font-black uppercase tracking-widest min-w-[85px] justify-center shadow-md">
                                                             DONE

@@ -42,7 +42,8 @@ export async function markLessonComplete(
 
 export async function updateVideoProgress(
   lessonId: string,
-  lastWatched: number
+  lastWatched: number,
+  actualWatchTime?: number
 ): Promise<ApiResponse> {
   const session = await requireUser();
   try {
@@ -57,9 +58,11 @@ export async function updateVideoProgress(
         userId: session.id,
         lessonId: lessonId,
         lastWatched: lastWatched,
+        actualWatchTime: actualWatchTime ?? 0,
       },
       update: {
         lastWatched: lastWatched,
+        actualWatchTime: actualWatchTime,
       },
     });
     return {
