@@ -113,7 +113,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                     <div className="grid gap-4">
                         {coursesProgress.map((course) => (
                             <Card key={course.id} className="group overflow-hidden border-border/40 hover:border-primary/20 transition-all duration-300">
-                                <div className="flex flex-col md:flex-row md:items-center gap-6 p-5">
+                                <div className="flex flex-col md:flex-row md:items-center gap-6 px-8">
                                     {/* Course Thumbnail placeholder/derived */}
                                     <div className="w-full md:w-32 aspect-video rounded-lg bg-muted relative overflow-hidden shrink-0 border border-border/20">
                                         {course.imageUrl ? (
@@ -128,7 +128,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                                                 <BookOpen className="size-6 text-primary/40" />
                                             </div>
                                         )}
-                                        <div className="absolute top-2 right-2">
+                                        <div className="absolute top-0 right-1">
                                             <Badge className="bg-background/80 backdrop-blur-sm text-[9px] font-black uppercase text-foreground border-border/20">
                                                 {course.progress === 100 ? "Completed" : "In Progress"}
                                             </Badge>
@@ -146,7 +146,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                                                 </p>
                                             </div>
                                             <div className="text-right">
-                                                <span className="text-2xl font-black text-primary/80 tabular-nums">
+                                                <span className="text-xl font-black text-primary/80 tabular-nums">
                                                     {course.progress}%
                                                 </span>
                                             </div>
