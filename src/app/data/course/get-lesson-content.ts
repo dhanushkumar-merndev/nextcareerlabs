@@ -24,6 +24,7 @@ export async function getLessonContent(lessonId: string) {
         select: {
           completed: true,
           lessonId: true,
+          lastWatched: true,
         },
       },
       Chapter: {

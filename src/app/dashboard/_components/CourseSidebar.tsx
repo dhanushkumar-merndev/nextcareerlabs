@@ -38,7 +38,9 @@ export function CourseSidebar({ course }: iAppProps) {
   const currentLessonId = pathname.split("/").pop();
 
   const [openChapter, setOpenChapter] = useState<string | null>(
-    course.chapter[0]?.id || null
+    course.chapter.find((c) => c.lesson.some((l) => l.id === currentLessonId))?.id ||
+      course.chapter[0]?.id ||
+      null
   );
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 

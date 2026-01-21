@@ -35,7 +35,6 @@ pnpm add @arcjet/next @arcjet/inspect
 pnpm install -S @arcjet/ip
 
 pnpm i add slugify
-
 ## TipTap
 
 pnpm install @tiptap/react @tiptap/pm @tiptap/starter-kit
@@ -66,3 +65,4 @@ pnpm install @dnd-kit/core
 pnpm i html-react-parser
 pnpm i @tiptap/html
 pnpm dlx prisma@5.22.0 db push
+pnpm dlx prisma@5.22.0 studio

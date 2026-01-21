@@ -186,6 +186,7 @@ Revoked
 model LessonProgress {
   id        String   @id @default(uuid())
   completed Boolean @default(false)
+  lastWatched Float    @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   User   User   @relation(fields: [userId], references: [id], onDelete: Cascade)

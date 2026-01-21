@@ -39,3 +39,37 @@ export async function markLessonComplete(
     };
   }
 }
+
+export async function updateVideoProgress(
+  lessonId: string,
+  lastWatched: number
+): Promise<ApiResponse> {
+  const session = await requireUser();
+  try {
+    await prisma.lessonProgress.upsert({
+      where: {
+        userId_lessonId: {
+          userId: session.id,
+          lessonId: lessonId,
+        },
+      },
+      create: {
+        userId: session.id,
+        lessonId: lessonId,
+        lastWatched: lastWatched,
+      },
+      update: {
+        lastWatched: lastWatched,
+      },
+    });
+    return {
+      status: "success",
+      message: "Progress updated",
+    };
+  } catch {
+    return {
+      status: "error",
+      message: "Failed to update progress",
+    };
+  }
+}

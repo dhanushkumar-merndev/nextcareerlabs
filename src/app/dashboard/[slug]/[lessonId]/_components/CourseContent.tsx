@@ -7,7 +7,7 @@ import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { BookIcon, CheckCircle, X } from "lucide-react";
-import { markLessonComplete } from "../actions";
+import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
@@ -30,9 +30,13 @@ interface iAppProps {
 function VideoPlayer({
   thumbnailkey,
   videoKey,
+  lessonId,
+  initialTime = 0,
 }: {
   thumbnailkey: string;
   videoKey: string;
+  lessonId: string;
+  initialTime?: number;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -73,10 +77,11 @@ function VideoPlayer({
     if (Hls.isSupported()) {
       hlsRef.current?.destroy();
 
-      const hls = new Hls({ startPosition: 0 });
+      const savedTime = parseFloat(localStorage.getItem(`video-progress-${lessonId}`) || initialTime.toString());
+      const hls = new Hls({ startPosition: savedTime });
       hlsRef.current = hls;
 
-      video.currentTime = 0;
+      video.currentTime = savedTime;
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
 
@@ -101,6 +106,32 @@ function VideoPlayer({
       };
     }
   }, [hlsUrl, videoKey]);
+
+  /* ---------------- PROGRESS TRACKING ---------------- */
+  const saveProgress = (time: number) => {
+    localStorage.setItem(`video-progress-${lessonId}`, time.toString());
+  };
+
+  const onLoadedMetadata = () => {
+    const savedTime = localStorage.getItem(`video-progress-${lessonId}`);
+    const timeToSeek = savedTime ? parseFloat(savedTime) : initialTime;
+    
+    if (videoRef.current) {
+      videoRef.current.currentTime = timeToSeek;
+    }
+  };
+
+  const onTimeUpdate = () => {
+    if (videoRef.current) {
+      // Save every few seconds to avoid excessive writes
+      const currentTime = videoRef.current.currentTime;
+      const lastSavedTime = parseFloat(localStorage.getItem(`video-progress-${lessonId}`) || "0");
+      
+      if (Math.abs(currentTime - lastSavedTime) > 5) {
+        saveProgress(currentTime);
+      }
+    }
+  };
 
   /* ---------------- QUALITY SWITCH ---------------- */
   const changeQuality = (level: number) => {
@@ -163,6 +194,8 @@ function VideoPlayer({
         controlsList="nodownload"
         onContextMenu={(e) => e.preventDefault()}
         crossOrigin="anonymous"
+        onLoadedMetadata={onLoadedMetadata}
+        onTimeUpdate={onTimeUpdate}
       >
         {!hlsUrl && videoUrl && (
           <source src={videoUrl} type="video/mp4" />
@@ -178,6 +211,19 @@ export function CourseContent({ data }: iAppProps) {
   const { triggerConfetti } = useConfetti2();
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
+
+  // Sync LocalStorage progress to DB on mount (if it exists)
+  useEffect(() => {
+    const savedProgress = localStorage.getItem(`video-progress-${data.id}`);
+    if (savedProgress) {
+      const time = parseFloat(savedProgress);
+      // Only sync if significantly different from DB to avoid redundant writes
+      const dbProgress = data.lessonProgress?.[0]?.lastWatched ?? 0;
+      if (Math.abs(time - dbProgress) > 5) {
+        updateVideoProgress(data.id, time);
+      }
+    }
+  }, [data.id, data.lessonProgress]);
 
   // Close description when lesson changes
   useEffect(() => {
@@ -223,6 +269,8 @@ export function CourseContent({ data }: iAppProps) {
           <VideoPlayer
             thumbnailkey={data.thumbnailKey ?? ""}
             videoKey={data.videoKey ?? ""}
+            lessonId={data.id}
+            initialTime={data.lessonProgress?.[0]?.lastWatched ?? 0}
           />
         </div>
 
