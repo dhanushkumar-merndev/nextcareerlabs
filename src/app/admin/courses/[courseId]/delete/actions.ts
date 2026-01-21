@@ -29,17 +29,67 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
         };
       }
     }
+    // 1. Fetch course details to get file keys and ChatGroup
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        chapter: {
+          include: {
+            lesson: true,
+          },
+        },
+        chatGroups: true,
+      },
+    });
+
+    if (!course) {
+      return {
+        status: "error",
+        message: "Course not found",
+      };
+    }
+
+    // 2. Collect all S3 keys to delete
+    const keysToDelete = new Set<string>();
+    
+    // Course thumbnail
+    if (course.fileKey) keysToDelete.add(course.fileKey);
+
+    // Lesson videos and thumbnails
+    course.chapter.forEach((chapter) => {
+      chapter.lesson.forEach((lesson) => {
+        if (lesson.videoKey) keysToDelete.add(lesson.videoKey);
+        if (lesson.thumbnailKey) keysToDelete.add(lesson.thumbnailKey);
+      });
+    });
+
+    // 3. Delete files from S3
+    const { deleteS3File } = await import("@/lib/s3-delete-utils");
+    await Promise.all(Array.from(keysToDelete).map((key) => deleteS3File(key)));
+
+    // 4. Delete ChatGroup if exists
+    if (course.chatGroups.length > 0) {
+      await prisma.chatGroup.deleteMany({
+        where: { courseId: courseId },
+      });
+    }
+
+    // 5. Delete the course (cascades to Chapter, Lesson, etc. thanks to schema)
     await prisma.course.delete({
       where: {
         id: courseId,
       },
     });
+
     revalidatePath("/admin/courses");
+    revalidatePath("/admin/resources"); // Revalidate Resources page since ChatGroup is gone
+
     return {
       status: "success",
       message: "Course Deleted Successfully",
     };
-  } catch {
+  } catch (error) {
+    console.error("Delete course error:", error);
     return {
       status: "error",
       message: "Failed to delete course!",

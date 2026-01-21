@@ -292,7 +292,10 @@ export async function deleteLesson({
     }
 
     const lessons = chapterWithLessons.lesson;
-    const lessonToDelete = lessons.find((lesson) => lesson.id === lessonId);
+    const lessonToDelete = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { id: true, videoKey: true, thumbnailKey: true },
+    });
 
     if (!lessonToDelete) {
       return {
@@ -300,6 +303,12 @@ export async function deleteLesson({
         message: "Lesson not found",
       };
     }
+
+    // cleanup files
+    const { deleteS3File } = await import("@/lib/s3-delete-utils");
+    if (lessonToDelete.videoKey) await deleteS3File(lessonToDelete.videoKey);
+    if (lessonToDelete.thumbnailKey)
+      await deleteS3File(lessonToDelete.thumbnailKey);
 
     const remainingLessons = lessons.filter((lesson) => lesson.id !== lessonId);
     const updates = remainingLessons.map((lesson, index) => {
@@ -322,7 +331,8 @@ export async function deleteLesson({
       status: "success",
       message: "Lesson deleted successfully",
     };
-  } catch {
+  } catch (error) {
+    console.error("Delete lesson error:", error);
     return {
       status: "error",
       message: "Failed to delete lesson",
@@ -353,17 +363,28 @@ export async function deleteChapter({
       return { status: "error", message: "Course not found" };
     }
 
-    const chapterToDelete = courseWithChapters.chapter.find(
-      (c) => c.id === chapterId
-    );
+    const chapterToDelete = await prisma.chapter.findUnique({
+      where: { id: chapterId },
+      include: {
+        lesson: {
+          select: { videoKey: true, thumbnailKey: true },
+        },
+      },
+    });
 
     if (!chapterToDelete) {
       return { status: "error", message: "Chapter not found" };
     }
 
-    // await prisma.lesson.deleteMany({
-    //   where: { chapterId },
-    // });
+    // Collect and delete files
+    const keysToDelete = new Set<string>();
+    chapterToDelete.lesson.forEach((lesson) => {
+      if (lesson.videoKey) keysToDelete.add(lesson.videoKey);
+      if (lesson.thumbnailKey) keysToDelete.add(lesson.thumbnailKey);
+    });
+
+    const { deleteS3File } = await import("@/lib/s3-delete-utils");
+    await Promise.all(Array.from(keysToDelete).map((key) => deleteS3File(key)));
 
     const remainingChapters = courseWithChapters.chapter.filter(
       (c) => c.id !== chapterId
@@ -390,6 +411,7 @@ export async function deleteChapter({
       message: "Chapter deleted successfully",
     };
   } catch (error) {
+    console.error("Delete chapter error:", error);
     return {
       status: "error",
       message: "Failed to delete chapter",
