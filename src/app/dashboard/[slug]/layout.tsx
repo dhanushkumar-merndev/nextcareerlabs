@@ -11,7 +11,7 @@ export default async function CourseLayout({ children, params }: iAppProps) {
   const courseData = await getCourseSidebarData(slug);
 
   return (
-    <div className="px-4 lg:px-6">
+    <div className="px-4 lg:px-6 h-full flex flex-col flex-1">
       <SidebarContainer course={courseData.course}>{children}</SidebarContainer>
     </div>
   );

@@ -179,6 +179,11 @@ export function CourseContent({ data }: iAppProps) {
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
 
+  // Close description when lesson changes
+  useEffect(() => {
+    setIsDescriptionOpen(false);
+  }, [data.id]);
+
   // ==============================
   // MARK COMPLETE HANDLER
   // ==============================
@@ -222,14 +227,14 @@ export function CourseContent({ data }: iAppProps) {
         </div>
 
         {/* LESSON TITLE */}
-        <div className="order-3 md:order-2 pt-4 md:pb-4">
+        <div className="hidden md:block order-3 md:order-2 pt-6 md:pb-4">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
             {data.title}
           </h1>
         </div>
 
         {/* ACTION BUTTONS */}
-        <div className="order-1 md:order-3 flex items-center justify-between gap-4 pb-6 md:pt-6 md:pb-0 md:border-t mb-0">
+        <div className="order-2 md:order-3 flex items-center justify-between gap-4  pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
           <div className="flex items-center gap-2">
             {isCompleted ? (
               <Button disabled className="gap-2">
@@ -294,24 +299,26 @@ export function CourseContent({ data }: iAppProps) {
       {/* BOTTOM DESCRIPTION PANEL (DESKTOP OVERLAY) */}
       {data.description && isDescriptionOpen && (
         <div className="absolute bottom-0 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col 
-          min-h-0
           border border-border shadow-xl
-          bg-background/95 transition-all duration-500 
-          animate-in slide-in-from-bottom overflow-hidden shrink-0 rounded-t-3xl">
+          bg-background/95 
+          animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
 
           <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
             <h2 className="font-bold text-lg flex items-center gap-2">
               <IconFileText className="size-5 text-primary" />
-              Description
+             {data.title}
             </h2>
             <Button variant="ghost" size="icon" onClick={() => setIsDescriptionOpen(false)}>
               <X className="size-4" />
             </Button>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-6 transition-all duration-300 scrollbar-thin scrollbar-thumb-primary/20">
+          <div 
+            className="flex-1 min-h-0 overflow-y-auto p-6 overscroll-contain"
+            data-lenis-prevent
+          >
       
-              <RenderDescription json={JSON.parse(data.description)} />
+              <RenderDescription json={JSON.parse(data.description!)} />
            
           </div>
 

@@ -40,6 +40,7 @@ export function CourseSidebar({ course }: iAppProps) {
   const [openChapter, setOpenChapter] = useState<string | null>(
     course.chapter[0]?.id || null
   );
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const toggleChapter = (id: string) => {
     setOpenChapter((prev) => (prev === id ? null : id));
@@ -63,7 +64,7 @@ export function CourseSidebar({ course }: iAppProps) {
             </h3>
           </div>
 
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="secondary" size="sm" className="gap-2 shrink-0">
                 <ListVideo className="size-4" />
@@ -84,6 +85,7 @@ export function CourseSidebar({ course }: iAppProps) {
                       className="w-full justify-between h-auto p-3 text-left border border-transparent hover:border-border transition-all"
                       onClick={() => {
                         setOpenChapter(chapter.id);
+                        setIsDialogOpen(false);
                       }}
                     >
                       <div className="flex flex-col min-w-0 pr-2">

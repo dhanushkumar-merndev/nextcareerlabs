@@ -74,7 +74,7 @@ export function SidebarContainer({
           </div>
           
           {/* MOBILE PLAYLIST (Visible only on mobile, below content) */}
-          <div className="md:hidden border-t border-border mt-6  pb-12">
+          <div className="md:hidden border-t border-border mt-4  pb-12">
            
             <CourseSidebar course={course} />
           </div>
