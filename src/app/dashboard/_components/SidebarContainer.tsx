@@ -63,7 +63,7 @@ export function SidebarContainer({
       {/* MAIN CONTENT AREA */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
         {/* DESKTOP SIDEBAR */}
-        <div className="hidden md:block w-80  border-r border-border shrink-0 bg-background/50 backdrop-blur-sm overflow-y-auto">
+       <div className="hidden md:block w-80 border-r border-border shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
           <CourseSidebar course={course} />
         </div>
 

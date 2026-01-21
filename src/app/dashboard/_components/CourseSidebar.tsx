@@ -77,13 +77,13 @@ export function CourseSidebar({ course }: iAppProps) {
               <DialogHeader>
                 <DialogTitle>Select Chapter</DialogTitle>
               </DialogHeader>
-              <div className="grid gap-2 mt-4 max-h-[60vh] overflow-y-auto pr-2">
+              <div className="grid gap-2 mt-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar" data-lenis-prevent >
                 {course.chapter.map((chapter) => {
                   const chapterProgress = getChapterProgress(chapter);
                   return (
                     <Button
                       key={chapter.id}
-                      variant={openChapter === chapter.id ? "secondary" : "ghost"}
+                      variant={openChapter === chapter.id ? "secondary" : "outline"}
                       className="w-full justify-between h-auto p-3 text-left border border-transparent hover:border-border transition-all"
                       onClick={() => {
                         setOpenChapter(chapter.id);
@@ -134,7 +134,8 @@ export function CourseSidebar({ course }: iAppProps) {
       </div>
 
       {/* DESKTOP ONLY: COLLAPSIBLE CHAPTER LIST */}
-      <div className="hidden md:block pt-4 pr-4 space-y-3 flex-1 overflow-y-auto min-h-0">
+<div className="hidden md:block pt-4 pr-4 space-y-3 flex-1 overflow-y-auto min-h-0  no-scrollbar" data-lenis-prevent
+>
         {course.chapter.map((chapter) => {
           const isOpen = openChapter === chapter.id;
           const chapterProgress = getChapterProgress(chapter);

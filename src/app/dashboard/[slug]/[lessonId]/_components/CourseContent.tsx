@@ -269,6 +269,7 @@ function VideoPlayer({
         ref={videoRef}
         className="w-full h-full object-contain accent-primary"
         controls
+        preload="none" 
         playsInline
         poster={thumbnailUrl}
         controlsList="nodownload"
