@@ -116,7 +116,7 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
 
           // 4. Upload Segments (Parallel with Concurrency Control)
           let uploadedSegments = 0;
-          const CONCURRENCY_LIMIT = 20;
+          const CONCURRENCY_LIMIT = 30;
           
           for (let i = 0; i < segments.length; i += CONCURRENCY_LIMIT) {
             const batch = segments.slice(i, i + CONCURRENCY_LIMIT);

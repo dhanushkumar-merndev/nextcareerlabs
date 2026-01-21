@@ -42,6 +42,7 @@ export function RenderErrorState() {
   );
 }
 
+
 export function RenderUploadedState({
   previewUrl,
   isDeleting,
@@ -56,29 +57,67 @@ export function RenderUploadedState({
   hlsUrl?: string;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
+  /* ---------- INIT HLS PREVIEW ---------- */
   useEffect(() => {
-    if (fileType === "video" && hlsUrl && videoRef.current) {
-      const video = videoRef.current;
+    if (fileType !== "video" || !videoRef.current) return;
+
+    const video = videoRef.current;
+
+    // Cleanup previous instance
+    hlsRef.current?.destroy();
+    hlsRef.current = null;
+
+    if (hlsUrl) {
+      // Safari (native HLS)
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = hlsUrl;
+        video.currentTime = 0;
+        return;
+      }
+
+      // Chrome / Firefox / Edge
       if (Hls.isSupported()) {
-        const hls = new Hls();
+        const hls = new Hls({ startPosition: 0 });
+        hlsRef.current = hls;
+
         hls.loadSource(hlsUrl);
         hls.attachMedia(video);
-        return () => hls.destroy();
-      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-        video.src = hlsUrl;
+
+        hls.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            hls.destroy();
+            hlsRef.current = null;
+            video.src = previewUrl; // fallback to MP4 preview
+          }
+        });
       }
+    } else {
+      // No HLS → normal preview
+      video.src = previewUrl;
     }
-  }, [hlsUrl, fileType]);
+
+    return () => {
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+    };
+  }, [hlsUrl, fileType, previewUrl]);
 
   return (
     <div className="relative group w-full h-full flex items-center justify-center">
       {fileType === "video" ? (
         <video
           ref={videoRef}
-          src={!hlsUrl ? previewUrl : undefined}
           controls
-          className="rounded-md w-full h-full"
+          playsInline
+          className={`
+            w-full h-full rounded-md object-contain
+            accent-primary`}
+          
+          controlsList="nodownload"
+          onContextMenu={(e) => e.preventDefault()}
+          crossOrigin="anonymous"
         />
       ) : (
         <div className="relative w-full h-full">
@@ -93,10 +132,12 @@ export function RenderUploadedState({
           />
         </div>
       )}
+
+      {/* Delete Button */}
       <Button
-        variant={"destructive"}
+        variant="destructive"
         size="icon"
-        className={cn("absolute top-4 right-4 cursor-pointer")}
+        className="absolute top-4 right-4"
         onClick={handleRemoveFile}
         disabled={isDeleting}
       >

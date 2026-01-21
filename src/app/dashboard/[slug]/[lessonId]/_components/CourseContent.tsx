@@ -20,14 +20,12 @@ import {
 } from "@/components/ui/drawer";
 import { IconFileText } from "@tabler/icons-react";
 import Hls from "hls.js";
+import { env } from "@/lib/env";
 
 interface iAppProps {
   data: LessonContentType;
 }
 
-// ==============================
-// VIDEO PLAYER COMPONENT
-// ==============================
 
 function VideoPlayer({
   thumbnailkey,
@@ -36,51 +34,64 @@ function VideoPlayer({
   thumbnailkey: string;
   videoKey: string;
 }) {
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [hlsUrl, setHlsUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const thumbnailUrl = useConstructUrl(thumbnailkey);
   const hlsRef = useRef<Hls | null>(null);
 
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [hlsUrl, setHlsUrl] = useState<string | null>(null);
+  const [levels, setLevels] = useState<number[]>([]);
+  const [currentLevel, setCurrentLevel] = useState<number>(-1); // Auto
+
+  const thumbnailUrl = useConstructUrl(thumbnailkey);
+
+  /* ---------------- HLS URL (NO HEAD CHECK) ---------------- */
   useEffect(() => {
     if (!videoKey) return;
 
+    // ✅ MUST match browser FFmpeg output
     const hlsKey = `hls/${videoKey.replace(/\.[^/.]+$/, "")}/master.m3u8`;
+    const hlsFullUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${hlsKey}`;
 
-    getSignedVideoUrl(hlsKey).then((url) => {
-      if (url) {
-        setHlsUrl(url);
-      } else {
-        getSignedVideoUrl(videoKey).then(setVideoUrl);
-      }
-    });
+    // Just try HLS directly (no CORS issues)
+    setHlsUrl(hlsFullUrl);
   }, [videoKey]);
 
+  /* ---------------- INIT PLAYER ---------------- */
   useEffect(() => {
     if (!hlsUrl || !videoRef.current) return;
 
     const video = videoRef.current;
 
-    // Safari native HLS
+    // Safari (native HLS)
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = hlsUrl;
+      video.currentTime = 0;
       return;
     }
 
+    // Chrome / Firefox / Edge
     if (Hls.isSupported()) {
       hlsRef.current?.destroy();
 
-      const hls = new Hls();
+      const hls = new Hls({ startPosition: 0 });
       hlsRef.current = hls;
 
+      video.currentTime = 0;
       hls.loadSource(hlsUrl);
       hls.attachMedia(video);
 
+      // Quality levels (if present)
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setLevels(hls.levels.map((_, i) => i));
+      });
+
+      // Fallback to MP4 on fatal error
       hls.on(Hls.Events.ERROR, (_, data) => {
         if (data.fatal) {
           hls.destroy();
           hlsRef.current = null;
           setHlsUrl(null);
+          getSignedVideoUrl(videoKey).then(setVideoUrl);
         }
       });
 
@@ -89,13 +100,20 @@ function VideoPlayer({
         hlsRef.current = null;
       };
     }
-  }, [hlsUrl]);
+  }, [hlsUrl, videoKey]);
 
-  // No video case
+  /* ---------------- QUALITY SWITCH ---------------- */
+  const changeQuality = (level: number) => {
+    if (!hlsRef.current) return;
+    hlsRef.current.currentLevel = level;
+    setCurrentLevel(level);
+  };
+
+  /* ---------------- UI STATES ---------------- */
   if (!videoKey) {
     return (
       <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border">
-        <BookIcon className="size-16 text-primary mx-auto mb-4" />
+        <BookIcon className="size-16 text-primary mb-4" />
         <p className="text-muted-foreground">
           This lesson does not have a video yet
         </p>
@@ -103,31 +121,51 @@ function VideoPlayer({
     );
   }
 
-  // Loading signed URL
   if (!videoUrl && !hlsUrl) {
     return (
       <div className="aspect-video bg-muted rounded-lg border animate-pulse" />
     );
   }
 
-  // With video (STREAMING)
+  /* ---------------- PLAYER ---------------- */
   return (
-    <div className="aspect-video bg-muted rounded-lg border overflow-hidden">
+    <div className="relative aspect-video bg-muted rounded-lg border overflow-hidden">
+      {/* Quality selector (only if multiple levels exist) */}
+      {levels.length > 0 && (
+        <select
+          value={currentLevel}
+          onChange={(e) => changeQuality(Number(e.target.value))}
+          className="
+            absolute top-2 right-2 z-10
+            bg-primary text-primary-foreground
+            text-sm font-medium
+            rounded-md px-3 py-1
+            shadow-md
+            hover:bg-primary/90
+            focus:outline-none focus:ring-2 focus:ring-primary/50
+          "
+        >
+          <option value={-1}>Auto</option>
+          {levels.map((l) => (
+            <option key={l} value={l}>
+              {hlsRef.current?.levels[l]?.height}p
+            </option>
+          ))}
+        </select>
+      )}
+
       <video
         ref={videoRef}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain accent-primary"
         controls
-        preload="metadata"
         playsInline
+        poster={thumbnailUrl}
         controlsList="nodownload"
         onContextMenu={(e) => e.preventDefault()}
-        poster={thumbnailUrl}
         crossOrigin="anonymous"
       >
-        {hlsUrl ? (
-          <source src={hlsUrl} type="application/x-mpegURL" />
-        ) : (
-          videoUrl && <source src={videoUrl} type="video/mp4" />
+        {!hlsUrl && videoUrl && (
+          <source src={videoUrl} type="video/mp4" />
         )}
         Your browser does not support HTML5 video.
       </video>
@@ -160,7 +198,7 @@ export function CourseContent({ data }: iAppProps) {
       }
 
       if (result.status === "success") {
-        toast.success(result.message);
+     
       } else {
         setOptimisticCompleted(false);
         toast.error(result.message);
@@ -272,9 +310,9 @@ export function CourseContent({ data }: iAppProps) {
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-6 transition-all duration-300 scrollbar-thin scrollbar-thumb-primary/20">
-            <div className="pb-32">
+      
               <RenderDescription json={JSON.parse(data.description)} />
-            </div>
+           
           </div>
 
         </div>
