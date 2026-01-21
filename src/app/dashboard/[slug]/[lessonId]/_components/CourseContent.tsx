@@ -227,7 +227,7 @@ export function CourseContent({ data }: iAppProps) {
         </div>
 
         {/* LESSON TITLE */}
-        <div className="hidden md:block order-3 md:order-2 pt-6 md:pb-4">
+        <div className="hidden md:block order-3 md:order-2 pt-6 md:pt-3 md:pb-4">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
             {data.title}
           </h1>
