@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { ChapterExpansion } from "./_components/ChapterExpansion";
+import { formatIST } from "@/lib/utils";
 
 interface PageProps {
     params: Promise<{
@@ -127,17 +128,17 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                                                             {progress && (
                                                                 <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-6">
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-[9px] font-black text-primary uppercase tracking-widest">Completed</span>
-                                                                        <span className="text-[9px] font-black text-foreground uppercase tracking-widest leading-none">{formatTime(progress.lastWatched)}</span>
+                                                                        <span className="text-[10px] font-black text-primary uppercase tracking-widest">Progress</span>
+                                                                        <span className="text-[10px] font-black text-foreground uppercase tracking-widest leading-none">{formatTime(progress.lastWatched)}</span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-[9px] font-black text-primary uppercase tracking-widest">Actual Time Spent</span>
                                                                         <span className="text-[9px] font-black text-foreground uppercase tracking-widest leading-none">{formatTime(progress.actualWatchTime || 0)}</span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-[9px] font-black text-primary uppercase tracking-widest">Last Watched</span>
-                                                                        <span className="text-[9px] font-black text-foreground uppercase tracking-widest leading-none">
-                                                                            {format(new Date(progress.updatedAt), "MMM d, yyyy hh:mm a")}
+                                                                        <span className="text-[10px] font-black text-primary uppercase tracking-widest">Last Watched</span>
+                                                                        <span className="text-[10px] font-black text-foreground uppercase tracking-widest leading-none">
+                                                                            {formatIST(progress.updatedAt)}
                                                                         </span>
                                                                     </div>
                                                                 </div>

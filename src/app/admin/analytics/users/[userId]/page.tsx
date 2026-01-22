@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { BookOpen, Calendar, CheckCircle2, Clock, Mail, PlayCircle, User } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { formatIST } from "@/lib/utils";
 
 interface PageProps {
     params: Promise<{ userId: string }>;
@@ -69,7 +70,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                                     <Calendar className="size-3.5" />
-                                    Joined {new Date(user.createdAt).toLocaleDateString()}
+                                    Joined {formatIST(user.createdAt)}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                                     <Clock className="size-3.5" />

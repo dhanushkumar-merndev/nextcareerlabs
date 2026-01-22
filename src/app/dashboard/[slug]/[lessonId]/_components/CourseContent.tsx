@@ -40,10 +40,10 @@ function VideoPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   
-  // Track which seconds have been watched (Set of integers)
-  const watchedSecondsRef = useRef<Set<number>>(new Set());
+  // Track video coverage delta
+  const lastPositionRef = useRef<number>(initialTime);
+  const unsyncedDeltaRef = useRef<number>(0);
   const hasSyncedOnMountRef = useRef<boolean>(false);
-  const saveIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
@@ -53,7 +53,7 @@ function VideoPlayer({
   const thumbnailUrl = useConstructUrl(thumbnailkey);
 
   /* ============================================================
-     COOKIE HELPERS
+     STORAGE HELPERS (Cookie + LocalStorage)
   ============================================================ */
   const setCookie = (name: string, value: string, days = 7) => {
     const expires = new Date(Date.now() + days * 864e5).toUTCString();
@@ -68,44 +68,33 @@ function VideoPlayer({
   };
 
   const deleteCookie = (name: string) => {
-    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
+    document.cookie = `${name}=; expires=Sun, 01 Jan 2023 00:00:00 UTC; path=/; SameSite=Lax`;
   };
 
-  /* ============================================================
-     SAVE WATCHED SECONDS (Cookie + localStorage backup)
-  ============================================================ */
-  const saveWatchedSeconds = () => {
-    if (watchedSecondsRef.current.size === 0) return;
+  const saveUnsyncedDelta = () => {
+    const val = unsyncedDeltaRef.current;
+    if (val === 0) return;
     
-    // Convert Set to sorted array for compact storage
-    const watched = Array.from(watchedSecondsRef.current).sort((a, b) => a - b);
-    const data = JSON.stringify(watched);
-    
-    // ✅ Save to BOTH cookie and localStorage
-    setCookie(`watched-${lessonId}`, data);
-    localStorage.setItem(`watched-${lessonId}`, data);
+    const data = val.toString();
+    localStorage.setItem(`unsynced-delta-${lessonId}`, data);
+    setCookie(`unsynced-delta-${lessonId}`, data);
   };
 
-  /* ============================================================
-     LOAD WATCHED SECONDS (Try localStorage first, then cookie)
-  ============================================================ */
-  const loadWatchedSeconds = (): Set<number> => {
-    // Try localStorage first (more persistent)
-    let data = localStorage.getItem(`watched-${lessonId}`);
+  const loadUnsyncedDelta = (): number => {
+    // Check localStorage first, then cookie
+    const localData = localStorage.getItem(`unsynced-delta-${lessonId}`);
+    if (localData) return parseFloat(localData);
     
-    // Fallback to cookie if localStorage is empty
-    if (!data) {
-      data = getCookie(`watched-${lessonId}`);
-    }
+    const cookieData = getCookie(`unsynced-delta-${lessonId}`);
+    if (cookieData) return parseFloat(cookieData);
     
-    if (!data) return new Set();
-    
-    try {
-      const watched = JSON.parse(data);
-      return new Set(watched);
-    } catch {
-      return new Set();
-    }
+    return 0;
+  };
+
+  const clearLocalDelta = () => {
+    unsyncedDeltaRef.current = 0;
+    localStorage.removeItem(`unsynced-delta-${lessonId}`);
+    deleteCookie(`unsynced-delta-${lessonId}`);
   };
 
   /* ============================================================
@@ -113,17 +102,17 @@ function VideoPlayer({
   ============================================================ */
   const syncToDB = async () => {
     const currentPosition = videoRef.current?.currentTime || 0;
-    const uniqueSecondsWatched = watchedSecondsRef.current.size;
+    const deltaToSync = Math.round(unsyncedDeltaRef.current);
 
-    if (uniqueSecondsWatched === 0) return;
+    if (deltaToSync === 0) return;
 
-    // ✅ Send unique seconds count to DB
-    await updateVideoProgress(lessonId, currentPosition, uniqueSecondsWatched);
+    // ✅ Send consumed video duration to DB
+    const response = await updateVideoProgress(lessonId, currentPosition, deltaToSync);
 
-    // ✅ Clear all local state after successful sync
-    watchedSecondsRef.current.clear();
-    deleteCookie(`watched-${lessonId}`);
-    localStorage.removeItem(`watched-${lessonId}`);
+    if (response.status === "success") {
+      // ✅ Clear local state only after successful sync
+      clearLocalDelta();
+    }
   };
 
   /* ============================================================
@@ -133,52 +122,60 @@ function VideoPlayer({
     if (hasSyncedOnMountRef.current) return;
     hasSyncedOnMountRef.current = true;
 
-    // Load watched seconds from localStorage/cookie (from previous session)
-    const previousWatched = loadWatchedSeconds();
+    // Load unsynced delta and last saved position from previous session
+    const previousDelta = loadUnsyncedDelta();
+    const savedTime = localStorage.getItem(`video-progress-${lessonId}`);
+    const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
     
-    if (previousWatched.size > 0) {
-      // ✅ Sync previous session to DB
-      updateVideoProgress(lessonId, initialTime, previousWatched.size);
-      
-      // ✅ Clear both storages
-      deleteCookie(`watched-${lessonId}`);
-      localStorage.removeItem(`watched-${lessonId}`);
+    // ✅ Flush any unsynced data to DB on mount
+    if (previousDelta > 0 || (savedTime && parseFloat(savedTime) > initialTime)) {
+      updateVideoProgress(lessonId, positionToSync, Math.round(previousDelta)).then((res) => {
+        if (res.status === "success") {
+          clearLocalDelta();
+        }
+      });
     }
-    
-    // Start fresh session with empty set
-    watchedSecondsRef.current = new Set();
   }, [lessonId, initialTime]);
 
   /* ============================================================
      TRACK WATCHED SECONDS (Every second during playback)
   ============================================================ */
-  const trackWatchedSecond = () => {
+  const trackCoverage = () => {
     const video = videoRef.current;
     if (!video || video.paused || video.ended) return;
 
-    const currentSecond = Math.floor(video.currentTime);
+    // 🔴 Multi-tab safety: Only track if the page is active
+    if (document.visibilityState !== "visible") return;
+
+    const currentPos = video.currentTime;
+    const delta = currentPos - lastPositionRef.current;
+
+    // Only track positive progress and ignore large jumps (seeks)
+    if (delta > 0 && delta < 2) {
+      unsyncedDeltaRef.current += delta;
+      
+      // Heartbeat save to storage (LocalStorage)
+      if (Math.round(unsyncedDeltaRef.current) % 5 === 0) {
+        saveUnsyncedDelta();
+      }
+    }
     
-    // ✅ Add current second to the set (automatically handles duplicates)
-    watchedSecondsRef.current.add(currentSecond);
+    lastPositionRef.current = currentPos;
   };
 
   /* ============================================================
-     START/STOP AUTO-SAVE INTERVAL (Every 5 seconds)
+     PERSISTENCE HEARTBEAT (Every 5 seconds for Cookie)
   ============================================================ */
-  const startAutoSave = () => {
-    if (saveIntervalRef.current) return;
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const video = videoRef.current;
+      if (video && !video.paused && !video.ended && document.visibilityState === "visible") {
+        saveUnsyncedDelta(); // Update cookie backup
+      }
+    }, 5000);
 
-    saveIntervalRef.current = setInterval(() => {
-      saveWatchedSeconds(); // Saves to both cookie and localStorage
-    }, 5000); // Save every 5 seconds
-  };
-
-  const stopAutoSave = () => {
-    if (saveIntervalRef.current) {
-      clearInterval(saveIntervalRef.current);
-      saveIntervalRef.current = null;
-    }
-  };
+    return () => clearInterval(interval);
+  }, [lessonId]);
 
   /* ============================================================
      HLS URL SETUP
@@ -246,7 +243,6 @@ function VideoPlayer({
   ============================================================ */
   useEffect(() => {
     return () => {
-      stopAutoSave();
       syncToDB();
     };
   }, [lessonId]);
@@ -256,7 +252,7 @@ function VideoPlayer({
   ============================================================ */
   useEffect(() => {
     const handleBeforeUnload = () => {
-      saveWatchedSeconds(); // Saves to both cookie and localStorage
+      saveUnsyncedDelta();
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -286,8 +282,8 @@ function VideoPlayer({
 
     const currentTime = videoRef.current.currentTime;
     
-    // ✅ Track watched second
-    trackWatchedSecond();
+    // ✅ Track coverage
+    trackCoverage();
 
     // Save position for resume (every 5 seconds)
     const lastSavedTime = parseFloat(
@@ -303,19 +299,20 @@ function VideoPlayer({
      VIDEO EVENT HANDLERS
   ============================================================ */
   const onPlay = () => {
-    startAutoSave();
+    // Sync initial position
+    if (videoRef.current) {
+      lastPositionRef.current = videoRef.current.currentTime;
+    }
   };
 
   const onPause = () => {
-    stopAutoSave();
-    saveWatchedSeconds(); // Immediate save to both storages
-    syncToDB(); // Sync to DB
+    saveUnsyncedDelta();
+    // ❌ Removed syncToDB() here to reduce server calls
   };
 
   const onEnded = () => {
-    stopAutoSave();
-    saveWatchedSeconds(); // Immediate save to both storages
-    syncToDB();
+    saveUnsyncedDelta();
+    syncToDB(); // Keep sync on end just in case, or remove if user strictly wants refresh/exit only
   };
 
   const onWaiting = () => {

@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { cn, formatIST } from "@/lib/utils";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
@@ -433,7 +433,7 @@ export function UserList({
                       <span>Joined</span>
                     </div>
                     <span className="font-bold text-foreground text-right tracking-tight truncate ml-4">
-                      {new Date(user.createdAt).toLocaleDateString()}
+                      {formatIST(user.createdAt)}
                     </span>
                   </div>
                 </div>
