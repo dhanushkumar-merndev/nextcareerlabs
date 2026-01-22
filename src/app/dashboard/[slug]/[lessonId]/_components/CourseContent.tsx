@@ -66,21 +66,49 @@ function VideoPlayer({
   };
 
   /* ---------------- TIMER LOGIC ---------------- */
-  const startTimer = () => {
-    if (timerRef.current) return;
-    timerRef.current = setInterval(() => {
-      if (!videoRef.current || videoRef.current.paused || videoRef.current.ended) {
-        stopTimer();
-        return;
-      }
-      actualTimeRef.current += 1;
-      
-      // Update cookie every 5 seconds
-      if (Math.floor(actualTimeRef.current) % 5 === 0) {
-        setCookie(`actual-watch-${lessonId}`, actualTimeRef.current.toString());
-      }
-    }, 1000);
-  };
+    const startTimer = () => {
+      if (timerRef.current) return;
+
+      timerRef.current = setInterval(() => {
+        const video = videoRef.current;
+        if (!video || video.paused || video.ended) {
+          stopTimer();
+          return;
+        }
+
+        // ✅ include playback speed
+        const speed = video.playbackRate || 1;
+
+        // Count actual watch time (seek-friendly)
+        actualTimeRef.current += speed;
+
+        // Save to cookie every 5 seconds
+        if (Math.floor(actualTimeRef.current) % 5 === 0) {
+          setCookie(
+            `actual-watch-${lessonId}`,
+            actualTimeRef.current.toString()
+          );
+        }
+      }, 1000);
+    };
+
+const syncActualToDB = () => {
+  const delta = Math.max(0, actualTimeRef.current);
+
+
+  if (delta > 0 && videoRef.current) {
+    updateVideoProgress(
+      lessonId,
+      videoRef.current.currentTime,
+      delta
+    );
+
+    // ✅ reset after sync
+    actualTimeRef.current = 0;
+    setCookie(`actual-watch-${lessonId}`, "0");
+  }
+};
+
 
   const stopTimer = () => {
     if (timerRef.current) {
@@ -152,10 +180,9 @@ function VideoPlayer({
         hls.destroy();
         hlsRef.current = null;
         stopTimer();
+         syncActualToDB();
         // Final sync on unmount
-        if (videoRef.current) {
-           updateVideoProgress(lessonId, videoRef.current.currentTime, actualTimeRef.current);
-        }
+  
       };
     }
   }, [hlsUrl, videoKey]);
@@ -175,9 +202,8 @@ function VideoPlayer({
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       // Also sync to DB on unmount
-      if (videoRef.current) {
-         updateVideoProgress(lessonId, videoRef.current.currentTime, actualTimeRef.current);
-      }
+        syncActualToDB();
+
     };
   }, [lessonId]);
 
@@ -297,7 +323,8 @@ export function CourseContent({ data }: iAppProps) {
   const { triggerConfetti } = useConfetti2();
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
-
+  const mergedRef = useRef(false);
+  
   // Sync LocalStorage & Cookies to DB on mount (e.g. on page refresh)
   useEffect(() => {
     const getCookie = (name: string) => {
@@ -324,11 +351,15 @@ export function CourseContent({ data }: iAppProps) {
             shouldSync = true;
         }
     }
+   if (!mergedRef.current && cookieActual > 0) {
+  syncActual = cookieActual; // ✅ delta only
+  shouldSync = true;
+  mergedRef.current = true;
 
-    if (cookieActual > dbActual) {
-        syncActual = cookieActual;
-        shouldSync = true;
-    }
+  document.cookie = `actual-watch-${data.id}=0; path=/; SameSite=Lax`;
+}
+
+
 
     if (shouldSync) {
         updateVideoProgress(data.id, syncLastWatched, syncActual);
