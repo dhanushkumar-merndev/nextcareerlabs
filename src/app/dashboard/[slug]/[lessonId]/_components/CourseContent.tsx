@@ -267,7 +267,8 @@ function VideoPlayer({
 
       <video
         ref={videoRef}
-        className="w-full h-full object-contain accent-primary"
+        data-lenis-prevent
+        className="w-full h-full object-contain accent-primary "
         controls
         preload="none" 
         playsInline

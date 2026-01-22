@@ -20,22 +20,44 @@ export async function updateLesson(
       };
     }
 
-    await prisma.lesson.update({
-      where: {
-        id: lessonId,
-      },
-      data: {
-        title: result.data.name,
-        description: result.data.description,
-        thumbnailKey: result.data.thumbnailKey,
-        videoKey: result.data.videoKey,
-      },
+    const existingLesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { videoKey: true },
     });
+
+    const isVideoChanged = existingLesson?.videoKey !== result.data.videoKey;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.lesson.update({
+        where: {
+          id: lessonId,
+        },
+        data: {
+          title: result.data.name,
+          description: result.data.description,
+          thumbnailKey: result.data.thumbnailKey,
+          videoKey: result.data.videoKey,
+        },
+      });
+
+      if (isVideoChanged) {
+        // Reset progress for all users if the video has changed
+        await tx.lessonProgress.deleteMany({
+          where: {
+            lessonId: lessonId,
+          },
+        });
+      }
+    });
+
     return {
       status: "success",
-      message: "lesson updated successfully",
+      message: isVideoChanged
+        ? "Lesson updated and progress reset due to video change"
+        : "lesson updated successfully",
     };
-  } catch {
+  } catch (err) {
+    console.error("Update lesson error:", err);
     return {
       status: "error",
       message: "failed to update lesson",
