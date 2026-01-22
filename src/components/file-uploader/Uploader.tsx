@@ -15,6 +15,22 @@ import { useConstructUrl } from "@/hooks/use-construct-url";
 import { Loader2 } from "lucide-react";
 import { transcodeToHLS } from "@/lib/client-video-processor";
 
+const getVideoDuration = (file: File): Promise<number> => {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(video.src);
+      resolve(video.duration);
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(video.src);
+      reject(new Error("Failed to load video metadata"));
+    };
+    video.src = URL.createObjectURL(file);
+  });
+};
+
 interface iAppProps {
   value?: string | null;
   onChange: (value: string | null) => void;
@@ -60,15 +76,17 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
 
       try {
         if (fileTypeAccepted === "video") {
-          // 1. Transcode locally on client
+          // 1. Get Duration and Transcode
           setFileState((s) => ({
             ...s,
             transcoding: true,
             transcodingProgress: 0,
           }));
+          
+          const duration = await getVideoDuration(file);
           const { m3u8, segments } = await transcodeToHLS(file, (p) => {
             setFileState((s) => ({ ...s, transcodingProgress: p }));
-          });
+          }, duration);
           setFileState((s) => ({ ...s, transcoding: false }));
 
           // 2. Prepare for upload
@@ -114,33 +132,39 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
           });
           if (!masterRes.ok) throw new Error("Failed to upload master playlist");
 
-          // 4. Upload Segments (Parallel with Concurrency Control)
+          // 4. Upload Segments (Concurrent Worker Pool)
           let uploadedSegments = 0;
-          const CONCURRENCY_LIMIT = 30;
+          const CONCURRENCY_LIMIT = 15; // Stable limit for browser
+          let nextSegmentIndex = 0;
+
+          const uploadWorker = async () => {
+            while (nextSegmentIndex < segments.length) {
+              const globalIndex = nextSegmentIndex++;
+              const segment = segments[globalIndex];
+              const { presignedUrl } = presignedUrls[globalIndex + 1]; // +1 because master was at 0
+              
+              const res = await fetch(presignedUrl, {
+                method: "PUT",
+                body: segment.blob,
+                headers: { "Content-Type": "video/MP2T" },
+              });
+              
+              if (!res.ok) throw new Error(`Failed to upload segment ${globalIndex}`);
+              
+              uploadedSegments++;
+              setFileState((s) => ({
+                ...s,
+                progress: Math.round((uploadedSegments / segments.length) * 100),
+              }));
+            }
+          };
+
+          // Start workers
+          const workers = Array(Math.min(CONCURRENCY_LIMIT, segments.length))
+            .fill(null)
+            .map(() => uploadWorker());
           
-          for (let i = 0; i < segments.length; i += CONCURRENCY_LIMIT) {
-            const batch = segments.slice(i, i + CONCURRENCY_LIMIT);
-            await Promise.all(
-              batch.map(async (segment, indexInBatch) => {
-                const globalIndex = i + indexInBatch;
-                const { presignedUrl } = presignedUrls[globalIndex + 1]; // +1 because master was at 0
-                
-                const res = await fetch(presignedUrl, {
-                  method: "PUT",
-                  body: segment.blob,
-                  headers: { "Content-Type": "video/MP2T" },
-                });
-                
-                if (!res.ok) throw new Error("Failed to upload segment");
-                
-                uploadedSegments++;
-                setFileState((s) => ({
-                  ...s,
-                  progress: Math.round((uploadedSegments / segments.length) * 100),
-                }));
-              })
-            );
-          }
+          await Promise.all(workers);
 
           const finalKey = `${baseKey}.${file.name.split(".").pop()}`;
           setFileState((prevState) => ({

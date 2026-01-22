@@ -23,7 +23,8 @@ function loadScript(url: string): Promise<void> {
 
 export async function transcodeToHLS(
   file: File,
-  onProgress: (progress: number) => void
+  onProgress: (progress: number) => void,
+  duration: number
 ): Promise<TranscodeResult> {
   // 1. Ensure scripts are loaded in order
   await loadScript("/ffmpeg/ffmpeg.js");
@@ -34,7 +35,7 @@ export async function transcodeToHLS(
     throw new Error("Transcoder script not initialized properly");
   }
 
-  return window.transcodeVideoToHLS(file, onProgress);
+  return window.transcodeVideoToHLS(file, onProgress, duration);
 }
 
 // Keep this to satisfy types, but it's now handled by processor.js
@@ -47,7 +48,8 @@ declare global {
   interface Window {
     transcodeVideoToHLS: (
       file: File,
-      onProgress: (progress: number) => void
+      onProgress: (progress: number) => void,
+      duration: number
     ) => Promise<TranscodeResult>;
     FFmpegWASM: any;
     FFmpegUtil: any;

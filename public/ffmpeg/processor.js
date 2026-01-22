@@ -16,7 +16,7 @@
     return ffmpeg;
   }
 
-  window.transcodeVideoToHLS = async function (file, onProgress) {
+  window.transcodeVideoToHLS = async function (file, onProgress, duration) {
     const ffmpeg = await loadFFmpeg();
 
     const inputName = "input.mp4";
@@ -32,11 +32,16 @@
       new Uint8Array(await file.arrayBuffer())
     );
 
+    // Calculate dynamic segment duration to target ~60 segments
+    // Min 10s, Max 300s (5 mins)
+    const hlsTime = Math.min(300, Math.max(10, Math.ceil(duration / 60)));
+    console.log(`Transcoding with hls_time: ${hlsTime} for duration: ${duration}`);
+
     // ✅ FASTEST POSSIBLE browser HLS
     await ffmpeg.exec([
       "-i", inputName,
       "-c", "copy",
-      "-hls_time", "6",
+      "-hls_time", hlsTime.toString(),
       "-hls_playlist_type", "vod",
       "-hls_segment_filename", "segment%03d.ts",
       outputName
