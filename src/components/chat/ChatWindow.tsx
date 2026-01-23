@@ -76,12 +76,29 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         isLoading: loading,
         refetch,
     } = useInfiniteQuery({
-        queryKey: ["messages", threadId],
-        queryFn: ({ pageParam }) => getThreadMessagesAction(threadId, pageParam as string | undefined),
+        queryKey: ["messages", threadId, currentUserId],
+        queryFn: async ({ pageParam }) => {
+            const result = await getThreadMessagesAction(threadId, pageParam as string | undefined);
+            // Only cache the first page (latest messages)
+            if (!pageParam && result) {
+                chatCache.set(`messages_${threadId}`, result, currentUserId);
+            }
+            return result;
+        },
         initialPageParam: undefined as string | undefined,
+        initialData: () => {
+            const cached = chatCache.get<any>(`messages_${threadId}`, currentUserId);
+            if (cached) {
+                return {
+                    pages: [cached.data],
+                    pageParams: [undefined]
+                };
+            }
+            return undefined;
+        },
         getNextPageParam: (lastPage: any) => lastPage.nextCursor,
-        staleTime: 1800000,
-        gcTime: 1800000,
+        staleTime: 1800000, // 30 mins
+        gcTime: 21600000, // 6 hours
     });
 
     const messages = useMemo(() => data?.pages.flatMap((page: any) => page.messages) || [], [data?.pages]);
@@ -287,8 +304,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
             }
 
-            chatCache.clear(`messages_${threadId}`);
-            chatCache.clear("threads");
+            chatCache.invalidate(`messages_${threadId}`, currentUserId);
+            chatCache.invalidate("sidebarData", currentUserId);
         } catch (error) {
            
             toast.error("Failed to send message");
@@ -545,7 +562,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
         try {
             await editMessageAction(editingMessageId, editContent, editImageUrl);
-            queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
             setIsEditOpen(false);
             setEditingMessageId(null);
             setEditImageUrl("");
@@ -557,7 +574,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
     const handleDelete = async (id: string) => {
         // Optimistic delete
-        queryClient.setQueryData(["messages", threadId], (old: any) => {
+        queryClient.setQueryData(["messages", threadId, currentUserId], (old: any) => {
             if (!old || !old.pages) return old;
             return {
                 ...old,
@@ -570,10 +587,10 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
         try {
             await deleteMessageAction(id);
-            chatCache.clear(`messages_${threadId}`);
-            chatCache.clear("threads");
+            chatCache.invalidate(`messages_${threadId}`, currentUserId);
+            chatCache.invalidate("sidebarData", currentUserId);
         } catch (e) {
-            queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
             toast.error("Failed to delete");
         }
     };
@@ -611,7 +628,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         setIsBusy(true);
 
         // OPTIMISTIC UPDATE MESSAGES
-        queryClient.setQueryData(["messages", threadId], (old: any) => {
+        queryClient.setQueryData(["messages", threadId, currentUserId], (old: any) => {
             if (!old || !old.pages) return old;
             return {
                 ...old,
@@ -624,16 +641,13 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             };
         });
 
-        // We might want to check if this was the last unresolved ticket to update sidebar,
-        // but simpler to just invalidate seeds or assume it might resolve if it's a 1-on-1.
-
         try {
             await resolveTicketAction(id, status);
-            chatCache.clear(`messages_${threadId}`);
-            chatCache.clear("threads");
-            queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+            chatCache.invalidate(`messages_${threadId}`, currentUserId);
+            chatCache.invalidate("sidebarData", currentUserId);
+            queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
         } catch (e) {
-            queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
             toast.error("Failed to update ticket status");
         } finally {
             setIsBusy(false);
@@ -651,7 +665,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         setIsArchived(nextArchived);
 
         // 2. OPTIMISTIC UPDATE SIDEBAR CACHE
-        queryClient.setQueryData(["sidebarData"], (old: any) => {
+        queryClient.setQueryData(["sidebarData", currentUserId], (old: any) => {
             if (!old || !old.threads) return old;
             return {
                 ...old,
@@ -662,7 +676,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         });
 
         // 3. OPTIMISTIC UPDATE MESSAGES STATE
-        queryClient.setQueryData(["messages", threadId], (old: any) => {
+        queryClient.setQueryData(["messages", threadId, currentUserId], (old: any) => {
             if (!old || !old.pages) return old;
             const newPages = [...old.pages];
             if (newPages[0]) {
@@ -680,16 +694,15 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
         try {
             await archiveThreadAction(threadId);
-            chatCache.clear(`messages_${threadId}`);
-            chatCache.clear("threads");
+            chatCache.invalidate(`messages_${threadId}`, currentUserId);
+            chatCache.invalidate("sidebarData", currentUserId);
         } catch (e) {
             // REVERT ON FAILURE
             setIsArchived(!nextArchived);
-            queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
-            queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
+            queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
 
             toast.error("Failed to archive chat");
-        
         } finally {
             setIsBusy(false);
         }
@@ -708,8 +721,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             if (onRemoveThread) onRemoveThread(threadId);
 
             await deleteThreadMessagesAction(threadId); // Now deletes from DB!
-            chatCache.clear(`messages_${threadId}`);
-            chatCache.clear("threads");
+            chatCache.invalidate(`messages_${threadId}`, currentUserId);
+            chatCache.invalidate("sidebarData", currentUserId);
             toast.success("Chat deleted successfully");
         } catch (e: any) {
             toast.error(e.message || "Failed to remove");

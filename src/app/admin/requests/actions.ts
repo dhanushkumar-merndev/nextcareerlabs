@@ -6,6 +6,7 @@ import { ApiResponse } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { EnrollmentStatus } from "@/generated/prisma";
+import { invalidateCache, CHAT_CACHE_KEYS } from "@/lib/redis";
 
 export async function getRequestsAction(
   skip: number,
@@ -31,6 +32,14 @@ export async function updateEnrollmentStatusAction(
         grantedAt: status === "Granted" ? new Date() : undefined,
       },
     });
+
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { userId: true }
+    });
+    if (enrollment) {
+      await invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId));
+    }
 
     revalidatePath("/admin/requests");
     return {

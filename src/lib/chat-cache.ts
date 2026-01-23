@@ -1,95 +1,59 @@
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes
-const CACHE_PREFIX = "chat_cache_";
-const TIMER_KEY = "chat_last_fetch_time";
+"use client";
+
+const STORAGE_PREFIX = "chat_cache_";
+const DEFAULT_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
 interface CacheEntry<T> {
-    data: T;
-    timestamp: number;
+  data: T;
+  version?: string;
+  expiry: number;
 }
 
-class ChatCache {
-    private getLastFetchTime(): number {
-        try {
-            const stored = localStorage.getItem(TIMER_KEY);
-            return stored ? parseInt(stored, 10) : 0;
-        } catch {
-            return 0;
-        }
+export const chatCache = {
+  set: <T>(key: string, data: T, userId?: string, version?: string, ttl: number = DEFAULT_TTL) => {
+    if (typeof window === "undefined" || !key) return;
+    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    const entry: CacheEntry<T> = {
+      data,
+      version,
+      expiry: Date.now() + ttl,
+    };
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(entry));
+    } catch (e) {
+        console.error("[chatCache] Failed to set", e);
     }
+  },
 
-    private setLastFetchTime(time: number) {
-        try {
-            localStorage.setItem(TIMER_KEY, time.toString());
-        } catch {
-            // Ignore storage errors
-        }
+  get: <T>(key: string, userId?: string): { data: T; version?: string } | null => {
+    if (typeof window === "undefined" || !key) return null;
+    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    const item = localStorage.getItem(storageKey);
+    if (!item) return null;
+
+    try {
+      const entry: CacheEntry<T> = JSON.parse(item);
+      if (Date.now() > entry.expiry) {
+        localStorage.removeItem(storageKey);
+        return null;
+      }
+      return { data: entry.data, version: entry.version };
+    } catch (e) {
+      localStorage.removeItem(storageKey);
+      return null;
     }
+  },
 
-    // Check if we should fetch new data (returns true only if 10 minutes have passed)
-    shouldFetch(): boolean {
-        const lastFetch = this.getLastFetchTime();
-        const now = Date.now();
-        const timeSinceLastFetch = now - lastFetch;
+  invalidate: (key: string, userId?: string) => {
+    if (typeof window === "undefined") return;
+    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    localStorage.removeItem(storageKey);
+  },
 
-        return timeSinceLastFetch >= CACHE_DURATION || lastFetch === 0;
-    }
-
-    // Mark that a fetch has occurred
-    markFetched() {
-        this.setLastFetchTime(Date.now());
-    }
-
-    get<T>(key: string): T | null {
-        try {
-            const item = localStorage.getItem(CACHE_PREFIX + key);
-            if (!item) return null;
-
-            const entry: CacheEntry<T> = JSON.parse(item);
-            const now = Date.now();
-
-            if (now - entry.timestamp > CACHE_DURATION) {
-                this.clear(key);
-                return null;
-            }
-
-            return entry.data;
-        } catch {
-            return null;
-        }
-    }
-
-    set<T>(key: string, data: T) {
-        try {
-            const entry: CacheEntry<T> = {
-                data,
-                timestamp: Date.now(),
-            };
-            localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
-        } catch {
-            // Ignore storage errors
-        }
-    }
-
-    clear(key: string) {
-        try {
-            localStorage.removeItem(CACHE_PREFIX + key);
-        } catch {
-            // Ignore storage errors
-        }
-    }
-
-    clearAll() {
-        try {
-            Object.keys(localStorage).forEach((key) => {
-                if (key.startsWith(CACHE_PREFIX)) {
-                    localStorage.removeItem(key);
-                }
-            });
-            localStorage.removeItem(TIMER_KEY);
-        } catch {
-            // Ignore storage errors
-        }
-    }
-}
-
-export const chatCache = new ChatCache();
+  clear: () => {
+    if (typeof window === "undefined") return;
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(STORAGE_PREFIX))
+      .forEach((key) => localStorage.removeItem(key));
+  },
+};

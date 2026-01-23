@@ -20,9 +20,17 @@ interface ChatSidebarProps {
   removedIds?: string[];
   threads: any[];
   loading?: boolean;
+  currentUserId: string;
 }
 
-export function ChatSidebar({ selectedThreadId, onSelectThread,  removedIds = [], threads = [], loading = false }: ChatSidebarProps) {
+export function ChatSidebar({ 
+  selectedThreadId, 
+  onSelectThread,  
+  removedIds = [], 
+  threads = [], 
+  loading = false,
+  currentUserId
+}: ChatSidebarProps) {
   const [search, setSearch] = useState("");
   const [filter] = useState<"All" | "Groups" | "Tickets" | "Resolved">("All");
   const [view, setView] = useState<"recent" | "archived">("recent");
@@ -44,7 +52,7 @@ export function ChatSidebar({ selectedThreadId, onSelectThread,  removedIds = []
   const queryClient = useQueryClient();
 
   const refetch = () => {
-    queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+    queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
   };
 
   useEffect(() => {
@@ -56,7 +64,7 @@ export function ChatSidebar({ selectedThreadId, onSelectThread,  removedIds = []
         setView("recent");
       }
 
-      queryClient.setQueryData(["sidebarData"], (old: any) => {
+      queryClient.setQueryData(["sidebarData", currentUserId], (old: any) => {
         if (!old || !old.threads) return old;
 
         let updatedThreads = [...old.threads];

@@ -9,6 +9,7 @@ import { SupportTicketDialog } from "@/app/(users)/_components/SupportTicketDial
 import { getThreadsAction } from "@/app/data/notifications/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
+import { chatCache } from "@/lib/chat-cache";
 
 interface ChatLayoutProps {
    isAdmin: boolean;
@@ -24,10 +25,36 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
 
    // Centralized Data Fetch (Threads + Courses + Version)
    const { data: sidebarData, isLoading: loadingSidebar } = useQuery({
-      queryKey: ["sidebarData"],
-      queryFn: () => getThreadsAction(),
-      staleTime: 1800000, // 30 minutes
-      refetchInterval: 1800000, // 30 minutes
+      queryKey: ["sidebarData", currentUserId],
+      queryFn: async () => {
+         const cached = chatCache.get<any>("sidebarData", currentUserId);
+         const clientVersion = cached?.version;
+
+         console.log(`[ChatLayout] Syncing with server... (Client Version: ${clientVersion || 'None'})`);
+         const result = await getThreadsAction(clientVersion);
+
+         // SMART CHECK: If server says nothing changed, use our cached data
+         if ((result as any).status === "not-modified" && cached) {
+            console.log(`[ChatLayout] Version matches. Keeping local data.`);
+            return cached.data;
+         }
+
+         // If we got new data, save it to LocalStorage for next time
+         if (result && !(result as any).status) {
+            console.log(`[ChatLayout] Received fresh data. Saving to LocalStorage.`);
+            chatCache.set("sidebarData", result, currentUserId, result.version);
+         }
+         return result;
+      },
+      initialData: () => {
+         const cached = chatCache.get<any>("sidebarData", currentUserId);
+         if (cached) {
+             console.log(`[ChatLayout] Loaded cached threads for user: ${currentUserId}`);
+             return cached.data;
+         }
+         return undefined;
+      },
+      staleTime: 1800000, // 30 minutes - only sync version every 30m
       refetchOnWindowFocus: true,
    });
 
@@ -44,7 +71,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
       if (version !== undefined && version !== null) {
          const isInitial = lastVersionRef.current === null;
          if (!isInitial && version > (lastVersionRef.current || 0)) {
-            queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
+            queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
             if (selectedThread?.id) {
                queryClient.invalidateQueries({ queryKey: ["messages", selectedThread.id] });
             }
@@ -93,6 +120,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
                removedIds={removedThreadIds}
                threads={threads}
                loading={loadingSidebar}
+               currentUserId={currentUserId}
             />
          </div>
 

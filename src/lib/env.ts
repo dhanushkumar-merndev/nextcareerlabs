@@ -16,6 +16,7 @@ export const env = createEnv({
     AWS_ENDPOINT_URL_IAM: z.string().min(1),
     AWS_REGION: z.string().min(1),
     S3_BUCKET_NAME: z.string().min(1),
+    REDIS_URL: z.string().min(1),
   },
 
   client: {

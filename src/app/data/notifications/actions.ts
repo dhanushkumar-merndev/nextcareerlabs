@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { NotificationType } from "@/generated/prisma";
+import { getCache, setCache, invalidateCache, CHAT_CACHE_KEYS, getChatVersion, incrementChatVersion } from "@/lib/redis";
 
 async function getSession() {
   return await auth.api.getSession({
@@ -111,6 +112,15 @@ export async function sendNotificationAction(data: {
   // Unhide for everyone (if it was hidden) - ONLY ONCE
   if (threadId) {
     await unhideThreadForAll(threadId);
+    
+    // Invalidate caches
+    const recipientId = data.recipientId;
+    const senderId = session.user.id;
+    await Promise.all([
+        invalidateCache(CHAT_CACHE_KEYS.THREADS(senderId)),
+        recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(recipientId)),
+        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId))
+    ]);
   }
 
   revalidatePath("/admin/resources");
@@ -143,6 +153,15 @@ export async function replyToTicketAction(data: {
   // Unhide for everyone (if it was hidden)
   await unhideThreadForAll(data.threadId);
 
+  // Invalidate caches
+  await Promise.all([
+      invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+      invalidateCache(CHAT_CACHE_KEYS.THREADS(data.recipientId)),
+      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(data.threadId)),
+      incrementChatVersion(session.user.id),
+      data.recipientId ? incrementChatVersion(data.recipientId) : Promise.resolve(),
+  ]);
+
   // Mark all messages in thread as read for admin? Or just specific ones?
   // For now, let's leave read status logic to the view.
 
@@ -152,10 +171,28 @@ export async function replyToTicketAction(data: {
 
 // NEW ACTIONS
 
-export async function getThreadsAction() {
+export async function getThreadsAction(clientVersion?: string) {
   const session = await getSession();
-  if (!session) return [];
+  if (!session) return { threads: [], version: "0", enrolledCourses: [], presence: null };
+
+  const currentVersion = await getChatVersion(session.user.id);
+  
+  // If client already has the latest version, don't download everything
+  if (clientVersion && clientVersion === currentVersion) {
+      console.log(`[Sync] Version match for user ${session.user.id}: ${currentVersion}. Returning NOT_MODIFIED.`);
+      return { status: "not-modified", version: currentVersion };
+  }
   const isAdmin = session.user.role === "admin";
+
+  const cacheKey = CHAT_CACHE_KEYS.THREADS(session.user.id);
+  const cachedData = await getCache<any>(cacheKey);
+
+  if (cachedData) {
+    console.log(`[Redis] Cache HIT for threads: ${session.user.id}`);
+    if (!isAdmin) return { ...cachedData, version: currentVersion };
+  } else {
+    console.log(`[Redis] Cache MISS for threads: ${session.user.id}`);
+  }
 
   // Ensure default "Broadcast" group exists (Fast check: only if not present)
   if (isAdmin) {
@@ -186,9 +223,15 @@ export async function getThreadsAction() {
                   })
               ));
           }
-           // Use the specific revalidation path we established
            revalidatePath("/admin/resources");
+           await invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id));
+           console.log(`[Chat] Invalidated admin cache after group sync.`);
       }
+  }
+
+  // If we had a cache hit but we are an admin, we still ran the init logic above.
+  if (isAdmin && cachedData) {
+     return cachedData;
   }
 
 
@@ -414,12 +457,15 @@ export async function getThreadsAction() {
     .filter(t => !t.hidden)
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
-  return { 
+  const result = { 
       threads: finalThreads, 
       version: latestNotification?.createdAt.getTime() ?? 0,
       enrolledCourses: enrollmentCourses,
       presence: null 
   };
+
+  await setCache(cacheKey, result, 1800); // 30 mins
+  return result;
 }
 
 /**
@@ -430,6 +476,12 @@ export async function getThreadsAction() {
 export async function getThreadMessagesAction(threadId: string, before?: string) {
   const session = await getSession();
   if (!session) return { messages: [], state: null, nextCursor: null };
+
+  const cacheKey = !before ? CHAT_CACHE_KEYS.MESSAGES(threadId) : null;
+  if (cacheKey) {
+    const cached = await getCache<any>(cacheKey);
+    if (cached) return cached;
+  }
 
   let referenceDate = before ? new Date(before) : new Date();
 
@@ -483,7 +535,7 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
 
   const nextCursor = (oldestEver && oldestEver.createdAt < sevenDaysAgo) ? sevenDaysAgo.toISOString() : null;
 
-  return {
+  const result = {
     messages: [...messages].reverse(),
     state: {
       isMuted: state?.muted ?? false,
@@ -492,6 +544,12 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
     },
     nextCursor
   };
+
+  if (cacheKey) {
+    await setCache(cacheKey, result, 21600); // 6 hours
+  }
+
+  return result;
 }
 
 // ... existing helper functions ...
@@ -587,6 +645,15 @@ export async function deleteMessageAction(id: string) {
     where: { id }
   });
 
+  // Invalidate caches
+  await Promise.all([
+      invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+      message.recipientId ? invalidateCache(CHAT_CACHE_KEYS.THREADS(message.recipientId)) : Promise.resolve(),
+      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(message.threadId || "")),
+      incrementChatVersion(session.user.id),
+      message.recipientId ? incrementChatVersion(message.recipientId) : Promise.resolve(),
+  ]);
+
   revalidatePath("/admin/resources");
   return { success: true };
 }
@@ -627,13 +694,22 @@ export async function resolveTicketAction(id: string, status: "Resolved" | "Deni
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
-  await prisma.notification.update({
+  const n = await prisma.notification.update({
     where: { id },
     data: { 
         resolved: true,
         feedback: status
     }
   });
+
+  // Invalidate
+  await Promise.all([
+      invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+      n.senderId ? invalidateCache(CHAT_CACHE_KEYS.THREADS(n.senderId)) : Promise.resolve(),
+      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
+      incrementChatVersion(session.user.id),
+      n.senderId ? incrementChatVersion(n.senderId) : Promise.resolve(),
+  ]);
 
   revalidatePath("/admin/resources");
   return { success: true };
@@ -653,13 +729,22 @@ export async function submitFeedbackAction(data: {
     throw new Error("Feedback exceeds 300 characters");
   }
 
-  await prisma.notification.update({
+  const n = await prisma.notification.update({
     where: { id: data.notificationId },
     data: { 
       feedback: data.feedback,
       resolved: data.feedback === "More Help" ? false : true 
     }
   });
+
+  // Invalidate
+  await Promise.all([
+      invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+      n.senderId ? invalidateCache(CHAT_CACHE_KEYS.THREADS(n.senderId)) : Promise.resolve(),
+      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
+      incrementChatVersion(session.user.id),
+      n.senderId ? incrementChatVersion(n.senderId) : Promise.resolve(),
+  ]);
 
   revalidatePath("/admin/resources");
   return { success: true };
@@ -736,6 +821,13 @@ export async function archiveThreadAction(threadId: string) {
             archived: newArchivedStatus
         }
     });
+
+    // Invalidate
+    await Promise.all([
+        invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
+        incrementChatVersion(session.user.id)
+    ]);
 
     revalidatePath("/admin/resources");
     return { success: true, archived: newArchivedStatus };
@@ -841,6 +933,13 @@ export async function deleteThreadMessagesAction(threadId: string) {
     await prisma.userThreadState.deleteMany({
         where: { threadId }
     });
+
+    // Invalidate
+    await Promise.all([
+        invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
+        incrementChatVersion(session.user.id)
+    ]);
 
     revalidatePath("/admin/resources");
     return { success: true };
