@@ -48,6 +48,7 @@ import {
 import { useState, useTransition, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { formatIST } from "@/lib/utils";
 import { EnrollmentStatus } from "@/generated/prisma";
 import { 
   Dialog, 
@@ -437,12 +438,12 @@ export function RequestsTable({ initialData }: { initialData: Request[] }) {
                   </TableCell>
                   <TableCell className="text-center">
                     <span className="text-xs font-bold text-muted-foreground uppercase tracking-tighter tabular-nums opacity-60">
-                      {new Date(request.User.createdAt).toLocaleDateString()}
+                      {formatIST(request.User.createdAt)}
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
                     <span className="text-xs font-bold text-muted-foreground uppercase tracking-tighter tabular-nums opacity-60">
-                      {new Date(request.createdAt).toLocaleDateString()}
+                      {formatIST(request.createdAt)}
                     </span>
                   </TableCell>
                   <TableCell className="text-right pr-6">
@@ -517,8 +518,8 @@ export function RequestsTable({ initialData }: { initialData: Request[] }) {
                 <DetailRow icon={Mail} label="Email" value={request.User.email} onCopy={() => copyToClipboard(request.User.email, "Email")} />
                 <DetailRow icon={Phone} label="Phone" value={request.User.phoneNumber || "N/A"} onCopy={request.User.phoneNumber ? () => copyToClipboard(request.User.phoneNumber!, "Phone") : undefined} />
                 <DetailRow icon={BookOpen} label="Course" value={request.Course.title} />
-                <DetailRow icon={CalendarIcon} label="Requested" value={new Date(request.createdAt).toLocaleDateString()} />
-                <DetailRow icon={CalendarIcon} label="Joined" value={new Date(request.User.createdAt).toLocaleDateString()} />
+                <DetailRow icon={CalendarIcon} label="Requested" value={formatIST(request.createdAt)} />
+                <DetailRow icon={CalendarIcon} label="Joined" value={formatIST(request.User.createdAt)} />
               </div>
 
               {/* Mobile Actions */}

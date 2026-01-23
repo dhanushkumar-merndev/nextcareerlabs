@@ -77,7 +77,7 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                                     <Calendar className="size-3.5" />
-                                    Joined {new Date(user.createdAt).toLocaleDateString()}
+                                    Joined {formatIST(user.createdAt)}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                                     <Clock className="size-3.5" />

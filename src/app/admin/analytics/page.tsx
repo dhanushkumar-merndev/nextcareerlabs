@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { formatIST } from "@/lib/utils";
 
 export default async function AdminAnalyticsPage() {
   const data = await getAdminAnalytics();
@@ -123,7 +124,7 @@ export default async function AdminAnalyticsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap hidden md:table-cell">
-                        {new Date(user.createdAt).toLocaleDateString()}
+                        {formatIST(user.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="outline" size="sm" className="h-7 px-3 text-[10px]" asChild>
