@@ -848,12 +848,21 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
     const session = await getSession();
     if (!session) return [];
 
+    const cacheKey = CHAT_CACHE_KEYS.PARTICIPANTS(chatGroupId);
+    const cached = await getCache<any[]>(cacheKey);
+    if (cached) {
+        console.log(`[Redis] Cache HIT for participants: ${chatGroupId}`);
+        return cached;
+    }
+
     const group = await prisma.chatGroup.findUnique({
         where: { id: chatGroupId },
-        select: { courseId: true, name: true }
+        select: { id: true, courseId: true, name: true }
     });
 
     if (!group) return [];
+
+    let result: any[] = [];
 
     // If it's the global Broadcast, return all users
     if (group.name === "Broadcast" && !group.courseId) {
@@ -867,34 +876,38 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
             },
             take: 100 // Limit for performance
         });
-        return users.map(u => ({
+        result = users.map(u => ({
             user: u,
             role: u.role === "admin" ? "admin" : "member"
         }));
-    }
-
-    // Otherwise, get enrolled users for the course
-    if (!group.courseId) return [];
-
-    const enrollments = await prisma.enrollment.findMany({
-        where: { courseId: group.courseId },
-        include: {
-            User: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    image: true,
-                    role: true
+    } else if (group.courseId) {
+        // Otherwise, get enrolled users for the course
+        const enrollments = await prisma.enrollment.findMany({
+            where: { courseId: group.courseId, status: "Granted" },
+            include: {
+                User: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        image: true,
+                        role: true
+                    }
                 }
             }
-        }
-    });
+        });
 
-    return enrollments.map(e => ({
-        user: e.User,
-        role: e.User.role === "admin" ? "admin" : "member"
-    }));
+        result = enrollments.map(e => ({
+            user: e.User,
+            role: e.User.role === "admin" ? "admin" : "member"
+        }));
+    }
+
+    if (result.length > 0) {
+        await setCache(cacheKey, result, 21600); // 6 hours
+    }
+
+    return result;
 }
 
 export async function deleteThreadMessagesAction(threadId: string) {

@@ -39,6 +39,15 @@ export async function updateEnrollmentStatusAction(
     });
     if (enrollment) {
       await invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId));
+      
+      // Invalidate group participants cache if this enrollment is for a course
+      const courseGroup = await prisma.chatGroup.findFirst({
+          where: { courseId: (await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { courseId: true }}))?.courseId },
+          select: { id: true }
+      });
+      if (courseGroup) {
+          await invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id));
+      }
     }
 
     revalidatePath("/admin/requests");

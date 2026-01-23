@@ -39,6 +39,7 @@ export const CHAT_CACHE_KEYS = {
   THREADS: (userId: string) => `chat:threads:${userId}`,
   MESSAGES: (threadId: string) => `chat:messages:${threadId}`,
   VERSION: (userId: string) => `chat:version:${userId}`,
+  PARTICIPANTS: (groupId: string) => `chat:participants:${groupId}`,
 };
 
 const OPERATION_TIMEOUT = 1500;

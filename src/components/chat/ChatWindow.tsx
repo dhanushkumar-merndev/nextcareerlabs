@@ -736,12 +736,51 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
     const handleShowGroupInfo = async () => {
         if (!isGroup) return;
-        try {
-            const participants = await getGroupParticipantsAction(threadId);
-            setGroupParticipants(participants);
+
+        // 1. Load from LocalStorage instantly
+        const cacheKey = `participants_${threadId}`;
+        const cached = chatCache.get<any[]>(cacheKey, currentUserId);
+        
+        // Industry Standard: Only refresh if data is older than 30 mins (stale)
+        // We store the timestamp in the cache entry itself
+        const now = Date.now();
+        const STALE_TIME = 30 * 60 * 1000; // 30 minutes
+        
+        let isStale = true;
+        if (cached) {
+            setGroupParticipants(cached.data);
             setShowGroupInfo(true);
-        } catch (e) {
-            toast.error("Failed to load group info");
+            
+            const lastSyncStr = localStorage.getItem(`chat_cache_${currentUserId}_participants_${threadId}_sync`);
+            const lastSync = lastSyncStr ? parseInt(lastSyncStr) : 0;
+            
+            if (now - lastSync < STALE_TIME) {
+                isStale = false;
+                console.log(`[ChatWindow] Group participants are fresh. Skipping Redis request.`);
+            }
+        }
+
+        if (isStale) {
+            try {
+                console.log(`[ChatWindow] Group participants stale or missing. Fetching from Redis...`);
+                const participants = await getGroupParticipantsAction(threadId);
+                setGroupParticipants(participants);
+                
+                // 3. Update LocalStorage with syncTime
+                const cacheData = { data: participants, syncTime: now };
+                // We pass undefined for version since we're using syncTime for participants
+                chatCache.set(cacheKey, participants, currentUserId, undefined);
+                
+                // Small hack: chatCache doesn't natively store 'syncTime' in the 'data' part, 
+                // but we can wrap our data or just rely on the fact that it's updated.
+                // Let's actually just save it inside the metadata if we want to be clean, 
+                // but custom 'set' with syncTime is easier.
+                localStorage.setItem(`chat_cache_${currentUserId}_${cacheKey}_sync`, now.toString());
+
+                if (!cached) setShowGroupInfo(true);
+            } catch (e) {
+                if (!cached) toast.error("Failed to load group info");
+            }
         }
     };
 
