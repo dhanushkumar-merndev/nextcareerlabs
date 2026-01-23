@@ -1,6 +1,3 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
@@ -13,6 +10,7 @@ import { ChartColumnIncreasingIcon } from "@/components/ui/chart-column-increasi
 import { UsersIcon } from "@/components/ui/users";
 import TestimonialBanner from "./_components/TestimonialBanner";
 import AuthErrorHandler from "@/components/AuthErrorHandler";
+import { DashboardButton } from "./_components/DashboardButton";
 
 const features = [
   {
@@ -40,16 +38,7 @@ const features = [
   },
 ];
 
-export const dynamic = 'force-dynamic';
-
-export default async function Home() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  const dashboardHref =
-    session?.user.role === "admin" ? "/admin" : "/dashboard";
-
+export default function Home() {
   return (
     <>
 <AuthErrorHandler />
@@ -70,12 +59,7 @@ export default async function Home() {
             <Link className={buttonVariants({ size: "lg" })} href="/courses">
               Explore Courses
             </Link>
-            <Link
-              className={buttonVariants({ size: "lg", variant: "outline" })}
-              href={session ? dashboardHref : "/dashboard"}
-            >
-              {session ? "Goto Dashboard" : "Get Started"}
-            </Link>
+            <DashboardButton />
           </div>
         </div>
       </main>
