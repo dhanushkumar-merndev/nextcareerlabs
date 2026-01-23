@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/general/EmptyState";
 import { AdminCourseCard } from "./courses/_components/AdminCourseCard";
 import AuthErrorHandler from "@/components/AuthErrorHandler";
 
+export const dynamic = 'force-dynamic';
 
 export default async function AdminIndexPage() {
   const stats = await adminGetDashboardStats();

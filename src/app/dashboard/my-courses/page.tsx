@@ -2,6 +2,8 @@ import { EmptyState } from "@/components/general/EmptyState";
 import { getEnrolledCourses } from "@/app/data/user/get-enrolled-courses";
 import { CourseProgressCard } from "../_components/CourseProgressCard";
 
+export const dynamic = 'force-dynamic';
+
 export default async function MyCoursesPage() {
   const enrolledCourses = await getEnrolledCourses();
 

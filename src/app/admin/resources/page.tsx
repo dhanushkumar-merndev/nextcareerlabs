@@ -8,6 +8,8 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ChatLayoutLoader } from "@/components/chat/ChatLayoutLoader";
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminNotificationsPage() {
   const session = await auth.api.getSession({
     headers: await headers(),

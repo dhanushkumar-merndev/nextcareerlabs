@@ -16,6 +16,8 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminAnalyticsPage() {
   const data = await getAdminAnalytics();
 

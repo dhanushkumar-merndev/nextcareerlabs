@@ -4,6 +4,8 @@ import { HorizontalCourseCard } from "@/app/dashboard/_components/HorizontalCour
 import { getCurrentUser } from "@/lib/session";
 import { redirect } from "next/navigation";
 
+export const dynamic = 'force-dynamic';
+
 export default async function DashboardPage() {
   const user = await getCurrentUser();
 

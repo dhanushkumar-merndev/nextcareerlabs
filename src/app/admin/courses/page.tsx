@@ -4,6 +4,8 @@ import Link from "next/link";
 import { AdminCourseCard } from "./_components/AdminCourseCard";
 import { EmptyState } from "@/components/general/EmptyState";
 
+export const dynamic = 'force-dynamic';
+
 export default async function CoursePage() {
   const data = await adminGetCourses();
 

@@ -6,6 +6,8 @@ import { prisma } from "@/lib/db";
 import { ChatLayoutLoader } from "@/components/chat/ChatLayoutLoader";
 import { Card, CardContent } from "@/components/ui/card";
 
+export const dynamic = 'force-dynamic';
+
 export default async function NotificationsPage() {
   const session = await auth.api.getSession({
     headers: await headers(),

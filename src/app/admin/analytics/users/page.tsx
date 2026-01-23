@@ -9,6 +9,8 @@ interface PageProps {
     searchParams: Promise<SearchParams>;
 }
 
+export const dynamic = 'force-dynamic';
+
 export default async function AdminUsersPage(props: PageProps) {
     const searchParams = await props.searchParams;
     const search = searchParams.search || "";

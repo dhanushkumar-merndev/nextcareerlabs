@@ -3,6 +3,8 @@ import { getAllCourses } from "@/app/data/course/get-all-courses";
 import { getEnrolledCourses } from "@/app/data/user/get-enrolled-courses";
 import { PublicCourseCard } from "../../(users)/_components/PublicCourseCard";
 
+export const dynamic = 'force-dynamic';
+
 export default async function AvailableCoursesPage() {
   const [courses, enrolledCourses] = await Promise.all([
     getAllCourses(),
