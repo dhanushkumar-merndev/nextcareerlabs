@@ -16,14 +16,14 @@ export default async function AdminIndexPage() {
   const courses = await adminGetRecentCourses();
 
   return (
-    <>
+    <div className="lg:py-5 md:py-6">
      <AuthErrorHandler />
       <SectionCards stats={stats} />
 
-      <div className="px-4 lg:px-6">
+      <div className="px-4  lg:px-6 py-6">
         <ChartAreaInteractive data={enrollments} />
 
-        <div className="space-y-4 mt-6">
+        <div className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold">Recent Courses</h2>
             <Link
@@ -50,6 +50,6 @@ export default async function AdminIndexPage() {
           )}
         </div>
       </div>
-    </>
+   </div>
   );
 }

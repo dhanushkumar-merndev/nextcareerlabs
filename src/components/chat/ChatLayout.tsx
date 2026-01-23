@@ -1,14 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatWindow } from "./ChatWindow";
-
-import { ArrowLeft, MessageSquarePlus } from "lucide-react";
+import { MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SupportTicketDialog } from "@/app/(users)/_components/SupportTicketDialog";
-import { getThreadsAction, syncChatAction, getChatVersionAction } from "@/app/data/notifications/actions";
+import { getThreadsAction } from "@/app/data/notifications/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
 
@@ -92,7 +90,6 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
             <ChatSidebar
                selectedThreadId={selectedThread?.id || null}
                onSelectThread={handleSelectThread}
-               isAdmin={isAdmin}
                removedIds={removedThreadIds}
                threads={threads}
                loading={loadingSidebar}

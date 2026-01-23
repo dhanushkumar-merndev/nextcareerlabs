@@ -17,15 +17,14 @@ import { ChatSidebarSkeleton } from "./ChatSkeleton";
 interface ChatSidebarProps {
   selectedThreadId: string | null;
   onSelectThread: (thread: { id: string; name: string; image?: string; type?: string }) => void;
-  isAdmin: boolean;
   removedIds?: string[];
   threads: any[];
   loading?: boolean;
 }
 
-export function ChatSidebar({ selectedThreadId, onSelectThread, isAdmin, removedIds = [], threads = [], loading = false }: ChatSidebarProps) {
+export function ChatSidebar({ selectedThreadId, onSelectThread,  removedIds = [], threads = [], loading = false }: ChatSidebarProps) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"All" | "Groups" | "Tickets" | "Resolved">("All");
+  const [filter] = useState<"All" | "Groups" | "Tickets" | "Resolved">("All");
   const [view, setView] = useState<"recent" | "archived">("recent");
   const viewRef = useRef(view);
 

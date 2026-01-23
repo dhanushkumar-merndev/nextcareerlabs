@@ -475,7 +475,7 @@ export function RequestsTable({ initialData }: { initialData: Request[] }) {
           </div>
         ) : (
           data.map((request) => (
-            <div key={request.id} className="bg-card/40 backdrop-blur-md border border-border/40 rounded-3xl p-5 shadow-xl space-y-5 relative overflow-hidden group transition-all active:scale-[0.98]">
+            <div key={request.id} className="bg-card/40 backdrop-blur-md border border-border/40 rounded-3xl p-5 shadow-xl space-y-5 relative overflow-hidden group transition-all">
               {/* Status Ribbon/Badge */}
               <div className="absolute top-0 right-0 p-4">
                  <Badge 

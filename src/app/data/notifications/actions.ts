@@ -872,31 +872,5 @@ export async function getChatVersionAction(threadId?: string) {
     };
 }
 
-export async function syncChatAction(threadId?: string) {
-    const session = await getSession();
-    if (!session) return { threads: [], chat: null, version: 0 };
-
-
-
-    // 2. Parallel fetch for efficiency
-    const [threads, versionData, enrolledCourses] = await Promise.all([
-        getThreadsAction(),
-        getChatVersionAction(),
-        getEnrolledCoursesAction()
-    ]);
-
-    // 3. Optional Chat Fetch
-    let chat = null;
-    if (threadId) {
-        chat = await getThreadMessagesAction(threadId);
-    }
-
-    return {
-        threads,
-        chat,
-        version: versionData.version,
-        enrolledCourses
-    };
-}
 
 

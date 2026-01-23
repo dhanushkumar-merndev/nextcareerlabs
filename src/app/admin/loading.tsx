@@ -3,7 +3,7 @@ import { AdminCourseCardSkeleton } from "./courses/_components/AdminCourseCard";
 
 export default function Loading() {
   return (
-    <div className="space-y-10 px-4 lg:px-6 py-10">
+    <div className="space-y-5 px-4 pt-0 lg:px-6 lg:pt-5">
       {/* Stats Card Skeletons */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
         {[1, 2, 3, 4].map((i) => (

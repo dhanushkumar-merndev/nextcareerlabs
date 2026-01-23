@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { ChatLayoutLoader } from "@/components/chat/ChatLayoutLoader";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default async function NotificationsPage() {
   const session = await auth.api.getSession({
@@ -27,13 +28,16 @@ export default async function NotificationsPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] w-full overflow-hidden bg-background -mt-4">
+    <div className="flex flex-col -mt-6 md:-mb-6 px-4 lg:px-6 h-[calc(100vh-5rem)] md:h-[calc(100vh-4.5rem)]  overflow-hidden">
        {/* Use full height container for chat */}
-       <div className="flex-1 min-h-0 p-4 md:p-6 h-full"> 
-         <div className="rounded-xl border bg-card h-full min-h-0 overflow-hidden shadow-sm">
+       <Card className="flex-1 min-h-0 border-0 shadow-none bg-transparent">
+        <CardContent className="p-0 h-full min-h-0">
+           <div className="rounded-xl border bg-card h-full min-h-0 overflow-hidden shadow-sm">
             <ChatLayoutLoader isAdmin={false} currentUserId={session.user.id} />
          </div>
-       </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
+

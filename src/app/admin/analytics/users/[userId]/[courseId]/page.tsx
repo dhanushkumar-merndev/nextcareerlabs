@@ -43,6 +43,11 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
         return `${m}M ${s}S`;
     };
 
+    const truncate = (str: string) => {
+        if (!str) return "";
+        return str.length > 6 ? str.substring(0, 6) + "..." : str;
+    };
+
     return (
         <div className="flex flex-col gap-8 p-4 lg:p-6 w-full  mx-auto">
             {/* Header & Breadcrumb */}
@@ -52,9 +57,15 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                     <span className="opacity-40">/</span>
                     <Link href="/admin/analytics/users" className="hover:text-primary transition-colors">Users</Link>
                     <span className="opacity-40">/</span>
-                    <Link href={`/admin/analytics/users/${userId}`} className="hover:text-primary transition-colors">{user.name}</Link>
+                    <Link href={`/admin/analytics/users/${userId}`} className="hover:text-primary transition-colors">
+                        <span className="sm:hidden">{truncate(user.name || "")}</span>
+                        <span className="hidden sm:inline">{user.name}</span>
+                    </Link>
                     <span className="opacity-40">/</span>
-                    <span className="text-foreground tracking-widest">{course.title}</span>
+                    <div className="text-foreground tracking-widest">
+                        <span className="sm:hidden">{truncate(course.title)}</span>
+                        <span className="hidden sm:inline">{course.title}</span>
+                    </div>
                 </div>
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -112,8 +123,8 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
 
                                     return (
                                         <div key={lesson.id} className="group/lesson">
-                                            <div className="flex flex-row items-center justify-between py-4 px-2 rounded-xl hover:bg-muted/30 transition-all duration-300">
-                                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                            <div className="flex flex-row items-start py-4 px-2 rounded-xl hover:bg-muted/30 transition-all duration-300">
+                                                <div className="flex items-start gap-4 flex-1 min-w-0">
                                                     <div className={`flex items-center justify-center size-10 rounded-full border shrink-0 transition-colors ${isCompleted ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted/10 border-border/50 text-muted-foreground/30'}`}>
                                                         {isCompleted ? <CheckCircle2 className="size-5" /> : <PlayCircle className="size-5" />}
                                                     </div>
@@ -121,12 +132,12 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                                                         <h4 className="font-bold text-sm text-foreground truncate">
                                                             {lesson.title}
                                                         </h4>
-                                                        <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-6 mt-1.5">
+                                                        <div className="flex flex-col gap-1.5 mt-2">
                                                             <p className="text-[10px] text-muted-foreground/40 font-bold uppercase tracking-wider">
                                                                 Lesson {lesson.position}
                                                             </p>
                                                             {progress && (
-                                                                <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-6">
+                                                                <div className="flex flex-col gap-1.5">
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">Progress</span>
                                                                         <span className="text-[10px] font-black text-foreground uppercase tracking-widest leading-none">{formatTime(progress.lastWatched)}</span>
@@ -143,24 +154,23 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                                                                     </div>
                                                                 </div>
                                                             )}
+                                                            <div className="mt-3">
+                                                                {isCompleted ? (
+                                                                    <Badge className="bg-primary hover:bg-primary/90 text-white border-none rounded-full px-5 py-1 text-[10px] font-black uppercase tracking-widest min-w-[85px] justify-center shadow-md w-fit">
+                                                                        DONE
+                                                                    </Badge>
+                                                                ) : progress ? (
+                                                                    <Badge variant="outline" className="border-primary/40 text-primary bg-primary/5 rounded-full px-5 py-1 text-[10px] font-black uppercase tracking-widest min-w-[85px] justify-center w-fit">
+                                                                        ACTIVE
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="border-border text-muted-foreground/20 bg-muted/5 rounded-full px-5 py-1 text-[10px] font-black uppercase tracking-widest min-w-[85px] justify-center opacity-40 w-fit">
+                                                                        PENDING
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-6 shrink-0">
-                                                    {isCompleted ? (
-                                                        <Badge className="bg-primary hover:bg-primary/90 text-white border-none rounded-full px-5 py-1 text-[10px] font-black uppercase tracking-widest min-w-[85px] justify-center shadow-md">
-                                                            DONE
-                                                        </Badge>
-                                                    ) : progress ? (
-                                                        <Badge variant="outline" className="border-primary/40 text-primary bg-primary/5 rounded-full px-5 py-1 text-[10px] font-black uppercase tracking-widest min-w-[85px] justify-center">
-                                                            ACTIVE
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="outline" className="border-border text-muted-foreground/20 bg-muted/5 rounded-full px-5 py-1 text-[10px] font-black uppercase tracking-widest min-w-[85px] justify-center opacity-40">
-                                                            PENDING
-                                                        </Badge>
-                                                    )}
                                                 </div>
                                             </div>
                                         </div>

@@ -2,7 +2,7 @@ import { AdminCourseCardSkeleton } from "./_components/AdminCourseCard";
 
 export default function Loading() {
   return (
-    <div className="px-4 lg:px-6">
+    <div className="px-4 py-3 lg:px-6 lg:py-6">
       {/* Header skeleton */}
       <div className="flex items-center justify-between mb-10">
         <div className="h-7 w-40 bg-muted animate-pulse rounded" />

@@ -82,7 +82,7 @@ export default function CourseCreationPage() {
   }
 
   return (
-    <div className="px-4 lg:px-6 flex gap-4 flex-col">
+    <div className="p-4 lg:px-6 flex gap-4 flex-col">
       <div className="flex items-center gap-4">
         <Link
           href="/admin/courses"
