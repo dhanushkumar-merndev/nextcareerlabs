@@ -14,6 +14,7 @@ import {
 } from "@/lib/zodSchemas";
 import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
+import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
@@ -76,6 +77,15 @@ export async function editCourse(
             });
         }
     }
+
+    // Invalidate global courses and analytics cache
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(result.data.slug)),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
+    ]);
 
     return {
       status: "success",

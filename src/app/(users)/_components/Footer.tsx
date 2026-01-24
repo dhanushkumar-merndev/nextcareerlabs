@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function FooterSkeleton() {
   return (
-    <footer className="border-t bg-background relative overflow-hidden mt-30">
+    <footer className="border-t bg-background relative overflow-hidden ">
       <div className="container mx-auto px-4 py-16 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
           {/* BRAND SECTION SKELETON */}
@@ -51,7 +51,7 @@ export async function Footer() {
   const courses = await getAllPublishedCourses();
   
   return (
-    <footer className="border-t bg-background relative overflow-hidden mt-30">
+    <footer className="border-t bg-background relative overflow-hidden mt-5 md:mt-40">
       {/* Decorative background element */}
       
       

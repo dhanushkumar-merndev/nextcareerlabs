@@ -9,13 +9,48 @@ import { usePathname } from "next/navigation";
 import { useCourseProgressContext } from "@/providers/CourseProgressProvider";
 import { useCourseProgress } from "@/hooks/use-course-progress";
 
+import { useQuery } from "@tanstack/react-query";
+import { getCourseSidebarData } from "@/app/data/course/get-course-sidebar-data";
+import { chatCache } from "@/lib/chat-cache";
+
 export function SidebarContainer({
-  course,
+  course: initialCourse,
   children,
+  userId,
 }: {
   course: CourseSidebarDataType["course"];
   children: React.ReactNode;
+  userId: string;
 }) {
+  const { data: courseData } = useQuery({
+    queryKey: ["course_sidebar", initialCourse.slug],
+    queryFn: async () => {
+      const cacheKey = `course_sidebar_${initialCourse.slug}`;
+      const cached = chatCache.get<any>(cacheKey, userId);
+      const clientVersion = cached?.version;
+
+      console.log(`[Sidebar] Syncing for ${initialCourse.slug}...`);
+      const result = await getCourseSidebarData(initialCourse.slug, clientVersion);
+
+      if (result && (result as any).status === "not-modified" && cached) {
+        return cached.data.course;
+      }
+
+      if (result && !(result as any).status) {
+        chatCache.set(cacheKey, result, userId, (result as any).version);
+        return result.course;
+      }
+      return result?.course || initialCourse;
+    },
+    initialData: () => {
+        const cacheKey = `course_sidebar_${initialCourse.slug}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        return cached ? cached.data.course : initialCourse;
+    },
+    staleTime: 1800000, // 30 mins
+  });
+
+  const course = courseData || initialCourse;
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 

@@ -51,6 +51,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     const [editImageUrl, setEditImageUrl] = useState("");
     const [isEditUploading, setIsEditUploading] = useState(false);
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+    const [editFileUrl, setEditFileUrl] = useState("");
+    const [editFileName, setEditFileName] = useState("");
+    const [isEditFileUploading, setIsEditFileUploading] = useState(false);
     const [isBanned, setIsBanned] = useState(false);
 
     const [isArchived, setIsArchived] = useState(false);
@@ -195,7 +198,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         };
 
         // OPTIMISTIC UPDATE via Query Data
-        queryClient.setQueryData(["messages", threadId], (oldData: any) => {
+        queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
             if (!oldData) return oldData;
             const newPages = [...oldData.pages];
             // Add to the first page (latest messages)
@@ -265,7 +268,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
             if (result && !result.success) {
                 // Revert optimistic update
-                queryClient.setQueryData(["messages", threadId], (oldData: any) => {
+                queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
                     if (!oldData) return oldData;
                     const newPages = [...oldData.pages];
                     newPages[0] = {
@@ -289,7 +292,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
             // Update the optimistic message with the real one
             if (result && result.success && result.notification) {
-                queryClient.setQueryData(["messages", threadId], (oldData: any) => {
+                queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
                     if (!oldData) return oldData;
                     const newPages = [...oldData.pages];
                     newPages[0] = {
@@ -301,7 +304,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     return { ...oldData, pages: newPages };
                 });
             } else {
-                queryClient.invalidateQueries({ queryKey: ["messages", threadId] });
+                queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
             }
 
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
@@ -310,7 +313,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
            
             toast.error("Failed to send message");
             // Revert on catch
-            queryClient.setQueryData(["messages", threadId], (oldData: any) => {
+            queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
                 if (!oldData) return oldData;
                 const newPages = [...oldData.pages];
                 newPages[0] = {
@@ -538,6 +541,69 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         }
     };
 
+    const handleEditFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsEditFileUploading(true);
+        setUploadProgress(0);
+        try {
+            const res = await fetch("/api/s3/upload", {
+                method: "POST",
+                body: JSON.stringify({
+                    fileName: file.name,
+                    contentType: file.type || "application/pdf",
+                    size: file.size,
+                    isImage: false,
+                }),
+            });
+
+            if (res.status === 429) {
+                toast.error("Too many uploads. Please wait a minute.");
+                setIsEditFileUploading(false);
+                return;
+            }
+
+            const { presignedUrl, key } = await res.json();
+
+            const xhr = new XMLHttpRequest();
+            xhr.open("PUT", presignedUrl, true);
+            xhr.setRequestHeader("Content-Type", file.type || "application/pdf");
+
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    setUploadProgress(percent || 1);
+                }
+            };
+
+            await new Promise((resolve, reject) => {
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        setIsEditFileUploading(false);
+                        setUploadProgress(0);
+                        resolve(xhr.response);
+                    } else {
+                        reject(xhr.statusText);
+                    }
+                };
+                xhr.onerror = () => reject(xhr.statusText);
+                xhr.send(file);
+            });
+
+            setEditFileUrl(key);
+            setEditFileName(file.name);
+
+            // Reset input value to allow re-uploading same file
+            if (e.target) e.target.value = "";
+        } catch (error) {
+            toast.error("Upload failed");
+        } finally {
+            setIsEditFileUploading(false);
+            setUploadProgress(0);
+        }
+    };
+
     const handleResolve = async (id: string, feedback?: string) => {
         if (feedback) {
             await submitFeedbackAction({ notificationId: id, feedback });
@@ -554,18 +620,22 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         setEditingMessageId(msg.id);
         setEditContent(msg.content);
         setEditImageUrl(msg.imageUrl || "");
+        setEditFileUrl(msg.fileUrl || "");
+        setEditFileName(msg.fileName || "");
         setIsEditOpen(true);
     };
 
     const submitEditDialog = async () => {
-        if (!editingMessageId || (!editContent.trim() && !editImageUrl)) return;
+        if (!editingMessageId || (!editContent.trim() && !editImageUrl && !editFileUrl)) return;
 
         try {
-            await editMessageAction(editingMessageId, editContent, editImageUrl);
+            await editMessageAction(editingMessageId, editContent, editImageUrl, editFileUrl, editFileName);
             queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
             setIsEditOpen(false);
             setEditingMessageId(null);
             setEditImageUrl("");
+            setEditFileUrl("");
+            setEditFileName("");
             toast.success("Message updated");
         } catch (e) {
             toast.error("Failed to update");
@@ -989,7 +1059,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                     isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none"
                                                 )}>
                                                     {/* Chevron Trigger */}
-                                                    {isMe && !msg.resolved && (
+                                                    {isMe && (
                                                         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                                             <DropdownMenu>
                                                                 <DropdownMenuTrigger asChild>
@@ -1324,20 +1394,57 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                         </div>
                     )}
 
+                    {/* Edit File Area */}
+                    {editFileUrl && (
+                        <div className="relative mb-3 w-full p-3 bg-muted/30 rounded-lg flex items-center gap-3 border shadow-sm group">
+                            <div className="h-10 w-10 rounded-lg bg-red-100 flex items-center justify-center shrink-0">
+                                <Paperclip className="h-5 w-5 text-red-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-xs font-medium truncate">{editFileName || "Document"}</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">Current Attachment</p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setEditFileUrl("");
+                                    setEditFileName("");
+                                }}
+                                className="h-6 w-6 bg-destructive/10 text-destructive rounded-full flex items-center justify-center hover:bg-destructive hover:text-white transition-colors"
+                            >
+                                <X className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Upload Progress for Edit */}
+                    {(isEditUploading || isEditFileUploading) && (
+                        <div className="mb-3">
+                             <div className="flex items-center justify-between mb-1">
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase">Uploading...</span>
+                                <span className="text-[9px] font-bold text-primary">{uploadProgress}%</span>
+                            </div>
+                            <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+                                <div className="h-full bg-primary transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex flex-col gap-2">
                         <Textarea
                             value={editContent}
                             onChange={(e) => setEditContent(e.target.value)}
-                            className="min-h-[100px]"
+                            className="min-h-[100px] border-muted-foreground/20 focus-visible:ring-primary/20"
                             placeholder="Message content..."
                         />
                         <div className="flex justify-between items-center mt-2">
-                            <div className="flex items-center">
+                            <div className="flex items-center gap-1">
                                 <Button
                                     variant="ghost"
                                     size="icon"
+                                    className="h-9 w-9 rounded-full"
                                     onClick={() => document.getElementById("edit-image-upload")?.click()}
-                                    disabled={isEditUploading}
+                                    disabled={isEditUploading || isEditFileUploading}
+                                    title="Change Image"
                                 >
                                     {isEditUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
                                 </Button>
@@ -1348,10 +1455,28 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                     className="hidden"
                                     onChange={handleEditImageUpload}
                                 />
+
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-9 w-9 rounded-full"
+                                    onClick={() => document.getElementById("edit-file-upload")?.click()}
+                                    disabled={isEditUploading || isEditFileUploading}
+                                    title="Change Document"
+                                >
+                                    {isEditFileUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
+                                </Button>
+                                <input
+                                    id="edit-file-upload"
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                                    className="hidden"
+                                    onChange={handleEditFileUpload}
+                                />
                             </div>
                             <div className="flex gap-2">
-                                <Button variant="outline" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-                                <Button onClick={submitEditDialog} disabled={isEditUploading}>Save</Button>
+                                <Button variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>Cancel</Button>
+                                <Button size="sm" onClick={submitEditDialog} disabled={isEditUploading || isEditFileUploading}>Save Changes</Button>
                             </div>
                         </div>
                     </div>

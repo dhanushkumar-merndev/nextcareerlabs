@@ -4,8 +4,32 @@ import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
-export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+
+export async function getAdminAnalytics(startDate?: Date, endDate?: Date, clientVersion?: string) {
     await requireAdmin();
+
+    const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+    
+    // Smart Sync: Only compute if version changed (unless custom range is selected)
+    // For now, if startDate/endDate is passed, we bypass cache for accurate custom ranges
+    const isCustomRange = !!startDate || !!endDate;
+
+    if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
+        console.log(`[getAdminAnalytics] Version match. Returning NOT_MODIFIED.`);
+        return { status: "not-modified", version: currentVersion };
+    }
+
+    // Check Redis cache for default range
+    const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS;
+    if (!isCustomRange) {
+        const cached = await getCache<any>(cacheKey);
+        if (cached) {
+            console.log(`[Redis] Cache HIT for admin analytics`);
+            return { ...cached, version: currentVersion };
+        }
+    }
+
     try {
         const end = endDate ? new Date(endDate) : new Date();
         const start = startDate ? new Date(startDate) : new Date();
@@ -56,16 +80,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
         const enrollRatio = totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
 
         // --- Optimized Average Progress Calculation ---
-        // Success Rate = (Total Completed Lessons by Enrolled Users) / (Total Users × Total Lessons)
-        // Example: 10 users, 2 lessons
-        //   - 5 users completed both lessons = 10 completed
-        //   - 5 users completed 1 lesson = 5 completed
-        //   - Total completed = 15
-        //   - Total possible = 10 × 2 = 20
-        //   - Success rate = 15/20 = 75%
-
         // 1. Total Completed Lessons (only for users with granted enrollments)
-        // Get all users who have at least one granted enrollment
         const usersWithGrantedEnrollment = await prisma.enrollment.findMany({
             where: { status: "Granted" },
             select: { userId: true },
@@ -83,7 +98,6 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
         });
 
         // 2. Total Potential Lessons
-        // We need sum of (Lessons in Course * Granted Enrollments for that Course)
         const coursesWithStats = await prisma.course.findMany({
             select: {
                 id: true,
@@ -112,8 +126,6 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
             : 0;
 
         // --- Chart Data Processing ---
-
-        // 1. User Growth Chart
         const diffTime = end.getTime() - start.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
@@ -141,7 +153,6 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
         }));
 
         // 3. Popular Courses Chart
-        // Fetch titles for the popular courses found
         const courseIds = popularCourses.map(p => p.courseId);
         const coursesDetails = await prisma.course.findMany({
             where: { id: { in: courseIds } },
@@ -156,7 +167,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
             };
         });
 
-        return {
+        const result = {
             totalUsers,
             totalCourses,
             totalEnrollments,
@@ -171,6 +182,13 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date) {
             enrollmentChartData,
             popularCoursesChartData
         };
+
+        // Cache in Redis for 6 hours
+        if (!isCustomRange) {
+            await setCache(cacheKey, result, 21600);
+        }
+
+        return { ...result, version: currentVersion };
     } catch (error) {
         return null;
     }

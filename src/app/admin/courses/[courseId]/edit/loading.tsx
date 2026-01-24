@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export default function Loading() {
   return (
-    <div className="px-4 lg:px-6">
+      <div className="px-4 lg:px-6 py-2 md:py-5">
       {/* Header Section */}
       <div className="mb-3 md:mb-6 flex flex-col sm:flex-row sm:items-center gap-2">
         <div className="flex items-center gap-2">

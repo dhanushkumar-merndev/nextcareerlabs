@@ -97,7 +97,7 @@ export default function TestimonialMasonry() {
   const [showAll, setShowAll] = useState(false);
 
   return (
-    <section className="pt-16 md:py-28 px-4 -mb-20">
+    <section className="pt-16 md:py-28 px-4 ">
       <div className="mx-auto max-w-7xl">
         {/* TITLE */}
         <div className="mb-12 text-center">

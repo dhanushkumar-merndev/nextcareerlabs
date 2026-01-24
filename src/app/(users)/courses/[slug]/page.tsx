@@ -1,9 +1,6 @@
-import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
 import { SlugPageWrapper } from "./_components/SlugPageWrapper";
-import { requireCompleteProfile } from "@/app/data/user/require-complete-profile";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { getIndividualCourse } from "@/app/data/course/get-course";
 
 type Params = Promise<{ slug: string }>;
 
@@ -12,25 +9,12 @@ export default async function SlugPage({ params }: { params: Params }) {
     headers: await headers(),
   });
 
-  let isProfileComplete = true;
-  let requireName = false;
-
-  if (session) {
-    const profile = await requireCompleteProfile();
-    isProfileComplete = profile.isComplete;
-    requireName = !profile.user.name;
-  }
-
   const { slug } = await params;
-  const course = await getIndividualCourse(slug);
-  const enrollmentStatus = await checkIfCourseBought(course.id);
 
   return (
     <SlugPageWrapper 
-      course={course} 
-      enrollmentStatus={enrollmentStatus} 
-      isProfileComplete={isProfileComplete}
-      requireName={requireName}
+      slug={slug}
+      currentUserId={session?.user?.id}
     />
   );
 }

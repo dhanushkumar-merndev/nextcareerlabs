@@ -1,8 +1,25 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
 
-export async function getIndividualCourse(slug: string) {
+export async function getIndividualCourse(slug: string, clientVersion?: string) {
+  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
+  
+  // Smart Sync: If client has the latest version, don't re-fetch
+  if (clientVersion && clientVersion === currentVersion) {
+    console.log(`[getIndividualCourse] Version match for ${slug}. Returning NOT_MODIFIED.`);
+    return { status: "not-modified", version: currentVersion };
+  }
+
+  // Check Redis cache for this specific course
+  const cacheKey = GLOBAL_CACHE_KEYS.COURSE_DETAIL(slug);
+  const cached = await getCache<any>(cacheKey);
+  if (cached) {
+    console.log(`[Redis] Cache HIT for course: ${slug}`);
+    return { course: cached, version: currentVersion };
+  }
+
   const course = await prisma.course.findUnique({
     where: {
       slug: slug,
@@ -37,11 +54,17 @@ export async function getIndividualCourse(slug: string) {
       },
     },
   });
+  
   if (!course) {
     return notFound();
   }
-  return course;
+
+  // Cache in Redis for 6 hours
+  await setCache(cacheKey, course, 21600);
+  
+  return { course, version: currentVersion };
 }
+
 export async function getAllPublishedCourses() {
   return await prisma.course.findMany({
     where: {

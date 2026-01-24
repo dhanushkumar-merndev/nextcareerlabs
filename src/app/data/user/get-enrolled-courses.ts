@@ -1,9 +1,27 @@
 import "server-only";
-import { requireUser } from "./require-user";
 import { prisma } from "@/lib/db";
 
-export async function getEnrolledCourses() {
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import { requireUser } from "./require-user";
+
+export async function getEnrolledCourses(clientVersion?: string) {
   const user = await requireUser();
+  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(user.id));
+
+  // Smart Sync
+  if (clientVersion && clientVersion === currentVersion) {
+    console.log(`[getEnrolledCourses] Version match for ${user.id}. Returning NOT_MODIFIED.`);
+    return { status: "not-modified", version: currentVersion };
+  }
+
+  // Check Redis cache
+  const cacheKey = GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(user.id);
+  const cached = await getCache<any>(cacheKey);
+  if (cached) {
+    console.log(`[Redis] Cache HIT for enrolled courses: ${user.id}`);
+    return { enrollments: cached, version: currentVersion };
+  }
+
   const data = await prisma.enrollment.findMany({
     where: { userId: user.id, status: "Granted" },
     select: {
@@ -40,9 +58,11 @@ export async function getEnrolledCourses() {
       },
     },
   });
-  return data;
+
+  // Cache in Redis for 6 hours
+  await setCache(cacheKey, data, 21600);
+  
+  return { enrollments: data, version: currentVersion };
 }
 
-export type EnrolledCoursesType = Awaited<
-  ReturnType<typeof getEnrolledCourses>
->[0];
+export type EnrolledCoursesType = any;

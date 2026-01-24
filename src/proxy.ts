@@ -56,7 +56,7 @@ async function mainMiddleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    if (session.user.role !== "admin") {
+    if ((session.user as any).role !== "admin") {
       return NextResponse.redirect(new URL("/not-admin", request.url));
     }
   }

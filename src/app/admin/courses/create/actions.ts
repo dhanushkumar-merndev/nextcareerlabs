@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types";
 import { courseSchema, CourseSchemaType } from "@/lib/zodSchemas";
 import { fixedWindow, request } from "@arcjet/next";
+import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
@@ -76,6 +77,14 @@ export async function CreateCourse(
           }
       });
     }
+
+    // Invalidate global courses and analytics cache
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
+    ]);
 
     return {
       status: "success",

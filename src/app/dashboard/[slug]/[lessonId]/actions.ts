@@ -5,6 +5,8 @@ import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 
+import { invalidateCache, GLOBAL_CACHE_KEYS, incrementGlobalVersion } from "@/lib/redis";
+
 /**
  * Mark a lesson as completed
  */
@@ -32,6 +34,12 @@ export async function markLessonComplete(
       },
     });
     
+    // Invalidate dashboard cache
+    await Promise.all([
+        invalidateCache(`user:dashboard:${session.id}`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
+    ]);
+
     revalidatePath(`/dashboard/${slug}`);
     
     return {
@@ -49,16 +57,6 @@ export async function markLessonComplete(
 
 /**
  * Update video progress with atomic increment for watch time
- * 
- * @param lessonId - The lesson ID
- * @param lastWatched - Current video position (in seconds)
- * @param actualWatchDelta - Session watch time delta to ADD (in seconds)
- * 
- * How it prevents double counting:
- * 1. Client always sends DELTA (session time), never total
- * 2. Database uses atomic increment: actualWatchTime += delta
- * 3. Client resets session counter to 0 after each sync
- * 4. Cookie is cleared after sync to prevent re-sync
  */
 export async function updateVideoProgress(
   lessonId: string,
@@ -89,6 +87,10 @@ export async function updateVideoProgress(
         },
       },
     });
+
+    // We don't necessarily need to invalidate dashboard for EVERY second watched,
+    // but maybe occasionally? Let's skip for now to avoid rapid hits to Redis.
+    // Dashboard usually care about 'completed' anyway.
 
     return { 
       status: "success", 

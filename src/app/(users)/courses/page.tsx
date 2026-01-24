@@ -1,14 +1,11 @@
-import { getAllCourses } from "@/app/data/course/get-all-courses";
-import {
-  PublicCourseCard,
-  PublicCourseCardSkeleton,
-} from "../_components/PublicCourseCard";
+import { CoursesClient } from "./_components/CoursesClient";
+import { getCurrentUser } from "@/lib/session";
 
-import { Suspense } from "react";
-import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
 export const dynamic = "force-dynamic";
 
-export default function PublicCoursesRoute() {
+export default async function PublicCoursesRoute() {
+  const user = await getCurrentUser();
+
   return (
     <div className="mt-5 px-4 lg:px-6">
       <div className="flex flex-col space-y-2 mb-10">
@@ -21,43 +18,7 @@ export default function PublicCoursesRoute() {
         </p>
       </div>
 
-      <Suspense fallback={<LoadingSkeletonLayout />}>
-        <RenderCourses />
-      </Suspense>
-    </div>
-  );
-}
-
-async function RenderCourses() {
-  const courses = await getAllCourses();
-
-  // Load enrollments server-side for each course
-  const coursesWithEnrollment = await Promise.all(
-    courses.map(async (course) => {
-      const enrollmentStatus = await checkIfCourseBought(course.id);
-      return { ...course, enrollmentStatus };
-    })
-  );
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-      {coursesWithEnrollment.map((course) => (
-        <PublicCourseCard
-          key={course.id}
-          data={course}
-          enrollmentStatus={course.enrollmentStatus}
-        />
-      ))}
-    </div>
-  );
-}
-
-function LoadingSkeletonLayout() {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-7">
-      {Array.from({ length: 9 }).map((_, index) => (
-        <PublicCourseCardSkeleton key={index} />
-      ))}
+      <CoursesClient currentUserId={user?.id} />
     </div>
   );
 }

@@ -3,9 +3,27 @@ import { requireUser } from "../user/require-user";
 import { prisma } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";
 
-export async function getCourseSidebarData(slug: string) {
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+
+export async function getCourseSidebarData(slug: string, clientVersion?: string) {
   const session = await requireUser();
-  
+  const coursesVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
+  const userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id));
+  const currentVersion = `${coursesVersion}_${userVersion}`;
+
+  // Smart Sync
+  if (clientVersion && clientVersion === currentVersion) {
+    console.log(`[getCourseSidebarData] Version match for ${slug}. Returning NOT_MODIFIED.`);
+    return { status: "not-modified", version: currentVersion };
+  }
+
+  // Check Redis cache
+  const cacheKey = `user:sidebar:${session.id}:${slug}`;
+  const cached = await getCache<any>(cacheKey);
+  if (cached) {
+    console.log(`[Redis] Cache HIT for sidebar: ${session.id}:${slug}`);
+    return { ...cached, version: currentVersion };
+  }
 
   const course = await prisma.course.findUnique({
     where: {
@@ -52,9 +70,11 @@ export async function getCourseSidebarData(slug: string) {
       },
     },
   });
+
   if (!course) {
     return notFound();
   }
+
   const enrollment = await prisma.enrollment.findUnique({
     where: {
       userId_courseId: {
@@ -67,9 +87,13 @@ export async function getCourseSidebarData(slug: string) {
   if (!enrollment || enrollment.status !== "Granted") {
     return notFound();
   }
-  return {
-    course,
-  };
+
+  const result = { course };
+  
+  // Cache in Redis for 6 hours
+  await setCache(cacheKey, result, 21600);
+
+  return { ...result, version: currentVersion };
 }
 
 export type CourseSidebarDataType = Awaited<

@@ -28,7 +28,7 @@ export function EditCourseClientWrapper({
   const isDirty = basicDirty || structureDirty;
 
   return (
-    <div className="px-4 lg:px-6 ">
+    <div className="px-4 lg:px-6 py-2 md:py-5">
       <h1 className="text-3xl font-bold mb-3 md:mb-6 flex flex-col sm:flex-row sm:items-center gap-2">
         {/* Wrapper for Back + "Edit Course:" */}
         <div className="flex items-center gap-2">

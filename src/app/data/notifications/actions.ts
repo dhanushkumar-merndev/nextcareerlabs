@@ -659,7 +659,13 @@ export async function deleteMessageAction(id: string) {
 }
 
 
-export async function editMessageAction(id: string, newContent: string, imageUrl?: string | null) {
+export async function editMessageAction(
+  id: string, 
+  newContent: string, 
+  imageUrl?: string | null,
+  fileUrl?: string | null,
+  fileName?: string | null
+) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
@@ -672,12 +678,9 @@ export async function editMessageAction(id: string, newContent: string, imageUrl
     where: { id },
     data: { 
         content: newContent,
-        imageUrl: imageUrl // undefined means no change, null means remove? No, prisma ignores undefined. 
-        // We need specific logic if we want to remove it.
-        // Let's assume passed value is the NEW value (string or null).
-        // If undefined, we might not want to touch it, but typical "edit" form sends all state.
-        // Let's pass "undefined" if no change intended? 
-        // actually simplicity: just pass what we have.
+        imageUrl: imageUrl, 
+        fileUrl: fileUrl,
+        fileName: fileName
     }
   });
 

@@ -36,40 +36,95 @@ import { JSX } from "react";
 import { EnrollmentButton } from "./EnrollmentButton";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 
+import { useQuery } from "@tanstack/react-query";
+import { getSlugPageDataAction } from "../actions";
+import { chatCache } from "@/lib/chat-cache";
+import { useState, useEffect } from "react";
+
 interface SlugPageWrapperProps {
-  course: {
-    id: string;
-    title: string;
-    description: string;
-    fileKey: string;
-    duration: number;
-    level: CourseLevel;
-    category: string;
-    smallDescription: string;
-    slug: string;
-    chapter: {
-      id: string;
-      title: string;
-      lesson: {
-        id: string;
-        title: string;
-      }[];
-    }[];
-  };
-  enrollmentStatus: EnrollmentStatus | null;
-  isProfileComplete: boolean;
-  requireName?: boolean;
+  slug: string;
+  currentUserId?: string;
 }
 
 export function SlugPageWrapper({
-  course,
-  enrollmentStatus,
-  isProfileComplete,
-  requireName = false,
+  slug,
+  currentUserId,
 }: SlugPageWrapperProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["course_detail", slug, currentUserId],
+    queryFn: async () => {
+      const cacheKey = `course_${slug}`;
+      const cached = chatCache.get<any>(cacheKey, currentUserId);
+      const clientVersion = cached?.version;
+
+      console.log(`[Slug] Syncing with server... (Version: ${clientVersion || 'None'})`);
+      const result = await getSlugPageDataAction(slug, clientVersion);
+
+      if (result && (result as any).status === "not-modified" && cached) {
+        console.log(`[Slug] Version match. Using local data.`);
+        return cached.data;
+      }
+
+      if (result && !(result as any).status) {
+        console.log(`[Slug] Fresh data received.`);
+        chatCache.set(cacheKey, result, currentUserId, (result as any).version);
+      }
+      return result;
+    },
+    initialData: () => {
+      const cacheKey = `course_${slug}`;
+      const cached = chatCache.get<any>(cacheKey, currentUserId);
+      if (cached) {
+        console.log(`[Slug] Loaded cached data for ${slug}`);
+        return cached.data;
+      }
+      return undefined;
+    },
+    staleTime: 1800000, // 30 mins
+  });
+
+  if (!mounted || (isLoading && !data)) {
+    return (
+      <div className="mt-5 px-4 lg:px-6 space-y-10">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <div className="aspect-video w-full rounded-xl bg-muted animate-pulse" />
+            <div className="space-y-4">
+              <div className="h-10 w-3/4 rounded-lg bg-muted animate-pulse" />
+              <div className="h-4 w-full rounded bg-muted animate-pulse" />
+            </div>
+          </div>
+          <div className="lg:col-span-1">
+             <div className="h-[400px] w-full rounded-xl bg-muted animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const rawData = data as any;
+  // Resiliency: Handle new format {course, enrollmentStatus...} or old raw course object
+  const course = rawData?.course || (rawData?.id ? rawData : null);
+  const enrollmentStatus = rawData?.enrollmentStatus || null;
+  const isProfileComplete = rawData?.isProfileComplete ?? true;
+  const requireName = rawData?.requireName ?? false;
+
+  if (!course) {
+    return (
+        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+            <h2 className="text-2xl font-bold">Course Not Found</h2>
+            <p className="text-muted-foreground">The course you are looking for might have been moved or deleted.</p>
+            <Link href="/courses" className={buttonVariants()}>Go Back to Courses</Link>
+        </div>
+    );
+  }
   return (
     <>
-      <PhoneNumberDialog isOpen={!isProfileComplete} requireName={requireName} />
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
         <div className="order-1 lg:col-span-2">
           <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">
@@ -109,7 +164,7 @@ export function SlugPageWrapper({
               Course Description
             </h2>
             <div>
-              <RenderDescription json={JSON.parse(course.description)} />
+              <RenderDescription json={course.description ? JSON.parse(course.description) : null} />
             </div>
           </div>
           <Separator className="mt-8 mb-6" />
@@ -123,7 +178,7 @@ export function SlugPageWrapper({
                 chapters |{" "}
                 <span className="text-primary">
                   {course.chapter.reduce(
-                    (total, chapter) => total + chapter.lesson.length,
+                    (total: number, chapter: any) => total + chapter.lesson.length,
                     0
                   ) || 0}
                 </span>{" "}
@@ -131,7 +186,7 @@ export function SlugPageWrapper({
               </div>
             </div>
             <div className="space-y-4">
-              {course.chapter.map((chapter, index) => (
+              {course.chapter.map((chapter: any, index: number) => (
                 <Collapsible key={chapter.id} defaultOpen={index === 0}>
                   <Card className="p-0 overflow-hidden border-2 transition-all duration-200 hover:shadow-md gap-0">
                     <CollapsibleTrigger className="w-full">
@@ -154,7 +209,7 @@ export function SlugPageWrapper({
                           <div className="flex items-center gap-3">
                             <Badge
                               variant={"outline"}
-                              className="text-sm rounded-sm"
+                              className="hidden md:block text-sm rounded-sm "
                             >
                               {chapter.lesson.length} Lesson
                               {chapter.lesson.length > 1 ? "s" : ""}
@@ -167,7 +222,7 @@ export function SlugPageWrapper({
                     <CollapsibleContent>
                       <div className="border-t bg-muted/20">
                         <div className="p-6 pt-4 space-y-3">
-                          {chapter.lesson.map((lesson, lessonIndex) => (
+                          {chapter.lesson.map((lesson: any, lessonIndex: number) => (
                             <div
                               key={lesson.id}
                               className="flex items-center gap-4 rounded-lg p-3 hover:bg-accent transition-colors group"
@@ -195,7 +250,7 @@ export function SlugPageWrapper({
           </div>
         </div>
         <div className="order-2 lg:col-span-1">
-          <div className="sticky top-20 h-[calc(100vh-(--spacing(24)))] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
+          <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
             <div className="relative">
               <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
                 <CardContent className="p-6 space-y-8">
@@ -232,7 +287,7 @@ export function SlugPageWrapper({
                         icon={<IconBook className="size-4" />}
                         title="Total Lessons"
                         value={`${course.chapter.reduce(
-                          (total, chapter) => total + chapter.lesson.length,
+                          (total: number, chapter: any) => total + chapter.lesson.length,
                           0
                         )} Lessons`}
                       />
@@ -293,29 +348,6 @@ export function SlugPageWrapper({
           </div>
         </div>
       </div>
-
-      {/* Floating Description Button */}
-      <Drawer>
-        <DrawerTrigger asChild>
-          <button className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-primary-foreground shadow-2xl hover:bg-primary/90 transition-all hover:scale-105 active:scale-95 group">
-            <IconFileText className="size-5 group-hover:rotate-12 transition-transform" />
-            <span className="font-semibold text-sm">View Description</span>
-          </button>
-        </DrawerTrigger>
-        <DrawerContent className="max-h-[85vh]">
-          <div className="max-w-4xl mx-auto w-full overflow-y-auto px-4 pb-12">
-            <DrawerHeader className="px-0">
-              <DrawerTitle className="text-2xl font-bold flex items-center gap-2">
-                <IconFileText className="size-6 text-primary" />
-                Course Description
-              </DrawerTitle>
-            </DrawerHeader>
-            <div className="mt-4">
-              <RenderDescription json={JSON.parse(course.description)} />
-            </div>
-          </div>
-        </DrawerContent>
-      </Drawer>
     </>
   );
 }

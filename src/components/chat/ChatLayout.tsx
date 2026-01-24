@@ -73,7 +73,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
          if (!isInitial && version > (lastVersionRef.current || 0)) {
             queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
             if (selectedThread?.id) {
-               queryClient.invalidateQueries({ queryKey: ["messages", selectedThread.id] });
+               queryClient.invalidateQueries({ queryKey: ["messages", selectedThread.id, currentUserId] });
             }
          }
          lastVersionRef.current = version;

@@ -1,5 +1,7 @@
 import { getCourseSidebarData } from "@/app/data/course/get-course-sidebar-data";
 import { SidebarContainer } from "../_components/SidebarContainer";
+import { getCurrentUser } from "@/lib/session";
+import { redirect } from "next/navigation";
 
 interface iAppProps {
   params: Promise<{ slug: string }>;
@@ -7,12 +9,16 @@ interface iAppProps {
 }
 
 export default async function CourseLayout({ children, params }: iAppProps) {
+  const user = await getCurrentUser();
+  if (!user) {
+      redirect("/login");
+  }
   const { slug } = await params;
   const courseData = await getCourseSidebarData(slug);
 
   return (
     <div className="px-4 lg:px-6 h-full flex flex-col flex-1">
-      <SidebarContainer course={courseData.course}>{children}</SidebarContainer>
+      <SidebarContainer course={courseData.course} userId={user.id}>{children}</SidebarContainer>
     </div>
   );
 }

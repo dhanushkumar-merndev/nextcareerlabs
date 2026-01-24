@@ -42,6 +42,16 @@ export const CHAT_CACHE_KEYS = {
   PARTICIPANTS: (groupId: string) => `chat:participants:${groupId}`,
 };
 
+export const GLOBAL_CACHE_KEYS = {
+  COURSES_LIST: "global:courses:list",
+  COURSES_VERSION: "global:version:courses",
+  COURSE_DETAIL: (slug: string) => `global:course:${slug}`,
+  ADMIN_ANALYTICS: "global:admin:analytics",
+  ADMIN_ANALYTICS_VERSION: "global:version:analytics",
+  USER_ENROLLMENTS: (userId: string) => `user:enrollments:${userId}`,
+  USER_VERSION: (userId: string) => `user:version:${userId}`,
+};
+
 const OPERATION_TIMEOUT = 1500;
 
 async function withTimeout<T>(promise: Promise<T>, defaultValue: T): Promise<T> {
@@ -98,4 +108,16 @@ export async function incrementChatVersion(userId: string) {
     if (!redis) return;
     const nextVersion = Date.now().toString();
     await setCache(CHAT_CACHE_KEYS.VERSION(userId), nextVersion, 86400 * 7); // Store for 7 days
+}
+
+export async function getGlobalVersion(key: string): Promise<string> {
+    if (!redis) return "0";
+    const version = await getCache<string>(key);
+    return version || "0";
+}
+
+export async function incrementGlobalVersion(key: string) {
+    if (!redis) return;
+    const nextVersion = Date.now().toString();
+    await setCache(key, nextVersion, 86400 * 7); // Store for 7 days
 }

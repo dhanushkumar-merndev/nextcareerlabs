@@ -6,7 +6,7 @@ import { ApiResponse } from "@/lib/types";
 import { revalidatePath } from "next/cache";
 import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { EnrollmentStatus } from "@/generated/prisma";
-import { invalidateCache, CHAT_CACHE_KEYS } from "@/lib/redis";
+import { invalidateCache, CHAT_CACHE_KEYS, GLOBAL_CACHE_KEYS, incrementGlobalVersion } from "@/lib/redis";
 
 export async function getRequestsAction(
   skip: number,
@@ -48,6 +48,14 @@ export async function updateEnrollmentStatusAction(
       if (courseGroup) {
           await invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id));
       }
+
+      // Invalidate analytics
+      await Promise.all([
+          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+          invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(enrollment.userId)),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId))
+      ]);
     }
 
     revalidatePath("/admin/requests");
