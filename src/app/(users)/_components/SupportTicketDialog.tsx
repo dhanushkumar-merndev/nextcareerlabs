@@ -156,7 +156,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || limitStatus.limitReached || isLimitChecking}>
+            <Button type="submit" disabled={isPending || limitStatus.limitReached }>
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

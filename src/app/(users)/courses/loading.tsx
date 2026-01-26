@@ -1,6 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { PublicCourseCardSkeleton } from "../_components/PublicCourseCard";
-
 export default function Loading() {
   return (
     <div className="mt-5 px-4 lg:px-6 space-y-10">

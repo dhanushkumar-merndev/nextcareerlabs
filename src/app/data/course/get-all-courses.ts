@@ -6,46 +6,41 @@ import {
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
 } from "@/lib/redis";
-import { CoursesServerResult } from "@/lib/types/course";
+import { CoursesServerResult, PublicCourseType } from "@/lib/types/course";
+
+const PAGE_SIZE = 9;
 
 type RedisCoursesCache = {
-  data: any[];
+  data: PublicCourseType[];
   version: string;
 };
 
 export async function getAllCourses(
   clientVersion?: string,
-  userId?: string
+  userId?: string,
+  cursor?: string | null,
+  searchQuery?: string
 ): Promise<CoursesServerResult> {
   const currentVersion = await getGlobalVersion(
     GLOBAL_CACHE_KEYS.COURSES_VERSION
   );
 
-  /**
-   * 1️⃣ Smart version sync
-   * If client already has latest data, stop here
-   */
-  if (clientVersion && clientVersion === currentVersion) {
-    return {
-      status: "not-modified",
-      version: currentVersion,
-    };
+  // 🔹 Version short-circuit ONLY for first page
+  // WE MUST SKIP this optimization if searching, because cached version does not know about search filter
+  if (!searchQuery && !cursor && clientVersion && clientVersion === currentVersion) {
+    return { status: "not-modified", version: currentVersion };
   }
 
-  /**
-   * 2️⃣ Redis cache (6 hours)
-   */
   const cacheKey = GLOBAL_CACHE_KEYS.COURSES_LIST;
-
   const cached = await getCache<RedisCoursesCache>(cacheKey);
 
-  let courses = cached?.data;
+  let allCourses: PublicCourseType[];
 
-  /**
-   * 3️⃣ DB fallback (only if Redis miss)
-   */
-  if (!courses) {
-    courses = await prisma.course.findMany({
+  // 🔹 Redis → DB fallback
+  if (cached?.data) {
+    allCourses = cached.data;
+  } else {
+    allCourses = await prisma.course.findMany({
       where: { status: "Published" },
       orderBy: { createdAt: "desc" },
       select: {
@@ -62,39 +57,48 @@ export async function getAllCourses(
 
     await setCache(
       cacheKey,
-      {
-        data: courses,
-        version: currentVersion,
-      },
+      { data: allCourses, version: currentVersion },
       6 * 60 * 60 // 6 hours
     );
   }
 
-  /**
-   * 4️⃣ Merge enrollment status (user-specific, NEVER cached)
-   */
+  // 🔹 Filter by Search (Case Insensitive)
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    allCourses = allCourses.filter((c) => c.title.toLowerCase().includes(q));
+  }
+
+  // 🔹 Enrollment merge (user-specific)
   if (userId) {
     const enrollments = await prisma.enrollment.findMany({
       where: { userId },
       select: { courseId: true, status: true },
     });
 
-    const enrollmentMap = new Map(
-      enrollments.map(e => [e.courseId, e.status])
-    );
+    const map = new Map(enrollments.map((e) => [e.courseId, e.status]));
 
-    courses = courses.map(course => ({
-      ...course,
-      enrollmentStatus: enrollmentMap.get(course.id) ?? null,
+    allCourses = allCourses.map((c) => ({
+      ...c,
+      enrollmentStatus: map.get(c.id) ?? null,
     }));
   }
 
-  /**
-   * 5️⃣ Final response
-   */
+  // 🔹 Cursor pagination (9+9)
+  const startIndex = cursor
+    ? allCourses.findIndex((c) => c.id === cursor) + 1
+    : 0;
+
+  const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
+
+  const nextCursor =
+    startIndex + PAGE_SIZE < allCourses.length
+      ? page[page.length - 1]?.id ?? null
+      : null;
+
   return {
     status: "data",
     version: currentVersion,
-    courses,
+    courses: page,
+    nextCursor,
   };
 }

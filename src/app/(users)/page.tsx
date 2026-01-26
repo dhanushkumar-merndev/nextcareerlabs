@@ -1,3 +1,12 @@
+/**
+ * Home Page
+ *
+ * - Public landing page for the platform
+ * - Highlights core features and value proposition
+ * - Provides entry points to courses and dashboard
+ * - Includes testimonials and program overview sections
+ */
+
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
@@ -11,6 +20,7 @@ import TestimonialBanner from "./_components/TestimonialBanner";
 import { DashboardButton } from "./_components/DashboardButton";
 import HomePageUrlCleaner from "./_components/HomePageUrlCleaner";
 
+// Feature highlights shown on the homepage
 const features = [
   {
     title: "Comprehensive Courses",
@@ -38,12 +48,12 @@ const features = [
 ];
 
 export default function Home() {
-
   return (
-
     <>
-<HomePageUrlCleaner />
-      {/* HERO */}
+      {/* Cleans up unwanted URL params on homepage */}
+      <HomePageUrlCleaner />
+
+      {/* HERO SECTION */}
       <main className="relative py-18 px-4 lg:px-10 lg:py-24 xl:py-28">
         <div className="flex flex-col items-center text-center max-w-3xl mx-auto space-y-6">
           <Badge variant="outline">The future of Online Education</Badge>
@@ -56,6 +66,7 @@ export default function Home() {
             Discover a new way to learn with our modern, interactive platform.
           </p>
 
+          {/* Primary actions */}
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <Link className={buttonVariants({ size: "lg" })} href="/courses">
               Explore Courses
@@ -65,17 +76,19 @@ export default function Home() {
         </div>
       </main>
 
-      {/* FEATURES */}
+      {/* FEATURES SECTION */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 pb-8 xl:pb-16">
-        {features.map((feature) => (
+        {features.map(feature => (
           <FeatureCard key={feature.title} {...feature} />
         ))}
       </section>
 
-      {/* SECTIONS */}
+      {/* PROGRAMS SECTION */}
       <section id="programs">
         <Stacking />
       </section>
+
+      {/* TESTIMONIALS SECTION */}
       <section id="testimonials">
         <TestimonialBanner />
       </section>

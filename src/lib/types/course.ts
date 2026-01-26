@@ -4,15 +4,14 @@ export interface CoursesProps {
 }
 
 export interface CoursesClientProps {
-    currentUserId?: string;
+  currentUserId?: string;
 }
-
 
 export type PublicCourseType = {
   id: string;
   title: string;
   smallDescription: string;
-  duration: number; 
+  duration: number;
   level: string;
   fileKey: string | null;
   category: string;
@@ -27,12 +26,6 @@ export type CoursesCacheEntry = {
   version: string;
 };
 
-/**
- * What the SERVER can return internally
- * (client never stores this directly)
- */
-
-
 export type CoursesServerResult =
   | {
       status: "not-modified";
@@ -42,4 +35,5 @@ export type CoursesServerResult =
       status: "data";
       version: string;
       courses: PublicCourseType[];
+      nextCursor: string | null;
     };
