@@ -1,19 +1,11 @@
-"use client";
+/* This is Testimonial Banner Component */
 
+"use client";
 import { useState } from "react";
 import Image from "next/image";
 import { Twitter } from "lucide-react";
+import { Testimonial } from "@/lib/types/components";
 
-/* ================= TYPES ================= */
-type Testimonial = {
-  id: number;
-  name: string;
-  role: string;
-  company: string;
-  message: string;
-  avatar: string;
-  image?: string;
-};
 /* ================= DATA ================= */
 const testimonials: Testimonial[] = [
   {
@@ -90,10 +82,8 @@ const testimonials: Testimonial[] = [
   },
 ];
 
-/* ================= COMPONENT ================= */
 export default function TestimonialMasonry() {
   const [showAll, setShowAll] = useState(false);
-
   return (
     <section className="pt-16 md:py-28 px-4 ">
       <div className="mx-auto max-w-7xl">
@@ -106,7 +96,6 @@ export default function TestimonialMasonry() {
             Real feedback from our community
           </p>
         </div>
-
         {/* GRID WRAPPER */}
         <div className="relative">
           {/* MASONRY GRID */}
@@ -140,12 +129,10 @@ export default function TestimonialMasonry() {
                   </div>
                   <Twitter className="h-5 w-5 text-sky-500" />
                 </div>
-
                 {/* MESSAGE */}
                 <div className="px-4 pb-4 text-sm leading-relaxed">
                   {t.message}
                 </div>
-
                 {/* IMAGE */}
                 {t.image && (
                   <div className="relative w-full aspect-video overflow-hidden rounded-b-xl">
@@ -162,7 +149,6 @@ export default function TestimonialMasonry() {
               </div>
             ))}
           </div>
-
           {/* FADE + BUTTON (OVERLAY) */}
           {!showAll && (
             <>
@@ -179,7 +165,6 @@ export default function TestimonialMasonry() {
             </>
           )}
         </div>
-
         {/* SHOW LESS */}
         {showAll && (
           <div className="mt-8 flex justify-center">

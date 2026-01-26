@@ -9,10 +9,10 @@ import { useConstructUrl } from "@/hooks/use-construct-url";
 import { CrownIcon, School, TimerIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { iAppProps } from "@/lib/types/course";
+import { CoursesProps } from "@/lib/types/course";
 
 // PublicCourseCard component
-export function PublicCourseCard({data,enrollmentStatus = null,}: iAppProps) {
+export function PublicCourseCard({data,enrollmentStatus = null,}: CoursesProps) {
   const thumbnaiUrl = useConstructUrl(data.fileKey);
   return (
     <Card className="group relative py-0 gap-0">

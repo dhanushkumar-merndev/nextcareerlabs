@@ -15,3 +15,10 @@ export interface PhoneNumberDialogProps {
 }
 
 export type Section = "home" | "programs" | "testimonials";
+
+
+export interface UserDropdownProps {
+  name: string;
+  email: string;
+  image: string;
+}

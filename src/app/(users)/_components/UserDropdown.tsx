@@ -1,34 +1,15 @@
-import {
-  BookOpen,
-  ChevronDownIcon,
-  Home,
-  LayoutDashboard,
-  LogOutIcon,
-} from "lucide-react";
+/* This component is used to display the user dropdown */
 
+import { BookOpen, ChevronDownIcon, Home, LayoutDashboard, LogOutIcon, } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu,DropdownMenuContent, DropdownMenuGroup,DropdownMenuItem,DropdownMenuLabel,DropdownMenuSeparator,DropdownMenuTrigger,} from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { useSignOut } from "@/hooks/use-signout";
+import { UserDropdownProps } from "@/lib/types/homePage";
 
-interface iAppProps {
-  name: string;
-  email: string;
-  image: string;
-}
-
-export function UserDropdown({ email, name, image }: iAppProps) {
+export function UserDropdown({ email, name, image }: UserDropdownProps) {
   const handleSignOut = useSignOut();
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

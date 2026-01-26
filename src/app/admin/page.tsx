@@ -7,7 +7,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { adminGetRecentCourses } from "../data/admin/admin-get-recent-course";
 import { EmptyState } from "@/components/general/EmptyState";
 import { AdminCourseCard } from "./courses/_components/AdminCourseCard";
-import AuthErrorHandler from "@/components/AuthErrorHandler";
+
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ export default async function AdminIndexPage() {
 
   return (
     <div className="lg:py-5 md:py-6">
-     <AuthErrorHandler />
+   
       <SectionCards stats={stats} />
 
       <div className="px-4  lg:px-6 py-6">

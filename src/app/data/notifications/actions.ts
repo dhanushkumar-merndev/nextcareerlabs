@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { NotificationType } from "@/generated/prisma";
 import { getCache, setCache, invalidateCache, CHAT_CACHE_KEYS, getChatVersion, incrementChatVersion } from "@/lib/redis";
-
+import { TicketResponse } from "@/lib/types/components";
 async function getSession() {
   return await auth.api.getSession({
     headers: await headers(),
@@ -16,17 +16,22 @@ async function getSession() {
 /**
  * Send a notification (Broadcast, Ticket, etc.)
  */
-export async function sendNotificationAction(data: {
-  title: string;
-  content: string;
-  type: NotificationType;
-  courseId?: string;
-  recipientId?: string;
-  imageUrl?: string;
-  threadId?: string;
-  fileUrl?: string;
-  fileName?: string;
-}) {
+
+
+export async function sendNotificationAction(
+  data: {
+    title: string;
+    content: string;
+    type: NotificationType;
+    courseId?: string;
+    recipientId?: string;
+    imageUrl?: string;
+    threadId?: string;
+    fileUrl?: string;
+    fileName?: string;
+  }
+): Promise<TicketResponse> 
+ {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
@@ -84,7 +89,12 @@ export async function sendNotificationAction(data: {
       const nextDay = new Date(now);
       nextDay.setHours(24, 0, 0, 0); 
       const minutesLeft = Math.ceil((nextDay.getTime() - now.getTime()) / (1000 * 60));
-      return { success: false, error: "TICKET_LIMIT_REACHED", minutesLeft };
+      return {
+  success: false,
+  code: "TICKET_LIMIT_REACHED",
+  minutesLeft,
+};
+
     }
 
     // Ensure the thread is visible for both parties

@@ -1,102 +1,91 @@
-"use client";
+/* This component is used to raise a support ticket */
 
+"use client";
 import { useState, useTransition, useEffect } from "react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogHeader, 
-  DialogTitle,
-  DialogFooter
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { sendNotificationAction, checkTicketLimitAction } from "@/app/data/notifications/actions";
 import { toast } from "sonner";
 import { Loader2, MessageSquarePlus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { TicketResponse } from "@/lib/types/components";
 
-export function SupportTicketDialog({ 
-  open, 
-  onOpenChange,
-  courses = [] 
-}: { 
-  open: boolean; 
-  onOpenChange: (open: boolean) => void;
-  courses?: { id: string, title: string }[]
-}) {
+// Support ticket dialog component
+export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open: boolean; onOpenChange: (open: boolean) => void; courses?: { id: string, title: string }[] }) {
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
   const [courseId, setCourseId] = useState<string>("general");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [limitStatus, setLimitStatus] = useState<{ limitReached: boolean, count: number }>({ limitReached: false, count: 0 });
-
+  const isLimitChecking = open && limitStatus.count === 0;
+  // Check ticket limit when dialog opens
   useEffect(() => {
+    let mounted = true;
     if (open) {
-      checkTicketLimitAction().then(setLimitStatus);
+      checkTicketLimitAction().then(res => {
+        if (mounted) setLimitStatus(res);
+      });
     }
+    return () => {
+      mounted = false;
+    };
   }, [open]);
-
+  // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (limitStatus.limitReached) {
       toast.error("You have reached the maximum of 3 active tickets.");
       return;
     }
-    if (!title || !content) {
-      toast.error("Please fill in all fields");
+    if (title.trim().length < 5 || content.trim().length < 10){
+      toast.error("Please fill in all fields with at least 5 characters for title and 10 characters for description.");
       return;
     }
-
+    // Start transition for async operation
     startTransition(async () => {
       try {
         const prefix = courseId === "app_related" ? "[APP]" : courseId === "general" ? "[GENERAL]" : "[COURSE]";
-        
         // Find category name for the message body
         const categoryName = courseId === "app_related" 
             ? "App Related Issue" 
             : courseId === "general" 
                 ? "General Issue" 
                 : courses.find(c => c.id === courseId)?.title || "Course Related";
-
+        // Format content
         const formattedContent = `**Issue Type:** ${categoryName}\n**Summary:** ${title}\n\n**Description:**\n${content}`;
-
-        const res = await sendNotificationAction({
+        // Send notification
+        const res: TicketResponse = await sendNotificationAction({
           title: `${prefix} ${title}`,
           content: formattedContent,
           type: "SUPPORT_TICKET",
           courseId: ["general", "app_related"].includes(courseId) ? undefined : courseId,
         });
-
-        if (res && !res.success) {
-            if ((res as any).error === "TICKET_LIMIT_REACHED") {
-                const mins = (res as any).minutesLeft;
-                const hours = Math.floor(mins / 60);
-                const remainingMins = mins % 60;
-                const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
-                toast.error(`Limit reached. Try again in ${timeStr}!`);
-            } else {
-                toast.error("Failed to raise ticket. Please try again.");
-            }
-            return;
+        // Handle response
+        if (!res.success) {
+        if (res.code === "TICKET_LIMIT_REACHED") {
+          const mins = res.minutesLeft;
+          const hours = Math.floor(mins / 60);
+          const remainingMins = mins % 60;
+          const timeStr =
+            hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
+          toast.error(`Limit reached. Try again in ${timeStr}!`);
+        } else {
+          toast.error("Failed to raise ticket. Please try again.");
         }
-
+        return;
+      }
+        // Show success message
         toast.success("Ticket raised successfully! Our team will get back to you.");
-        
         // Invalidate query to show new thread instantly
         queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
-        
+        // Close dialog
         onOpenChange(false);
+        // Clear form
         setTitle("");
         setContent("");
       } catch (error) {
@@ -104,7 +93,6 @@ export function SupportTicketDialog({
       }
     });
   };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
@@ -122,7 +110,6 @@ export function SupportTicketDialog({
             </div>
           )}
         </DialogHeader>
-
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="category">Related to</Label>
@@ -139,7 +126,6 @@ export function SupportTicketDialog({
               </SelectContent>
             </Select>
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="title">Issue Summary</Label>
             <Input 
@@ -150,7 +136,6 @@ export function SupportTicketDialog({
               required
             />
           </div>
-
           <div className="space-y-2">
             <Label htmlFor="content">Description</Label>
             <Textarea 
@@ -162,7 +147,6 @@ export function SupportTicketDialog({
               required
             />
           </div>
-
           <DialogFooter className="pt-4">
             <Button 
               type="button" 
@@ -172,7 +156,7 @@ export function SupportTicketDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || limitStatus.limitReached}>
+            <Button type="submit" disabled={isPending || limitStatus.limitReached || isLimitChecking}>
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

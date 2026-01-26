@@ -2,7 +2,6 @@ import { env } from "@/lib/env";
 import arcjet, { createMiddleware, detectBot } from "@arcjet/next";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/db";
 import { AuthSession } from "./lib/types/auth";
 import { clearOtherSessionsOnce } from "./lib/session-cleanup";
 

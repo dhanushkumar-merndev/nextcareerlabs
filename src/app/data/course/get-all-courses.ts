@@ -1,31 +1,55 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import {
+  getCache,
+  setCache,
+  GLOBAL_CACHE_KEYS,
+  getGlobalVersion,
+} from "@/lib/redis";
+import { CoursesServerResult } from "@/lib/types/course";
 
-export async function getAllCourses(clientVersion?: string, userId?: string) {
-  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
-  
-  // Smart Sync: If client has the latest version, don't re-fetch
+type RedisCoursesCache = {
+  data: any[];
+  version: string;
+};
+
+export async function getAllCourses(
+  clientVersion?: string,
+  userId?: string
+): Promise<CoursesServerResult> {
+  const currentVersion = await getGlobalVersion(
+    GLOBAL_CACHE_KEYS.COURSES_VERSION
+  );
+
+  /**
+   * 1️⃣ Smart version sync
+   * If client already has latest data, stop here
+   */
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(`[getAllCourses] Version match (${currentVersion}). Returning NOT_MODIFIED.`);
-    return { status: "not-modified", version: currentVersion };
+    return {
+      status: "not-modified",
+      version: currentVersion,
+    };
   }
 
-  // Check Redis cache
+  /**
+   * 2️⃣ Redis cache (6 hours)
+   */
   const cacheKey = GLOBAL_CACHE_KEYS.COURSES_LIST;
-  const cached = await getCache<any>(cacheKey);
-  let courses = cached;
 
+  const cached = await getCache<RedisCoursesCache>(cacheKey);
+
+  let courses = cached?.data;
+
+  /**
+   * 3️⃣ DB fallback (only if Redis miss)
+   */
   if (!courses) {
-    console.log(`[Redis] Cache MISS for courses list`);
     courses = await prisma.course.findMany({
-      where: {
-        status: "Published",
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      where: { status: "Published" },
+      orderBy: { createdAt: "desc" },
       select: {
+        id: true,
         title: true,
         smallDescription: true,
         duration: true,
@@ -33,37 +57,44 @@ export async function getAllCourses(clientVersion?: string, userId?: string) {
         fileKey: true,
         category: true,
         slug: true,
-        id: true,
       },
     });
 
-    // Cache in Redis for 6 hours
-    await setCache(cacheKey, courses, 21600);
-  } else {
-    console.log(`[Redis] Cache HIT for courses list`);
+    await setCache(
+      cacheKey,
+      {
+        data: courses,
+        version: currentVersion,
+      },
+      6 * 60 * 60 // 6 hours
+    );
   }
 
-  // If userId is provided, fetch their enrollment statuses
+  /**
+   * 4️⃣ Merge enrollment status (user-specific, NEVER cached)
+   */
   if (userId) {
     const enrollments = await prisma.enrollment.findMany({
-      where: { userId: userId },
-      select: { courseId: true, status: true }
+      where: { userId },
+      select: { courseId: true, status: true },
     });
-    
-    const enrollmentMap = new Map(enrollments.map(e => [e.courseId, e.status]));
-    
-    const coursesWithEnrollment = courses.map((c: any) => ({
-      ...c,
-      enrollmentStatus: enrollmentMap.get(c.id) || null
-    }));
-    
-    return { courses: coursesWithEnrollment, version: currentVersion };
-  }
-  
-  return { courses, version: currentVersion };
-}
 
-type FullResult = Awaited<ReturnType<typeof getAllCourses>>;
-// If it's a "not-modified" response, it won't have .courses
-// So we extract the course type from the success state
-export type PublicCourseType = Extract<FullResult, { courses: any }>["courses"][0];
+    const enrollmentMap = new Map(
+      enrollments.map(e => [e.courseId, e.status])
+    );
+
+    courses = courses.map(course => ({
+      ...course,
+      enrollmentStatus: enrollmentMap.get(course.id) ?? null,
+    }));
+  }
+
+  /**
+   * 5️⃣ Final response
+   */
+  return {
+    status: "data",
+    version: currentVersion,
+    courses,
+  };
+}
