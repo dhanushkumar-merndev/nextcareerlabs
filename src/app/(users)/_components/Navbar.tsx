@@ -1,102 +1,84 @@
-"use client";
+/* This component is used to display the navbar */
 
+"use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
-
-import { authClient } from "@/lib/auth-client";
 import { buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/themeToggle";
 import { UserDropdown } from "./UserDropdown";
 import { useSignOut } from "@/hooks/use-signout";
+import { useSmartSession } from "@/hooks/use-smart-session";
+import { Section } from "@/lib/types/homePage";
 
-type Section = "home" | "programs" | "testimonials";
-
+// This component is used to display the navbar
 export function Navbar() {
   const pathname = usePathname();
   const isHomePage = pathname === "/";
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending } = useSmartSession();
   const handleSignOut = useSignOut();
-
   const [isOpen, setIsOpen] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
   const [activeSection, setActiveSection] = useState<Section>("home");
   const [lastScrollY, setLastScrollY] = useState(0);
+  const dashboardLink = session?.user?.role === "admin" ? "/admin" : "/dashboard";
 
-  const dashboardLink =
-    session?.user?.role === "admin" ? "/admin" : "/dashboard";
-
-  /* ================= COMPACT MODE ================= */
+// Compact mode on scroll
   useEffect(() => {
     if (!isHomePage || window.innerWidth < 1024) return;
-
     const ENTER = 180; // px → turn compact ON
     const EXIT = 120; // px → turn compact OFF
     let ticking = false;
-
     const updateCompact = () => {
       const y = window.scrollY;
-
       setIsCompact((prev) => {
         if (!prev && y > ENTER) return true;
         if (prev && y < EXIT) return false;
         return prev; // 👈 prevents flicker
       });
-
       ticking = false;
     };
-
     const onScroll = () => {
       if (!ticking) {
         requestAnimationFrame(updateCompact);
         ticking = true;
       }
     };
-
     window.addEventListener("scroll", onScroll, { passive: true });
     updateCompact(); // initial run
-
     return () => window.removeEventListener("scroll", onScroll);
   }, [isHomePage]);
 
-  /* ================= BODY LOCK (MOBILE) ================= */
+ // Body lock on mobile
   useEffect(() => {
     document.body.style.overflow = isOpen ? "hidden" : "auto";
   }, [isOpen]);
 
-  /* ================= SCROLL SPY (FIXED) ================= */
+ // Scroll spy (fixed)
   useEffect(() => {
     if (!isHomePage) return;
-
     const sections: Section[] = ["programs", "testimonials"];
     let ticking = false;
-
     const onScroll = () => {
       const currentScrollY = window.scrollY;
       const isScrollingDown = currentScrollY > lastScrollY;
-
       // Dynamic offset based on scroll direction (hysteresis)
       const offset = isScrollingDown ? 250 : 150;
       const scrollPos = currentScrollY + offset;
-
       let newSection: Section = "home";
-
       // Find which section we're in
       for (let i = sections.length - 1; i >= 0; i--) {
         const id = sections[i];
         const el = document.getElementById(id);
         if (!el) continue;
-
         const top = el.offsetTop;
-
         if (scrollPos >= top) {
           newSection = id;
           break;
         }
       }
-
       // Only update if section actually changed
       setActiveSection((prev) => {
         if (prev !== newSection) {
@@ -104,48 +86,42 @@ export function Navbar() {
         }
         return prev;
       });
-
       setLastScrollY(currentScrollY);
       ticking = false;
     };
-
     const handleScroll = () => {
       if (!ticking) {
         requestAnimationFrame(onScroll);
         ticking = true;
       }
     };
-
     window.addEventListener("scroll", handleScroll, { passive: true });
     onScroll(); // initial run
-
     return () => {
       window.removeEventListener("scroll", handleScroll);
     };
   }, [isHomePage, lastScrollY]);
 
-  /* ================= HELPERS ================= */
+ // Route active helper
   const isRouteActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
 
+ // Scroll to section
   const scrollToSection = (id: Section) => {
     if (!isHomePage) return;
-
     if (id === "home") {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-
     const el = document.getElementById(id);
     if (!el) return;
-
     window.scrollTo({
       top: el.offsetTop - 80, // offset for navbar
       behavior: "smooth",
     });
   };
 
-  /* ================= RENDER ================= */
+
   return (
     <>
       {/* ================= HEADER ================= */}
@@ -177,7 +153,6 @@ export function Navbar() {
             </div>
             <span className="font-medium">Skill Force Cloud</span>
           </Link>
-
           {/* ================= DESKTOP NAV CENTERED ================= */}
           <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 gap-8">
             {isHomePage ? (
@@ -204,7 +179,6 @@ export function Navbar() {
                 >
                   Home
                 </button>
-
                 <Link
                   href="/courses"
                   className={`
@@ -227,7 +201,6 @@ export function Navbar() {
                 >
                   Courses
                 </Link>
-
                 <Link
                   href={dashboardLink}
                   className={`
@@ -250,7 +223,6 @@ export function Navbar() {
                 >
                   Dashboard
                 </Link>
-
                 {isCompact &&
                   (["programs", "testimonials"] as Section[]).map(
                     (id, index) => (
@@ -335,7 +307,6 @@ export function Navbar() {
               </>
             )}
           </nav>
-
           {/* ================= DESKTOP RIGHT SIDE ================= */}
           <div className="hidden md:flex items-center gap-2 lg:gap-4 ml-auto">
             <ThemeToggle />
@@ -368,7 +339,6 @@ export function Navbar() {
                 </>
               ))}
           </div>
-
           {/* ================= MOBILE BUTTONS ================= */}
           <div className="flex md:hidden items-center gap-2 ml-auto">
             <ThemeToggle />
@@ -382,7 +352,6 @@ export function Navbar() {
           </div>
         </div>
       </header>
-
       {/* ================= MOBILE SIDEBAR BACKDROP ================= */}
       <div
         className={`fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity ${
@@ -390,7 +359,6 @@ export function Navbar() {
         }`}
         onClick={() => setIsOpen(false)}
       />
-
       {/* ================= MOBILE SIDEBAR ================= */}
       <aside
         className={`fixed top-0 left-0 h-full w-72 bg-background border-r z-60 shadow-xl transition-transform duration-300 flex flex-col ${
@@ -407,7 +375,6 @@ export function Navbar() {
             <X className="w-5 h-5" />
           </button>
         </div>
-
         {/* PROFILE */}
         {session && (
           <div className="flex flex-col items-center py-6 border-b px-4 text-center">
@@ -432,7 +399,6 @@ export function Navbar() {
             </p>
           </div>
         )}
-
         {/* MOBILE NAV ITEMS */}
         <nav className="flex flex-col mt-4 px-4 space-y-1">
           {isHomePage ? (
@@ -516,10 +482,8 @@ export function Navbar() {
             </>
           )}
         </nav>
-
         {/* PUSH CONTENT UP */}
         <div className="flex-1"></div>
-
         {/* LOGOUT SECTION */}
         <div className="px-4 pb-6">
           {session ? (

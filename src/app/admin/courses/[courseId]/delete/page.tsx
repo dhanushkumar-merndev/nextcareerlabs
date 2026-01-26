@@ -14,9 +14,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function DeleteCourseRoute() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { courseId } = useParams<{ courseId: string }>();
 
@@ -29,6 +31,14 @@ export default function DeleteCourseRoute() {
       }
       if (result.status === "success") {
         toast.success(result.message);
+        const { chatCache } = await import("@/lib/chat-cache");
+        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidate("all_courses");
+        
+        // Invalidate React Query memory cache
+        queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
+        queryClient.invalidateQueries({ queryKey: ["all_courses"] });
+
         router.push("/admin/courses");
       } else if (result.status === "error") {
         toast.error(result.message);

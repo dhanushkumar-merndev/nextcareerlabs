@@ -1,4 +1,4 @@
-import "server-only";
+"use server"
 import { requireUser } from "../user/require-user";
 import { prisma } from "@/lib/db";
 import { notFound, redirect } from "next/navigation";

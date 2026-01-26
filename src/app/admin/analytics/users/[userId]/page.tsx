@@ -25,8 +25,8 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
     const { user, enrolledCoursesCount, completedCoursesCount, completedChaptersCount, coursesProgress } = data;
 
     // Calculate total lessons completed across all courses
-    const totalLessonsCompleted = coursesProgress.reduce((acc, course) => acc + course.completedLessons, 0);
-    const totalTimeSpent = coursesProgress.reduce((acc, course: any) => acc + course.actualWatchTime, 0);
+    const totalLessonsCompleted = coursesProgress.reduce((acc: number, course: any) => acc + course.completedLessons, 0);
+    const totalTimeSpent = coursesProgress.reduce((acc: number, course: any) => acc + course.actualWatchTime, 0);
 
     const formatTime = (seconds: number) => {
         const h = Math.floor(seconds / 3600);
@@ -133,7 +133,7 @@ export default async function UserAnalyticsPage({ params }: PageProps) {
                     </Card>
                 ) : (
                     <div className="grid gap-4">
-                        {coursesProgress.map((course) => (
+                        {coursesProgress.map((course: any) => (
                             <Link 
                                 key={course.id} 
                                 href={`/admin/analytics/users/${userId}/${course.id}`}

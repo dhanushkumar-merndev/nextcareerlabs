@@ -1,3 +1,4 @@
+/* This component is used to display the footer */
 
 import Link from "next/link";
 import { Mail, Youtube, Facebook, Instagram, GraduationCap } from "lucide-react";
@@ -5,6 +6,7 @@ import { getAllPublishedCourses } from "@/app/data/course/get-course";
 import { SupportFooterLink } from "./SupportFooterLink";
 import { Skeleton } from "@/components/ui/skeleton";
 
+// This component is used to display the footer skeleton
 export function FooterSkeleton() {
   return (
     <footer className="border-t bg-background relative overflow-hidden ">
@@ -47,14 +49,13 @@ export function FooterSkeleton() {
   );
 }
 
+// This component is used to display the footer
 export async function Footer() {
   const courses = await getAllPublishedCourses();
   
   return (
-    <footer className="border-t bg-background relative overflow-hidden mt-5 md:mt-40">
+    <footer className="border-t bg-background relative overflow-hidden mt-5">
       {/* Decorative background element */}
-      
-      
       <div className="container mx-auto px-4 py-16 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 lg:gap-8">
           {/* BRAND SECTION */}
@@ -65,12 +66,10 @@ export async function Footer() {
               </div>
               <span className="font-bold text-xl tracking-tight">Skill Force Cloud</span>
             </Link>
-
             <p className="text-muted-foreground leading-relaxed text-sm max-w-xs">
               Industry-focused training platform helping learners become
               job-ready with real-world skills and expert guidance.
             </p>
-
             <div className="flex items-center gap-3">
               {[
                 { icon: Instagram, label: "Instagram", href: "#" },
@@ -89,7 +88,6 @@ export async function Footer() {
               ))}
             </div>
           </div>
-
           {/* PLATFORM LINKS */}
           <div className="lg:ml-auto">
             <h4 className="font-bold text-sm uppercase tracking-wider mb-6 text-foreground/70">Platform</h4>
@@ -112,7 +110,6 @@ export async function Footer() {
               ))}
             </ul>
           </div>
-
           {/* PROGRAMS LINKS */}
           <div className="lg:ml-auto">
             <h4 className="font-bold text-sm uppercase tracking-wider mb-6 text-foreground/70">Our Programs</h4>
@@ -140,7 +137,6 @@ export async function Footer() {
               )}
             </ul>
           </div>
-
           {/* SUPPORT LINKS */}
           <div className="lg:ml-auto">
             <h4 className="font-bold text-sm uppercase tracking-wider mb-6 text-foreground/70">Support</h4>
@@ -168,6 +164,7 @@ export async function Footer() {
                   href="https://www.google.com/maps/search/?api=1&query=952,+27th+A+Main+Rd,+Putlanpalya,+Jayanagara+9th+Block,+Jayanagar,+Bengaluru,+Karnataka+560041" 
                   target="_blank"
                   className="text-muted-foreground hover:text-primary relative py-1 w-fit block text-sm transition-colors duration-300 group"
+                  aria-label="View our location on Google Maps"
                 >
                   Location
                   <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
@@ -182,7 +179,6 @@ export async function Footer() {
             </ul>
           </div>
         </div>
-
         {/* BOTTOM BAR */}
         <div className="mt-16 pt-8 border-t flex flex-col md:flex-row items-center justify-center gap-6 text-sm">
           <p className="text-muted-foreground order-2 md:order-1">

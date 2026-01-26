@@ -4,33 +4,32 @@ import { useEffect, useState } from "react";
 
 import { CourseSidebar } from "./CourseSidebar";
 
-import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { usePathname } from "next/navigation";
 import { useCourseProgressContext } from "@/providers/CourseProgressProvider";
 import { useCourseProgress } from "@/hooks/use-course-progress";
 
 import { useQuery } from "@tanstack/react-query";
-import { getCourseSidebarData } from "@/app/data/course/get-course-sidebar-data";
+import { getCourseSidebarData, CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { chatCache } from "@/lib/chat-cache";
 
 export function SidebarContainer({
-  course: initialCourse,
+  slug,
   children,
   userId,
 }: {
-  course: CourseSidebarDataType["course"];
+  slug: string;
   children: React.ReactNode;
   userId: string;
 }) {
-  const { data: courseData } = useQuery({
-    queryKey: ["course_sidebar", initialCourse.slug],
+  const { data: course, isLoading } = useQuery({
+    queryKey: ["course_sidebar", slug],
     queryFn: async () => {
-      const cacheKey = `course_sidebar_${initialCourse.slug}`;
+      const cacheKey = `course_sidebar_${slug}`;
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      console.log(`[Sidebar] Syncing for ${initialCourse.slug}...`);
-      const result = await getCourseSidebarData(initialCourse.slug, clientVersion);
+      console.log(`[Sidebar] Syncing for ${slug}...`);
+      const result = await getCourseSidebarData(slug, clientVersion);
 
       if (result && (result as any).status === "not-modified" && cached) {
         return cached.data.course;
@@ -38,19 +37,18 @@ export function SidebarContainer({
 
       if (result && !(result as any).status) {
         chatCache.set(cacheKey, result, userId, (result as any).version);
-        return result.course;
+        return (result as any).course;
       }
-      return result?.course || initialCourse;
+      return (result as any)?.course;
     },
     initialData: () => {
-        const cacheKey = `course_sidebar_${initialCourse.slug}`;
+        const cacheKey = `course_sidebar_${slug}`;
         const cached = chatCache.get<any>(cacheKey, userId);
-        return cached ? cached.data.course : initialCourse;
+        return cached?.data?.course;
     },
     staleTime: 1800000, // 30 mins
   });
 
-  const course = courseData || initialCourse;
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
@@ -59,6 +57,7 @@ export function SidebarContainer({
 
   // Sync progress context
   useEffect(() => {
+    if (!course) return;
     setProgressPercentage(progressPercentage);
     setCourseTitle(course.title);
     setShowProgress(true);
@@ -67,7 +66,7 @@ export function SidebarContainer({
       setShowProgress(false);
       setCourseTitle("");
     };
-  }, [progressPercentage, course.title, setProgressPercentage, setShowProgress, setCourseTitle]);
+  }, [progressPercentage, course, setProgressPercentage, setShowProgress, setCourseTitle]);
 
   // -------------------------------------------------
   // 🚫 FIX: Close sidebar when navigating to a new page
@@ -99,7 +98,16 @@ export function SidebarContainer({
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
         {/* DESKTOP SIDEBAR */}
        <div className="hidden md:block w-80 border-r border-border shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
-          <CourseSidebar course={course} />
+          {isLoading && !course ? (
+            <div className="p-4 space-y-4">
+              <div className="h-8 bg-muted animate-pulse rounded" />
+              <div className="space-y-2">
+                {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
+              </div>
+            </div>
+          ) : (
+            course && <CourseSidebar course={course} />
+          )}
         </div>
 
         {/* PAGE CONTENT (Video/Lesson) */}
@@ -110,8 +118,13 @@ export function SidebarContainer({
           
           {/* MOBILE PLAYLIST (Visible only on mobile, below content) */}
           <div className="md:hidden border-t border-border mt-4  pb-12">
-           
-            <CourseSidebar course={course} />
+            {!course ? (
+               <div className="p-4 space-y-2">
+                 {[1,2,3].map(i => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
+               </div>
+            ) : (
+              <CourseSidebar course={course} />
+            )}
           </div>
         </div>
       </div>

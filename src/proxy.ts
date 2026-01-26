@@ -3,6 +3,8 @@ import arcjet, { createMiddleware, detectBot } from "@arcjet/next";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { AuthSession } from "./lib/types/auth";
+import { clearOtherSessionsOnce } from "./lib/session-cleanup";
 
 const aj = arcjet({
   key: env.ARCJET_KEY!,
@@ -16,8 +18,37 @@ const aj = arcjet({
 
 async function mainMiddleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  const searchParams = request.nextUrl.searchParams;
+if (path === "/api/auth/error") {
+  const error = searchParams.get("error");
+  
 
+  if (error === "banned") {
+    return NextResponse.redirect(new URL("/banned", request.url));
+  }
 
+  if (error === "account_not_linked") {
+    const url = new URL("/", request.url);
+    url.searchParams.set(
+      "authError",
+      "This email was registered using Email OTP. Please sign in using email instead."
+    );
+    return NextResponse.redirect(url);
+  }
+
+  if (error === "access_denied") {
+    const url = new URL("/", request.url);
+    url.searchParams.set(
+      "authError",
+      "Authentication failed. Please try again later."
+    );
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.redirect(new URL("/", request.url));
+}
+
+  
   if (path.startsWith("/api/auth")) {
     return NextResponse.next();
   }
@@ -33,16 +64,21 @@ async function mainMiddleware(request: NextRequest) {
 
   const session = await auth.api.getSession({
     headers: request.headers,
-  });
+  }) as AuthSession | null;
 
- 
+  if (path === "/banned") {
+    return NextResponse.next();
+  }
+
+  if (session?.user.banned) {
+    return NextResponse.redirect(new URL("/banned", request.url));
+  }
+
   if (session) {
-    await prisma.session.deleteMany({
-      where: {
-        userId: session.user.id,
-        id: { not: session.session.id },
-      },
-    });
+    await clearOtherSessionsOnce(
+      session.user.id,
+      session.session.id
+    );
   }
 
  
@@ -56,7 +92,7 @@ async function mainMiddleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
 
-    if ((session.user as any).role !== "admin") {
+    if (session.user.role !== "admin") {
       return NextResponse.redirect(new URL("/not-admin", request.url));
     }
   }

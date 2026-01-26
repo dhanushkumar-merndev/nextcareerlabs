@@ -1,7 +1,7 @@
 "use client";
 
 const STORAGE_PREFIX = "chat_cache_";
-const DEFAULT_TTL = 6 * 60 * 60 * 1000; // 6 hours
+const DEFAULT_TTL = 30 * 60 * 1000; // 30 minutes
 
 interface CacheEntry<T> {
   data: T;

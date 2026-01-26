@@ -44,6 +44,7 @@ export const CHAT_CACHE_KEYS = {
 
 export const GLOBAL_CACHE_KEYS = {
   COURSES_LIST: "global:courses:list",
+  ADMIN_COURSES_LIST: "admin:courses:list",
   COURSES_VERSION: "global:version:courses",
   COURSE_DETAIL: (slug: string) => `global:course:${slug}`,
   ADMIN_ANALYTICS: "global:admin:analytics",

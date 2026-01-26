@@ -1,20 +1,21 @@
-"use client";
+/* This component is used to navigate to the dashboard */
 
+"use client";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
-import { authClient } from "@/lib/auth-client";
+import { useSmartSession } from "@/hooks/use-smart-session";
 
+// This component is used to navigate to the dashboard or admin dashboard based on the user role
 export function DashboardButton() {
-  const { data: session } = authClient.useSession();
+  // Get session data
+  const { data: session } = useSmartSession();
 
+  // Get dashboard href based on user role
   const dashboardHref =
     session?.user.role === "admin" ? "/admin" : "/dashboard";
 
   return (
-    <Link
-      className={buttonVariants({ size: "lg", variant: "outline" })}
-      href={session ? dashboardHref : "/dashboard"}
-    >
+    <Link className={buttonVariants({ size: "lg", variant: "outline" })} href={session ? dashboardHref : "/dashboard"}>
       {session ? "Goto Dashboard" : "Get Started"}
     </Link>
   );

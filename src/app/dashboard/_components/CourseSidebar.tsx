@@ -27,8 +27,8 @@ interface iAppProps {
 const getChapterProgress = (chapter: CourseSidebarDataType["course"]["chapter"][0]) => {
   const total = chapter.lesson.length;
   if (total === 0) return 0;
-  const completed = chapter.lesson.filter(l => 
-    l.lessonProgress.some(p => p.completed)
+  const completed = chapter.lesson.filter((l:any) => 
+    l.lessonProgress.some((p:any) => p.completed)
   ).length;
   return Math.round((completed / total) * 100);
 };
@@ -38,7 +38,7 @@ export function CourseSidebar({ course }: iAppProps) {
   const currentLessonId = pathname.split("/").pop();
 
   const [openChapter, setOpenChapter] = useState<string | null>(
-    course.chapter.find((c) => c.lesson.some((l) => l.id === currentLessonId))?.id ||
+    course.chapter.find((c:any) => c.lesson.some((l:any) => l.id === currentLessonId))?.id ||
       course.chapter[0]?.id ||
       null
   );
@@ -61,7 +61,7 @@ export function CourseSidebar({ course }: iAppProps) {
           <div className="flex-1 min-w-0">
            
             <h3 className="font-bold text-lg truncate">
-              {course.chapter.find((c) => c.id === openChapter)?.title ||
+              {course.chapter.find((c:any) => c.id === openChapter)?.title ||
                 "Select a Chapter"}
             </h3>
           </div>
@@ -78,7 +78,7 @@ export function CourseSidebar({ course }: iAppProps) {
                 <DialogTitle>Select Chapter</DialogTitle>
               </DialogHeader>
               <div className="grid gap-2 mt-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar" data-lenis-prevent >
-                {course.chapter.map((chapter) => {
+                {course.chapter.map((chapter:any) => {
                   const chapterProgress = getChapterProgress(chapter);
                   return (
                     <Button
@@ -118,15 +118,15 @@ export function CourseSidebar({ course }: iAppProps) {
         {/* Playlist Items */}
         <div className="space-y-2 mt-4">
           {course.chapter
-            .find((c) => c.id === openChapter)
-            ?.lesson.map((lesson) => (
+            .find((c:any) => c.id === openChapter)
+            ?.lesson.map((lesson:any) => (
               <LessonItem
                 key={lesson.id}
                 lesson={lesson}
                 slug={course.slug}
                 isActive={currentLessonId === lesson.id}
                 completed={
-                  lesson.lessonProgress.some((p) => p.completed) || false
+                  lesson.lessonProgress.some((p:any) => p.completed) || false
                 }
               />
             ))}
@@ -136,7 +136,7 @@ export function CourseSidebar({ course }: iAppProps) {
       {/* DESKTOP ONLY: COLLAPSIBLE CHAPTER LIST */}
 <div className="hidden md:block pt-4 pr-4 space-y-3 flex-1 overflow-y-auto min-h-0  no-scrollbar" data-lenis-prevent
 >
-        {course.chapter.map((chapter) => {
+        {course.chapter.map((chapter:any) => {
           const isOpen = openChapter === chapter.id;
           const chapterProgress = getChapterProgress(chapter);
 
@@ -173,14 +173,14 @@ export function CourseSidebar({ course }: iAppProps) {
               </CollapsibleTrigger>
 
               <CollapsibleContent className="mt-3 pl-6 border-l-2 space-y-3">
-                {chapter.lesson.map((lesson) => (
+                {chapter.lesson.map((lesson:any) => (
                   <LessonItem
                     key={lesson.id}
                     lesson={lesson}
                     slug={course.slug}
                     isActive={currentLessonId === lesson.id}
                     completed={
-                      lesson.lessonProgress.some((p) => p.completed) || false
+                      lesson.lessonProgress.some((p:any) => p.completed) || false
                     }
                   />
                 ))}

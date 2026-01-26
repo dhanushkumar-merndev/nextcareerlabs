@@ -7,7 +7,7 @@ export default async function PublicCoursesRoute() {
   const user = await getCurrentUser();
 
   return (
-    <div className="mt-5 px-4 lg:px-6">
+    <div className="mt-5 px-4 lg:px-6 md:mb-40">
       <div className="flex flex-col space-y-2 mb-10">
         <h1 className="text-3xl md:text-4xl font-bold tracking-tighter">
           Explore Courses

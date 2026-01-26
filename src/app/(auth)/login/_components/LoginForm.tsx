@@ -1,20 +1,19 @@
+/*This component is used in the login page and handles the login process using Google and Email OTP */
+
 "use client";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardTitle,
-  CardHeader,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { Card,CardTitle,CardHeader,CardDescription,CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { AuthProviderResult } from "@/lib/types/auth";
 import { Loader, Loader2, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import React, { useState, useTransition } from "react";
 import { toast } from "sonner";
+
+// Google icon component
 export const GoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" {...props}>
@@ -37,111 +36,119 @@ export const GoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
     </svg>
   );
 };
+
+// Helper function to check provider
+async function checkProvider(email: string): Promise<AuthProviderResult | null> {
+  let res: Response;
+  // Check provider
+  try {
+    res = await fetch("/api/auth/check-provider", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+  } catch {
+    toast.error("Unable to verify login method. Please try again.");
+    return null;
+  }
+  // Check response
+  if (!res.ok) {
+    toast.error("Unable to verify login method. Please try again.");
+    return null;
+  }
+  // Return provider result
+  return res.json();
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [googlePending, startGoogleTransition] = useTransition();
   const [emailPending, startEmailTransition] = useTransition();
   const [email, setEmail] = useState("");
+  // Normalize email and avoid extra re-renders
+  const normalizedEmail = React.useMemo(() => email.trim().toLowerCase(), [email]);
+  // Validate email
+  const isValidEmail = React.useCallback((email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }, []);
 
+// Google signin with email check
   async function signInWithGoogle() {
+  // Google useTransition hook
     startGoogleTransition(async () => {
-      // If user entered email, check if it's an email-only account
-      if (email) {
-        try {
-          const res = await fetch("/api/auth/check-provider", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          });
-          const data = await res.json();
-          
-          if (data.provider === "email") {
-            toast.error(
-              "This email was registered with OTP. Please use email sign-in."
-            );
-            return;
-          }
-        } catch {
-          // If check fails, proceed with Google sign-in anyway
-        }
+    if (email && !isValidEmail(normalizedEmail)) {
+      toast.error("Please enter a valid email address");
+      return;
+    }
+    // If user entered email, check if it's an email-only account
+    if (email) {
+      const data = await checkProvider(normalizedEmail);
+      if(data?.provider === "banned") {
+        toast.error(data.message || "Your account has been banned.");
+        return;
       }
-
-      await authClient.signIn.social({
-        provider: "google",
-        callbackURL: "/",
-        fetchOptions: {
-          onSuccess: () => {
-            toast.success("Signed in with Google, you will be redirected...");
-            window.location.href = "/";
-          },
-          onError: () => {
-            toast.error("Internal Server Error");
-          },
-        },
-      });
+      if (data?.provider === "email") {
+        toast.info(
+          "This email usually signs in with Email OTP. If Google fails, try email login."
+        );
+      }
+    }
+    // Google signin
+    await authClient.signIn.social({
+      provider: "google",
+      callbackURL: "/",
     });
-  }
+  });
+}
+
+// Email signin with provider check
 async function signInWithEmail() {
   if (!email) {
     toast.error("Please enter your email");
     return;
   }
-
+  // Check if email is valid
+  if (!isValidEmail(normalizedEmail)) {
+    toast.error("Please enter a valid email address");
+    return;
+  }
+  // Email useTransition 
   startEmailTransition(async () => {
     try {
-      // 🔍 STEP 1: Check provider
-      const res = await fetch("/api/auth/check-provider", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-
-      if (!res.ok) {
-        toast.error("Unable to verify login method. Please try again.");
-        return;
-      }
-
-      const data = await res.json();
-
-      // 🚫 Banned user
+      // Check provider and get data 
+      const data=await checkProvider(normalizedEmail);
+      // If check fails, return
+      if (!data) return;
+      // Check if user is banned
       if (data.provider === "banned") {
         toast.error(data.message || "Your account has been banned.");
         return;
       }
-
-      // 🔒 Google-only account
+      // Check if user is google-only
       if (data.provider === "google") {
         toast.error(
           "You previously signed in with Google. Please continue with Google sign-in."
         );
         return;
       }
-
-      // ✉️ STEP 2: Send Email OTP
+      // STEP 2: Send Email OTP
       await authClient.emailOtp.sendVerificationOtp({
-        email,
+        email:normalizedEmail,
         type: "sign-in",
         fetchOptions: {
           onSuccess: () => {
-            router.push(`/verify-request?email=${email}`);
+            router.push(`/verify-request?email=${normalizedEmail}`);
           },
-          onError: (ctx) => {
-            const message =
-              typeof ctx.error === "string"
-                ? ctx.error
-                : ctx.error?.message ?? "Failed to send OTP";
-
-            toast.error(message);
+          onError: () => {
+            toast.error("Failed to send OTP");
           },
         },
       });
-    } catch (error) {
+    } catch {
       toast.error("Something went wrong. Please try again.");
     }
   });
-}
-
-
+  }
   return (
     <Card>
       <CardHeader className="text-center">
@@ -149,12 +156,7 @@ async function signInWithEmail() {
         <CardDescription>Login with Google or Email account</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <Button
-          onClick={signInWithGoogle}
-          className="w-full"
-          variant={"outline"}
-          disabled={googlePending}
-        >
+        <Button className="w-full" variant={"outline"} onClick={signInWithGoogle} disabled={googlePending || (!!email && !isValidEmail(normalizedEmail))}>
           {googlePending ? (
             <>
               <Loader className="size-4 animate-spin" />
@@ -175,19 +177,9 @@ async function signInWithEmail() {
         <div className="grid gap-3">
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
-            <Input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              placeholder="m@example.com"
-              autoComplete="email"
-            />
+            <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="m@example.com" autoComplete="email" disabled={googlePending || emailPending}/>
           </div>
-          <Button
-            onClick={signInWithEmail}
-            disabled={emailPending}
-            className="w-full"
-          >
+          <Button onClick={signInWithEmail} disabled={emailPending} className="w-full">
             {emailPending ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
@@ -215,3 +207,6 @@ async function signInWithEmail() {
     </Card>
   );
 }
+
+
+

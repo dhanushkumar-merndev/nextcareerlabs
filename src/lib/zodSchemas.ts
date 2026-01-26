@@ -76,6 +76,18 @@ export const lessonSchema = z.object({
   videoKey: z.string().min(1, { message: "Video must be selected" }).nullable().optional(),
 });
 
+
+export const formSchema = z.object({
+  name: z.string().min(2, {
+    message: "Name must be at least 2 characters.",
+  }).optional().or(z.literal("")),
+  phoneNumber: z.string().min(10, {
+    message: "Phone number must be at least 10 digits.",
+  }).regex(/^\+?[0-9\s-]+$/, {
+    message: "Invalid phone number format.",
+  }),
+});
+
 export type CourseSchemaType = z.infer<typeof courseSchema>;
 export type ChapterSchemaType = z.infer<typeof chapterSchema>;
 export type LessonSchemaType = z.infer<typeof lessonSchema>;

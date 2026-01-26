@@ -28,6 +28,7 @@ import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { HomeIcon, Tv2 } from "lucide-react";
 import { useSignOut } from "@/hooks/use-signout";
+import { useSmartSession } from "@/hooks/use-smart-session";
 
 export function NavUser() {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -47,7 +48,7 @@ export function NavUser() {
     }, 50);
   };
 
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending } = useSmartSession();
   if (isPending) return null;
 
   return (

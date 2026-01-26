@@ -1,6 +1,6 @@
 "use client";
 
-import { LessonContentType } from "@/app/data/course/get-lesson-content";
+import { getLessonContent, LessonContentType } from "@/app/data/course/get-lesson-content";
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
@@ -21,9 +21,14 @@ import {
 import { IconFileText } from "@tabler/icons-react";
 import Hls from "hls.js";
 import { env } from "@/lib/env";
+import { useQuery } from "@tanstack/react-query";
+import { chatCache } from "@/lib/chat-cache";
+
+import { LessonContentSkeleton } from "./lessonSkeleton";
 
 interface iAppProps {
-  data: LessonContentType;
+  lessonId: string;
+  userId: string;
 }
 
 function VideoPlayer({
@@ -389,7 +394,35 @@ function VideoPlayer({
   );
 }
 
-export function CourseContent({ data }: iAppProps) {
+export function CourseContent({ lessonId, userId }: iAppProps) {
+  const { data: lesson, isLoading } = useQuery({
+    queryKey: ["lesson_content", lessonId],
+    queryFn: async () => {
+      const cacheKey = `lesson_content_${lessonId}`;
+      const cached = chatCache.get<any>(cacheKey, userId);
+      const clientVersion = cached?.version;
+
+      console.log(`[Lesson] Syncing for ${lessonId}...`);
+      const result = await getLessonContent(lessonId, clientVersion);
+
+      if (result && (result as any).status === "not-modified" && cached) {
+        return cached.data.lesson;
+      }
+
+      if (result && !(result as any).status) {
+        chatCache.set(cacheKey, result, userId, (result as any).version);
+        return (result as any).lesson;
+      }
+      return (result as any)?.lesson;
+    },
+    initialData: () => {
+        const cacheKey = `lesson_content_${lessonId}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        return cached?.data?.lesson;
+    },
+    staleTime: 1800000, // 30 mins
+  });
+
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
@@ -397,7 +430,22 @@ export function CourseContent({ data }: iAppProps) {
 
   useEffect(() => {
     setIsDescriptionOpen(false);
-  }, [data.id]);
+  }, [lessonId]);
+
+  if (isLoading && !lesson) {
+    return <LessonContentSkeleton />;
+  }
+
+  if (!lesson) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+        <h2 className="text-xl font-bold mb-2">Lesson not found</h2>
+        <p className="text-muted-foreground">The lesson you are looking for might have been moved or deleted.</p>
+      </div>
+    );
+  }
+
+  const data = lesson;
 
   function onSubmit() {
     setOptimisticCompleted(true);
@@ -423,7 +471,7 @@ export function CourseContent({ data }: iAppProps) {
     });
   }
 
-  const isCompleted = optimisticCompleted || data.lessonProgress?.length > 0;
+  const isCompleted = optimisticCompleted || data.lessonProgress?.some((p: any) => p.completed);
   const hasVideo = Boolean(data.videoKey);
 
   return (

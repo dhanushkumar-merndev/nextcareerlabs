@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     if (user.banned) {
       return NextResponse.json({ 
         provider: "banned", 
-        message: "You have been banned from this application. Please contact support." 
+        message: "You have been banned from this application. Please contact support" 
       });
     }
 

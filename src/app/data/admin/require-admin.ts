@@ -2,7 +2,7 @@ import "server-only";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { AuthSession } from "@/lib/types";
+import { AuthSession } from "@/lib/types/auth";
 import { cache } from "react";
 
 export const requireAdmin = cache(async () => {

@@ -1,51 +1,25 @@
-"use client";
+/* This component is used to display the phone number dialog */
 
+"use client";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import {Form,FormControl,FormField,FormItem,FormLabel,FormMessage} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { updateProfileAction } from "@/app/data/user/user-actions";
 import { AlertTriangle, Loader2, Phone, Sparkles, User } from "lucide-react";
+import { formSchema } from "@/lib/zodSchemas";
+import { PhoneNumberDialogProps } from "@/lib/types/homePage";
 
-const formSchema = z.object({
-  name: z.string().min(2, {
-    message: "Name must be at least 2 characters.",
-  }).optional().or(z.literal("")),
-  phoneNumber: z.string().min(10, {
-    message: "Phone number must be at least 10 digits.",
-  }).regex(/^\+?[0-9\s-]+$/, {
-    message: "Invalid phone number format.",
-  }),
-});
-
-interface PhoneNumberDialogProps {
-  isOpen: boolean;
-  requireName?: boolean; // true for email OTP users without a name
-}
-
+// PhoneNumberDialog component 
 export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(
       requireName
@@ -60,6 +34,7 @@ export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDi
     },
   });
 
+  // onSubmit function
   function onSubmit(values: z.infer<typeof formSchema>) {
     startTransition(async () => {
       const result = await updateProfileAction({
@@ -75,12 +50,10 @@ export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDi
     });
   }
 
+  // PhoneNumberDialog component
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}}>
-      <DialogContent 
-        showCloseButton={false}
-        className="sm:max-w-md border-2 shadow-2xl backdrop-blur-sm bg-card/95 overflow-hidden p-0 gap-0"
-      >
+    <Dialog open={isOpen} onOpenChange={() => { }}>
+      <DialogContent showCloseButton={false} className="sm:max-w-md border-2 shadow-2xl backdrop-blur-sm bg-card/95 overflow-hidden p-0 gap-0">
         <div className="p-6 space-y-4">
           <DialogHeader className="space-y-1 text-center">
             <div className="mx-auto size-12 rounded-full bg-primary/10 flex items-center justify-center mb-2 text-primary">
@@ -108,6 +81,7 @@ export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDi
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                           <Input 
+                            disabled={isPending}
                             placeholder="John Doe" 
                             className="pl-10 h-10 bg-muted/30 border-2 focus-visible:ring-primary/20" 
                             {...field} 
@@ -130,6 +104,7 @@ export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDi
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                         <Input 
+                          disabled={isPending}
                           placeholder="+1 234 567 890" 
                           className="pl-10 h-10 bg-muted/30 border-2 focus-visible:ring-primary/20" 
                           {...field} 

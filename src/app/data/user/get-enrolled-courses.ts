@@ -1,4 +1,4 @@
-import "server-only";
+"use server";
 import { prisma } from "@/lib/db";
 
 import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";

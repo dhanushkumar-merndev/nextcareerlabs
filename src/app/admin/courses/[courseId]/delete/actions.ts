@@ -3,7 +3,7 @@
 import { requireAdmin } from "@/app/data/admin/require-admin";
 import arcjet, { fixedWindow } from "@/lib/arcjet";
 import { prisma } from "@/lib/db";
-import { ApiResponse } from "@/lib/types";
+import { ApiResponse } from "@/lib/types/auth";
 import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
 import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
@@ -88,6 +88,7 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
     // Invalidate global courses and analytics cache
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
         invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),

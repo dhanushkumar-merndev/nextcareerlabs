@@ -15,7 +15,7 @@ export async function adminGetCourses(clientVersion?: string) {
   }
 
   // Check Redis cache
-  const cacheKey = "admin:courses:list";
+  const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST;
   const cached = await getCache<any>(cacheKey);
   if (cached) {
     console.log(`[Redis] Cache HIT for admin courses list`);

@@ -3,7 +3,7 @@
 import { requireUser } from "@/app/data/user/require-user";
 import arcjet, { fixedWindow } from "@/lib/arcjet";
 import { prisma } from "@/lib/db";
-import { ApiResponse } from "@/lib/types";
+import { ApiResponse } from "@/lib/types/auth";
 import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
 import { getIndividualCourse } from "@/app/data/course/get-course";

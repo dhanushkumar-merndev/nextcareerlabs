@@ -14,17 +14,27 @@ interface CourseProgressResult {
 
 export function useCourseProgress({
   courseData,
-}: iAppProps): CourseProgressResult {
+}: {
+  courseData?: CourseSidebarDataType["course"] | null;
+}): CourseProgressResult {
   return useMemo(() => {
     let totalLessons = 0;
     let completedLessons = 0;
 
-    courseData.chapter.forEach((chapter) => {
-      chapter.lesson.forEach((lesson) => {
+    if (!courseData?.chapter) {
+      return {
+        totalLessons: 0,
+        completedLessons: 0,
+        progressPercentage: 0,
+      };
+    }
+
+    courseData.chapter.forEach((chapter: any) => {
+      chapter.lesson.forEach((lesson: any) => {
         totalLessons++;
 
         const isCompleted = lesson.lessonProgress.some(
-          (p) => p.lessonId === lesson.id && p.completed
+          (p: any) => p.completed
         );
 
         if (isCompleted) completedLessons++;

@@ -2,7 +2,7 @@
 
 import { requireUser } from "@/app/data/user/require-user";
 import { prisma } from "@/lib/db";
-import { ApiResponse } from "@/lib/types";
+import { ApiResponse } from "@/lib/types/auth";
 import { revalidatePath } from "next/cache";
 
 interface ProfileData {

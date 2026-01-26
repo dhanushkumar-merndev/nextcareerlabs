@@ -14,7 +14,6 @@ type Testimonial = {
   avatar: string;
   image?: string;
 };
-
 /* ================= DATA ================= */
 const testimonials: Testimonial[] = [
   {
@@ -24,7 +23,7 @@ const testimonials: Testimonial[] = [
     company: "Alpha",
     message:
       "Lorem ipsum, dolor sit amet consectetur adipisicing elit. Assumenda, veritatis repellendus atque unde voluptatibus provident in?",
-    avatar: "https://randomuser.me/api/portraits/women/12.jpg",
+    avatar: "/testimonials/12.jpg",
   },
   {
     id: 2,
@@ -33,7 +32,7 @@ const testimonials: Testimonial[] = [
     company: "Beta",
     message:
       "Lorem ipsum dolor sit amet consectetur adipisicing elit. Aperiam corrupti laudantium cum!",
-    avatar: "https://randomuser.me/api/portraits/men/18.jpg",
+    avatar: "/testimonials/18.jpg",
   },
   {
     id: 3,
@@ -42,7 +41,7 @@ const testimonials: Testimonial[] = [
     company: "Gamma",
     message:
       "Lorem ipsum dolor sit amet, consectetur adipisicing elit. Est et culpa velit praesentium.",
-    avatar: "https://randomuser.me/api/portraits/women/44.jpg",
+    avatar: "/testimonials/44.jpg",
   },
   {
     id: 4,
@@ -50,9 +49,8 @@ const testimonials: Testimonial[] = [
     role: "Mascot",
     company: "Alpha",
     message: "Lorem ipsum dolor sit amet.",
-    avatar: "https://randomuser.me/api/portraits/men/65.jpg",
-    image:
-      "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=800&q=70",
+    avatar: "/testimonials/65.jpg",
+    image: "/testimonials/photo-1504384308090-c894fdcc538d.jpg",
   },
   {
     id: 5,
@@ -61,7 +59,7 @@ const testimonials: Testimonial[] = [
     company: "Delta",
     message:
       "Lorem ipsum dolor, sit amet consectetur adipisicing elit. Asperiores dicta necessitatibus maiores nostrum.",
-    avatar: "https://randomuser.me/api/portraits/men/33.jpg",
+    avatar: "/testimonials/33.jpg",
   },
   {
     id: 6,
@@ -70,7 +68,7 @@ const testimonials: Testimonial[] = [
     company: "Gamma",
     message:
       "Lorem ipsum dolor sit amet consectetur adipisicing elit. Omnis, fuga magnam.",
-    avatar: "https://randomuser.me/api/portraits/women/68.jpg",
+    avatar: "/testimonials/68.jpg",
   },
   {
     id: 7,
@@ -79,7 +77,7 @@ const testimonials: Testimonial[] = [
     company: "Beta",
     message:
       "Lorem ipsum dolor sit amet consectetur, adipisicing elit. Enim placeat reiciendis iusto!",
-    avatar: "https://randomuser.me/api/portraits/men/52.jpg",
+    avatar: "/testimonials/52.jpg",
   },
   {
     id: 8,
@@ -88,7 +86,7 @@ const testimonials: Testimonial[] = [
     company: "Beta",
     message:
       "Lorem ipsum dolor sit amet consectetur adipisicing elit. Necessitatibus, accusamus suscipit.",
-    avatar: "https://randomuser.me/api/portraits/men/75.jpg",
+    avatar: "/testimonials/75.jpg",
   },
 ];
 

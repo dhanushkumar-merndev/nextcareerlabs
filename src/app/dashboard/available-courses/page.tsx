@@ -11,10 +11,10 @@ export default async function AvailableCoursesPage() {
     getEnrolledCourses(),
   ]);
 
-  const enrolledIds = enrolledCourses.map((e) => e.Course.id);
-  const availableCourses = courses.filter(
-    (course) => !enrolledIds.includes(course.id)
-  );
+  const enrolledIds = enrolledCourses.enrollments?.map((e:any) => e.Course.id) || [];
+  const availableCourses = courses.courses?.filter(
+    (course:any) => !enrolledIds.includes(course.id)
+  ) || [];
 
   return (
     <div className="px-4 lg:px-6 pb-10 space-y-6">
@@ -32,7 +32,7 @@ export default async function AvailableCoursesPage() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {availableCourses.map((course) => (
+          {availableCourses.map((course:any) => (
             <PublicCourseCard key={course.id} data={course} />
           ))}
         </div>

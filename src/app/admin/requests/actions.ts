@@ -2,7 +2,7 @@
 
 import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
-import { ApiResponse } from "@/lib/types";
+import { ApiResponse } from "@/lib/types/auth";
 import { revalidatePath } from "next/cache";
 import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { EnrollmentStatus } from "@/generated/prisma";

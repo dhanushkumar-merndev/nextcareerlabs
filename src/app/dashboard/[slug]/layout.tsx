@@ -14,11 +14,10 @@ export default async function CourseLayout({ children, params }: iAppProps) {
       redirect("/login");
   }
   const { slug } = await params;
-  const courseData = await getCourseSidebarData(slug);
 
   return (
     <div className="px-4 lg:px-6 h-full flex flex-col flex-1">
-      <SidebarContainer course={courseData.course} userId={user.id}>{children}</SidebarContainer>
+      <SidebarContainer slug={slug} userId={user.id}>{children}</SidebarContainer>
     </div>
   );
 }
