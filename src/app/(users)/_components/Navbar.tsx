@@ -121,6 +121,13 @@ export function Navbar() {
     });
   };
 
+    const navLinkBase =
+      "relative font-medium transition-colors duration-300 " +
+      "before:content-[''] before:absolute before:-bottom-1 " +
+      "before:left-1/2 before:-translate-x-1/2 before:h-0.5 " +
+      "before:w-0 before:bg-primary before:transition-all " +
+    "before:duration-300 before:origin-center hover:before:w-full";
+
 
   return (
     <>
@@ -158,93 +165,66 @@ export function Navbar() {
             {isHomePage ? (
               <>
                 <button
-                  onClick={() => scrollToSection("home")}
-                  className={`
-                    font-medium transition-all duration-300
-                    ${isCompact ? "animate-in fade-in slide-in-from-top-2" : ""}
-                    ${
-                      activeSection === "home"
-                        ? "text-primary"
-                        : "text-muted-foreground hover:text-primary"
-                    }
-                  `}
-                  style={
-                    isCompact
-                      ? {
-                          animationDelay: "0ms",
-                          animationFillMode: "both",
+                      onClick={() => scrollToSection("home")}
+                      className={`
+                        ${navLinkBase}
+                        ${
+                          activeSection === "home"
+                            ? "text-primary"
+                            : "text-muted-foreground hover:text-primary"
                         }
-                      : {}
-                  }
-                >
-                  Home
-                </button>
+                      `}
+                    >
+                      Home
+                    </button>
+               <Link
+                    href="/courses"
+                    className={`
+                      ${navLinkBase}
+                      ${
+                        isRouteActive("/courses")
+                          ? "text-primary pointer-events-none "
+                          : "text-muted-foreground hover:text-primary"
+                      }
+                    `}
+                  >
+                    Courses
+                  </Link>
                 <Link
-                  href="/courses"
-                  className={`
-                    font-medium transition-all duration-300
-                    ${isCompact ? "animate-in fade-in slide-in-from-top-2" : ""}
-                    ${
-                      isRouteActive("/courses")
-                        ? "text-primary"
-                        : "text-muted-foreground hover:text-primary"
-                    }
-                  `}
-                  style={
-                    isCompact
-                      ? {
-                          animationDelay: "100ms",
-                          animationFillMode: "both",
-                        }
-                      : {}
-                  }
-                >
-                  Courses
-                </Link>
-                <Link
-                  href={dashboardLink}
-                  className={`
-                    font-medium transition-all duration-300
-                    ${isCompact ? "animate-in fade-in slide-in-from-top-2" : ""}
-                    ${
-                      isRouteActive(dashboardLink)
-                        ? "text-primary"
-                        : "text-muted-foreground hover:text-primary"
-                    }
-                  `}
-                  style={
-                    isCompact
-                      ? {
-                          animationDelay: "200ms",
-                          animationFillMode: "both",
-                        }
-                      : {}
-                  }
-                >
-                  Dashboard
-                </Link>
+                    href={dashboardLink}
+                    className={`
+                      ${navLinkBase}
+                      ${
+                        isRouteActive(dashboardLink)
+                          ? "text-primary pointer-events-none"
+                          : "text-muted-foreground hover:text-primary"
+                      }
+                    `}
+                  >
+                    Dashboard
+                  </Link>
                 {isCompact &&
                   (["programs", "testimonials"] as Section[]).map(
                     (id, index) => (
-                      <button
-                        key={id}
-                        onClick={() => scrollToSection(id)}
-                        className={`
-                          font-medium transition-all duration-300
-                          animate-in fade-in slide-in-from-top-2
-                          ${
-                            activeSection === id
-                              ? "text-primary"
-                              : "text-muted-foreground hover:text-primary"
-                          }
-                        `}
-                        style={{
-                          animationDelay: `${(index + 3) * 100}ms`,
-                          animationFillMode: "both",
-                        }}
-                      >
-                        {id[0].toUpperCase() + id.slice(1)}
-                      </button>
+                     <button
+                      key={id}
+                      onClick={() => scrollToSection(id)}
+                      className={`
+                        ${navLinkBase}
+                        animate-in fade-in slide-in-from-top-2
+                        ${
+                          activeSection === id
+                            ? "text-primary"
+                            : "text-muted-foreground hover:text-primary"
+                        }
+                      `}
+                      style={{
+                        animationDelay: `${(index + 3) * 100}ms`,
+                        animationFillMode: "both",
+                      }}
+                    >
+                      {id[0].toUpperCase() + id.slice(1)}
+                    </button>
                     )
                   )}
               </>
@@ -278,19 +258,30 @@ export function Navbar() {
                 </Link>
 
                 <Link
-                  href="/courses"
-                  className={`
-                    font-medium transition-colors duration-300
-                    ${
-                      isRouteActive("/courses")
-                        ? "text-primary"
-                        : "text-muted-foreground hover:text-primary"
-                    }
-                  `}
-                >
-                  Courses
-                </Link>
-
+                    href="/courses"
+                    className={`
+                      relative font-medium transition-colors duration-300
+                      ${
+                        isRouteActive("/courses")
+                          ? "text-primary"
+                          : "text-muted-foreground hover:text-primary"
+                      }
+                      before:content-['']
+                      before:absolute
+                      before:-bottom-1
+                      before:left-1/2
+                      before:-translate-x-1/2
+                      before:h-0.5
+                      before:w-0
+                      before:bg-primary
+                      before:transition-all
+                      before:duration-300
+                      before:origin-center
+                      hover:before:w-full
+                    `}
+                  >
+                    Courses
+                  </Link>
                 <Link
                   href={dashboardLink}
                   className={`
@@ -462,7 +453,7 @@ export function Navbar() {
                 onClick={() => setIsOpen(false)}
                 className={`text-[16px] my-1 py-3 px-2 rounded-md font-medium transition ${
                   isRouteActive("/courses")
-                    ? "text-primary font-semibold"
+                    ? "text-primary font-semibold "
                     : "text-foreground hover:text-primary"
                 }`}
               >

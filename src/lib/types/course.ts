@@ -21,9 +21,15 @@ export type PublicCourseType = {
 
 export type Course = PublicCourseType;
 
-export type CoursesCacheEntry = {
+export type CoursesCacheWithCursor = {
   data: Course[];
   version: string;
+  nextCursor: string | null;
+};
+
+export type CoursesPage = {
+  courses: PublicCourseType[];
+  nextCursor: string | null;
 };
 
 export type CoursesServerResult =
