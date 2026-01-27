@@ -34,7 +34,8 @@ import {
   Loader2,
   Filter,
   Fingerprint,
-  Trash2
+  Trash2,
+  Search
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
@@ -45,7 +46,7 @@ import {
   updateUserDetailsAction,
   deleteEnrollmentAction
 } from "../actions";
-import { useState, useTransition, useCallback } from "react";
+import { useState, useTransition, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
@@ -60,13 +61,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -77,8 +71,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { format } from "date-fns";
-import { DateRange } from "react-day-picker";
 
 interface Request {
   id: string;
@@ -99,17 +91,16 @@ interface Request {
   };
 }
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 10;
 
-export function RequestsTable({ initialData }: { initialData: Request[] }) {
+export function RequestsTable({ initialData, totalCount: initialTotalCount }: { initialData: Request[], totalCount: number }) {
   const [data, setData] = useState<Request[]>(initialData);
+  const [totalCount, setTotalCount] = useState(initialTotalCount);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isPending, startTransition] = useTransition();
-  const [statusFilter, setStatusFilter] = useState<EnrollmentStatus | "All">("Pending");
-  const [date, setDate] = useState<DateRange | undefined>();
-  const [tempDate, setTempDate] = useState<DateRange | undefined>();
-  const [hasMore, setHasMore] = useState(initialData.length === BATCH_SIZE);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [hasMore, setHasMore] = useState(initialData.length < initialTotalCount);
   const [confirmConfig, setConfirmConfig] = useState<{
     open: boolean;
     title: string;
@@ -213,38 +204,42 @@ export function RequestsTable({ initialData }: { initialData: Request[] }) {
     });
   };
 
-  const applyFilters = useCallback((filter: EnrollmentStatus | "All", dateRange: DateRange | undefined) => {
+  // Debounce search effect
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Handle search logic
+  useEffect(() => {
+    if (debouncedSearch === "") {
+        setData(initialData);
+        setTotalCount(initialTotalCount);
+        setHasMore(initialData.length < initialTotalCount);
+        return;
+    }
+
     startTransition(async () => {
-      const filteredData = await getRequestsAction(0, BATCH_SIZE, filter, dateRange?.from, dateRange?.to);
-      setData(filteredData as Request[]);
-      setHasMore(filteredData.length === BATCH_SIZE);
+      const result = await getRequestsAction(0, BATCH_SIZE, "All", debouncedSearch);
+      setData(result.data as Request[]);
+      setTotalCount(result.totalCount);
+      setHasMore(result.data.length < result.totalCount);
     });
-  }, []);
+  }, [debouncedSearch, initialData, initialTotalCount]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
     
-    const nextBatch = await getRequestsAction(data.length, BATCH_SIZE, statusFilter, date?.from, date?.to);
-    if (nextBatch.length < BATCH_SIZE) {
-      setHasMore(false);
-    }
+    const result = await getRequestsAction(data.length, BATCH_SIZE, "All", debouncedSearch);
+    const newData = result.data as Request[];
     
-    setData(prev => [...prev, ...nextBatch as Request[]]);
+    setData(prev => [...prev, ...newData]);
+    setHasMore(data.length + newData.length < result.totalCount);
     setLoadingMore(false);
-  }, [data.length, hasMore, loadingMore, statusFilter, date]);
-
-  const handleFilterChange = (val: string) => {
-    const filter = val as EnrollmentStatus | "All";
-    setStatusFilter(filter);
-    applyFilters(filter, date);
-  };
-
-  const handleDone = () => {
-    setDate(tempDate);
-    applyFilters(statusFilter, tempDate);
-    setIsPopoverOpen(false);
-  };
+  }, [data.length, hasMore, loadingMore, debouncedSearch]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -253,91 +248,22 @@ export function RequestsTable({ initialData }: { initialData: Request[] }) {
 
   return (
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        {/* Tabs */}
-        <Tabs value={statusFilter} onValueChange={handleFilterChange} className="w-full lg:w-auto">
-          <TabsList className="bg-muted/50 p-1 rounded-xl border border-border/50 w-full lg:w-auto grid grid-cols-2 lg:flex">
-            <TabsTrigger value="Pending" className="rounded-lg px-6 font-bold uppercase tracking-widest text-[10px]">New (Pending)</TabsTrigger>
-            <TabsTrigger value="All" className="rounded-lg px-6 font-bold uppercase tracking-widest text-[10px]">All Requests</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        {/* Search Bar - Responsive */}
+        <div className="relative w-full sm:max-w-md">
+           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground opacity-50" />
+           <Input 
+             placeholder="Search by name, ID or email..." 
+             className="pl-10 h-11 bg-muted/30 border-2 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium"
+             value={search}
+             onChange={(e) => setSearch(e.target.value)}
+           />
+        </div>
 
-        {/* Right Side Controls */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto text-sm">
-           {/* Count Badge */}
-          <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted/30 px-4 h-10 w-full sm:w-auto rounded-xl border border-border/40 shadow-sm shrink-0">
+        {/* Info Badge */}
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted/30 px-5 h-11 w-full sm:w-auto rounded-xl border border-border/40 shadow-sm shrink-0 justify-center">
              <Filter className="size-3 text-primary/60" />
-             <span>Found {data.length}</span>
-          </div>
-
-          {/* Date Picker Group */}
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Popover open={isPopoverOpen} onOpenChange={(open) => {
-              setIsPopoverOpen(open);
-              if (open) setTempDate(date);
-            }}>
-              <PopoverTrigger asChild>
-                <Button
-                  id="date"
-                  variant={"outline"}
-                  className={cn(
-                    "w-full sm:w-[260px] justify-start text-left font-bold uppercase tracking-widest text-[10px] h-10 rounded-xl bg-muted/30 border-border/40 hover:bg-muted/50 transition-all shadow-sm",
-                    !date && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4 opacity-60" />
-                  {date?.from ? (
-                    date.to ? (
-                      <>
-                        {format(date.from, "LLL dd, y")} -{" "}
-                        {format(date.to, "LLL dd, y")}
-                      </>
-                    ) : (
-                      format(date.from, "LLL dd, y")
-                    )
-                  ) : (
-                    <span>Pick a date range</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 rounded-2xl border-2 border-border/40 shadow-2xl overflow-hidden backdrop-blur-xl bg-card/95 flex flex-col" align="end">
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={date?.from}
-                  selected={tempDate}
-                  onSelect={setTempDate}
-                  numberOfMonths={2}
-                  disabled={{ after: new Date() }}
-                  className="p-4"
-                />
-                <div className="p-4 border-t border-border/40 bg-muted/20 flex justify-end">
-                   <Button 
-                    size="sm" 
-                    onClick={handleDone}
-                    className="font-bold uppercase tracking-widest text-[10px] px-6 h-8 rounded-lg shadow-lg shadow-primary/20"
-                   >
-                     Done
-                   </Button>
-                </div>
-              </PopoverContent>
-            </Popover>
-
-             {date && (
-               <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => {
-                  setDate(undefined);
-                  setTempDate(undefined);
-                  applyFilters(statusFilter, undefined);
-                }}
-                className="size-10 rounded-xl text-destructive hover:text-destructive/80 hover:bg-destructive/10 border border-border/40 shrink-0"
-               >
-                 <XCircle className="size-4" />
-               </Button>
-             )}
-          </div>
+             <span>Showing {data.length} of {totalCount} Records</span>
         </div>
       </div>
 

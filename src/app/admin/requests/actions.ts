@@ -12,10 +12,9 @@ export async function getRequestsAction(
   skip: number,
   take: number,
   status?: EnrollmentStatus | "All",
-  startDate?: Date,
-  endDate?: Date
+  search?: string
 ) {
-  return await adminGetEnrollmentRequests(skip, take, status, startDate, endDate);
+  return await adminGetEnrollmentRequests(skip, take, status, search);
 }
 
 export async function updateEnrollmentStatusAction(

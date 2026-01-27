@@ -11,7 +11,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function AdminRequestsPage() {
-  const requests = await adminGetEnrollmentRequests(0, 100, "Pending");
+  const { data, totalCount } = await adminGetEnrollmentRequests(0, 10);
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
@@ -30,7 +30,7 @@ export default async function AdminRequestsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0 sm:px-6">
-          <RequestsTable initialData={requests as any} />
+          <RequestsTable initialData={data as any} totalCount={totalCount} />
         </CardContent>
       </Card>
     </div>
