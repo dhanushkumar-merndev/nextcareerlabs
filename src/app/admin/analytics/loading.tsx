@@ -1,15 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
-export default function LoadingAnalyticsPage() {
+export function LoadingAnalyticsBody() {
   return (
-    <div className="flex flex-col gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
-      {/* Page Title */}
-      <Skeleton className="h-8 w-64" />
-      <Skeleton className="h-4 w-80 max-w-full" />
-
-      {/* Top Analytics Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+    <> <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Card key={i} className="rounded-xl border bg-card shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -83,7 +77,20 @@ export default function LoadingAnalyticsPage() {
             ))}
           </CardContent>
         </Card>
-      </div>
+      </div></>
+    
+   );
+}
+
+export default function LoadingAnalyticsPage() {
+  return (
+    <div className="flex flex-col gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
+      {/* Page Title */}
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-4 w-80 max-w-full" />
+
+      {/* Top Analytics Cards */}
+     <LoadingAnalyticsBody/>
     </div>
   );
 }

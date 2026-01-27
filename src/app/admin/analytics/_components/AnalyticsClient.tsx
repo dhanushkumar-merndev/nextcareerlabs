@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { getAdminAnalytics } from "@/app/admin/analytics/actions";
 import { chatCache } from "@/lib/chat-cache";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
@@ -19,8 +20,14 @@ import {
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
+import { LoadingAnalyticsBody } from "../loading";
 
 export function AnalyticsClient() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data, isLoading } = useQuery({
     queryKey: ["admin_analytics"],
     queryFn: async () => {
@@ -53,18 +60,16 @@ export function AnalyticsClient() {
     refetchOnWindowFocus: true,
   });
 
-  if (isLoading && !data) {
+  if (!mounted || (isLoading && !data)) {
     return (
-        <div className="flex items-center justify-center p-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-        </div>
+        <LoadingAnalyticsBody/>
     );
   }
 
   if (!data) return <div>Failed to load analytics.</div>;
 
   return (
-    <div className="flex flex-col gap-4 sm:gap-6 ">
+    <div className="flex flex-col gap-4 sm:gap-6">
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <AnalyticsCard
           title="Users & Enrollments"

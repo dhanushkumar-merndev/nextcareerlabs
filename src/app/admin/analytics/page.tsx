@@ -13,7 +13,6 @@ export default async function AdminAnalyticsPage() {
           Monitor platform performance and course growth metrics.
         </p>
       </div>
-
       <AnalyticsClient />
     </div>
   );

@@ -329,6 +329,7 @@ export function SlugPageWrapper({
                     ) : (
                       <EnrollmentButton
                         courseId={course.id}
+                        slug={slug}
                         status={enrollmentStatus}
                       />
                     )}

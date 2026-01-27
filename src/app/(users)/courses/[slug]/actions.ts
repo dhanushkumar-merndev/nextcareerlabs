@@ -11,6 +11,7 @@ import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
 import { requireCompleteProfile } from "@/app/data/user/require-complete-profile";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
+import { GLOBAL_CACHE_KEYS, incrementGlobalVersion } from "@/lib/redis";
 
 export async function getIndividualCourseAction(slug: string, clientVersion?: string) {
     return await getIndividualCourse(slug, clientVersion);
@@ -144,6 +145,8 @@ export async function enrollInCourseAction(
       });
     }
 
+    //  Invalidate caches to show updated status immediately
+    await incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
     revalidatePath(`/courses/${course.slug}`);
     revalidatePath("/admin/requests");
 
