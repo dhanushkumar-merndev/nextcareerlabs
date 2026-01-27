@@ -3,7 +3,7 @@
 import { motion, useAnimation } from "motion/react";
 import type React from "react";
 import type { HTMLAttributes } from "react";
-import { forwardRef, useCallback, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -20,18 +20,47 @@ const FILE_TEXT = forwardRef<FileTextIconHandle, FileTextIconProps>(
   ({ onMouseEnter, onMouseLeave, className, size = 28, ...props }, ref) => {
     const controls = useAnimation();
     const isControlledRef = useRef(false);
+    const isMounted = useRef(false);
+
+    useEffect(() => {
+      isMounted.current = true;
+      return () => {
+        isMounted.current = false;
+      };
+    }, []);
 
     useImperativeHandle(ref, () => {
       isControlledRef.current = true;
 
       return {
-        startAnimation: () => controls.start("animate"),
-        stopAnimation: () => controls.start("normal"),
+        startAnimation: async () => {
+          if (!isMounted.current) return;
+          await Promise.resolve();
+          if (isMounted.current) {
+            try {
+              await controls.start("animate");
+            } catch (e) {
+              // Ignore
+            }
+          }
+        },
+        stopAnimation: async () => {
+          if (!isMounted.current) return;
+          await Promise.resolve();
+          if (isMounted.current) {
+            try {
+              await controls.start("normal");
+            } catch (e) {
+              // Ignore
+            }
+          }
+        },
       };
     });
 
     const handleMouseEnter = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isMounted.current) return;
         if (isControlledRef.current) {
           onMouseEnter?.(e);
         } else {
@@ -43,6 +72,7 @@ const FILE_TEXT = forwardRef<FileTextIconHandle, FileTextIconProps>(
 
     const handleMouseLeave = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isMounted.current) return;
         if (isControlledRef.current) {
           onMouseLeave?.(e);
         } else {

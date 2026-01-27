@@ -42,21 +42,36 @@ const LayersIcon = forwardRef<LayersIconHandle, LayersIconProps>(
 
       return {
         startAnimation: async () => {
+          if (!isMounted.current) return;
+          await Promise.resolve();
           if (isMounted.current) {
+            try {
               await controls.start("firstState");
-              await controls.start("secondState");
+              if (isMounted.current) {
+                await controls.start("secondState");
+              }
+            } catch (e) {
+              // Ignore
+            }
           }
         },
-        stopAnimation: () => {
-            if (isMounted.current) {
-                controls.start("normal");
+        stopAnimation: async () => {
+          if (!isMounted.current) return;
+          await Promise.resolve();
+          if (isMounted.current) {
+            try {
+              await controls.start("normal");
+            } catch (e) {
+              // Ignore
             }
+          }
         },
       };
     });
 
     const handleMouseEnter = useCallback(
       async (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isMounted.current) return;
         if (isControlledRef.current) {
           onMouseEnter?.(e);
         } else {
@@ -69,6 +84,7 @@ const LayersIcon = forwardRef<LayersIconHandle, LayersIconProps>(
 
     const handleMouseLeave = useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isMounted.current) return;
         if (isControlledRef.current) {
           onMouseLeave?.(e);
         } else {

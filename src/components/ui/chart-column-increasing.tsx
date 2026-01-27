@@ -44,26 +44,41 @@ const ChartColumnIncreasingIcon = forwardRef<
     return {
       startAnimation: async () => {
         if (!isMounted.current) return;
-        await controls.start((i) => ({
-          pathLength: 0,
-          opacity: 0,
-          transition: { delay: i * 0.1, duration: 0.3 },
-        }));
+        await Promise.resolve();
         if (!isMounted.current) return;
-        await controls.start((i) => ({
-          pathLength: 1,
-          opacity: 1,
-          transition: { delay: i * 0.1, duration: 0.3 },
-        }));
+        try {
+          await controls.start((i) => ({
+            pathLength: 0,
+            opacity: 0,
+            transition: { delay: i * 0.1, duration: 0.3 },
+          }));
+          if (!isMounted.current) return;
+          await controls.start((i) => ({
+            pathLength: 1,
+            opacity: 1,
+            transition: { delay: i * 0.1, duration: 0.3 },
+          }));
+        } catch (e) {
+          // Ignore
+        }
       },
-      stopAnimation: () => {
-        if (isMounted.current) controls.start("visible");
+      stopAnimation: async () => {
+        if (!isMounted.current) return;
+        await Promise.resolve();
+        if (isMounted.current) {
+          try {
+            await controls.start("visible");
+          } catch (e) {
+            // Ignore
+          }
+        }
       },
     };
   });
 
   const handleMouseEnter = useCallback(
     async (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isMounted.current) return;
       if (isControlledRef.current) {
         onMouseEnter?.(e);
       } else {
@@ -72,6 +87,7 @@ const ChartColumnIncreasingIcon = forwardRef<
           opacity: 0,
           transition: { delay: i * 0.1, duration: 0.3 },
         }));
+        if (!isMounted.current) return;
         await controls.start((i) => ({
           pathLength: 1,
           opacity: 1,
@@ -84,6 +100,7 @@ const ChartColumnIncreasingIcon = forwardRef<
 
   const handleMouseLeave = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isMounted.current) return;
       if (isControlledRef.current) {
         onMouseLeave?.(e);
       } else {

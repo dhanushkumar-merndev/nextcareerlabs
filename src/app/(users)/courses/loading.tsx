@@ -5,8 +5,13 @@ export default function Loading() {
     <div className="mt-5 px-4 lg:px-6 space-y-10">
       {/* Header skeleton */}
       <div className="space-y-2">
-        <Skeleton className="h-8 w-56 md:w-72" />
-        <Skeleton className="h-4 w-80" />
+      </div>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+        <div className="flex flex-col space-y-2">
+          <Skeleton className="h-8 w-56 md:w-72" />
+          <Skeleton className="h-4 w-120" />
+        </div>
+        <Skeleton className="h-8 w-120" />
       </div>
 
       {/* Course cards */}

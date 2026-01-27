@@ -74,10 +74,16 @@ if (path === "/api/auth/error") {
   }
 
   if (session) {
-    await clearOtherSessionsOnce(
-      session.user.id,
-      session.session.id
-    );
+    // We'll run this but not block the main response if possible
+    // In Edge middleware, we should be careful with async tasks
+    try {
+      await clearOtherSessionsOnce(
+        session.user.id,
+        session.session.id
+      );
+    } catch (e) {
+      console.error("Session cleanup failed:", e);
+    }
   }
 
  
