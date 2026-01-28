@@ -1,13 +1,10 @@
 import { getUserCourseDetailedProgress } from "@/app/admin/analytics/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { BookOpen, Calendar, CheckCircle2, Clock, Mail, PlayCircle } from "lucide-react";
+import {Calendar, CheckCircle2, Clock, Mail, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { format } from "date-fns";
 import { ChapterExpansion } from "./_components/ChapterExpansion";
 import { formatIST } from "@/lib/utils";
 

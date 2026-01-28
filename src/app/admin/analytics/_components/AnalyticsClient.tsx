@@ -1,5 +1,16 @@
-"use client";
+/**
+ * AnalyticsClient
+ *
+ * Client component for admin analytics dashboard
+ *
+ * - Uses React Query for data fetching with caching
+ * - Implements server-side rendering (SSR) with Next.js
+ * - Supports infinite scrolling via cursor-based pagination
+ * - Includes loading states and error handling
+ * - Utilizes TanStack Query for efficient data fetching
+ */
 
+"use client";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { getAdminAnalytics } from "@/app/admin/analytics/actions";
@@ -9,66 +20,63 @@ import { SimpleBarChart, SimplePieChart } from "@/components/analytics/Charts";
 import { GrowthChartWithFilter } from "@/components/analytics/GrowthChartWithFilter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from "@/components/ui/table";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
 import { LoadingAnalyticsBody } from "../loading";
 
+// Analytics Client Component
 export function AnalyticsClient() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
-
+  // Use React Query to fetch analytics data
   const { data, isLoading } = useQuery({
     queryKey: ["admin_analytics"],
     queryFn: async () => {
       const cached = chatCache.get<any>("admin_analytics");
       const clientVersion = cached?.version;
-
-      console.log(`[Analytics] Syncing with server... (Client Version: ${clientVersion || 'None'})`);
+      // Log client version for debugging
+      //console.log(`[Analytics] Syncing with server... (Client Version: ${clientVersion || 'None'})`);
       const result = await getAdminAnalytics(undefined, undefined, clientVersion);
 
       if (result && (result as any).status === "not-modified" && cached) {
-        console.log(`[Analytics] Version matches. Keeping local data.`);
+        //console.log(`[Analytics] Version matches. Keeping local data.`);
         return cached.data;
       }
 
       if (result && !(result as any).status) {
-        console.log(`[Analytics] Received fresh analytics data.`);
+        //console.log(`[Analytics] Received fresh analytics data.`);
         chatCache.set("admin_analytics", result, undefined, (result as any).version);
       }
       return result;
     },
+    // Use cached data if available
     initialData: () => {
       const cached = chatCache.get<any>("admin_analytics");
       if (cached) {
-        console.log(`[Analytics] Loaded cached data for admin dashboard`);
+        //console.log(`[Analytics] Loaded cached data for admin dashboard`);
         return cached.data;
       }
       return undefined;
     },
+    // Cache analytics data for 30 minutes
     staleTime: 1800000, // 30 mins
     refetchOnWindowFocus: true,
   });
-
+  // If not mounted or loading, return loading state
   if (!mounted || (isLoading && !data)) {
     return (
         <LoadingAnalyticsBody/>
     );
   }
-
+  // If no data, return error message
   if (!data) return <div>Failed to load analytics.</div>;
-
+  // Render analytics dashboard
   return (
+    // Analytics Dashboard
     <div className="flex flex-col gap-4 sm:gap-6">
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <AnalyticsCard
@@ -96,11 +104,12 @@ export function AnalyticsClient() {
           description="Total PDF & file uploads shared"
         />
       </div>
-
+       {/* Growth Chart */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-1 md:col-span-2 lg:col-span-4">
           <GrowthChartWithFilter initialData={data.chartData} />
         </Card>
+        {/* Enrollment Distribution Chart */}
         <Card className="col-span-1 md:col-span-2 lg:col-span-3">
           <CardHeader>
             <CardTitle>Enrollment Distribution</CardTitle>
@@ -111,7 +120,7 @@ export function AnalyticsClient() {
           </CardContent>
         </Card>
       </div>
-
+      {/* Popular Courses Chart */} 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-1 md:col-span-2 lg:col-span-4">
           <CardHeader>

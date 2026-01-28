@@ -6,21 +6,13 @@
 */
 
 "use client";
-
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { getAllCoursesAction } from "../actions";
 import { chatCache } from "@/lib/chat-cache";
-import {
-  PublicCourseCard,
-  PublicCourseCardSkeleton,
-} from "../../_components/PublicCourseCard";
+import {PublicCourseCard,PublicCourseCardSkeleton} from "../../_components/PublicCourseCard";
 import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
-import {
-  CoursesCacheWithCursor,
-  CoursesClientProps,
-  PublicCourseType,
-} from "@/lib/types/course";
+import {CoursesCacheWithCursor,CoursesClientProps,PublicCourseType} from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
 

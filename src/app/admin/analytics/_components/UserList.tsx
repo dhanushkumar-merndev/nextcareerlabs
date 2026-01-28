@@ -1,43 +1,20 @@
-"use client";
+/**
+ * UserList component for listing users and admins with pagination and search functionality.
+ */
 
+"use client";
 import { getAllUsers, updateUserRole } from "@/app/admin/analytics/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import {DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuLabel,DropdownMenuSeparator,DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UserListProps } from "@/lib/types/analytic";
 import { cn, formatIST } from "@/lib/utils";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  BookOpen,
-  Check,
-  Copy,
-  Filter,
-  Loader2,
-  Mail,
-  Phone,
-  Search,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  User as UserIcon,
-} from "lucide-react";
+import { Check, Copy,Loader2,Mail,Phone,Search,ShieldCheck,User as UserIcon,} from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -45,26 +22,7 @@ import { useInView } from "react-intersection-observer";
 import { toast } from "sonner";
 import { useDebounce } from "use-debounce";
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string | null;
-  createdAt: Date;
-  image: string | null;
-  phoneNumber: string | null;
-  _count: {
-    enrollment: number;
-  };
-}
-
-interface UserListProps {
-  initialUsers: User[];
-  initialHasNextPage: boolean;
-  initialTotalUsers: number;
-  search: string;
-}
-
+// Props
 export function UserList({
   initialUsers,
   initialHasNextPage,
@@ -143,7 +101,7 @@ export function UserList({
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied to clipboard`);
   };
-
+  // Handle role update
   const handleRoleUpdate = async (userId: string, newRole: string) => {
     toast.loading("Updating role...");
     const result = await updateUserRole(userId, newRole);
@@ -461,6 +419,4 @@ export function UserList({
     </div>
   );
 }
-
-
 // ActionMenu removed as per request

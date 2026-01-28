@@ -1,5 +1,13 @@
-"use client";
+/**
+ * EnrollmentButton Component
+ *
+ * - Handles course enrollment via API action
+ * - Manages loading states and transitions
+ * - Invalidates relevant caches on success
+ * - Syncs enrollment status with local state
+ */
 
+"use client";
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { useTransition, useState, useEffect } from "react";
@@ -10,6 +18,7 @@ import { Loader2 } from "lucide-react";
 import { chatCache } from "@/lib/chat-cache";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
+// Enrollment Button Component
 export function EnrollmentButton({
   courseId,
   slug,
@@ -23,7 +32,7 @@ export function EnrollmentButton({
   const { data: session } = useSmartSession();
   const [isPending, startTransition] = useTransition();
   const [currentStatus, setCurrentStatus] = useState(status);
-
+ // useEffect to sync status with local state
   useEffect(() => {
     setCurrentStatus(status);
   }, [status]);
@@ -41,11 +50,11 @@ export function EnrollmentButton({
         toast.success(result.message);
         setCurrentStatus("Pending");
         
-        // 🔹 Invalidate both local storage and React Query memory cache
+        // Invalidate both local storage and React Query memory cache
         chatCache.invalidate("all_courses", session?.user?.id);
         queryClient.invalidateQueries({ queryKey: ["all_courses", session?.user?.id] });
 
-        // 🔹 If slug provided, invalidate specific course detail
+        // If slug provided, invalidate specific course detail
         if (slug) {
             chatCache.invalidate(`course_${slug}`, session?.user?.id);
             queryClient.invalidateQueries({ queryKey: ["course_detail", slug, session?.user?.id] });
@@ -55,10 +64,11 @@ export function EnrollmentButton({
       }
     });
   }
-
+  // Determine button state based on current status
   const isActuallyPending = currentStatus === "Pending";
-
+// Return button with appropriate state and variant
   return (
+    // Button component with loading states
     <Button
       onClick={onSubmit}
       disabled={isPending || isActuallyPending}

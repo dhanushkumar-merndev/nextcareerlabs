@@ -8,10 +8,12 @@ import Link from "next/link";
 import { useSignOut } from "@/hooks/use-signout";
 import { UserDropdownProps } from "@/lib/types/homePage";
 
+// User Dropdown Component
 export function UserDropdown({ email, name, image }: UserDropdownProps) {
   const handleSignOut = useSignOut();
   return (
     <DropdownMenu>
+      {/* Dropdown Trigger */}
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="h-auto p-0 hover:bg-transparent">
           <Avatar>
@@ -25,6 +27,7 @@ export function UserDropdown({ email, name, image }: UserDropdownProps) {
           />
         </Button>
       </DropdownMenuTrigger>
+      {/* Dropdown Content */}
       <DropdownMenuContent align="end" className="min-w-48 mt-2">
         <DropdownMenuLabel className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-medium text-foreground">
@@ -35,6 +38,7 @@ export function UserDropdown({ email, name, image }: UserDropdownProps) {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {/* Dropdown Menu Group */}
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
             <Link href="/">
@@ -59,7 +63,9 @@ export function UserDropdown({ email, name, image }: UserDropdownProps) {
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
+        {/* Dropdown Menu Separator */}
         <DropdownMenuSeparator />
+        {/* Dropdown Menu Item */}
         <DropdownMenuItem onClick={handleSignOut}>
           <LogOutIcon size={16} className="opacity-60" aria-hidden="true" />
           <span>Logout</span>

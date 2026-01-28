@@ -42,6 +42,7 @@ async function checkProvider(email: string): Promise<AuthProviderResult | null> 
   let res: Response;
   // Check provider
   try {
+    // Fetches provider data
     res = await fetch("/api/auth/check-provider", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -151,11 +152,13 @@ async function signInWithEmail() {
   }
   return (
     <Card>
+       {/* Login Form */}
       <CardHeader className="text-center">
         <CardTitle className="text-xl">Welcome Back!</CardTitle>
         <CardDescription>Login with Google or Email account</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {/* Google Signin Button */}
         <Button className="w-full" variant={"outline"} onClick={signInWithGoogle} disabled={googlePending || (!!email && !isValidEmail(normalizedEmail))}>
           {googlePending ? (
             <>
@@ -169,16 +172,19 @@ async function signInWithEmail() {
             </>
           )}
         </Button>
+        {/* Email Signin Button */}
         <div className="relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t after:border-border">
           <span className="relative z-10 bg-card px-2 text-muted-foreground">
             Or continue with
           </span>
         </div>
+        {/* Email Input */}
         <div className="grid gap-3">
           <div className="grid gap-2">
             <Label htmlFor="email">Email</Label>
             <Input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="m@example.com" autoComplete="email" disabled={googlePending || emailPending}/>
           </div>
+          {/* Email Signin Button */}
           <Button onClick={signInWithEmail} disabled={emailPending} className="w-full">
             {emailPending ? (
               <>
@@ -194,6 +200,7 @@ async function signInWithEmail() {
           </Button>
         </div>
       </CardContent>
+      {/* Terms and Privacy */}
       <div className=" text-balance text-center text-sm text-muted-foreground">
         {" "}
         <Link className="hover:text-primary hover:underline" href="/terms">

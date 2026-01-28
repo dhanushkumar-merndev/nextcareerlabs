@@ -82,6 +82,7 @@ const testimonials: Testimonial[] = [
   },
 ];
 
+// Testimonial Banner Component
 export default function TestimonialMasonry() {
   const [showAll, setShowAll] = useState(false);
   return (

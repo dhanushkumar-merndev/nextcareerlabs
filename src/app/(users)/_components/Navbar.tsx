@@ -120,7 +120,7 @@ export function Navbar() {
       behavior: "smooth",
     });
   };
-
+    // Nav Link Base
     const navLinkBase =
       "relative font-medium transition-colors duration-300 " +
       "before:content-[''] before:absolute before:-bottom-1 " +

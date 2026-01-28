@@ -15,6 +15,7 @@ export function DashboardButton() {
     session?.user.role === "admin" ? "/admin" : "/dashboard";
 
   return (
+    /* Dashboard Button */
     <Link className={buttonVariants({ size: "lg", variant: "outline" })} href={session ? dashboardHref : "/dashboard"}>
       {session ? "Goto Dashboard" : "Get Started"}
     </Link>

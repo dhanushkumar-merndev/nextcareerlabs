@@ -1,60 +1,45 @@
-"use client";
+/**
+ * SlugPageWrapper Component
+ *
+ * - Loads course details using React Query
+ * - Handles local caching and versioning
+ * - Manages loading states and error handling
+ * - Syncs enrollment status with local state
+ * - Invalidates relevant caches on enrollment
+ */
 
+"use client";
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+import {Collapsible, CollapsibleContent, CollapsibleTrigger} from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
 import { buttonVariants } from "@/components/ui/button";
-import { env } from "@/lib/env";
-import {
-  IconBook,
-  IconCategory,
-  IconChartBar,
-  IconChevronDown,
-  IconClock,
-  IconFileText,
-  IconPlayerPlay,
-} from "@tabler/icons-react";
+import {IconBook, IconCategory, IconChartBar, IconChevronDown, IconClock, IconPlayerPlay} from "@tabler/icons-react";
 import { CheckIcon, TimerIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { EnrollmentStatus, CourseLevel } from "@/generated/prisma";
-import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 import { JSX } from "react";
 import { EnrollmentButton } from "./EnrollmentButton";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-
 import { useQuery } from "@tanstack/react-query";
 import { getSlugPageDataAction } from "../actions";
 import { chatCache } from "@/lib/chat-cache";
 import { useState, useEffect } from "react";
+import Loading from "../loading";
+import { SlugPageWrapperProps } from "@/lib/types/course";
 
-interface SlugPageWrapperProps {
-  slug: string;
-  currentUserId?: string;
-}
-
+// SlugPageWrapper Component
 export function SlugPageWrapper({
   slug,
   currentUserId,
 }: SlugPageWrapperProps) {
+  // State to track component mount
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
-
+  // UseQuery to fetch course data
   const { data, isLoading } = useQuery({
     queryKey: ["course_detail", slug, currentUserId],
     queryFn: async () => {
@@ -76,6 +61,7 @@ export function SlugPageWrapper({
       }
       return result;
     },
+    // Use initial data from cache if available
     initialData: () => {
       const cacheKey = `course_${slug}`;
       const cached = chatCache.get<any>(cacheKey, currentUserId);
@@ -88,22 +74,10 @@ export function SlugPageWrapper({
     staleTime: 1800000, // 30 mins
   });
 
+  // Loading state
   if (!mounted || (isLoading && !data)) {
     return (
-      <div className="mt-5 px-4 lg:px-6 space-y-10">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <div className="aspect-video w-full rounded-xl bg-muted animate-pulse" />
-            <div className="space-y-4">
-              <div className="h-10 w-3/4 rounded-lg bg-muted animate-pulse" />
-              <div className="h-4 w-full rounded bg-muted animate-pulse" />
-            </div>
-          </div>
-          <div className="lg:col-span-1">
-             <div className="h-[400px] w-full rounded-xl bg-muted animate-pulse" />
-          </div>
-        </div>
-      </div>
+   <Loading/>
     );
   }
 
@@ -111,8 +85,6 @@ export function SlugPageWrapper({
   // Resiliency: Handle new format {course, enrollmentStatus...} or old raw course object
   const course = rawData?.course || (rawData?.id ? rawData : null);
   const enrollmentStatus = rawData?.enrollmentStatus || null;
-  const isProfileComplete = rawData?.isProfileComplete ?? true;
-  const requireName = rawData?.requireName ?? false;
 
   if (!course) {
     return (
@@ -125,8 +97,10 @@ export function SlugPageWrapper({
   }
   return (
     <>
+      {/* Course Content */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
         <div className="order-1 lg:col-span-2">
+          {/* Course Image */}
           <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">
             <Image
               src={useConstructUrl(course.fileKey)}
@@ -138,6 +112,7 @@ export function SlugPageWrapper({
             />
             <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent"></div>
           </div>
+          {/* Course Details */}
           <div className="mt-8 space-y-6">
             <div className="space-y-4">
               <h1 className="text-4xl font-semibold tracking-tight">
@@ -147,6 +122,7 @@ export function SlugPageWrapper({
                 {course.smallDescription}
               </p>
             </div>
+            {/* Course Badges */}
             <div className="flex flex-wrap gap-3">
               <Badge>
                 <IconChartBar className="size-4" />
@@ -163,6 +139,7 @@ export function SlugPageWrapper({
             <h2 className="text-3xl font-semibold tracking-tight">
               Course Description
             </h2>
+            {/* Course Description */}
             <div>
               <RenderDescription json={course.description ? JSON.parse(course.description) : null} />
             </div>
@@ -173,6 +150,7 @@ export function SlugPageWrapper({
               <h2 className="text-3xl font-semibold tracking-tight">
                 Course Content
               </h2>
+              {/* Course Content Summary */}
               <div>
                 <span className="text-primary">{course.chapter.length}</span>{" "}
                 chapters |{" "}
@@ -185,6 +163,7 @@ export function SlugPageWrapper({
                 Lessons
               </div>
             </div>
+            {/* Course Chapters */}
             <div className="space-y-4">
               {course.chapter.map((chapter: any, index: number) => (
                 <Collapsible key={chapter.id} defaultOpen={index === 0}>
@@ -220,6 +199,7 @@ export function SlugPageWrapper({
                       </CardContent>
                     </CollapsibleTrigger>
                     <CollapsibleContent>
+                      {/* Course Lessons */}
                       <div className="border-t bg-muted/20">
                         <div className="p-6 pt-4 space-y-3">
                           {chapter.lesson.map((lesson: any, lessonIndex: number) => (
@@ -249,6 +229,7 @@ export function SlugPageWrapper({
             </div>
           </div>
         </div>
+        {/* Course Sidebar */}
         <div className="order-2 lg:col-span-1">
           <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
             <div className="relative">
@@ -257,7 +238,7 @@ export function SlugPageWrapper({
                   {/* Benefits / Course Meta */}
                   <div className="rounded-xl bg-muted/40 p-5 border border-border/40 space-y-5">
                     <h4 className="font-semibold text-base">What you will get</h4>
-
+                  
                     <div className="flex flex-col gap-4">
                       <FeatureRow
                         icon={<IconClock className="size-4" />}
@@ -319,6 +300,7 @@ export function SlugPageWrapper({
                     </ul>
                   </div>
                   <div>
+                    {/* Enrollment Button */}
                     {enrollmentStatus === "Granted" ? (
                       <Link
                         className={buttonVariants({ className: "w-full" })}
@@ -352,7 +334,7 @@ export function SlugPageWrapper({
     </>
   );
 }
-
+// Feature Row Component
 function FeatureRow({
   icon,
   title,

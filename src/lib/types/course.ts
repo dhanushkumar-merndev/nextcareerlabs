@@ -43,3 +43,9 @@ export type CoursesServerResult =
       courses: PublicCourseType[];
       nextCursor: string | null;
     };
+
+
+export interface SlugPageWrapperProps {
+  slug: string;
+  currentUserId?: string;
+}

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 
 interface ChapterExpansionProps {
     chapter: {
@@ -17,10 +16,7 @@ interface ChapterExpansionProps {
 
 export function ChapterExpansion({ chapter, children }: ChapterExpansionProps) {
     const [isOpen, setIsOpen] = useState(chapter.position === 1); // Open first chapter by default
-
-    const completedLessons = chapter.lesson.filter(l => l.lessonProgress[0]?.completed).length;
     const totalLessons = chapter.lesson.length;
-    const isChapterCompleted = totalLessons > 0 && completedLessons === totalLessons;
 
     return (
         <Collapsible

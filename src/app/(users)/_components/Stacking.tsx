@@ -122,6 +122,7 @@ export default function Stacking() {
       window.removeEventListener("resize", setup);
     };
   }, []);
+  
   return (
     <section className="pt-10 flex justify-center">
       <div className="w-full max-w-7xl px-4">
@@ -143,21 +144,25 @@ export default function Stacking() {
                   <div className="w-full md:w-[45%] p-6 md:p-10 space-y-4">
                     {/* TITLE + LOGO */}
                     <div className="flex items-center gap-3">
+                      {/* Logo */}
                       <img
                         src={program.logo}
                         alt={`${program.title} logo`}
                         className="h-8 w-8 md:h-14 md:w-14 object-contain"
                         loading="lazy"
                       />
+                      {/* Title */}
                       <h3 className="text-2xl md:text-3xl font-semibold tracking-tight">
                         {program.title}
                       </h3>
                     </div>
 
+                    {/* Description */}
                     <p className="text-muted-foreground leading-relaxed text-base md:text-lg whitespace-pre-line">
                       {program.description}
                     </p>
 
+                    {/* View Button */}
                     <div className="flex justify-end">
                       <Link
                         href="/courses"
@@ -171,6 +176,7 @@ export default function Stacking() {
 
                   {/* IMAGE — DESKTOP */}
                   <div className="hidden md:block w-full md:w-[55%] p-6 md:p-10">
+                    {/* Image Container */}
                     <div className="relative aspect-video w-full rounded-lg overflow-hidden border">
                       <img
                         src={program.image}

@@ -1,5 +1,8 @@
-"use server";
+/**
+ * Actions for Course Details
+ */
 
+"use server";
 import { requireUser } from "@/app/data/user/require-user";
 import arcjet, { fixedWindow } from "@/lib/arcjet";
 import { prisma } from "@/lib/db";
@@ -8,24 +11,25 @@ import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
 import { getIndividualCourse } from "@/app/data/course/get-course";
 import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
-import { requireCompleteProfile } from "@/app/data/user/require-complete-profile";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { GLOBAL_CACHE_KEYS, incrementGlobalVersion } from "@/lib/redis";
 
+// Get Individual Course Action
 export async function getIndividualCourseAction(slug: string, clientVersion?: string) {
     return await getIndividualCourse(slug, clientVersion);
 }
 
+// Get Slug Page Data Action
 export async function getSlugPageDataAction(slug: string, clientVersion?: string) {
     console.log(`[SlugAction] Fetching data for: ${slug} (Client version: ${clientVersion || 'none'})`);
     const result = await getIndividualCourse(slug, clientVersion);
-    
+    // If getIndividualCourse returns null, it means the course doesn't exist
     if (!result) {
         console.error(`[SlugAction] getIndividualCourse returned null for ${slug}`);
         return null;
     }
-
+    // If getIndividualCourse returns { status: "not-modified" }, it means the course is up to date
     if ((result as any).status === "not-modified") {
         console.log(`[SlugAction] Version match for ${slug}`);
         return { status: "not-modified", version: result.version };
@@ -34,24 +38,24 @@ export async function getSlugPageDataAction(slug: string, clientVersion?: string
     // Extract the course object correctly. getIndividualCourse returns { course, version }
     // but we handle cases where it might return the course object directly if that ever happens.
     const course = (result as any).course || ((result as any).id ? result : null);
-    
+    // If getIndividualCourse returns a course object without an id, it means the course doesn't exist
     if (!course || !(course as any).id) {
         console.error(`[SlugAction] Could not find course in result for ${slug}`, result);
         return null;
     }
-
+    // If getIndividualCourse returns a course object with an id, it means the course exists
     if (course && "id" in course) {
         console.log(`[SlugAction] Found course ${course.id}. Fetching enrollment...`);
-        
+        // Get the session
         const session = await auth.api.getSession({
             headers: await headers()
         });
-
+        // If the user is logged in, check if they are enrolled in the course
         let enrollmentStatus = null;
         if (session?.user) {
             enrollmentStatus = await checkIfCourseBought((course as any).id);
         }
-
+        // Return the course object, enrollment status, and version
         return {
             course: (result as any).course || result, // Ensure we return the course object
             enrollmentStatus,
@@ -60,7 +64,7 @@ export async function getSlugPageDataAction(slug: string, clientVersion?: string
             version: (result as any).version || (result as any).currentVersion
         };
     }
-
+    // If getIndividualCourse returns a course object with an id, it means the course exists
     return null;
 }
 
@@ -72,11 +76,12 @@ const aj = arcjet.withRule(
   })
 );
 
+// Enroll in Course Action
 export async function enrollInCourseAction(
   courseId: string
 ): Promise<ApiResponse> {
   const user = await requireUser();
-
+  // Check if the user is blocked
   try {
     const req = await request();
     const decision = await aj.protect(req, {
@@ -104,7 +109,7 @@ export async function enrollInCourseAction(
         message: "Course not found",
       };
     }
-
+    // Check if the user is already enrolled in the course
     const existingEnrollment = await prisma.enrollment.findUnique({
       where: {
         userId_courseId: {
@@ -113,7 +118,7 @@ export async function enrollInCourseAction(
         },
       },
     });
-
+    // If the user is already enrolled in the course, return success
     if (existingEnrollment) {
       if (existingEnrollment.status === "Granted") {
         return {
@@ -145,7 +150,7 @@ export async function enrollInCourseAction(
       });
     }
 
-    //  Invalidate caches to show updated status immediately
+    // Invalidate caches to show updated status immediately
     await incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
     revalidatePath(`/courses/${course.slug}`);
     revalidatePath("/admin/requests");

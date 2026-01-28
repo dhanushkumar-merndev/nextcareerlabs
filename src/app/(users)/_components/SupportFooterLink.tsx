@@ -32,7 +32,9 @@ export function SupportFooterLink() {
 
   return (
     <>
+      {/* Support Footer Link */}
       <button onClick={handleOpen} className="hover:text-primary text-sm transition-colors text-left">Raise a Ticket</button>
+      {/* Support Ticket Dialog */}
       <SupportTicketDialog open={open && isAuthenticated} onOpenChange={(nextOpen) => {
           if (nextOpen && !isAuthenticated) {
             toast.error("Please login to raise a support ticket.");

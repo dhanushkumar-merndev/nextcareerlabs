@@ -95,12 +95,15 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Dialog Content */}
       <DialogContent className="sm:max-w-[500px]">
+        {/* Dialog Header */}
         <DialogHeader>
           <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <MessageSquarePlus className="h-6 w-6 text-primary" />
           </div>
           <DialogTitle className="text-center text-xl">Raise a Support Ticket</DialogTitle>
+          {/* Dialog Description */}
           <DialogDescription className="text-center">
             Having trouble? Describe your issue and we'll help you out.
           </DialogDescription>
@@ -110,6 +113,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
             </div>
           )}
         </DialogHeader>
+        {/* Dialog Form */}
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="category">Related to</Label>
@@ -126,6 +130,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
               </SelectContent>
             </Select>
           </div>
+          {/* Dialog Form Input */}
           <div className="space-y-2">
             <Label htmlFor="title">Issue Summary</Label>
             <Input 
@@ -136,6 +141,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
               required
             />
           </div>
+          {/* Dialog Form Input */}
           <div className="space-y-2">
             <Label htmlFor="content">Description</Label>
             <Textarea 
@@ -147,6 +153,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
               required
             />
           </div>
+          {/* Dialog Footer */}
           <DialogFooter className="pt-4">
             <Button 
               type="button" 
@@ -156,6 +163,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
             >
               Cancel
             </Button>
+            {/* Dialog Submit Button */}
             <Button type="submit" disabled={isPending || limitStatus.limitReached }>
               {isPending ? (
                 <>

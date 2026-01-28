@@ -16,6 +16,7 @@ export function PublicCourseCard({data,enrollmentStatus = null,}: CoursesProps) 
   const thumbnaiUrl = useConstructUrl(data.fileKey || "");
   return (
     <Card className="group relative py-0 gap-0">
+      {/* Badge */}
       <Badge className="absolute top-2 right-2 z-10">
         <CrownIcon className="size-2" />
         {data.level}

@@ -263,18 +263,19 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
         const skip = (page - 1) * limit;
 
         const whereClause: any = {
-            AND: [
-                {
-                    OR: [
-                        { name: { contains: search, mode: 'insensitive' } },
-                        { email: { contains: search, mode: 'insensitive' } },
-                        { id: { contains: search, mode: 'insensitive' } },
-                        { phoneNumber: { contains: search, mode: 'insensitive' } },
-                    ]
-                }
-            ]
-        };
+            AND: []
+            };
 
+            if (search) {
+            whereClause.AND.push({
+                OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { email: { contains: search, mode: 'insensitive' } },
+                { id: { contains: search, mode: 'insensitive' } },
+                { phoneNumber: { contains: search, mode: 'insensitive' } },
+                ]
+            });
+            }
         // Strict role filtering with case insensitivity
         if (roleFilter === 'admin') {
             whereClause.AND.push({
