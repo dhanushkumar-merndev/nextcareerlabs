@@ -12,12 +12,14 @@ import { sendNotificationAction, checkTicketLimitAction } from "@/app/data/notif
 import { toast } from "sonner";
 import { Loader2, MessageSquarePlus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { chatCache } from "@/lib/chat-cache";
 import { TicketResponse } from "@/lib/types/components";
 
 // Support ticket dialog component
-export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open: boolean; onOpenChange: (open: boolean) => void; courses?: { id: string, title: string }[] }) {
+export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }: { open: boolean; onOpenChange: (open: boolean) => void; courses?: { id: string, title: string }[], userId?: string }) {
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
+  const currentUserId = userId;
   const [courseId, setCourseId] = useState<string>("general");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -47,51 +49,72 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
       return;
     }
     // Start transition for async operation
-    startTransition(async () => {
+    const prefix = courseId === "app_related" ? "[APP]" : courseId === "general" ? "[GENERAL]" : "[COURSE]";
+    const categoryName = courseId === "app_related" 
+        ? "App Related Issue" 
+        : courseId === "general" 
+            ? "General Issue" 
+            : courses.find(c => c.id === courseId)?.title || "Course Related";
+    
+    const formattedContent = `**Issue Type:** ${categoryName}\n**Summary:** ${title}\n\n**Description:**\n${content}`;
+    const issueTitle = `${prefix} ${title}`;
+
+    // INSTANT FEEDBACK
+    toast.success("Ticket request sent! It will appear in your chat window shortly.");
+    onOpenChange(false);
+    setTitle("");
+    setContent("");
+
+    // BACKGROUND ACTION
+    (async () => {
       try {
-        const prefix = courseId === "app_related" ? "[APP]" : courseId === "general" ? "[GENERAL]" : "[COURSE]";
-        // Find category name for the message body
-        const categoryName = courseId === "app_related" 
-            ? "App Related Issue" 
-            : courseId === "general" 
-                ? "General Issue" 
-                : courses.find(c => c.id === courseId)?.title || "Course Related";
-        // Format content
-        const formattedContent = `**Issue Type:** ${categoryName}\n**Summary:** ${title}\n\n**Description:**\n${content}`;
-        // Send notification
         const res: TicketResponse = await sendNotificationAction({
-          title: `${prefix} ${title}`,
+          title: issueTitle,
           content: formattedContent,
           type: "SUPPORT_TICKET",
           courseId: ["general", "app_related"].includes(courseId) ? undefined : courseId,
         });
-        // Handle response
+
         if (!res.success) {
-        if (res.code === "TICKET_LIMIT_REACHED") {
-          const mins = res.minutesLeft;
-          const hours = Math.floor(mins / 60);
-          const remainingMins = mins % 60;
-          const timeStr =
-            hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
-          toast.error(`Limit reached. Try again in ${timeStr}!`);
-        } else {
-          toast.error("Failed to raise ticket. Please try again.");
+          if (res.code === "TICKET_LIMIT_REACHED") {
+            const mins = res.minutesLeft;
+            const hours = Math.floor(mins / 60);
+            const remainingMins = mins % 60;
+            const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
+            toast.error(`Ticket limit reached. Try again in ${timeStr}!`);
+          } else {
+            toast.error("Failed to raise ticket. Please try again.");
+          }
+          return;
         }
-        return;
-      }
-        // Show success message
-        toast.success("Ticket raised successfully! Our team will get back to you.");
-        // Invalidate query to show new thread instantly
-        queryClient.invalidateQueries({ queryKey: ["sidebarData"] });
-        // Close dialog
-        onOpenChange(false);
-        // Clear form
-        setTitle("");
-        setContent("");
+
+        // Success - Sync caches and UI
+        await queryClient.invalidateQueries({ 
+          queryKey: ["sidebarData", currentUserId],
+          refetchType: 'active' 
+        });
+        
+        if (currentUserId) {
+          chatCache.invalidate("sidebarData", currentUserId);
+        }
+        
+        if (res.notification?.threadId) {
+          queryClient.invalidateQueries({ queryKey: ["messages", res.notification.threadId, currentUserId] });
+          chatCache.invalidate(`messages_${res.notification.threadId}`, currentUserId);
+        }
+        
+        window.dispatchEvent(new CustomEvent("chat-thread-update", {
+          detail: {
+            threadId: res.notification?.threadId || `support_${currentUserId}`,
+            lastMessage: title,
+            updatedAt: new Date().toISOString()
+          }
+        }));
+
       } catch (error) {
         toast.error("Failed to raise ticket. Please try again.");
       }
-    });
+    })();
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -107,6 +130,9 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [] }: { open
           <DialogDescription className="text-center">
             Having trouble? Describe your issue and we'll help you out.
           </DialogDescription>
+          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-[10px] font-medium text-center">
+            Please mention all the required details and information. Cannot be modified once submitted.
+          </div>
           {limitStatus.limitReached && (
             <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-xs font-medium text-center">
               Limit Reached: You have 3 active tickets. Please wait for them to be resolved before raising new ones.

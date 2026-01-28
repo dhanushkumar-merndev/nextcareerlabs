@@ -129,12 +129,41 @@ export async function sendNotificationAction(
     await Promise.all([
         invalidateCache(CHAT_CACHE_KEYS.THREADS(senderId)),
         recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(recipientId)),
-        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId))
+        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
+        incrementChatVersion(senderId),
+        recipientId ? incrementChatVersion(recipientId) : Promise.resolve()
     ]);
   }
 
   revalidatePath("/admin/resources");
+  
+  // If it's a support ticket from a user, notify all admins
+  if (data.type === "SUPPORT_TICKET") {
+      await invalidateAdminsCache();
+  }
+
   return { success: true, notification };
+}
+
+/**
+ * Helper to invalidate cache and increment version for all admin users.
+ * Ensures the admin sidebar updates in real-time when new tickets are created.
+ */
+async function invalidateAdminsCache() {
+    try {
+        const admins = await prisma.user.findMany({
+            where: { role: "admin" },
+            select: { id: true }
+        });
+        
+        await Promise.all(admins.map(admin => Promise.all([
+            invalidateCache(CHAT_CACHE_KEYS.THREADS(admin.id)),
+            incrementChatVersion(admin.id)
+        ])));
+        console.log(`[AdminSync] Invalidated cache and incremented version for ${admins.length} admins.`);
+    } catch (error) {
+        console.error("[AdminSync] Failed to invalidate admin caches:", error);
+    }
 }
 
 export async function replyToTicketAction(data: {
@@ -170,6 +199,7 @@ export async function replyToTicketAction(data: {
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(data.threadId)),
       incrementChatVersion(session.user.id),
       data.recipientId ? incrementChatVersion(data.recipientId) : Promise.resolve(),
+      invalidateAdminsCache() // Ensure other online admins see the update
   ]);
 
   // Mark all messages in thread as read for admin? Or just specific ones?
@@ -422,9 +452,17 @@ export async function getThreadsAction(clientVersion?: string) {
     }
 
     const isThreadResolved = !(unresolvedMap[threadId] > 0);
+    
+    // Improved preview logic for attachments
+    let previewMessage = latestMsg.content || "";
+    if (!previewMessage.trim()) {
+        if (latestMsg.imageUrl) previewMessage = "Image";
+        else if (latestMsg.fileUrl) previewMessage = `PDF (${latestMsg.fileName || "Document"})`;
+    }
+
     return {
       threadId,
-      lastMessage: latestMsg.content,
+      lastMessage: previewMessage,
       updatedAt: latestMsg.createdAt,
       resolved: isThreadResolved, 
       isGroup: !!latestMsg.chatGroupId,
@@ -442,9 +480,16 @@ export async function getThreadsAction(clientVersion?: string) {
   const groupThreads = Array.from(uniqueGroupsMap.values()).map(g => {
       const threadId = g.id;
       const lastMsg = g.messages[0];
+      
+      let previewMessage = lastMsg?.content || "No messages yet";
+      if (lastMsg && !lastMsg.content?.trim()) {
+          if (lastMsg.imageUrl) previewMessage = "Image";
+          else if (lastMsg.fileUrl) previewMessage = `PDF (${lastMsg.fileName || "Document"})`;
+      }
+
       return {
         threadId,
-        lastMessage: lastMsg?.content || "No messages yet",
+        lastMessage: previewMessage,
         updatedAt: lastMsg?.createdAt || g.createdAt,
         resolved: true,
         isGroup: true,
@@ -469,7 +514,7 @@ export async function getThreadsAction(clientVersion?: string) {
 
   const result = { 
       threads: finalThreads, 
-      version: latestNotification?.createdAt.getTime() ?? 0,
+      version: currentVersion || (latestNotification?.createdAt.getTime() ?? 0).toString(),
       enrolledCourses: enrollmentCourses,
       presence: null 
   };
@@ -623,12 +668,18 @@ export async function deleteMessageAction(id: string) {
 
   const isAdmin = session.user.role === "admin";
   
-  // 1. Fetch message to check for attachments
+  // 1. Fetch message to check for attachments and permissions
   const message = await prisma.notification.findUnique({
-      where: isAdmin ? { id } : { id, recipientId: session.user.id }
+      where: { id },
+      select: { id: true, senderId: true, recipientId: true, imageUrl: true, fileUrl: true, threadId: true }
   });
 
   if (!message) return { success: false, error: "Message not found" };
+
+  // Permission Check: Admin can delete anything. User can delete if they sent or received it.
+  if (!isAdmin && message.senderId !== session.user.id && message.recipientId !== session.user.id) {
+      return { success: false, error: "Unauthorized" };
+  }
 
   // 2. Delete from S3 if attachment exists
   try {
@@ -662,6 +713,7 @@ export async function deleteMessageAction(id: string) {
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(message.threadId || "")),
       incrementChatVersion(session.user.id),
       message.recipientId ? incrementChatVersion(message.recipientId) : Promise.resolve(),
+      invalidateAdminsCache() // Ensure other online admins see the deletion
   ]);
 
   revalidatePath("/admin/resources");
@@ -679,10 +731,13 @@ export async function editMessageAction(
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
+  const isAdmin = session.user.role === "admin";
   const message = await prisma.notification.findUnique({ where: { id } });
   if (!message) throw new Error("Message not found");
 
-  if (message.senderId !== session.user.id) throw new Error("Unauthorized");
+  if (message.senderId !== session.user.id && !isAdmin) throw new Error("Unauthorized");
+  // NEW: Only admins can edit messages
+  if (!isAdmin) throw new Error("Only admins can edit messages");
 
   await prisma.notification.update({
     where: { id },
@@ -722,6 +777,7 @@ export async function resolveTicketAction(id: string, status: "Resolved" | "Deni
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
       incrementChatVersion(session.user.id),
       n.senderId ? incrementChatVersion(n.senderId) : Promise.resolve(),
+      invalidateAdminsCache()
   ]);
 
   revalidatePath("/admin/resources");
@@ -757,6 +813,7 @@ export async function submitFeedbackAction(data: {
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
       incrementChatVersion(session.user.id),
       n.senderId ? incrementChatVersion(n.senderId) : Promise.resolve(),
+      invalidateAdminsCache()
   ]);
 
   revalidatePath("/admin/resources");

@@ -6,6 +6,7 @@ const DEFAULT_TTL = 30 * 60 * 1000; // 30 minutes
 interface CacheEntry<T> {
   data: T;
   version?: string;
+  timestamp?: number;
   expiry: number;
 }
 
@@ -16,6 +17,7 @@ export const chatCache = {
     const entry: CacheEntry<T> = {
       data,
       version,
+      timestamp: Date.now(),
       expiry: Date.now() + ttl,
     };
     try {
@@ -25,7 +27,7 @@ export const chatCache = {
     }
   },
 
-  get: <T>(key: string, userId?: string): { data: T; version?: string } | null => {
+  get: <T>(key: string, userId?: string): { data: T; version?: string; timestamp?: number } | null => {
     if (typeof window === "undefined" || !key) return null;
     const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
     const item = localStorage.getItem(storageKey);
@@ -33,6 +35,17 @@ export const chatCache = {
 
     try {
       const entry: CacheEntry<T> = JSON.parse(item);
+
+      // Check if cache is older than 30 seconds for sidebar data
+      if (key === "sidebarData" && entry.timestamp) {
+        const age = Date.now() - entry.timestamp;
+        if (age > 30000) { // 30 seconds
+          console.log(`[ChatCache] Sidebar cache expired (${Math.round(age / 1000)}s old), ignoring`);
+          chatCache.invalidate(key, userId); // Use chatCache.invalidate
+          return null;
+        }
+      }
+
       if (Date.now() > entry.expiry) {
         localStorage.removeItem(storageKey);
         return null;

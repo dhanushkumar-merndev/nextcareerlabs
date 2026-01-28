@@ -39,7 +39,6 @@ interface ChatWindowProps {
 export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, currentUserId, onRemoveThread, onBack, externalPresence }: ChatWindowProps) {
     const queryClient = useQueryClient();
     const [inputText, setInputText] = useState("");
-    const [sending, setSending] = useState(false);
     const [imageUrl, setImageUrl] = useState("");
     const [fileUrl, setFileUrl] = useState("");
     const [fileName, setFileName] = useState("");
@@ -153,7 +152,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
     useEffect(() => {
         if (!loading && messages.length > 0 && !isFetchingNextPage) {
-            scrollToBottom(true); // Instant on load
+            // Very short delay for DOM render, then instant scroll to prevent flicker
+            setTimeout(() => scrollToBottom(true), 50);
         }
     }, [loading, threadId, messages.length]);
 
@@ -170,22 +170,28 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     };
 
     const handleSendMessage = async () => {
-        if ((!inputText.trim() && !imageUrl && !fileUrl) || sending) return;
+        if (!inputText.trim() && !imageUrl && !fileUrl) return;
 
         const textToSend = inputText.trim() === "" ? " " : inputText;
         const imgToSend = imageUrl;
+        const fUrl = fileUrl;
+        const fName = fileName;
 
+        // INSTANTLY CLEAR INPUT AND ATTACHMENTS
         setInputText("");
         setImageUrl("");
-        setSending(true);
+        setFileUrl("");
+        setFileName("");
+        
+        // We don't set sending=true here anymore to avoid blocking the UI
 
         const tempId = `temp-${Date.now()}`;
         const optimisticMessage = {
             id: tempId,
             content: textToSend,
             imageUrl: imgToSend || null,
-            fileUrl: fileUrl || null,
-            fileName: fileName || null,
+            fileUrl: fUrl || null,
+            fileName: fName || null,
             senderId: currentUserId,
             createdAt: new Date().toISOString(),
             status: "sending",
@@ -216,7 +222,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         window.dispatchEvent(new CustomEvent("chat-thread-update", {
             detail: {
                 threadId,
-                lastMessage: textToSend.trim() !== "" ? textToSend : (imgToSend ? "Image" : (fileUrl ? fileName || "Document" : "New message")),
+                lastMessage: textToSend.trim() !== "" ? textToSend : (imgToSend ? "Image" : (fUrl ? `PDF (${fName || "Document"})` : "New message")),
                 updatedAt: new Date().toISOString(),
                 archived: false
             }
@@ -226,48 +232,93 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         setTimeout(() => scrollToBottom(true), 50);
         setTimeout(() => scrollToBottom(true), 150);
 
-        try {
-            let result;
-            if (isAdmin && !isGroup) {
-                const firstMsg = messages.find(m => m.type === "SUPPORT_TICKET");
-                const recipientId = firstMsg?.senderId;
+        // BACKGROUND ACTION
+        (async () => {
+            try {
+                let result;
+                if (isAdmin && !isGroup) {
+                    let recipientId = messages.find(m => m.type === "SUPPORT_TICKET")?.senderId;
 
-                if (!recipientId) {
-                    const otherMsg = messages.find(m => m.senderId !== currentUserId);
-                    if (otherMsg) {
+                    if (!recipientId) {
+                        recipientId = messages.find(m => m.senderId !== currentUserId)?.senderId;
+                    }
+
+                    // FALLBACK: Parse from threadId if it's a support ticket (support_USERID)
+                    if (!recipientId && threadId.startsWith("support_")) {
+                        recipientId = threadId.replace("support_", "");
+                    }
+
+                    if (recipientId) {
                         result = await replyToTicketAction({
                             threadId,
-                            recipientId: otherMsg.senderId,
+                            recipientId,
                             content: textToSend,
-                            fileUrl: fileUrl || undefined,
-                            fileName: fileName || undefined
+                            fileUrl: fUrl || undefined,
+                            fileName: fName || undefined
                         });
                     } else {
                         throw new Error("Recipient not found");
                     }
                 } else {
-                    result = await replyToTicketAction({
-                        threadId,
-                        recipientId,
+                    result = await sendNotificationAction({
+                        title: isAdmin ? "Admin Message" : "Support Message",
                         content: textToSend,
-                        fileUrl: fileUrl || undefined,
-                        fileName: fileName || undefined
+                        type: isGroup ? "GROUP_CHAT" : "SUPPORT_TICKET",
+                        imageUrl: imgToSend || undefined,
+                        fileUrl: fUrl || undefined,
+                        fileName: fName || undefined,
+                        threadId
                     });
                 }
-            } else {
-                result = await sendNotificationAction({
-                    title: isAdmin ? "Admin Message" : "Support Message",
-                    content: textToSend,
-                    type: isGroup ? "GROUP_CHAT" : "SUPPORT_TICKET",
-                    imageUrl: imgToSend || undefined,
-                    fileUrl: fileUrl || undefined,
-                    fileName: fileName || undefined,
-                    threadId
-                });
-            }
 
-            if (result && !result.success) {
-                // Revert optimistic update
+                if (result && !result.success) {
+                    // Revert optimistic update
+                    queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
+                        if (!oldData) return oldData;
+                        const newPages = [...oldData.pages];
+                        newPages[0] = {
+                            ...newPages[0],
+                            messages: newPages[0].messages.filter((m: any) => m.id !== tempId)
+                        };
+                        return { ...oldData, pages: newPages };
+                    });
+
+                    if ((result as any).error === "TICKET_LIMIT_REACHED") {
+                        const mins = (result as any).minutesLeft;
+                        const hours = Math.floor(mins / 60);
+                        const remainingMins = mins % 60;
+                        const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
+                        toast.error(`Limit reached. Try again in ${timeStr}!`);
+                    } else {
+                        toast.error("Failed to send message");
+                    }
+                    return;
+                }
+
+                // Update the optimistic message with the real one
+                if (result && result.success && result.notification) {
+                    queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
+                        if (!oldData) return oldData;
+                        const newPages = [...oldData.pages];
+                        newPages[0] = {
+                            ...newPages[0],
+                            messages: newPages[0].messages.map((m: any) =>
+                                m.id === tempId ? { ...result.notification, status: "sent" } : m
+                            )
+                        };
+                        return { ...oldData, pages: newPages };
+                    });
+                } else {
+                    queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
+                }
+
+                chatCache.invalidate(`messages_${threadId}`, currentUserId);
+                chatCache.invalidate("sidebarData", currentUserId);
+                queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+
+            } catch (error) {
+                toast.error("Failed to send message");
+                // Revert on catch
                 queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
                     if (!oldData) return oldData;
                     const newPages = [...oldData.pages];
@@ -277,56 +328,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     };
                     return { ...oldData, pages: newPages };
                 });
-
-                if ((result as any).error === "TICKET_LIMIT_REACHED") {
-                    const mins = (result as any).minutesLeft;
-                    const hours = Math.floor(mins / 60);
-                    const remainingMins = mins % 60;
-                    const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
-                    toast.error(`Limit reached. Try again in ${timeStr}!`);
-                } else {
-                    toast.error("Failed to send message");
-                }
-                return;
             }
-
-            // Update the optimistic message with the real one
-            if (result && result.success && result.notification) {
-                queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
-                    if (!oldData) return oldData;
-                    const newPages = [...oldData.pages];
-                    newPages[0] = {
-                        ...newPages[0],
-                        messages: newPages[0].messages.map((m: any) =>
-                            m.id === tempId ? { ...result.notification, status: "sent" } : m
-                        )
-                    };
-                    return { ...oldData, pages: newPages };
-                });
-            } else {
-                queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
-            }
-
-            chatCache.invalidate(`messages_${threadId}`, currentUserId);
-            chatCache.invalidate("sidebarData", currentUserId);
-        } catch (error) {
-           
-            toast.error("Failed to send message");
-            // Revert on catch
-            queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
-                if (!oldData) return oldData;
-                const newPages = [...oldData.pages];
-                newPages[0] = {
-                    ...newPages[0],
-                    messages: newPages[0].messages.filter((m: any) => m.id !== tempId)
-                };
-                return { ...oldData, pages: newPages };
-            });
-        } finally {
-            setSending(false);
-            setFileUrl("");
-            setFileName("");
-        }
+        })();
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -605,15 +608,55 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     };
 
     const handleResolve = async (id: string, feedback?: string) => {
-        if (feedback) {
-            await submitFeedbackAction({ notificationId: id, feedback });
-        } else {
-            await resolveTicketAction(id);
-        }
+        const previewText = feedback ? `Feedback: ${feedback}` : "Issue Resolved";
+        
+        // 1. OPTIMISTIC UPDATE LOCAL UI
         setResolvingMessageId(null);
         setResolveFeedbackText("");
         setResolveStatus(null);
-        refetch();
+
+        // 2. INSTANT SIDEBAR UPDATE
+        window.dispatchEvent(new CustomEvent("chat-thread-update", {
+            detail: {
+                threadId,
+                lastMessage: previewText,
+                updatedAt: new Date().toISOString(),
+                resolved: true
+            }
+        }));
+
+        // 3. OPTIMISTIC UPDATE MESSAGES QUERY DATA
+        queryClient.setQueryData(["messages", threadId, currentUserId], (old: any) => {
+            if (!old || !old.pages) return old;
+            return {
+                ...old,
+                pages: old.pages.map((page: any) => ({
+                    ...page,
+                    messages: page.messages?.map((n: any) =>
+                        n.id === id ? { ...n, resolved: true, feedback: feedback || n.feedback } : n
+                    ) || page.messages
+                }))
+            };
+        });
+
+        // 4. BACKGROUND ACTION
+        (async () => {
+            try {
+                if (feedback) {
+                    await submitFeedbackAction({ notificationId: id, feedback });
+                } else {
+                    await resolveTicketAction(id);
+                }
+                
+                chatCache.invalidate(`messages_${threadId}`, currentUserId);
+                chatCache.invalidate("sidebarData", currentUserId);
+                queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+                refetch();
+            } catch (e) {
+                toast.error("Failed to submit feedback");
+                refetch(); // Revert to server state
+            }
+        })();
     };
 
     const handleEditOpen = (msg: any) => {
@@ -656,12 +699,43 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         });
 
         try {
-            await deleteMessageAction(id);
+            const res = await deleteMessageAction(id);
+            if (res && !res.success) {
+                 throw new Error(res.error || "Failed to delete");
+            }
+
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
             chatCache.invalidate("sidebarData", currentUserId);
-        } catch (e) {
+            queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+
+
+            // SYNC SIDEBAR: Find the next latest message to show as preview
+            const remainingMessages = messages.filter(m => m.id !== id);
+            const lastMsg = remainingMessages[remainingMessages.length - 1];
+            
+            let preview = "No messages yet";
+            let updatedAt = new Date().toISOString();
+
+            if (lastMsg) {
+                preview = lastMsg.content || "";
+                if (!preview.trim()) {
+                    if (lastMsg.imageUrl) preview = "Image";
+                    else if (lastMsg.fileUrl) preview = `PDF (${lastMsg.fileName || "Document"})`;
+                }
+                updatedAt = lastMsg.createdAt;
+            }
+
+            window.dispatchEvent(new CustomEvent("chat-thread-update", {
+                detail: {
+                    threadId,
+                    lastMessage: preview,
+                    updatedAt: updatedAt
+                }
+            }));
+
+        } catch (e: any) {
             queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
-            toast.error("Failed to delete");
+            toast.error(e.message || "Failed to delete");
         }
     };
 
@@ -1059,7 +1133,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                     isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none"
                                                 )}>
                                                     {/* Chevron Trigger */}
-                                                    {isMe && (
+                                                    {isMe && isAdmin && (
                                                         <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                                             <DropdownMenu>
                                                                 <DropdownMenuTrigger asChild>
@@ -1068,12 +1142,16 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                                     </Button>
                                                                 </DropdownMenuTrigger>
                                                                 <DropdownMenuContent align="end">
-                                                                    <DropdownMenuItem onClick={() => handleEditOpen(msg)}>
-                                                                        <Pencil className="h-3 w-3 mr-2" /> Edit
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(msg.id)}>
-                                                                        <Trash2 className="h-3 w-3 mr-2" /> Delete
-                                                                    </DropdownMenuItem>
+                                                                    {isAdmin && (
+                                                                        <DropdownMenuItem onClick={() => handleEditOpen(msg)}>
+                                                                            <Pencil className="h-3 w-3 mr-2" /> Edit
+                                                                        </DropdownMenuItem>
+                                                                    )}
+                                                                    {isAdmin && (
+                                                                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(msg.id)}>
+                                                                            <Trash2 className="h-3 w-3 mr-2" /> Delete
+                                                                        </DropdownMenuItem>
+                                                                    )}
                                                                 </DropdownMenuContent>
                                                             </DropdownMenu>
                                                         </div>
@@ -1311,7 +1389,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                     aria-label="Upload Image"
                                     className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
                                     onClick={() => document.getElementById("chat-upload")?.click()}
-                                    disabled={isUploading || sending}
+                                    disabled={isUploading}
                                     title="Upload Image"
                                 >
                                     {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
@@ -1330,7 +1408,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                     aria-label="Upload Document"
                                     className="h-10 w-10 shrink-0 rounded-full hover:bg-muted"
                                     onClick={() => document.getElementById("file-upload")?.click()}
-                                    disabled={isUploading || sending}
+                                    disabled={isUploading}
                                     title="Upload Document"
                                 >
                                     {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
@@ -1360,10 +1438,10 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                     size="icon"
                                     aria-label="Send message"
                                     className="h-10 w-10 shrink-0 rounded-full"
-                                    disabled={(!inputText.trim() && !imageUrl && !fileUrl) || sending || isUploading}
+                                    disabled={(!inputText.trim() && !imageUrl && !fileUrl) || isUploading}
                                     onClick={handleSendMessage}
                                 >
-                                    {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                                    <Send className="h-5 w-5" />
                                 </Button>
                             </div>
                         </div>

@@ -155,11 +155,12 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
             )}
          </div>
 
-         <SupportTicketDialog
-            open={isNewTicketOpen}
-            onOpenChange={setIsNewTicketOpen}
-            courses={enrolledCourses}
-         />
+            <SupportTicketDialog 
+               open={isNewTicketOpen} 
+               onOpenChange={setIsNewTicketOpen} 
+               courses={(sidebarData as any)?.enrolledCourses || []}
+               userId={currentUserId}
+            />
       </div>
    );
 }
