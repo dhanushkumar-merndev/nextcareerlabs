@@ -34,6 +34,7 @@ const getVideoDuration = (file: File): Promise<number> => {
 interface iAppProps {
   value?: string | null;
   onChange: (value: string | null) => void;
+  onDurationChange?: (duration: number) => void;
   fileTypeAccepted: "image" | "video";
 }
 interface UploaderState {
@@ -50,7 +51,7 @@ interface UploaderState {
   transcodingProgress: number;
 }
 
-export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
+export function Uploader({ onChange, onDurationChange, value, fileTypeAccepted }: iAppProps) {
   const fileUrl = useConstructUrl(value || "");
   const [fileState, setFileState] = useState<UploaderState>({
     error: false,
@@ -84,6 +85,7 @@ export function Uploader({ onChange, value, fileTypeAccepted }: iAppProps) {
           }));
           
           const duration = await getVideoDuration(file);
+          onDurationChange?.(Math.round(duration));
           const { m3u8, segments } = await transcodeToHLS(file, (p) => {
             setFileState((s) => ({ ...s, transcodingProgress: p }));
           }, duration);

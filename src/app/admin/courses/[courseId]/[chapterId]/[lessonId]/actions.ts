@@ -37,6 +37,7 @@ export async function updateLesson(
           description: result.data.description,
           thumbnailKey: result.data.thumbnailKey,
           videoKey: result.data.videoKey,
+          duration: result.data.duration,
         },
       });
 

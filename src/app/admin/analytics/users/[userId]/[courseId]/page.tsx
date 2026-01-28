@@ -135,7 +135,9 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-[9px] font-black text-primary uppercase tracking-widest">Actual Time Spent</span>
-                                                                        <span className="text-[9px] font-black text-foreground uppercase tracking-widest leading-none">{formatTime(progress.actualWatchTime || 0)}</span>
+                                                                        <span className="text-[9px] font-black text-foreground uppercase tracking-widest leading-none">
+                                                                            {formatTime(progress.actualWatchTime || 0)} / {lesson.duration ? formatTime(lesson.duration) : "--:--"}
+                                                                        </span>
                                                                     </div>
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-[10px] font-black text-primary uppercase tracking-widest">Last Watched</span>

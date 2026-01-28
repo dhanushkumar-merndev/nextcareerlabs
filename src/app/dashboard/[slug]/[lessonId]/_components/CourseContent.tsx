@@ -1,6 +1,6 @@
 "use client";
 
-import { getLessonContent, LessonContentType } from "@/app/data/course/get-lesson-content";
+import { getLessonContent } from "@/app/data/course/get-lesson-content";
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
@@ -21,7 +21,7 @@ import {
 import { IconFileText } from "@tabler/icons-react";
 import Hls from "hls.js";
 import { env } from "@/lib/env";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
 
 import { LessonContentSkeleton } from "./lessonSkeleton";
@@ -29,6 +29,8 @@ import { LessonContentSkeleton } from "./lessonSkeleton";
 interface iAppProps {
   lessonId: string;
   userId: string;
+  initialLesson?: any;
+  initialVersion?: string | null;
 }
 
 function VideoPlayer({
@@ -105,18 +107,26 @@ function VideoPlayer({
   /* ============================================================
      SYNC TO DATABASE
   ============================================================ */
-  const syncToDB = async () => {
-    const currentPosition = videoRef.current?.currentTime || 0;
-    const deltaToSync = Math.round(unsyncedDeltaRef.current);
+  const syncToDB = async (specificLessonId?: string, delta?: number, position?: number) => {
+    const targetId = specificLessonId || lessonId;
+    const currentPosition = position !== undefined ? position : (videoRef.current?.currentTime || lastPositionRef.current);
+    const deltaToSync = Math.round(delta !== undefined ? delta : unsyncedDeltaRef.current);
 
-    if (deltaToSync === 0) return;
+    if (deltaToSync === 0 && position === undefined) return;
 
+    console.log(`[Sync] Syncing ${targetId}: Position ${currentPosition}, Delta ${deltaToSync}`);
+    
     // ✅ Send consumed video duration to DB
-    const response = await updateVideoProgress(lessonId, currentPosition, deltaToSync);
+    const response = await updateVideoProgress(targetId, currentPosition, deltaToSync);
 
-    if (response.status === "success") {
-      // ✅ Clear local state only after successful sync
+    if (response.status === "success" && !specificLessonId) {
+      // ✅ Clear local state only after successful sync for current lesson
       clearLocalDelta();
+    } else if (response.status === "success" && specificLessonId) {
+        // Clear specific lesson delta
+        localStorage.removeItem(`unsynced-delta-${specificLessonId}`);
+        const expires = new Date(0).toUTCString();
+        document.cookie = `unsynced-delta-${specificLessonId}=; expires=${expires}; path=/; SameSite=Lax`;
     }
   };
 
@@ -127,19 +137,37 @@ function VideoPlayer({
     if (hasSyncedOnMountRef.current) return;
     hasSyncedOnMountRef.current = true;
 
-    // Load unsynced delta and last saved position from previous session
-    const previousDelta = loadUnsyncedDelta();
-    const savedTime = localStorage.getItem(`video-progress-${lessonId}`);
-    const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
-    
-    // ✅ Flush any unsynced data to DB on mount
-    if (previousDelta > 0 || (savedTime && parseFloat(savedTime) > initialTime)) {
-      updateVideoProgress(lessonId, positionToSync, Math.round(previousDelta)).then((res) => {
-        if (res.status === "success") {
-          clearLocalDelta();
+    const performGlobalSync = async () => {
+      // 1. Sync current lesson leftover
+      const previousDelta = loadUnsyncedDelta();
+      const savedTime = localStorage.getItem(`video-progress-${lessonId}`);
+      const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
+      
+      if (previousDelta > 0 || (savedTime && parseFloat(savedTime) > initialTime)) {
+        await syncToDB(lessonId, previousDelta, positionToSync);
+      }
+
+      // 2. Global Sync: Find other unsynced deltas in localStorage
+      try {
+        const keys = Object.keys(localStorage);
+        for (const key of keys) {
+          if (key.startsWith("unsynced-delta-") && !key.includes(lessonId)) {
+            const otherLessonId = key.replace("unsynced-delta-", "");
+            const otherDelta = parseFloat(localStorage.getItem(key) || "0");
+            const otherPosition = parseFloat(localStorage.getItem(`video-progress-${otherLessonId}`) || "0");
+            
+            if (otherDelta > 0) {
+              console.log(`[Global Sync] Found leftover for ${otherLessonId}`);
+              await syncToDB(otherLessonId, otherDelta, otherPosition);
+            }
+          }
         }
-      });
-    }
+      } catch (e) {
+        console.error("[Global Sync] Error:", e);
+      }
+    };
+
+    performGlobalSync();
   }, [lessonId, initialTime]);
 
   /* ============================================================
@@ -248,6 +276,8 @@ function VideoPlayer({
   ============================================================ */
   useEffect(() => {
     return () => {
+      // Final tracking call to capture the very last seconds
+      trackCoverage();
       syncToDB();
     };
   }, [lessonId]);
@@ -260,9 +290,19 @@ function VideoPlayer({
       saveUnsyncedDelta();
     };
 
+    const handleVisibilityChange = () => {
+        if (document.visibilityState === "hidden") {
+            saveUnsyncedDelta();
+            syncToDB();
+        }
+    };
+
     window.addEventListener("beforeunload", handleBeforeUnload);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [lessonId]);
 
@@ -394,7 +434,21 @@ function VideoPlayer({
   );
 }
 
-export function CourseContent({ lessonId, userId }: iAppProps) {
+export function CourseContent({ lessonId, userId, initialLesson, initialVersion }: iAppProps) {
+  // Sync initialData to local storage on mount to keep local cache fresh
+  useEffect(() => {
+    if (initialLesson && initialVersion) {
+        const cacheKey = `lesson_content_${lessonId}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        
+        // Sync if version differs or doesn't exist
+        if (!cached || cached.version !== initialVersion) {
+            console.log(`[Hydration] Syncing server data to local cache for ${lessonId}`);
+            chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion);
+        }
+    }
+  }, [lessonId, userId, initialLesson, initialVersion]);
+
   const { data: lesson, isLoading } = useQuery({
     queryKey: ["lesson_content", lessonId],
     queryFn: async () => {
@@ -416,13 +470,21 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
       return (result as any)?.lesson;
     },
     initialData: () => {
+        // ⭐ PRIORITY 1: Server-provided data (Source of Truth for fresh refresh)
+        if (initialLesson) return initialLesson;
+
+        // ⭐ PRIORITY 2: Local Cache (For fast navigation/stale state)
         const cacheKey = `lesson_content_${lessonId}`;
         const cached = chatCache.get<any>(cacheKey, userId);
-        return cached?.data?.lesson;
+        if (typeof window !== "undefined" && cached) {
+            return cached.data.lesson;
+        }
+        return undefined;
     },
     staleTime: 1800000, // 30 mins
   });
 
+  const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
@@ -463,7 +525,23 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
       }
 
       if (result.status === "success") {
-        // Success
+        // ✅ Invalidate Client Caches
+        const slug = data.Chapter.Course.slug;
+        const cacheKeys = [
+            `lesson_content_${lessonId}`,
+            `course_sidebar_${slug}`,
+            `user_dashboard_${userId}`
+        ];
+
+        // 1. Clear LocalStorage
+        cacheKeys.forEach(key => chatCache.invalidate(key, userId));
+
+        // 2. Invalidate React Query
+        queryClient.invalidateQueries({ queryKey: ["lesson_content", lessonId] });
+        queryClient.invalidateQueries({ queryKey: ["course_sidebar", slug] });
+        queryClient.invalidateQueries({ queryKey: ["user_dashboard", userId] });
+        
+        toast.success(result.message);
       } else {
         setOptimisticCompleted(false);
         toast.error(result.message);

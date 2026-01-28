@@ -8,9 +8,26 @@ import { HorizontalCourseCard } from "../_components/HorizontalCourseCard";
 
 interface DashboardClientProps {
     userId: string;
+    initialData?: any;
+    initialVersion?: string | null;
 }
 
-export function DashboardClient({ userId }: DashboardClientProps) {
+import { useEffect } from "react";
+
+export function DashboardClient({ userId, initialData, initialVersion }: DashboardClientProps) {
+  // Sync initialData to local storage on mount to keep local cache fresh
+  useEffect(() => {
+    if (initialData && initialVersion) {
+        const cacheKey = `user_dashboard_${userId}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        
+        if (!cached || cached.version !== initialVersion) {
+            console.log(`[Hydration] Syncing server dashboard data to local cache for ${userId}`);
+            chatCache.set(cacheKey, initialData, userId, initialVersion);
+        }
+    }
+  }, [userId, initialData, initialVersion]);
+
   const { data, isLoading } = useQuery({
     queryKey: ["user_dashboard", userId],
     queryFn: async () => {
@@ -33,9 +50,13 @@ export function DashboardClient({ userId }: DashboardClientProps) {
       return result;
     },
     initialData: () => {
+      // ⭐ PRIORITY 1: Server-provided data (Source of Truth for fresh refresh)
+      if (initialData) return initialData;
+
+      // ⭐ PRIORITY 2: Local Cache (For fast navigation/stale state)
       const cacheKey = `user_dashboard_${userId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
-      if (cached) {
+      if (typeof window !== "undefined" && cached) {
         console.log(`[Dashboard] Loaded cached stats for user: ${userId}`);
         return cached.data;
       }

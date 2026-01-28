@@ -48,6 +48,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       description: data.description ?? undefined,
       videoKey: data.videoKey ?? undefined,
       thumbnailKey: data.thumbnailKey ?? undefined,
+      duration: data.duration ?? undefined,
     },
   });
 
@@ -149,10 +150,12 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                           if (val) {
                             onSubmit({
                               ...form.getValues(),
-                              videoKey: val
+                              videoKey: val,
+                              duration: form.getValues("duration")
                             }, true);
                           }
                         }}
+                        onDurationChange={(duration) => form.setValue("duration", duration)}
                         value={field.value}
                         fileTypeAccepted="video"
                       />

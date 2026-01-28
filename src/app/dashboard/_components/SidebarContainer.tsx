@@ -16,11 +16,32 @@ export function SidebarContainer({
   slug,
   children,
   userId,
+  initialCourseData,
+  initialVersion,
 }: {
   slug: string;
   children: React.ReactNode;
   userId: string;
+  initialCourseData?: CourseSidebarDataType["course"] | null;
+  initialVersion?: string | null;
 }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    
+    // Sync initialData to local storage on mount to keep local cache fresh
+    if (initialCourseData && initialVersion) {
+        const cacheKey = `course_sidebar_${slug}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        
+        if (!cached || cached.version !== initialVersion) {
+            console.log(`[Hydration] Syncing server sidebar data to local cache for ${slug}`);
+            chatCache.set(cacheKey, { course: initialCourseData }, userId, initialVersion);
+        }
+    }
+  }, [slug, userId, initialCourseData, initialVersion]);
+
   const { data: course, isLoading } = useQuery({
     queryKey: ["course_sidebar", slug],
     queryFn: async () => {
@@ -42,9 +63,16 @@ export function SidebarContainer({
       return (result as any)?.course;
     },
     initialData: () => {
+        // ⭐ PRIORITY 1: Server-provided data (Source of Truth for fresh refresh)
+        if (initialCourseData) return initialCourseData;
+
+        // ⭐ PRIORITY 2: Local Cache (For fast navigation/stale state)
         const cacheKey = `course_sidebar_${slug}`;
         const cached = chatCache.get<any>(cacheKey, userId);
-        return cached?.data?.course;
+        if (typeof window !== "undefined" && cached) {
+            return cached.data.course;
+        }
+        return undefined;
     },
     staleTime: 1800000, // 30 mins
   });
@@ -79,6 +107,7 @@ export function SidebarContainer({
   // 🚫 Disable background scroll when sidebar is open (MOBILE ONLY)
   // -------------------------------------------------
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const isMobile = window.innerWidth < 768;
 
     if (isMobile && open) {
@@ -92,13 +121,16 @@ export function SidebarContainer({
     };
   }, [open]);
 
+  // Use initialCourseData if not mounted to ensure hydration matches server
+  const activeCourse = mounted ? course : (initialCourseData || course);
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* MAIN CONTENT AREA */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
         {/* DESKTOP SIDEBAR */}
        <div className="hidden md:block w-80 border-r border-border shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
-          {isLoading && !course ? (
+          {isLoading && !activeCourse ? (
             <div className="p-4 space-y-4">
               <div className="h-8 bg-muted animate-pulse rounded" />
               <div className="space-y-2">
@@ -106,7 +138,7 @@ export function SidebarContainer({
               </div>
             </div>
           ) : (
-            course && <CourseSidebar course={course} />
+            activeCourse && <CourseSidebar course={activeCourse} />
           )}
         </div>
 
@@ -118,12 +150,12 @@ export function SidebarContainer({
           
           {/* MOBILE PLAYLIST (Visible only on mobile, below content) */}
           <div className="md:hidden border-t border-border mt-4  pb-12">
-            {!course ? (
+            {!activeCourse ? (
                <div className="p-4 space-y-2">
                  {[1,2,3].map(i => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
                </div>
             ) : (
-              <CourseSidebar course={course} />
+              <CourseSidebar course={activeCourse} />
             )}
           </div>
         </div>

@@ -7,7 +7,7 @@ import { CourseProgressCard } from "../../_components/CourseProgressCard";
 import { EmptyState } from "@/components/general/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function MyCoursesClient({ userId }: { userId: string }) {
+export function MyCoursesClient({ userId, initialData }: { userId: string, initialData?: any }) {
   const { data: enrolledCourses, isLoading } = useQuery({
     queryKey: ["enrolled_courses", userId],
     queryFn: async () => {
@@ -31,7 +31,10 @@ export function MyCoursesClient({ userId }: { userId: string }) {
     initialData: () => {
         const cacheKey = `user_enrolled_courses_${userId}`;
         const cached = chatCache.get<any>(cacheKey, userId);
-        return cached?.data?.enrollments;
+        if (typeof window !== "undefined" && cached) {
+            return cached.data.enrollments;
+        }
+        return initialData || undefined;
     },
     staleTime: 1800000, // 30 mins
   });

@@ -74,6 +74,7 @@ export const lessonSchema = z.object({
     .nullable()
     .optional(),
   videoKey: z.string().min(1, { message: "Video must be selected" }).nullable().optional(),
+  duration: z.number().optional().nullable(),
 });
 
 

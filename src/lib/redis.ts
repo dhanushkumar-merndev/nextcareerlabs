@@ -12,17 +12,26 @@ const getRedisInstance = () => {
             connectTimeout: 5000,
             commandTimeout: 2000,
             maxRetriesPerRequest: 0,
-            retryStrategy: () => null,
+            // Allow a few retries instead of failing immediately forever
+            retryStrategy: (times) => {
+                if (times > 3) return null; // Stop after 3 attempts
+                return Math.min(times * 100, 2000); // 100ms, 200ms, 300ms
+            },
             lazyConnect: true
         });
 
         client.on("error", (err) => {
-            if (!err.message.includes("ECONNREFUSED")) {
-                console.error("[Redis] Connection Error:", err.message);
-            } else {
+            if (err.message.includes("ECONNREFUSED")) {
                 console.warn("[Redis] Server unreachable. Falling back to DB.");
+            } else if (err.message.includes("Connection is closed")) {
+                 // Suppress noise, handled in commands
+            } else {
+                console.error("[Redis] Connection Error:", err.message);
             }
         });
+
+        client.on("connect", () => console.log("[Redis] Connected."));
+        client.on("ready", () => console.log("[Redis] Ready for commands."));
 
         return client;
     } catch (error) {
@@ -56,13 +65,28 @@ export const GLOBAL_CACHE_KEYS = {
 const OPERATION_TIMEOUT = 1500;
 
 async function withTimeout<T>(promise: Promise<T>, defaultValue: T): Promise<T> {
+  // If redis is explicitly in a "closed" or "end" state, don't even try
+  if (redis && (redis.status === "end" || redis.status === "close")) {
+      // Potentially attempt a manual reconnect if it's dead but still the instance we're using
+      try { redis.connect().catch(() => {}); } catch(e) {}
+      return defaultValue;
+  }
+
   const timeoutPromise = new Promise<T>((resolve) =>
     setTimeout(() => resolve(defaultValue), OPERATION_TIMEOUT)
   );
   try {
-    return await Promise.race([promise, timeoutPromise]);
+    return await Promise.race([promise.catch((err) => {
+        // If it's a connection error, log minimally and return defaultValue
+        if (err.message.includes("Connection is closed")) {
+            return defaultValue;
+        }
+        throw err;
+    }), timeoutPromise]);
   } catch (e: any) {
-    console.error(`[Redis] Operation Timeout/Failure (${e?.message || 'Unknown error'})`);
+    if (!e?.message?.includes("Connection is closed")) {
+        console.error(`[Redis] Operation Timeout/Failure (${e?.message || 'Unknown error'})`);
+    }
     return defaultValue;
   }
 }

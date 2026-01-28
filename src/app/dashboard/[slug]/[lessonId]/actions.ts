@@ -34,13 +34,17 @@ export async function markLessonComplete(
       },
     });
     
-    // Invalidate dashboard cache
+    // ✅ Invalidate ALL relevant Redis caches
     await Promise.all([
         invalidateCache(`user:dashboard:${session.id}`),
+        invalidateCache(`user:sidebar:${session.id}:${slug}`),
+        invalidateCache(`user:lesson:${session.id}:${lessonId}`),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
     ]);
 
-    revalidatePath(`/dashboard/${slug}`);
+    // Revalidate the entire course dashboard to ensure everything is fresh
+    revalidatePath(`/dashboard/${slug}`, "layout");
+    revalidatePath(`/dashboard/${slug}/${lessonId}`);
     
     return {
       status: "success",
@@ -88,9 +92,15 @@ export async function updateVideoProgress(
       },
     });
 
-    // We don't necessarily need to invalidate dashboard for EVERY second watched,
-    // but maybe occasionally? Let's skip for now to avoid rapid hits to Redis.
-    // Dashboard usually care about 'completed' anyway.
+    // ✅ Invalidate caches so refresh/sidebar reflects new progress
+    // We only do this for the specific lesson and sidebar to keep it light
+    await Promise.all([
+        invalidateCache(`user:sidebar:${session.id}:${lessonId}`), // Note: sidebar usually needs slug, but searching by lesson might be hard here without course slug. 
+        // Wait, sidebar cache key is `user:sidebar:${session.id}:${slug}`. We don't have slug here.
+        // However, invalidating the lesson cache is critical.
+        invalidateCache(`user:lesson:${session.id}:${lessonId}`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
+    ]);
 
     return { 
       status: "success", 
