@@ -1,19 +1,14 @@
-"use client";
+/**
+ * ChapterExpansion component for expanding and collapsing chapters in a course.
+ */
 
+"use client";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { ChapterExpansionProps } from "@/lib/types/analytic";
 
-interface ChapterExpansionProps {
-    chapter: {
-        id: string;
-        title: string;
-        position: number;
-        lesson: any[];
-    };
-    children: React.ReactNode;
-}
-
+// ChapterExpansion component for expanding and collapsing chapters in a course.
 export function ChapterExpansion({ chapter, children }: ChapterExpansionProps) {
     const [isOpen, setIsOpen] = useState(chapter.position === 1); // Open first chapter by default
     const totalLessons = chapter.lesson.length;

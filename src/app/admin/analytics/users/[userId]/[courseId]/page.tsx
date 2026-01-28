@@ -7,13 +7,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChapterExpansion } from "./_components/ChapterExpansion";
 import { formatIST } from "@/lib/utils";
-
-interface PageProps {
-    params: Promise<{
-        userId: string;
-        courseId: string;
-    }>;
-}
+import { PageProps } from "@/lib/types/analytic";
 
 export default async function UserCourseDetailedAnalyticsPage({ params }: PageProps) {
     const { userId, courseId } = await params;

@@ -17,3 +17,20 @@ export interface UserListProps {
   initialTotalUsers: number;
   search: string;
 }
+
+export interface ChapterExpansionProps {
+    chapter: {
+        id: string;
+        title: string;
+        position: number;
+        lesson: any[];
+    };
+    children: React.ReactNode;
+}
+
+export interface PageProps {
+    params: Promise<{
+        userId: string;
+        courseId: string;
+    }>;
+}
