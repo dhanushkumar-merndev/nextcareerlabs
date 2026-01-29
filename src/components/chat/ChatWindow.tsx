@@ -1130,12 +1130,12 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             ) : (
                 <>
                     {/* MESSAGES */}
-                    <div
-                        data-lenis-prevent
-                        className="flex-1 min-h-0 overflow-y-auto overscroll-contain no-scrollbar p-4 space-y-6"
-                        ref={scrollRef}
-                        onScroll={handleScroll}
-                    >
+                        <div
+                            data-lenis-prevent
+                            className="flex-1 min-h-0 overflow-y-auto overscroll-contain no-scrollbar p-3 md:p-4 md:pt-2 space-y-4 md:space-y-6"
+                            ref={scrollRef}
+                            onScroll={handleScroll}
+                        >
                         {loading ? (
                             <div className="space-y-6 p-4">
                                 {[1, 2, 3].map(i => (
@@ -1153,13 +1153,16 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                 const showAvatar = i === 0 || messages[i - 1].senderId !== msg.senderId;
 
                                 return (
-                                    <div key={msg.id} className={cn("flex gap-3 max-w-[80%] animate-in fade-in slide-in-from-bottom-2 duration-300", isMe ? "ml-auto flex-row-reverse" : "")}>
+                                    <div key={msg.id} className={cn(
+                                        "flex flex-col md:flex-row gap-1.5 md:gap-3 max-w-[85%] md:max-w-[80%] animate-in fade-in slide-in-from-bottom-2 duration-300 mt-2 md:mt-4", 
+                                        isMe ? "ml-auto items-end md:items-start md:flex-row-reverse" : "items-start"
+                                    )}>
                                         {showAvatar ? (
-                                            <Avatar className="h-8 w-8 mt-1 border">
+                                            <Avatar className="h-7 w-7 md:h-8 md:w-8 border shrink-0">
                                                 <AvatarImage src={msg.sender?.image} className="object-cover" width={200} height={200} />
                                                 <AvatarFallback>{msg.sender?.name?.[0] || "?"}</AvatarFallback>
                                             </Avatar>
-                                        ) : <div className="w-8" />}
+                                        ) : <div className="hidden md:block md:w-8" />}
 
                                         <div className={cn(
                                             "space-y-1 flex flex-col min-w-0 max-w-full",
@@ -1175,7 +1178,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                 <div className={cn(
                                                     "px-2.5 py-2.5 rounded-2xl text-sm shadow-sm relative pr-8 group max-w-full min-w-0 wrap-break-word overflow-hidden",
                                                     isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none",
-                                                    !isMe && (msg.feedback?.toLowerCase().includes("negative feedback") || msg.feedback === "Denied" || msg.feedback === "More Help") && "bg-red-50 border-red-200 text-red-900 shadow-red-100/30"
                                                 )}>
                                                     {/* Chevron Trigger */}
                                                     {isMe && isAdmin && (
