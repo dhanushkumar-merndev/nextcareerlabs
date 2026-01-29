@@ -48,7 +48,7 @@ export const courseSchema = z.object({
     .string()
     .min(3, "Slug must be at least 3 characters")
     .regex(
-      /^[a-z0-9-]+$/,
+      /^[a-zA-Z0-9-]+$/,
       "Only lowercase letters, numbers, and hyphens are allowed"
     ),
 

@@ -36,6 +36,15 @@ const growthConfig = {
 } satisfies ChartConfig;
 
 export function SimpleLineChart({ data, className }: ChartProps) {
+  // Safety check: handle undefined or empty data
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+        No growth data available
+      </div>
+    );
+  }
+
   return (
     <ChartContainer config={growthConfig} className={cn("min-h-[300px] w-full", className)}>
       <LineChart
@@ -80,6 +89,15 @@ const courseConfig = {
 } satisfies ChartConfig;
 
 export function SimpleBarChart({ data, className }: ChartProps) {
+  // Safety check: handle undefined or empty data
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+        No course data available
+      </div>
+    );
+  }
+
   return (
     <ChartContainer config={courseConfig} className={cn("min-h-[300px] w-full", className)}>
       <BarChart
@@ -121,6 +139,15 @@ const enrollmentConfig = {
 } satisfies ChartConfig;
 
 export function SimplePieChart({ data, className }: ChartProps) {
+    // Safety check: handle undefined or empty data
+    if (!data || !Array.isArray(data) || data.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                No enrollment data available
+            </div>
+        );
+    }
+
     const chartData = data.map((item) => {
         const configKey = item.name as keyof typeof enrollmentConfig;
         const color = (enrollmentConfig[configKey] as any)?.color || "var(--primary)";

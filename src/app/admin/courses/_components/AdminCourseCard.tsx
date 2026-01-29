@@ -24,6 +24,8 @@ import {
 import Image from "next/image";
 import Link from "next/link";
 
+import { Badge } from "@/components/ui/badge";
+
 interface iAppProps {
   data: AdminCourseType;
 }
@@ -32,6 +34,11 @@ export function AdminCourseCard({ data }: iAppProps) {
   const thumbnaiUrl = useConstructUrl(data.fileKey);
   return (
     <Card className="group relative py-0 gap-0">
+      <div className="absolute top-2 left-2 z-10">
+        <Badge variant={data.status === "Published" ? "default" : "secondary"} className="rounded-lg">
+          {data.status}
+        </Badge>
+      </div>
       <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

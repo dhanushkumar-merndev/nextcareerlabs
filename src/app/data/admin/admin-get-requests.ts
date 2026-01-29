@@ -19,6 +19,7 @@ export async function adminGetEnrollmentRequests(
         { name: { contains: search, mode: 'insensitive' } },
         { id: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
+        { phoneNumber: { contains: search, mode: 'insensitive' } },
       ],
     };
   }

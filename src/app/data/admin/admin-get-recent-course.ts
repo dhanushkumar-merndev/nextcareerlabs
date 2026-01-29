@@ -1,9 +1,23 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
 
-export async function adminGetRecentCourses() {
+export async function adminGetRecentCourses(clientVersion?: string) {
   await requireAdmin();
+  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+
+  if (clientVersion && clientVersion === currentVersion) {
+    return { status: "not-modified", version: currentVersion };
+  }
+
+  const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`;
+  const cached = await getCache<any[]>(cacheKey);
+
+  if (cached && !clientVersion) {
+     return { courses: cached, version: currentVersion };
+  }
+
   const data = await prisma.course.findMany({
     orderBy: {
       createdAt: "desc",
@@ -16,11 +30,17 @@ export async function adminGetRecentCourses() {
       duration: true,
       level: true,
       status: true,
-
       fileKey: true,
       slug: true,
       category: true,
     },
   });
-  return data;
+
+  // Cache for 1 hour
+  await setCache(cacheKey, data, 3600);
+
+  return {
+    courses: data,
+    version: currentVersion,
+  };
 }

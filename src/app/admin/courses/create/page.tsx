@@ -44,10 +44,13 @@ import { CreateCourse } from "./actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useConfetti } from "@/hooks/use-confetti";
+import { chatCache } from "@/lib/chat-cache";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function CourseCreationPage() {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { triggerConfetti } = useConfetti();
   const form = useForm<CourseSchemaType>({
     resolver: zodResolver(courseSchema),
@@ -72,6 +75,11 @@ export default function CourseCreationPage() {
       }
       if (result.status === "success") {
         toast.success(result.message);
+        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidate("all_courses");
+
+        queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
+        queryClient.invalidateQueries({ queryKey: ["all_courses"] });
         triggerConfetti();
         form.reset();
         router.push("/admin/courses");

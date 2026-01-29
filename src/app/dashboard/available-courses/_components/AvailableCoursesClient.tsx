@@ -1,22 +1,21 @@
 "use client";
 
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { adminGetCoursesAction } from "../actions";
+import { getAllCoursesAction } from "@/app/(users)/courses/actions";
 import { chatCache } from "@/lib/chat-cache";
-import { AdminCourseCard, AdminCourseCardSkeleton } from "./AdminCourseCard";
-import { EmptyState } from "@/components/general/EmptyState";
-import { useState, useEffect } from "react";
+import { PublicCourseCard, PublicCourseCardSkeleton } from "../../../(users)/_components/PublicCourseCard";
+import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
+import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
 
-type AdminCoursesPage = {
-  courses: any[];
+type CoursesPage = {
+  courses: PublicCourseType[];
   nextCursor: string | null;
-  total: number;
 };
 
-export function AdminCoursesClient() {
+export function AvailableCoursesClient({ currentUserId }: { currentUserId?: string }) {
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
   const [mounted, setMounted] = useState(false);
@@ -30,7 +29,9 @@ export function AdminCoursesClient() {
     setMounted(true);
   }, []);
 
-  const cached = chatCache.get<any>("admin_courses_list");
+  const safeUserId = currentUserId ?? undefined;
+  const cacheKey = `available_courses_${safeUserId || 'guest'}`;
+  const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
 
   const {
     data,
@@ -40,13 +41,13 @@ export function AdminCoursesClient() {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery<
-    AdminCoursesPage,
+    CoursesPage,
     Error,
-    InfiniteData<AdminCoursesPage, string | null>,
+    InfiniteData<CoursesPage, string | null>,
     readonly unknown[],
     string | null
   >({
-    queryKey: ["admin_courses_list", searchTitle],
+    queryKey: [cacheKey, searchTitle],
     
     placeholderData: (previousData) => {
         if (previousData) return previousData;
@@ -54,16 +55,14 @@ export function AdminCoursesClient() {
         // 🔹 SEARCH MODE → Try to show whatever we have in cache first
         if (searchTitle && cached) {
             const q = searchTitle.toLowerCase();
-            const allCached = cached.data.data ?? cached.data.courses ?? cached.data ?? [];
-            const filtered = allCached.filter((c: any) => 
+            const filtered = cached.data.data.filter((c: any) => 
                 c.title.toLowerCase().includes(q)
             ).slice(0, 9);
             
             return {
                 pages: [{
                     courses: filtered,
-                    nextCursor: null,
-                    total: filtered.length
+                    nextCursor: null
                 }],
                 pageParams: [null]
             };
@@ -74,8 +73,7 @@ export function AdminCoursesClient() {
             return {
                 pages: [{
                     courses: cached.data.data,
-                    nextCursor: cached.data.nextCursor,
-                    total: cached.data.total ?? 0
+                    nextCursor: cached.data.nextCursor
                 }],
                 pageParams: [null]
             };
@@ -87,72 +85,77 @@ export function AdminCoursesClient() {
     queryFn: async ({ pageParam }) => {
       // SEARCH MODE → no cache optimization
       if (searchTitle) {
-        const result = await adminGetCoursesAction(
+        const result = await getAllCoursesAction(
           undefined,
+          safeUserId,
           pageParam ?? null,
-          searchTitle
+          searchTitle,
+          true // onlyAvailable
         );
 
-        if ((result as any).status === "not-modified") {
-          return { courses: [], nextCursor: null, total: 0 };
+        if (result.status === "not-modified") {
+          return { courses: [], nextCursor: null };
         }
 
         return {
-          courses: result.courses ?? [],
-          nextCursor: result.nextCursor ?? null,
-          total: result.total ?? 0,
+          courses: result.courses,
+          nextCursor: result.nextCursor,
         };
       }
 
       // NORMAL MODE → cache + cursor support
-      const cached = chatCache.get<any>("admin_courses_list");
+      const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
 
       // Send version only for first page
-      const clientVersion = pageParam ? undefined : cached?.version;
+      const clientVersion = pageParam ? undefined : cached?.data.version;
 
-      const result = await adminGetCoursesAction(
+      const result = await getAllCoursesAction(
         clientVersion,
-        pageParam ?? null
+        safeUserId,
+        pageParam ?? null,
+        undefined,
+        true // onlyAvailable
       );
 
       // Server says cache is still valid
-      if ((result as any).status === "not-modified") {
+      if (result.status === "not-modified") {
         return {
           courses: cached?.data.data ?? [],
           nextCursor: cached?.data.nextCursor ?? null,
-          total: cached?.data.total ?? 0,
         };
       }
 
-      // Persist to cache with merge strategy
+      // Persist merged courses + cursor to local storage
       if (!searchTitle) {
-        const currentCache = chatCache.get<any>("admin_courses_list");
+        const currentCache = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
         
-        let mergedCourses: any[] = [];
+        let mergedCourses: PublicCourseType[] = [];
         
         if (pageParam) {
-          // APPENDING: Merge new page with existing cached data
-          const existingIds = new Set((currentCache?.data.data ?? []).map((c: any) => c.id));
-          const newUniqueCourses = (result.courses ?? []).filter((c: any) => !existingIds.has(c.id));
+          // APPENDING: Only append if the cursor exists in our current list to avoid gaps
+          const existingIds = new Set((currentCache?.data.data ?? []).map(c => c.id));
+          const newUniqueCourses = result.courses.filter(c => !existingIds.has(c.id));
           
           mergedCourses = [...(currentCache?.data.data ?? []), ...newUniqueCourses];
         } else {
           // FIRST PAGE FETCH: Reset with fresh data
-          mergedCourses = result.courses ?? [];
+          mergedCourses = result.courses;
         }
 
-        chatCache.set("admin_courses_list", {
-          data: mergedCourses,
-          version: (result as any).version,
-          nextCursor: result.nextCursor,
-          total: result.total
-        }, undefined, (result as any).version);
+        chatCache.set(
+          cacheKey,
+          {
+            data: mergedCourses,
+            version: result.version,
+            nextCursor: result.nextCursor,
+          },
+          safeUserId
+        );
       }
 
       return {
-        courses: result.courses ?? [],
-        nextCursor: result.nextCursor ?? null,
-        total: result.total ?? 0
+        courses: result.courses,
+        nextCursor: result.nextCursor,
       };
     },
     initialPageParam: null,
@@ -161,7 +164,7 @@ export function AdminCoursesClient() {
     refetchOnWindowFocus: true,
   });
 
-  const courses = data?.pages.flatMap((p) => p.courses) || [];
+  const courses = data?.pages.flatMap((p) => p.courses) ?? [];
 
   useEffect(() => {
     if (inView && hasNextPage && !isFetching && !isFetchingNextPage) {
@@ -173,28 +176,25 @@ export function AdminCoursesClient() {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {Array.from({ length: 9 }).map((_, i) => (
-          <AdminCourseCardSkeleton key={i} />
+          <PublicCourseCardSkeleton key={i} />
         ))}
       </div>
     );
   }
 
   if (courses.length === 0) {
-    return (
-      <EmptyState
-        title="No courses found"
-        description={searchTitle ? "Try searching for something else." : "Create a new course to get started."}
-        buttonText={searchTitle ? "View All Courses" : "Create Course"}
-        href={searchTitle ? "/admin/courses" : "/admin/courses/create"}
-      />
-    );
+    return <div className="p-12 text-center text-muted-foreground">No available courses found.</div>;
   }
 
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {courses.map((course: any) => (
-          <AdminCourseCard key={course.id} data={course} />
+        {courses.map((course) => (
+          <PublicCourseCard
+            key={course.id}
+            data={course}
+            enrollmentStatus={null}
+          />
         ))}
       </div>
 
@@ -203,7 +203,7 @@ export function AdminCoursesClient() {
           {isFetchingNextPage && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
               {Array.from({ length: 3 }).map((_, i) => (
-                <AdminCourseCardSkeleton key={`skeleton-${i}`} />
+                <PublicCourseCardSkeleton key={`skeleton-${i}`} />
               ))}
             </div>
           )}

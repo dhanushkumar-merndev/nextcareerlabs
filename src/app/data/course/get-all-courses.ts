@@ -19,7 +19,8 @@ export async function getAllCourses(
   clientVersion?: string,
   userId?: string,
   cursor?: string | null,
-  searchQuery?: string
+  searchQuery?: string,
+  onlyAvailable?: boolean
 ): Promise<CoursesServerResult> {
   const currentVersion = await getGlobalVersion(
     GLOBAL_CACHE_KEYS.COURSES_VERSION
@@ -81,6 +82,10 @@ export async function getAllCourses(
       ...c,
       enrollmentStatus: map.get(c.id) ?? null,
     }));
+
+    if (onlyAvailable) {
+      allCourses = allCourses.filter((c) => !map.has(c.id));
+    }
   }
 
   // 🔹 Cursor pagination (9+9)

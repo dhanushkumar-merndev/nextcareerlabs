@@ -72,13 +72,38 @@ export function CoursesClient({ currentUserId }: CoursesClientProps) {
     queryKey: ["all_courses", safeUserId, searchTitle],
 
     // Seed data from cache for instant refresh (background revalidation)
-    placeholderData: !searchTitle && cached ? {
-        pages: [{
-            courses: cached.data.data,
-            nextCursor: cached.data.nextCursor
-        }],
-        pageParams: [null]
-    } : undefined,
+    placeholderData: (previousData) => {
+        if (previousData) return previousData;
+
+        // 🔹 SEARCH MODE → Try to show whatever we have in cache first
+        if (searchTitle && cached) {
+            const q = searchTitle.toLowerCase();
+            const filtered = cached.data.data.filter((c: any) => 
+                c.title.toLowerCase().includes(q)
+            ).slice(0, 9);
+            
+            return {
+                pages: [{
+                    courses: filtered,
+                    nextCursor: null
+                }],
+                pageParams: [null]
+            };
+        }
+
+        // 🔹 NORMAL MODE → Show cached first page
+        if (!searchTitle && cached) {
+            return {
+                pages: [{
+                    courses: cached.data.data,
+                    nextCursor: cached.data.nextCursor
+                }],
+                pageParams: [null]
+            };
+        }
+
+        return undefined;
+    },
 
 
 

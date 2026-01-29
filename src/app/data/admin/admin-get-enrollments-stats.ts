@@ -1,9 +1,22 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
 
-export async function adminGetEnrollmentsStats() {
+export async function adminGetEnrollmentsStats(clientVersion?: string) {
   await requireAdmin();
+  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+
+  if (clientVersion && clientVersion === currentVersion) {
+    return { status: "not-modified", version: currentVersion };
+  }
+
+  const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`;
+  const cached = await getCache<any>(cacheKey);
+
+  if (cached && !clientVersion) {
+     return { data: cached, version: currentVersion };
+  }
 
   const today = new Date();
   const startDate = new Date();
@@ -48,8 +61,16 @@ export async function adminGetEnrollmentsStats() {
   }
 
   // Merge final values
-  return last30Days.map((item) => ({
+  const finalData = last30Days.map((item) => ({
     date: item.date,
     enrollments: counts[item.date] ?? 0,
   }));
+
+  // Cache for 1 hour
+  await setCache(cacheKey, finalData, 3600);
+
+  return {
+    data: finalData,
+    version: currentVersion,
+  };
 }

@@ -21,7 +21,8 @@ export async function getAllCoursesAction(
   clientVersion?: string,
   userId?: string,
   cursor?: string | null,
-  searchQuery?: string
+  searchQuery?: string,
+  onlyAvailable?: boolean
 ) {
-  return getAllCourses(clientVersion, userId, cursor, searchQuery);
+  return getAllCourses(clientVersion, userId, cursor, searchQuery, onlyAvailable);
 }

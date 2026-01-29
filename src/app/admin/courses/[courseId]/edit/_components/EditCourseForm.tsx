@@ -38,6 +38,8 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { editCourse } from "../actions";
 import { AdminCourseSingularType } from "@/app/data/admin/admin-get-course";
+import { chatCache } from "@/lib/chat-cache";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface iAppProps {
   data: AdminCourseSingularType;
@@ -47,6 +49,7 @@ interface iAppProps {
 export function EditCourseForm({ data, setDirty }: iAppProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const form = useForm<CourseSchemaType>({
     resolver: zodResolver(courseSchema),
     defaultValues: {
@@ -77,6 +80,11 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
       }
       if (result.status === "success") {
         toast.success(result.message);
+        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidate("all_courses");
+
+        queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
+        queryClient.invalidateQueries({ queryKey: ["all_courses"] });
         form.reset();
         router.push("/admin/courses");
       } else if (result.status === "error") {
