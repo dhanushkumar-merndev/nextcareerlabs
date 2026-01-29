@@ -23,6 +23,7 @@ import {
 import { MessageContent } from "./MessageContent";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { chatCache } from "@/lib/chat-cache";
+import { useSmartSession } from "@/hooks/use-smart-session";
 
 interface ChatWindowProps {
     threadId: string;
@@ -38,6 +39,7 @@ interface ChatWindowProps {
 
 export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, currentUserId, onRemoveThread, onBack, externalPresence }: ChatWindowProps) {
     const queryClient = useQueryClient();
+    const { data: session } = useSmartSession();
     const [inputText, setInputText] = useState("");
     const [imageUrl, setImageUrl] = useState("");
     const [fileUrl, setFileUrl] = useState("");
@@ -197,8 +199,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             status: "sending",
             sender: {
                 id: currentUserId,
-                name: "You",
-                image: ""
+                name: session?.user.name || "You",
+                image: session?.user.image || ""
             },
             type: isGroup ? "GROUP_CHAT" : "SUPPORT_TICKET"
         };
@@ -303,7 +305,15 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                         newPages[0] = {
                             ...newPages[0],
                             messages: newPages[0].messages.map((m: any) =>
-                                m.id === tempId ? { ...result.notification, status: "sent" } : m
+                                m.id === tempId ? { 
+                                    ...result.notification, 
+                                    status: "sent",
+                                    sender: {
+                                        id: currentUserId,
+                                        name: session?.user.name || "You",
+                                        image: session?.user.image || ""
+                                    }
+                                } : m
                             )
                         };
                         return { ...oldData, pages: newPages };
@@ -608,7 +618,31 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     };
 
     const handleResolve = async (id: string, feedback?: string) => {
-        const previewText = feedback ? `Feedback: ${feedback}` : "Issue Resolved";
+        let previewText = "Issue Resolved";
+        let finalizedFeedback = feedback;
+
+        // Determine if it was positive or negative from the status
+        const isPositive = resolveStatus === "Helpful";
+        const isNegative = resolveStatus === "More Help";
+
+        if (isPositive) {
+            previewText = "Positive Feedback";
+            finalizedFeedback = feedback ? `Positive Feedback: ${feedback}` : "Positive Feedback";
+        } else if (isNegative) {
+            previewText = "Negative Feedback";
+            finalizedFeedback = feedback ? `Negative Feedback: ${feedback}` : "Negative Feedback";
+        } else if (feedback) {
+            const f = feedback.toLowerCase().trim();
+            if (f === "resolved") {
+                previewText = "Issue Resolved";
+                finalizedFeedback = "Issue Resolved";
+            } else if (f === "denied") {
+                previewText = "Issue Denied";
+                finalizedFeedback = "Issue Denied";
+            } else {
+                previewText = `Feedback: ${feedback}`;
+            }
+        }
         
         // 1. OPTIMISTIC UPDATE LOCAL UI
         setResolvingMessageId(null);
@@ -633,7 +667,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 pages: old.pages.map((page: any) => ({
                     ...page,
                     messages: page.messages?.map((n: any) =>
-                        n.id === id ? { ...n, resolved: true, feedback: feedback || n.feedback } : n
+                        n.id === id ? { ...n, resolved: true, feedback: finalizedFeedback || n.feedback } : n
                     ) || page.messages
                 }))
             };
@@ -642,8 +676,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         // 4. BACKGROUND ACTION
         (async () => {
             try {
-                if (feedback) {
-                    await submitFeedbackAction({ notificationId: id, feedback });
+                if (finalizedFeedback) {
+                    await submitFeedbackAction({ notificationId: id, feedback: finalizedFeedback });
                 } else {
                     await resolveTicketAction(id);
                 }
@@ -784,6 +818,16 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 }))
             };
         });
+
+        // INSTANT SIDEBAR UPDATE
+        window.dispatchEvent(new CustomEvent("chat-thread-update", {
+            detail: {
+                threadId,
+                lastMessage: status === "Denied" ? "Issue Denied" : "Issue Resolved",
+                updatedAt: new Date().toISOString(),
+                resolved: true
+            }
+        }));
 
         try {
             await resolveTicketAction(id, status);
@@ -1130,7 +1174,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                             <div className="flex items-end gap-2 group relative">
                                                 <div className={cn(
                                                     "px-2.5 py-2.5 rounded-2xl text-sm shadow-sm relative pr-8 group max-w-full min-w-0 wrap-break-word overflow-hidden",
-                                                    isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none"
+                                                    isMe ? "bg-primary text-primary-foreground rounded-tr-none" : "bg-card border rounded-tl-none",
+                                                    !isMe && (msg.feedback?.toLowerCase().includes("negative feedback") || msg.feedback === "Denied" || msg.feedback === "More Help") && "bg-red-50 border-red-200 text-red-900 shadow-red-100/30"
                                                 )}>
                                                     {/* Chevron Trigger */}
                                                     {isMe && isAdmin && (
@@ -1295,26 +1340,37 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                 <div className="flex justify-center w-full mt-2 animate-in zoom-in-95 duration-300">
                                                     <div className={cn(
                                                         "flex flex-col gap-1 px-3 py-1.5 rounded-xl border text-[11px] font-semibold shadow-sm",
-                                                        (msg.feedback === "Denied" || msg.feedback === "More Help")
+                                                        (() => {
+                                                            const f = msg.feedback?.toLowerCase().trim() || "";
+                                                            return f.includes("negative feedback") || f === "denied" || f === "more help";
+                                                        })()
                                                             ? "bg-red-50 text-red-700 border-red-100 shadow-red-100/20"
                                                             : "bg-emerald-50 text-emerald-700 border-emerald-100 shadow-emerald-100/20"
                                                     )}>
                                                         <div className="flex items-center gap-2">
-                                                            {(msg.feedback === "Denied" || msg.feedback === "More Help") ? <CircleX className="h-3 w-3" /> : <CircleCheckBig className="h-3 w-3" />}
+                                                            {(() => {
+                                                                const f = msg.feedback?.toLowerCase().trim() || "";
+                                                                const isNegative = f === "denied" || f.includes("negative feedback") || f === "more help";
+                                                                return isNegative ? <CircleX className="h-3 w-3" /> : <CircleCheckBig className="h-3 w-3" />;
+                                                            })()}
                                                             <span>
-                                                                {msg.feedback === "Denied" ? "Request Denied" :
-                                                                    msg.feedback === "More Help" ? "More Help Requested" :
-                                                                        msg.feedback === "Helpful" ? "Result: Helpful" :
-                                                                            (msg.feedback && !["Resolved", "Helpful", "More Help", "Denied"].includes(msg.feedback))
-                                                                                ? "Feedback Provided" : "Issue Resolved"}
+                                                                {(() => {
+                                                                    const f = msg.feedback?.toLowerCase().trim() || "";
+                                                                    if (f === "denied") return "Issue Denied";
+                                                                    if (f === "resolved") return "Issue Resolved";
+                                                                    if (f.includes("positive feedback") || ["helpful", "yes"].includes(f)) return "Positive Feedback";
+                                                                    if (f.includes("negative feedback") || ["more help", "no"].includes(f)) return "Negative Feedback";
+                                                                    return "Feedback Provided";
+                                                                })()}
                                                             </span>
                                                         </div>
 
-                                                        {msg.feedback && !["Resolved", "Helpful", "More Help", "Denied"].includes(msg.feedback) && (
+                                                        {msg.feedback && !["Resolved", "Positive Feedback", "Negative Feedback", "Helpful", "More Help", "Denied"].includes(msg.feedback) && (
                                                             <div className="mt-1 pt-1 border-t border-current/10 text-[10px] italic font-medium opacity-90 leading-relaxed max-w-[250px] wrap-break-word">
-                                                                "{msg.feedback}"
+                                                                "{msg.feedback.replace(/^Positive Feedback: /, "").replace(/^Negative Feedback: /, "")}"
                                                             </div>
                                                         )}
+
                                                     </div>
                                                 </div>
                                             ) : (

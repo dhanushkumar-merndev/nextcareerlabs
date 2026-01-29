@@ -59,13 +59,57 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
     const formattedContent = `**Issue Type:** ${categoryName}\n**Summary:** ${title}\n\n**Description:**\n${content}`;
     const issueTitle = `${prefix} ${title}`;
 
+    // 2. PREDICT THREAD ID AND DISPATCH INSTANT UPDATE
+    if (currentUserId) {
+        const predictedThreadId = `support_${currentUserId}`;
+        
+        // a. Update Sidebar Instantly with the new thread object
+        window.dispatchEvent(new CustomEvent("chat-thread-update", {
+          detail: {
+            threadId: predictedThreadId,
+            lastMessage: title,
+            updatedAt: new Date().toISOString(),
+            newThread: {
+              threadId: predictedThreadId,
+              display: {
+                name: "Support",
+                image: "" // Support default image
+              },
+              lastMessage: title,
+              updatedAt: new Date().toISOString(),
+              unreadCount: 0,
+              type: "Support",
+              resolved: false
+            }
+          }
+        }));
+
+        // b. Seed the message cache so it's ready if they click it
+        const optimisticMessage = {
+          id: `temp-${Date.now()}`,
+          content: formattedContent,
+          senderId: currentUserId,
+          createdAt: new Date().toISOString(),
+          status: "sending",
+          sender: { id: currentUserId, name: "You", image: "" },
+          type: "SUPPORT_TICKET"
+        };
+
+        queryClient.setQueryData(["messages", predictedThreadId, currentUserId], {
+          pages: [{ messages: [optimisticMessage], nextCursor: null }],
+          pageParams: [undefined]
+        });
+    }
+
+    const predictedThreadId = `support_${currentUserId}`; // Keep for background action scoping
+
     // INSTANT FEEDBACK
-    toast.success("Ticket request sent! It will appear in your chat window shortly.");
+    toast.success("Ticket request sent! We will get back to you shortly.");
     onOpenChange(false);
     setTitle("");
     setContent("");
 
-    // BACKGROUND ACTION
+    // 3. BACKGROUND ACTION
     (async () => {
       try {
         const res: TicketResponse = await sendNotificationAction({
@@ -76,6 +120,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
         });
 
         if (!res.success) {
+          // Revert optimistic update on failure (sidebar will refetch automatically on next sync anyway)
           if (res.code === "TICKET_LIMIT_REACHED") {
             const mins = res.minutesLeft;
             const hours = Math.floor(mins / 60);
@@ -85,10 +130,13 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
           } else {
             toast.error("Failed to raise ticket. Please try again.");
           }
+          queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
           return;
         }
 
-        // Success - Sync caches and UI
+        // 4. FINAL SYNC
+        const finalThreadId = res.notification?.threadId || predictedThreadId;
+        
         await queryClient.invalidateQueries({ 
           queryKey: ["sidebarData", currentUserId],
           refetchType: 'active' 
@@ -98,21 +146,12 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
           chatCache.invalidate("sidebarData", currentUserId);
         }
         
-        if (res.notification?.threadId) {
-          queryClient.invalidateQueries({ queryKey: ["messages", res.notification.threadId, currentUserId] });
-          chatCache.invalidate(`messages_${res.notification.threadId}`, currentUserId);
-        }
-        
-        window.dispatchEvent(new CustomEvent("chat-thread-update", {
-          detail: {
-            threadId: res.notification?.threadId || `support_${currentUserId}`,
-            lastMessage: title,
-            updatedAt: new Date().toISOString()
-          }
-        }));
+        queryClient.invalidateQueries({ queryKey: ["messages", finalThreadId, currentUserId] });
+        chatCache.invalidate(`messages_${finalThreadId}`, currentUserId);
 
       } catch (error) {
         toast.error("Failed to raise ticket. Please try again.");
+        queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
       }
     })();
   };

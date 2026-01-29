@@ -1,7 +1,7 @@
 "use client";
 
 const STORAGE_PREFIX = "chat_cache_";
-const DEFAULT_TTL = 30 * 60 * 1000; // 30 minutes
+const DEFAULT_TTL = 7 * 24 * 60 * 60 * 1000; // 7 Days (Soft Expiry)
 
 interface CacheEntry<T> {
   data: T;
@@ -36,15 +36,6 @@ export const chatCache = {
     try {
       const entry: CacheEntry<T> = JSON.parse(item);
 
-      // Check if cache is older than 30 seconds for sidebar data
-      if (key === "sidebarData" && entry.timestamp) {
-        const age = Date.now() - entry.timestamp;
-        if (age > 30000) { // 30 seconds
-          console.log(`[ChatCache] Sidebar cache expired (${Math.round(age / 1000)}s old), ignoring`);
-          chatCache.invalidate(key, userId); // Use chatCache.invalidate
-          return null;
-        }
-      }
 
       if (Date.now() > entry.expiry) {
         localStorage.removeItem(storageKey);

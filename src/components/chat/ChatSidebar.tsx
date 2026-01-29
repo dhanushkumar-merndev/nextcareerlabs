@@ -80,10 +80,15 @@ export function ChatSidebar({
             ...(lastMessage !== undefined && { lastMessage }),
             ...(updatedAt !== undefined && { updatedAt }),
           };
+        } else if (e.detail.newThread) {
+          // OPTIMISTICALLY ADD NEW THREAD
+          const newThread = e.detail.newThread;
+          // Check if already added (race condition)
+          if (!updatedThreads.find(t => t.threadId === newThread.threadId)) {
+            updatedThreads = [newThread, ...updatedThreads];
+          }
         } else if (!hidden) {
-          // If thread doesn't exist and isn't being hidden, we should probably refetch 
-          // to get the full thread details, but for now we'll just wait for the next sync.
-          // Or we could trigger a slow refetch in the background.
+          // If thread doesn't exist and isn't being hidden/new, refetch 
           setTimeout(() => refetch(), 100);
           return old;
         }

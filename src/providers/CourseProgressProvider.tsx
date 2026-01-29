@@ -34,7 +34,14 @@ export function CourseProgressProvider({ children }: { children: ReactNode }) {
 export function useCourseProgressContext() {
   const context = useContext(CourseProgressContext);
   if (context === undefined) {
-    throw new Error("useCourseProgressContext must be used within a CourseProgressProvider");
+    return {
+      progressPercentage: 0,
+      setProgressPercentage: () => {},
+      showProgress: false,
+      setShowProgress: () => {},
+      courseTitle: "",
+      setCourseTitle: () => {}
+    };
   }
   return context;
 }

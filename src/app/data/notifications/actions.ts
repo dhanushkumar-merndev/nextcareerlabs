@@ -453,8 +453,23 @@ export async function getThreadsAction(clientVersion?: string) {
 
     const isThreadResolved = !(unresolvedMap[threadId] > 0);
     
-    // Improved preview logic for attachments
+    // Improved preview logic for attachments and statuses
     let previewMessage = latestMsg.content || "";
+    
+    // Status-based previews (Feedback/Resolution)
+    if (latestMsg.feedback) {
+        const f = latestMsg.feedback.toLowerCase().trim();
+        if (f.includes("positive feedback") || ["helpful", "yes"].includes(f)) {
+            previewMessage = "Positive Feedback";
+        } else if (f.includes("negative feedback") || ["more help", "no"].includes(f)) {
+            previewMessage = "Negative Feedback";
+        } else if (f === "resolved") {
+            previewMessage = "Issue Resolved";
+        } else if (f === "denied") {
+            previewMessage = "Issue Denied";
+        }
+    }
+
     if (!previewMessage.trim()) {
         if (latestMsg.imageUrl) previewMessage = "Image";
         else if (latestMsg.fileUrl) previewMessage = `PDF (${latestMsg.fileName || "Document"})`;
@@ -482,6 +497,14 @@ export async function getThreadsAction(clientVersion?: string) {
       const lastMsg = g.messages[0];
       
       let previewMessage = lastMsg?.content || "No messages yet";
+      if (lastMsg?.feedback) {
+          const f = lastMsg.feedback.toLowerCase().trim();
+          if (["helpful", "yes"].includes(f)) previewMessage = "Positive Feedback";
+          else if (["more help", "no"].includes(f)) previewMessage = "Negative Feedback";
+          else if (f === "resolved") previewMessage = "Issue Resolved";
+          else if (f === "denied") previewMessage = "Issue Denied";
+      }
+
       if (lastMsg && !lastMsg.content?.trim()) {
           if (lastMsg.imageUrl) previewMessage = "Image";
           else if (lastMsg.fileUrl) previewMessage = `PDF (${lastMsg.fileName || "Document"})`;
@@ -519,7 +542,7 @@ export async function getThreadsAction(clientVersion?: string) {
       presence: null 
   };
 
-  await setCache(cacheKey, result, 1800); // 30 mins
+  await setCache(cacheKey, result, 21600); // 6 hours
   return result;
 }
 
@@ -802,7 +825,7 @@ export async function submitFeedbackAction(data: {
     where: { id: data.notificationId },
     data: { 
       feedback: data.feedback,
-      resolved: data.feedback === "More Help" ? false : true 
+      resolved: ["More Help"].includes(data.feedback) ? false : true 
     }
   });
 
