@@ -21,52 +21,53 @@ export async function getIndividualCourseAction(slug: string, clientVersion?: st
 }
 
 // Get Slug Page Data Action
-export async function getSlugPageDataAction(slug: string, clientVersion?: string) {
-    console.log(`[SlugAction] Fetching data for: ${slug} (Client version: ${clientVersion || 'none'})`);
+export async function getSlugPageDataAction(slug: string, clientVersion?: string, userId?: string) {
+    console.log(`[SlugAction] Fetching data for: ${slug} (Client version: ${clientVersion || 'none'}, UserId: ${userId || 'none'})`);
     const result = await getIndividualCourse(slug, clientVersion);
-    // If getIndividualCourse returns null, it means the course doesn't exist
+    
     if (!result) {
         console.error(`[SlugAction] getIndividualCourse returned null for ${slug}`);
         return null;
     }
-    // If getIndividualCourse returns { status: "not-modified" }, it means the course is up to date
+
     if ((result as any).status === "not-modified") {
         console.log(`[SlugAction] Version match for ${slug}`);
         return { status: "not-modified", version: result.version };
     }
 
-    // Extract the course object correctly. getIndividualCourse returns { course, version }
-    // but we handle cases where it might return the course object directly if that ever happens.
     const course = (result as any).course || ((result as any).id ? result : null);
-    // If getIndividualCourse returns a course object without an id, it means the course doesn't exist
     if (!course || !(course as any).id) {
         console.error(`[SlugAction] Could not find course in result for ${slug}`, result);
         return null;
     }
-    // If getIndividualCourse returns a course object with an id, it means the course exists
+
     if (course && "id" in course) {
         console.log(`[SlugAction] Found course ${course.id}. Fetching enrollment...`);
-        // Get the session
-        const session = await auth.api.getSession({
-            headers: await headers()
-        });
-        // If the user is logged in, check if they are enrolled in the course
-        let enrollmentStatus = null;
-        if (session?.user) {
-            enrollmentStatus = await checkIfCourseBought((course as any).id);
+        
+        let finalUserId = userId;
+        if (!finalUserId) {
+            const session = await auth.api.getSession({
+                headers: await headers()
+            });
+            finalUserId = session?.user?.id;
         }
-        // Return the course object, enrollment status, and version
+
+        let enrollmentStatus = null;
+        if (finalUserId) {
+            enrollmentStatus = await checkIfCourseBought((course as any).id, finalUserId);
+        }
+
         return {
-            course: (result as any).course || result, // Ensure we return the course object
+            course: (result as any).course || result, 
             enrollmentStatus,
             isProfileComplete: true,
             requireName: false,
             version: (result as any).version || (result as any).currentVersion
         };
     }
-    // If getIndividualCourse returns a course object with an id, it means the course exists
     return null;
 }
+
 
 const aj = arcjet.withRule(
   fixedWindow({

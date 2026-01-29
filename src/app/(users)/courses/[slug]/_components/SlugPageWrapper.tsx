@@ -33,7 +33,9 @@ import { SlugPageWrapperProps } from "@/lib/types/course";
 export function SlugPageWrapper({
   slug,
   currentUserId,
+  initialData,
 }: SlugPageWrapperProps) {
+
   // State to track component mount
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -48,7 +50,7 @@ export function SlugPageWrapper({
       const clientVersion = cached?.version;
 
       console.log(`[Slug] Syncing with server... (Version: ${clientVersion || 'None'})`);
-      const result = await getSlugPageDataAction(slug, clientVersion);
+      const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
 
       if (result && (result as any).status === "not-modified" && cached) {
         console.log(`[Slug] Version match. Using local data.`);
@@ -61,8 +63,9 @@ export function SlugPageWrapper({
       }
       return result;
     },
-    // Use initial data from cache if available
+    // Use initial data from cache or server
     initialData: () => {
+      if (initialData) return initialData;
       const cacheKey = `course_${slug}`;
       const cached = chatCache.get<any>(cacheKey, currentUserId);
       if (cached) {
@@ -71,15 +74,18 @@ export function SlugPageWrapper({
       }
       return undefined;
     },
+
     staleTime: 1800000, // 30 mins
   });
 
   // Loading state
-  if (!mounted || (isLoading && !data)) {
+  // 🔹 If we have initialData, we don't need to show skeleton even if not mounted
+  if ((!mounted && !initialData) || (isLoading && !data)) {
     return (
    <Loading/>
     );
   }
+
 
   const rawData = data as any;
   // Resiliency: Handle new format {course, enrollmentStatus...} or old raw course object

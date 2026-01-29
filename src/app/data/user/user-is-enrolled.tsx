@@ -3,16 +3,23 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
 
-export async function checkIfCourseBought(courseId: string) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-  if (!session?.user) return null;
+export async function checkIfCourseBought(courseId: string, userId?: string) {
+  let finalUserId = userId;
+
+  if (!finalUserId) {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    finalUserId = session?.user?.id;
+  }
+
+  if (!finalUserId) return null;
+
   const enrollment = await prisma.enrollment.findUnique({
     where: {
       userId_courseId: {
         courseId: courseId,
-        userId: session.user.id,
+        userId: finalUserId,
       },
     },
     select: {
@@ -21,3 +28,4 @@ export async function checkIfCourseBought(courseId: string) {
   });
   return enrollment?.status || null;
 }
+
