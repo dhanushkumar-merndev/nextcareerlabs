@@ -149,6 +149,8 @@ export default function Stacking() {
                       <Image
                         src={program.logo}
                         alt={`${program.title} logo`}
+                        width={56}
+                        height={56}
                         className="h-8 w-8 md:h-14 md:w-14 object-contain"
                         loading="lazy"
                       />
