@@ -27,7 +27,8 @@ import { formatIST } from "@/lib/utils";
 import { LoadingAnalyticsBody } from "../loading";
 
 // Analytics Client Component
-export function AnalyticsClient() {
+export function AnalyticsClient({ initialData }: { initialData?: any }) {
+
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -55,6 +56,7 @@ export function AnalyticsClient() {
     },
     // Use cached data if available
     initialData: () => {
+      if (initialData) return initialData;
       const cached = chatCache.get<any>("admin_analytics");
       if (cached) {
         //console.log(`[Analytics] Loaded cached data for admin dashboard`);
@@ -62,16 +64,18 @@ export function AnalyticsClient() {
       }
       return undefined;
     },
+
     // Cache analytics data for 30 minutes
     staleTime: 1800000, // 30 mins
     refetchOnWindowFocus: true,
   });
   // If not mounted or loading, return loading state
-  if (!mounted || (isLoading && !data)) {
+  if ((!mounted && !initialData) || (isLoading && !data)) {
     return (
         <LoadingAnalyticsBody/>
     );
   }
+
   // If no data, return error message
   if (!data) return <div>Failed to load analytics.</div>;
   // Render analytics dashboard

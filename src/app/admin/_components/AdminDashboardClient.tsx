@@ -16,7 +16,18 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function AdminDashboardClient() {
+interface AdminDashboardClientProps {
+    initialStats?: any;
+    initialEnrollments?: any;
+    initialRecentCourses?: any;
+}
+
+export function AdminDashboardClient({ 
+    initialStats, 
+    initialEnrollments, 
+    initialRecentCourses 
+}: AdminDashboardClientProps) {
+
     const [mounted, setMounted] = useState(false);
     useEffect(() => {
         setMounted(true);
@@ -41,9 +52,11 @@ export function AdminDashboardClient() {
             return result.stats;
         },
         initialData: () => {
+            if (initialStats) return initialStats.stats;
             if (typeof window === "undefined") return undefined;
             return chatCache.get<any>("admin_dashboard_stats")?.data;
         },
+
         staleTime: 600000, // 10 mins
     });
 
@@ -66,9 +79,11 @@ export function AdminDashboardClient() {
             return result.data;
         },
         initialData: () => {
+            if (initialEnrollments) return initialEnrollments.data;
             if (typeof window === "undefined") return undefined;
             return chatCache.get<any>("admin_dashboard_enrollments")?.data;
         },
+
         staleTime: 600000,
     });
 
@@ -91,16 +106,19 @@ export function AdminDashboardClient() {
             return result.courses;
         },
         initialData: () => {
+            if (initialRecentCourses) return initialRecentCourses.courses;
             if (typeof window === "undefined") return undefined;
             return chatCache.get<any>("admin_dashboard_recent_courses")?.data;
         },
+
         staleTime: 600000,
     });
 
 
     return (
         <div className="lg:py-5 md:py-6">
-            {(statsLoading && !statsData) || !mounted ? (
+            {(statsLoading && !statsData) || (!mounted && !initialStats) ? (
+
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 ">
                     {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
                 </div>
@@ -109,7 +127,8 @@ export function AdminDashboardClient() {
             )}
 
             <div className="px-4 lg:px-6 py-6">
-                {(enrollmentsLoading && !enrollmentsData) || !mounted ? (
+                {(enrollmentsLoading && !enrollmentsData) || (!mounted && !initialEnrollments) ? (
+
                     <Skeleton className="h-[400px] w-full rounded-xl mb-6" />
                 ) : (
                     <ChartAreaInteractive data={enrollmentsData || []} />
@@ -126,7 +145,8 @@ export function AdminDashboardClient() {
                         </Link>
                     </div>
 
-                    {(coursesLoading && !coursesData) || !mounted ? (
+                    {(coursesLoading && !coursesData) || (!mounted && !initialRecentCourses) ? (
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                            {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video w-full rounded-xl" />)}
                         </div>
