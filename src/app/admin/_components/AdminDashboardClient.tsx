@@ -53,7 +53,7 @@ export function AdminDashboardClient({
         },
         initialData: () => {
             if (initialStats) return initialStats.stats;
-            if (typeof window === "undefined") return undefined;
+            if (!mounted) return undefined;
             return chatCache.get<any>("admin_dashboard_stats")?.data;
         },
 
@@ -80,7 +80,7 @@ export function AdminDashboardClient({
         },
         initialData: () => {
             if (initialEnrollments) return initialEnrollments.data;
-            if (typeof window === "undefined") return undefined;
+            if (!mounted) return undefined;
             return chatCache.get<any>("admin_dashboard_enrollments")?.data;
         },
 
@@ -107,7 +107,7 @@ export function AdminDashboardClient({
         },
         initialData: () => {
             if (initialRecentCourses) return initialRecentCourses.courses;
-            if (typeof window === "undefined") return undefined;
+            if (!mounted) return undefined;
             return chatCache.get<any>("admin_dashboard_recent_courses")?.data;
         },
 

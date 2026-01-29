@@ -55,7 +55,7 @@ export default function Home() {
             Discover a new way to learn with our modern, interactive platform.
           </p>
 
-          <div className="flex flex-col gap-4 pt-4 sm:flex-row sm:justify-center">
+          <div className="flex flex-col gap-4 justify-center max-w-40 mx-auto pt-4 md:flex-row sm:justify-center">
             <Link
               href="/courses"
               className={buttonVariants({ size: "lg" })}

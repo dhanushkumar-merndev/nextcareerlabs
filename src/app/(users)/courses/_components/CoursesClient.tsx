@@ -75,7 +75,7 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
     // Seed data from cache for instant refresh (background revalidation)
     placeholderData: (previousData) => {
         if (previousData) return previousData;
-
+        if (!mounted) return undefined;
         // 🔹 SEARCH MODE → Try to show whatever we have in cache first
         if (searchTitle && cached) {
             const q = searchTitle.toLowerCase();
@@ -107,7 +107,7 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
     },
 
     // 🔹 USES SERVER DATA FOR FIRST PAINT
-    initialData: (!searchTitle && initialData?.status === "data") ? {
+    initialData: (!searchTitle && initialData && initialData.status === "data") ? {
         pages: [{
             courses: initialData.courses,
             nextCursor: initialData.nextCursor,

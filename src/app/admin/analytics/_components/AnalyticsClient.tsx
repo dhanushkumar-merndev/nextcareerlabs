@@ -57,9 +57,9 @@ export function AnalyticsClient({ initialData }: { initialData?: any }) {
     // Use cached data if available
     initialData: () => {
       if (initialData) return initialData;
+      if (!mounted) return undefined;
       const cached = chatCache.get<any>("admin_analytics");
       if (cached) {
-        //console.log(`[Analytics] Loaded cached data for admin dashboard`);
         return cached.data;
       }
       return undefined;

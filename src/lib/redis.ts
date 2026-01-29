@@ -57,6 +57,7 @@ export const GLOBAL_CACHE_KEYS = {
   COURSES_VERSION: "global:version:courses",
   COURSE_DETAIL: (slug: string) => `global:course:${slug}`,
   ADMIN_ANALYTICS: "global:admin:analytics",
+  ADMIN_DASHBOARD_STATS: "global:admin:dashboard:stats",
   ADMIN_ANALYTICS_VERSION: "global:version:analytics",
   USER_ENROLLMENTS: (userId: string) => `user:enrollments:${userId}`,
   USER_VERSION: (userId: string) => `user:version:${userId}`,

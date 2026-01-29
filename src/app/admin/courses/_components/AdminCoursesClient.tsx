@@ -51,7 +51,7 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
     
     placeholderData: (previousData) => {
         if (previousData) return previousData;
-
+        if (!mounted) return undefined;
         // 🔹 SEARCH MODE → Try to show whatever we have in cache first
         if (searchTitle && cached) {
             const q = searchTitle.toLowerCase();
@@ -86,7 +86,7 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
     },
 
     // 🔹 USES SERVER DATA FOR FIRST PAINT
-    initialData: (!searchTitle && (initialData as any)?.status === "data") ? {
+    initialData: (!searchTitle && initialData && !initialData.status) ? {
         pages: [{
             courses: initialData.courses,
             nextCursor: initialData.nextCursor,

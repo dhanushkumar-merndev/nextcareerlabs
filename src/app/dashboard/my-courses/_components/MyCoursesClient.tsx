@@ -5,9 +5,15 @@ import { getEnrolledCourses } from "@/app/data/user/get-enrolled-courses";
 import { chatCache } from "@/lib/chat-cache";
 import { CourseProgressCard } from "../../_components/CourseProgressCard";
 import { EmptyState } from "@/components/general/EmptyState";
+import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function MyCoursesClient({ userId, initialData }: { userId: string, initialData?: any }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data: enrolledCourses, isLoading } = useQuery({
     queryKey: ["enrolled_courses", userId],
     queryFn: async () => {
@@ -29,12 +35,14 @@ export function MyCoursesClient({ userId, initialData }: { userId: string, initi
       return (result as any)?.enrollments || [];
     },
     initialData: () => {
+        if (initialData) return initialData.enrollments || initialData;
+        if (!mounted) return undefined;
         const cacheKey = `user_enrolled_courses_${userId}`;
         const cached = chatCache.get<any>(cacheKey, userId);
-        if (typeof window !== "undefined" && cached) {
+        if (cached) {
             return cached.data.enrollments;
         }
-        return initialData || undefined;
+        return undefined;
     },
     staleTime: 1800000, // 30 mins
   });

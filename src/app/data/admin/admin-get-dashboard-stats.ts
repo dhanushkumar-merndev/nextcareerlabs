@@ -11,7 +11,7 @@ export async function adminGetDashboardStats(clientVersion?: string) {
     return { status: "not-modified", version: currentVersion };
   }
 
-  const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS;
+  const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS;
   const cached = await getCache<any>(cacheKey);
 
   if (cached && !clientVersion) {

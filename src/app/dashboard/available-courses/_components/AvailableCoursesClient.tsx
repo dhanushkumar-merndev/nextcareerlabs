@@ -51,6 +51,7 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
     
     placeholderData: (previousData) => {
         if (previousData) return previousData;
+        if (!mounted) return undefined;
 
         // 🔹 SEARCH MODE → Try to show whatever we have in cache first
         if (searchTitle && cached) {

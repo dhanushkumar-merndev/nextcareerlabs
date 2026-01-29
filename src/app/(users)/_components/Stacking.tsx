@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
+import Image from "next/image";
 
 // Stacking component
 export default function Stacking() {
@@ -145,7 +146,7 @@ export default function Stacking() {
                     {/* TITLE + LOGO */}
                     <div className="flex items-center gap-3">
                       {/* Logo */}
-                      <img
+                      <Image
                         src={program.logo}
                         alt={`${program.title} logo`}
                         className="h-8 w-8 md:h-14 md:w-14 object-contain"

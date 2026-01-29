@@ -12,21 +12,17 @@ interface DashboardClientProps {
     initialVersion?: string | null;
 }
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export function DashboardClient({ userId, initialData, initialVersion }: DashboardClientProps) {
-  // Sync initialData to local storage on mount to keep local cache fresh
+  const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    if (initialData && initialVersion) {
-        const cacheKey = `user_dashboard_${userId}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        
-        if (!cached || cached.version !== initialVersion) {
-            console.log(`[Hydration] Syncing server dashboard data to local cache for ${userId}`);
-            chatCache.set(cacheKey, initialData, userId, initialVersion);
-        }
-    }
-  }, [userId, initialData, initialVersion]);
+    setMounted(true);
+  }, []);
+
+  // Sync initialData to local storage on mount to keep local cache fresh
+  // Removed redundant useEffect sync to avoid hydration flickers
+  // Sync now happens during query execution
 
   const { data, isLoading } = useQuery({
     queryKey: ["user_dashboard", userId],
@@ -53,11 +49,12 @@ export function DashboardClient({ userId, initialData, initialVersion }: Dashboa
       // ⭐ PRIORITY 1: Server-provided data (Source of Truth for fresh refresh)
       if (initialData) return initialData;
 
+      if (!mounted) return undefined;
+
       // ⭐ PRIORITY 2: Local Cache (For fast navigation/stale state)
       const cacheKey = `user_dashboard_${userId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
-      if (typeof window !== "undefined" && cached) {
-        console.log(`[Dashboard] Loaded cached stats for user: ${userId}`);
+      if (cached) {
         return cached.data;
       }
       return undefined;
@@ -78,7 +75,7 @@ export function DashboardClient({ userId, initialData, initialVersion }: Dashboa
 
   return (
     <div className="flex-1 space-y-4">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <AnalyticsCard
           title="Enrolled Courses"
           value={data.enrolledCoursesCount}

@@ -2,16 +2,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PublicCourseCardSkeleton } from "../_components/PublicCourseCard";
 export default function Loading() {
   return (
-    <div className="mt-5 px-4 lg:px-6 space-y-10">
-      {/* Header skeleton */}
-      <div className="space-y-2">
-      </div>
+     <div className="mt-5 px-4 lg:px-6 md:mb-40 animate-pulse">
+      {/* Header + Search */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-        <div className="flex flex-col space-y-2">
-          <Skeleton className="h-8 w-56 md:w-72" />
-          <Skeleton className="h-4 w-120" />
+        <div className="flex flex-col space-y-3">
+          <Skeleton className="h-10 w-56" />
+          <Skeleton className="h-4 w-96 max-w-full" />
         </div>
-        <Skeleton className="h-8 w-120" />
+
+        {/* Search input skeleton */}
+        <Skeleton className="h-10 w-full md:w-64 rounded-md" />
       </div>
 
       {/* Course cards */}
