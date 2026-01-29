@@ -16,7 +16,8 @@ type AdminCoursesPage = {
   total: number;
 };
 
-export function AdminCoursesClient() {
+export function AdminCoursesClient({ initialData }: { initialData?: any }) {
+
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
   const [mounted, setMounted] = useState(false);
@@ -83,6 +84,16 @@ export function AdminCoursesClient() {
 
         return undefined;
     },
+
+    // 🔹 USES SERVER DATA FOR FIRST PAINT
+    initialData: (!searchTitle && (initialData as any)?.status === "data") ? {
+        pages: [{
+            courses: initialData.courses,
+            nextCursor: initialData.nextCursor,
+            total: initialData.total
+        }],
+        pageParams: [null]
+    } : undefined,
 
     queryFn: async ({ pageParam }) => {
       // SEARCH MODE → no cache optimization
@@ -169,7 +180,7 @@ export function AdminCoursesClient() {
     }
   }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage]);
 
-  if (!mounted || (isLoading && courses.length === 0)) {
+  if ((!mounted && !initialData) || (isLoading && courses.length === 0)) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {Array.from({ length: 9 }).map((_, i) => (

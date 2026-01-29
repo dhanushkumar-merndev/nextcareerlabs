@@ -3,9 +3,14 @@ import Link from "next/link";
 import { AdminCoursesClient } from "./_components/AdminCoursesClient";
 import { AdminCourseSearch } from "./_components/AdminCourseSearch";
 
+import { adminGetCoursesAction } from "./actions";
+
 export const dynamic = 'force-dynamic';
 
 export default async function CoursePage() {
+  // 🔹 Fetch initial courses on the server
+  const initialData = await adminGetCoursesAction();
+
   return (
     <div className="px-4 lg:px-6 lg:py-3">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mt-3 mb-10 gap-4">
@@ -22,7 +27,8 @@ export default async function CoursePage() {
         </div>
       </div>
 
-      <AdminCoursesClient />
+      <AdminCoursesClient initialData={initialData} />
     </div>
   );
 }
+

@@ -23,7 +23,8 @@ type CoursesPage = {
 };
 
 // CoursesClient Component
-export function CoursesClient({ currentUserId }: CoursesClientProps) {
+export function CoursesClient({ currentUserId, initialData }: CoursesClientProps) {
+
   // console.log("[CoursesClient] component mounted");
 
   // Read search param (?title=...)
@@ -104,6 +105,15 @@ export function CoursesClient({ currentUserId }: CoursesClientProps) {
 
         return undefined;
     },
+
+    // 🔹 USES SERVER DATA FOR FIRST PAINT
+    initialData: (!searchTitle && initialData?.status === "data") ? {
+        pages: [{
+            courses: initialData.courses,
+            nextCursor: initialData.nextCursor,
+        }],
+        pageParams: [null]
+    } : undefined,
 
 
 
@@ -216,7 +226,8 @@ export function CoursesClient({ currentUserId }: CoursesClientProps) {
   }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage]);
 
   // Initial loading skeleton (only if we have NO courses to show)
-  if (!mounted || (isLoading && courses.length === 0)) {
+  // 🔹 If we have initialData, we don't need to show skeleton even if not mounted
+  if ((!mounted && !initialData) || (isLoading && courses.length === 0)) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {Array.from({ length: 9 }).map((_, i) => (

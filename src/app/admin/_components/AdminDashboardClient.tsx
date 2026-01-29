@@ -101,8 +101,8 @@ export function AdminDashboardClient() {
     return (
         <div className="lg:py-5 md:py-6">
             {(statsLoading && !statsData) || !mounted ? (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 mb-6">
-                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 w-full rounded-xl" />)}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 ">
+                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
                 </div>
             ) : (
                 <SectionCards stats={statsData} />

@@ -5,7 +5,9 @@ export interface CoursesProps {
 
 export interface CoursesClientProps {
   currentUserId?: string;
+  initialData?: CoursesServerResult;
 }
+
 
 export type PublicCourseType = {
   id: string;

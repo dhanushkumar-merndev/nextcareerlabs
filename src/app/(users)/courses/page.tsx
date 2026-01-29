@@ -12,6 +12,7 @@
 import { CoursesClient } from "./_components/CoursesClient";
 import { CourseSearch } from "./_components/CourseSearch";
 import { getCurrentUser } from "@/lib/session";
+import { getAllCoursesAction } from "./actions";
 
 // Ensure this route is always dynamically rendered
 export const dynamic = "force-dynamic";
@@ -19,6 +20,10 @@ export const dynamic = "force-dynamic";
 export default async function PublicCoursesRoute() {
   // Get authenticated user (if any)
   const user = await getCurrentUser();
+
+  // 🔹 Fetch initial courses on the server
+  // This avoids the "skeleton flash" by providing data for the first paint
+  const initialData = await getAllCoursesAction(undefined, user?.id);
 
   return (
     <div className="mt-5 px-4 lg:px-6 md:mb-40">
@@ -38,8 +43,9 @@ export default async function PublicCoursesRoute() {
         <CourseSearch />
       </div>
 
-      {/* Courses list */}
-      <CoursesClient currentUserId={user?.id} />
+      {/* Courses list - Pass initial server data */}
+      <CoursesClient currentUserId={user?.id} initialData={initialData} />
     </div>
   );
 }
+
