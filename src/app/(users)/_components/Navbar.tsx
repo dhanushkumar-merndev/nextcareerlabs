@@ -138,25 +138,21 @@ export function Navbar() {
           ${isCompact ? "min-h-12" : "min-h-16"}`}
         >
           {/* LOGO */}
-          <Link href="/" className="flex items-center space-x-3">
-            <div className="h-10 w-10 relative">
-              <Image
-                src="/logo.svg"
-                alt="Skill Force Cloud"
-                fill
-                className="object-contain dark:hidden"
-                priority
-              />
-              <Image
-                src="/blacklogo.svg"
-                alt="Skill Force Cloud"
-                fill
-                className="object-contain hidden dark:block"
-                priority
-              />
-            </div>
-            <span className="font-medium">Skill Force Cloud</span>
-          </Link>
+        <Link href="/" className="flex items-center space-x-3">
+          <div className="h-10 w-10">
+            <img
+              src="/logo.svg"
+              alt="Skill Force Cloud"
+              className="h-10 w-10 dark:hidden"
+            />
+            <img
+              src="/blacklogo.svg"
+              alt="Skill Force Cloud"
+              className="h-10 w-10 hidden dark:block"
+            />
+          </div>
+          <span className="font-medium">Skill Force Cloud</span>
+        </Link>
           {/* ================= DESKTOP NAV CENTERED ================= */}
           <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 gap-8">
             {isHomePage ? (
