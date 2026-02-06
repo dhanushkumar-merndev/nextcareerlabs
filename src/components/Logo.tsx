@@ -3,39 +3,40 @@ import { cn } from "@/lib/utils";
 
 interface LogoProps {
   className?: string;
-  /** Accessible label for the logo */
   ariaLabel?: string;
 }
 
-export function Logo({ 
+export function Logo({
   className,
-  ariaLabel = "Company Logo" 
+  ariaLabel = "Company Logo",
 }: LogoProps) {
   return (
-    <div 
-      className={cn("relative inline-block overflow-hidden", className)}
+    <span
+      className={cn("relative inline-flex h-10 w-10", className)}
       role="img"
       aria-label={ariaLabel}
     >
-      {/* Light Mode Logo */}
+      {/* Light mode */}
       <Image
         src="/logo.svg"
         alt={ariaLabel}
-        width={40}
-        height={40}
-        className="h-full w-full object-contain dark:hidden"
+        fill
+        sizes="40px"
         priority
+        loading="eager"
+        className="object-contain dark:hidden"
       />
 
-      {/* Dark Mode Logo */}
+      {/* Dark mode */}
       <Image
         src="/blacklogo.svg"
         alt={ariaLabel}
-        width={40}
-        height={40}
-        className="h-full w-full object-contain hidden dark:block"
+        fill
+        sizes="40px"
         priority
+        loading="eager"
+        className="object-contain hidden dark:block"
       />
-    </div>
+    </span>
   );
 }
