@@ -1,4 +1,5 @@
-## TO INSTALL PACKAGES
+
+# TO INSTALL PACKAGES
 
 pnpm install or pnpm i
 
@@ -35,6 +36,7 @@ pnpm add @arcjet/next @arcjet/inspect
 pnpm install -S @arcjet/ip
 
 pnpm i add slugify
+
 ## TipTap
 
 pnpm install @tiptap/react @tiptap/pm @tiptap/starter-kit
@@ -43,7 +45,7 @@ pnpm install @tiptap/react @tiptap/pm @tiptap/starter-kit
 
 pnpm i add react-dropzone
 
-## https://www.tigrisdata.com/docs/overview/
+## <https://www.tigrisdata.com/docs/overview/>
 
 ## uuild
 
@@ -59,7 +61,7 @@ pnpm dlx @better-auth/cli generate
 
 pnpm install && pnpm dlx shadcn@latest add alert-dialog avatar badge breadcrumb button card chart checkbox collapsible dialog drawer dropdown-menu form input-otp input label progress select separator sheet sidebar skeleton sonner table tabs textarea toggle-group toggle tooltip && pnpm install tw-animate-css better-auth @prisma/client @t3-oss/env-nextjs zod resend @arcjet/next @arcjet/inspect @arcjet/ip slugify @tiptap/react @tiptap/pm @tiptap/starter-kit react-dropzone uuid @aws-sdk/client-s3 @aws-sdk/s3-request-presigner pnpm dlx prisma generate pnpm dlx prisma db push
 
-## https://dndkit.com/
+## <https://dndkit.com/>
 
 pnpm install @dnd-kit/core
 pnpm i html-react-parser

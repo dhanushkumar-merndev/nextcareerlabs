@@ -34,8 +34,16 @@
 
     // Calculate dynamic segment duration to target ~60 segments
     // Min 10s, Max 300s (5 mins)
-    const hlsTime = Math.min(300, Math.max(10, Math.ceil(duration / 60)));
-    console.log(`Transcoding with hls_time: ${hlsTime} for duration: ${duration}`);
+    const TARGET_SEGMENTS = 200;
+
+    // Min 2s, Max 30s (browser-safe)
+    const hlsTime = Math.min(
+      30,
+      Math.max(2, Math.ceil(duration / TARGET_SEGMENTS))
+    );
+
+    console.log(`HLS segments target: ${TARGET_SEGMENTS}, hls_time: ${hlsTime}s`);
+
 
     // ✅ FASTEST POSSIBLE browser HLS
     await ffmpeg.exec([

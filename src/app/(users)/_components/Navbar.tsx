@@ -12,6 +12,7 @@ import { UserDropdown } from "./UserDropdown";
 import { useSignOut } from "@/hooks/use-signout";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { Section } from "@/lib/types/homePage";
+import { Logo } from "@/components/Logo";
 
 // This component is used to display the navbar
 export function Navbar() {
@@ -139,18 +140,7 @@ export function Navbar() {
         >
           {/* LOGO */}
         <Link href="/" className="flex items-center space-x-3">
-          <div className="h-10 w-10">
-            <img
-              src="/logo.svg"
-              alt="Skill Force Cloud"
-              className="h-10 w-10 dark:hidden"
-            />
-            <img
-              src="/blacklogo.svg"
-              alt="Skill Force Cloud"
-              className="h-10 w-10 hidden dark:block"
-            />
-          </div>
+          <Logo className="h-10 w-10" />
           <span className="font-medium">Skill Force Cloud</span>
         </Link>
           {/* ================= DESKTOP NAV CENTERED ================= */}
