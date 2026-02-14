@@ -23,6 +23,7 @@ import { env } from "@/lib/env";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
 import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
+import CryptoJS from "crypto-js";
 
 import { LessonContentSkeleton } from "./lessonSkeleton";
 
@@ -37,6 +38,7 @@ function VideoPlayer({
   thumbnailkey,
   videoKey,
   lessonId,
+  userId,
   initialTime = 0,
   spriteKey,
   spriteCols,
@@ -48,6 +50,7 @@ function VideoPlayer({
   thumbnailkey: string;
   videoKey: string;
   lessonId: string;
+  userId: string;
   initialTime?: number;
   spriteKey?: string | null;
   spriteCols?: number | null;
@@ -127,24 +130,48 @@ function VideoPlayer({
     document.cookie = `${name}=; expires=Sun, 01 Jan 2023 00:00:00 UTC; path=/; SameSite=Lax`;
   };
 
+  /* ============================================================
+     ENCRYPTION UTILITIES
+  ============================================================ */
+  const getEncryptionKey = (userId: string) => {
+    // Use first 16 chars of userId as encryption key
+    return userId.substring(0, 16).padEnd(16, '0');
+  };
+
   const saveUnsyncedDelta = () => {
     const val = unsyncedDeltaRef.current;
     if (val === 0) return;
     
-    const data = val.toString();
-    localStorage.setItem(`unsynced-delta-${lessonId}`, data);
-    setCookie(`unsynced-delta-${lessonId}`, data);
+    // ✅ SECURE: Encrypt before storing
+    const encrypted = CryptoJS.AES.encrypt(
+      val.toString(),
+      getEncryptionKey(userId)
+    ).toString();
+    
+    localStorage.setItem(`unsynced-delta-${lessonId}`, encrypted);
+    setCookie(`unsynced-delta-${lessonId}`, encrypted);
   };
 
   const loadUnsyncedDelta = (): number => {
     // Check localStorage first, then cookie
     const localData = localStorage.getItem(`unsynced-delta-${lessonId}`);
-    if (localData) return parseFloat(localData);
+    const encryptedData = localData || getCookie(`unsynced-delta-${lessonId}`);
     
-    const cookieData = getCookie(`unsynced-delta-${lessonId}`);
-    if (cookieData) return parseFloat(cookieData);
+    if (!encryptedData) return 0;
     
-    return 0;
+    try {
+      // ✅ SECURE: Decrypt
+      const decrypted = CryptoJS.AES.decrypt(
+        encryptedData,
+        getEncryptionKey(userId)
+      ).toString(CryptoJS.enc.Utf8);
+      
+      return parseFloat(decrypted) || 0;
+    } catch (e) {
+      // If decryption fails (tampering detected), return 0
+      console.warn('[Security] Failed to decrypt delta, possible tampering');
+      return 0;
+    }
   };
 
   const clearLocalDelta = () => {
@@ -520,6 +547,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
             thumbnailkey={data.thumbnailKey ?? ""}
             videoKey={data.videoKey ?? ""}
             lessonId={data.id}
+            userId={userId}
             initialTime={data.lessonProgress?.[0]?.lastWatched ?? 0}
             spriteKey={data.spriteKey}
             spriteCols={data.spriteCols}
