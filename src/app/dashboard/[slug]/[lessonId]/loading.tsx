@@ -13,7 +13,7 @@ export default function Loading() {
       {/* ======================= */}
       {/* BUTTON SKELETON */}
       {/* ======================= */}
-      <div className="py-4 border-b border-border bg-background">
+      <div className="py-4  bg-background">
         <Skeleton className="h-10 w-40 rounded-md" />
       </div>
     </div>

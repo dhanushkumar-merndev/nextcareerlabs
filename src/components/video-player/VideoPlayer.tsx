@@ -248,7 +248,33 @@ export function VideoPlayer({
     return { x, time };
   };
 
+
   const [vttCues, setVttCues] = useState<any[]>([]);
+  const [vttLoading, setVttLoading] = useState(false);
+
+  // Preload sprite images so they're cached by browser
+  const preloadSpriteImages = (cues: any[], vttUrl: string) => {
+    if (cues.length === 0) return;
+    
+    const baseUrl = vttUrl.substring(0, vttUrl.lastIndexOf("/") + 1);
+    const uniqueImages = new Set<string>();
+    
+    // Collect all unique sprite image URLs
+    cues.forEach(cue => {
+      if (cue.url) {
+        const imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
+        uniqueImages.add(imageUrl);
+      }
+    });
+    
+    console.log(`VideoPlayer: Preloading ${uniqueImages.size} sprite images...`);
+    
+    // Preload each unique image
+    uniqueImages.forEach(url => {
+      const img = new Image();
+      img.src = url;
+    });
+  };
 
   // Fetch and parse VTT if spriteMetadata.url contains .vtt
   useEffect(() => {
@@ -260,6 +286,26 @@ export function VideoPlayer({
         return;
     }
 
+    // ✅ Check cache first (sessionStorage for this browser session)
+    const cacheKey = `vtt-cache-${spriteMetadata.url}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    
+    if (cached) {
+      try {
+        const parsedCache = JSON.parse(cached);
+        console.log("VideoPlayer: Using cached VTT data", parsedCache.length, "cues");
+        setVttCues(parsedCache);
+        
+        // ✅ Preload sprite images from cache
+        preloadSpriteImages(parsedCache, spriteMetadata.url);
+        return;
+      } catch (e) {
+        console.warn("VideoPlayer: Cache parse failed, fetching fresh");
+      }
+    }
+
+    // Not cached, fetch it
+    setVttLoading(true);
     console.log("VideoPlayer: Fetching VTT from", spriteMetadata.url);
     fetch(spriteMetadata.url)
       .then(res => {
@@ -308,9 +354,20 @@ export function VideoPlayer({
         });
         console.log("VideoPlayer: Parsed Cues:", parsedCues.length);
         setVttCues(parsedCues);
+        
+        // ✅ Cache for this session
+        sessionStorage.setItem(cacheKey, JSON.stringify(parsedCues));
+        
+        // ✅ Preload all sprite images
+        preloadSpriteImages(parsedCues, spriteMetadata.url);
+        setVttLoading(false);
       })
-      .catch(err => console.error("VideoPlayer: Error loading VTT:", err));
+      .catch(err => {
+        console.error("VideoPlayer: Error loading VTT:", err);
+        setVttLoading(false);
+      });
   }, [spriteMetadata?.url]);
+
 
   const getSpritePosition = (time: number) => {
     if (!spriteMetadata) return null;
@@ -455,7 +512,7 @@ export function VideoPlayer({
                   return spritePos ? (
                     // Move responsive scaling here to the container
                     // origin-bottom ensures it grows upwards from the seekbar
-                    <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.7] sm:scale-[0.9] md:scale-[1.1] transition-transform duration-200">
+                    <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">
                       <div className="relative rounded-md overflow-hidden">
                         <div
                           style={{
