@@ -134,39 +134,32 @@ export function Uploader({ onChange, onDurationChange, value, fileTypeAccepted }
           });
           if (!masterRes.ok) throw new Error("Failed to upload master playlist");
 
-          // 4. Upload Segments (Concurrent Worker Pool)
-          let uploadedSegments = 0;
-          const CONCURRENCY_LIMIT = 15; // Stable limit for browser
-          let nextSegmentIndex = 0;
-
-          const uploadWorker = async () => {
-            while (nextSegmentIndex < segments.length) {
-              const globalIndex = nextSegmentIndex++;
-              const segment = segments[globalIndex];
-              const { presignedUrl } = presignedUrls[globalIndex + 1]; // +1 because master was at 0
-              
-              const res = await fetch(presignedUrl, {
-                method: "PUT",
-                body: segment.blob,
-                headers: { "Content-Type": "video/MP2T" },
-              });
-              
-              if (!res.ok) throw new Error(`Failed to upload segment ${globalIndex}`);
-              
-              uploadedSegments++;
-              setFileState((s) => ({
-                ...s,
-                progress: Math.round((uploadedSegments / segments.length) * 100),
-              }));
-            }
-          };
-
-          // Start workers
-          const workers = Array(Math.min(CONCURRENCY_LIMIT, segments.length))
-            .fill(null)
-            .map(() => uploadWorker());
-          
-          await Promise.all(workers);
+          // 4. Upload Segments (Now just one file: index.ts)
+          for (let i = 0; i < segments.length; i++) {
+            const segment = segments[i];
+            const { presignedUrl } = presignedUrls[i + 1]; // +1 because master was at 0
+            
+            await new Promise<void>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                  const percent = Math.round((event.loaded / event.total) * 100);
+                  setFileState((s) => ({ ...s, progress: percent }));
+                }
+              };
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  resolve();
+                } else {
+                  reject(new Error(`Upload failed for segment ${i}`));
+                }
+              };
+              xhr.onerror = () => reject(new Error(`Network error for segment ${i}`));
+              xhr.open("PUT", presignedUrl);
+              xhr.setRequestHeader("Content-Type", "video/MP2T");
+              xhr.send(segment.blob);
+            });
+          }
 
           const finalKey = `${baseKey}.${file.name.split(".").pop()}`;
           setFileState((prevState) => ({

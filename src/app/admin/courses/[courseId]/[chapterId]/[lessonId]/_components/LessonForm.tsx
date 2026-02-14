@@ -64,7 +64,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       if (result.status === "success") {
         if (!skipRedirect) {
           toast.success(result.message);
-          router.push(`/admin/courses/${courseId}/edit`);
+          router.push(`/admin/courses/${courseId}/edit?tab=course-structure`);
         } else {
           router.refresh();
         }
@@ -76,7 +76,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
   return (
     <div className="px-4 lg:px-6">
       <Link
-        href={`/admin/courses/${courseId}/edit`}
+        href={`/admin/courses/${courseId}/edit?tab=course-structure`}
         className={buttonVariants({ variant: "outline", className: "mb-6" })}
       >
         <ArrowLeft className="size-4"></ArrowLeft>

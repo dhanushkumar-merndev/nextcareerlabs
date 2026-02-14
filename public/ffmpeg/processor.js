@@ -32,26 +32,20 @@
       new Uint8Array(await file.arrayBuffer())
     );
 
-    // Calculate dynamic segment duration to target ~60 segments
-    // Min 10s, Max 300s (5 mins)
-    const TARGET_SEGMENTS = 200;
+    // Fixed 1-second segment duration
+    const hlsTime = 1;
 
-    // Min 2s, Max 30s (browser-safe)
-    const hlsTime = Math.min(
-      30,
-      Math.max(2, Math.ceil(duration / TARGET_SEGMENTS))
-    );
-
-    console.log(`HLS segments target: ${TARGET_SEGMENTS}, hls_time: ${hlsTime}s`);
+    console.log(`HLS single-file mode, hls_time: ${hlsTime}s`);
 
 
-    // ✅ FASTEST POSSIBLE browser HLS
+    // ✅ FASTEST POSSIBLE browser HLS - Single File approach
     await ffmpeg.exec([
       "-i", inputName,
       "-c", "copy",
       "-hls_time", hlsTime.toString(),
       "-hls_playlist_type", "vod",
-      "-hls_segment_filename", "segment%03d.ts",
+      "-hls_flags", "single_file",
+      "-hls_segment_filename", "index.ts",
       outputName
     ]);
 
@@ -61,12 +55,12 @@
       type: "application/vnd.apple.mpegurl",
     });
 
-    // Read segments
+    // Read segments (should be only one file: index.ts)
     const segments = [];
     const files = await ffmpeg.listDir(".");
 
     for (const f of files) {
-      if (f.name.endsWith(".ts")) {
+      if (f.name === "index.ts") {
         const data = await ffmpeg.readFile(f.name);
         segments.push({
           name: f.name,

@@ -12,7 +12,7 @@ export default async function LessonIdPage({ params }: { params: Params }) {
   const lesson = await adminGetLesson(lessonId);
 
   return (
-    <div>
+    <div className="py-2.5 md:py-5">
       <LessonForm data={lesson} chapterId={chapterId} courseId={courseId} />
     </div>
   );
