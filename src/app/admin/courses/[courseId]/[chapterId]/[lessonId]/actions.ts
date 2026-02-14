@@ -38,6 +38,13 @@ export async function updateLesson(
           thumbnailKey: result.data.thumbnailKey,
           videoKey: result.data.videoKey,
           duration: result.data.duration,
+          // Sprite sheet metadata
+          spriteKey: result.data.spriteKey,
+          spriteCols: result.data.spriteCols,
+          spriteRows: result.data.spriteRows,
+          spriteInterval: result.data.spriteInterval,
+          spriteWidth: result.data.spriteWidth,
+          spriteHeight: result.data.spriteHeight,
         },
       });
 

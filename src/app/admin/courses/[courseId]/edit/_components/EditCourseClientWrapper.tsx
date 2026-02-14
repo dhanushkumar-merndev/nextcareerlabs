@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { BackConfirm } from "./BackConfirm";
 import { EditCourseForm } from "./EditCourseForm";
-import { CourseStructure } from "./CourseSturcture";
+import { CourseStructure } from "./CourseStructure";
 import { AdminCourseSingularType } from "@/app/data/admin/admin-get-course";
 
 interface EditCourseClientWrapperProps {

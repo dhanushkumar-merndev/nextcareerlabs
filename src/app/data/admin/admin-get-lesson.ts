@@ -18,6 +18,12 @@ export async function adminGetLesson(id: string) {
       id: true,
       position: true,
       duration: true,
+      spriteKey: true,
+      spriteCols: true,
+      spriteRows: true,
+      spriteInterval: true,
+      spriteWidth: true,
+      spriteHeight: true,
     },
   });
 

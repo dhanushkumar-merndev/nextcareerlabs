@@ -38,12 +38,40 @@ function VideoPlayer({
   videoKey,
   lessonId,
   initialTime = 0,
+  spriteKey,
+  spriteCols,
+  spriteRows,
+  spriteInterval,
+  spriteWidth,
+  spriteHeight,
 }: {
   thumbnailkey: string;
   videoKey: string;
   lessonId: string;
   initialTime?: number;
+  spriteKey?: string | null;
+  spriteCols?: number | null;
+  spriteRows?: number | null;
+  spriteInterval?: number | null;
+  spriteWidth?: number | null;
+  spriteHeight?: number | null;
 }) {
+  const thumbnailUrl = useConstructUrl(thumbnailkey);
+  const spriteUrl = useConstructUrl(spriteKey || "");
+
+  const spriteMetadata = useMemo(() => {
+    if (!spriteKey || !spriteCols || !spriteRows || !spriteInterval || !spriteWidth || !spriteHeight) {
+      return undefined;
+    }
+    return {
+      url: spriteUrl,
+      cols: spriteCols,
+      rows: spriteRows,
+      interval: spriteInterval,
+      width: spriteWidth,
+      height: spriteHeight,
+    };
+  }, [spriteUrl, spriteKey, spriteCols, spriteRows, spriteInterval, spriteWidth, spriteHeight]);
   // const videoRef = useRef<HTMLVideoElement>(null); // Removed as CustomPlayer handles the tech
   // Track video coverage delta
   const lastPositionRef = useRef<number>(initialTime);
@@ -60,7 +88,7 @@ function VideoPlayer({
     return list;
   }, [hlsUrl, videoUrl]);
 
-  const thumbnailUrl = useConstructUrl(thumbnailkey);
+  // const thumbnailUrl = useConstructUrl(thumbnailkey); // Removed duplicate
 
   /* ============================================================
      STORAGE HELPERS (Cookie + LocalStorage)
@@ -340,6 +368,7 @@ function VideoPlayer({
           onPause={onPause}
           onEnded={onEnded}
           onLoadedMetadata={onLoadedMetadata}
+          spriteMetadata={spriteMetadata}
           className="w-full h-full"
         />
       )}
@@ -357,7 +386,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         // Sync if version differs or doesn't exist
         if (!cached || cached.version !== initialVersion) {
             console.log(`[Hydration] Syncing server data to local cache for ${lessonId}`);
-            chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion);
+            chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, 10800000);
         }
     }
   }, [lessonId, userId, initialLesson, initialVersion]);
@@ -377,7 +406,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       }
 
       if (result && !(result as any).status) {
-        chatCache.set(cacheKey, result, userId, (result as any).version);
+        chatCache.set(cacheKey, result, userId, (result as any).version, 10800000);
         return (result as any).lesson;
       }
       return (result as any)?.lesson;
@@ -474,6 +503,12 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
             videoKey={data.videoKey ?? ""}
             lessonId={data.id}
             initialTime={data.lessonProgress?.[0]?.lastWatched ?? 0}
+            spriteKey={data.spriteKey}
+            spriteCols={data.spriteCols}
+            spriteRows={data.spriteRows}
+            spriteInterval={data.spriteInterval}
+            spriteWidth={data.spriteWidth}
+            spriteHeight={data.spriteHeight}
           />
         </div>
 

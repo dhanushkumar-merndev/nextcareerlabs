@@ -6,6 +6,7 @@ import CircularProgressColorDemo from "@/components/ui/progress-10";
 import Hls from "hls.js";
 import { useEffect, useRef } from "react";
 import { VideoPlayer } from "../video-player/VideoPlayer";
+import { useConstructUrl } from "@/hooks/use-construct-url";
 export function RenderEmptyState({ isDragActive }: { isDragActive: boolean }) {
   return (
     <div className="text-center">
@@ -50,14 +51,32 @@ export function RenderUploadedState({
   handleRemoveFile,
   fileType,
   hlsUrl,
+  isSpriteGenerated,
+  spriteGenerating,
+  spriteMetadata,
+  onDurationLoaded,
+  onManualSpriteClick,
 }: {
   previewUrl: string;
   isDeleting: boolean;
   handleRemoveFile: () => void;
   fileType: "image" | "video";
   hlsUrl?: string;
+  onGenerateSprites?: () => void;
+  isSpriteGenerated?: boolean;
+  spriteGenerating?: boolean;
+  spriteMetadata?: any;
+  onDurationLoaded?: (duration: number) => void;
+  onManualSpriteClick?: () => void;
 }) {
-
+  const spriteProps = spriteMetadata ? {
+    url: useConstructUrl(spriteMetadata.spriteKey),
+    cols: spriteMetadata.spriteCols,
+    rows: spriteMetadata.spriteRows,
+    interval: spriteMetadata.spriteInterval,
+    width: spriteMetadata.spriteWidth,
+    height: spriteMetadata.spriteHeight,
+  } : undefined;
 
   return (
     <div className="relative group w-full h-full flex items-center justify-center">
@@ -67,7 +86,9 @@ export function RenderUploadedState({
             ...(hlsUrl ? [{ src: hlsUrl, type: "application/x-mpegURL" }] : []),
             { src: previewUrl, type: "video/mp4" },
           ]}
+          spriteMetadata={spriteProps}
           className="w-full h-full"
+          onLoadedMetadata={onDurationLoaded}
         />
       ) : (
         <div className="relative w-full h-full">
@@ -83,12 +104,45 @@ export function RenderUploadedState({
         </div>
       )}
 
+      {/* Manual Sprite Upload Button */}
+      {fileType === "video" && !isSpriteGenerated && !spriteGenerating && (
+        <div className="absolute top-2 right-16 z-50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-end gap-1">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onManualSpriteClick?.();
+            }}
+            className="bg-black/60 hover:bg-black/80 text-white border-white/20 backdrop-blur-md shadow-lg h-9 px-3"
+          >
+            <ImageIcon className="size-4 mr-2" />
+            Upload sprite.jpg
+          </Button>
+          <span className="text-[10px] text-white/50 pr-1 drop-shadow-md">
+            (160x90, 10 cols)
+          </span>
+        </div>
+      )}
+
+      {/* Sprites Live Badge */}
+      {isSpriteGenerated && (
+        <div className="absolute top-4 right-16 z-50 flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded-md backdrop-blur-sm pointer-events-none">
+          <div className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[10px] font-bold tracking-wider uppercase">Sprites Live</span>
+        </div>
+      )}
+
       {/* Delete Button */}
       <Button
         variant="destructive"
         size="icon"
-        className="absolute top-4 right-4"
-        onClick={handleRemoveFile}
+        className="absolute top-4 right-4 z-50 opacity-0 group-hover:opacity-100 transition-opacity"
+        onClick={(e) => {
+          e.stopPropagation();
+          handleRemoveFile();
+        }}
         disabled={isDeleting}
       >
         {isDeleting ? (

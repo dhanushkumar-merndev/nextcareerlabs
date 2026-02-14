@@ -156,8 +156,29 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                           }
                         }}
                         onDurationChange={(duration) => form.setValue("duration", duration)}
+                        onSpriteChange={(sprite) => {
+                          // Set sprite values in form and auto-save
+                          form.setValue("spriteKey", sprite.spriteKey);
+                          form.setValue("spriteCols", sprite.spriteCols);
+                          form.setValue("spriteRows", sprite.spriteRows);
+                          form.setValue("spriteInterval", sprite.spriteInterval);
+                          form.setValue("spriteWidth", sprite.spriteWidth);
+                          form.setValue("spriteHeight", sprite.spriteHeight);
+                          // Auto-save with sprite data
+                          onSubmit({
+                            ...form.getValues(),
+                            spriteKey: sprite.spriteKey,
+                            spriteCols: sprite.spriteCols,
+                            spriteRows: sprite.spriteRows,
+                            spriteInterval: sprite.spriteInterval,
+                            spriteWidth: sprite.spriteWidth,
+                            spriteHeight: sprite.spriteHeight,
+                          }, true);
+                        }}
                         value={field.value}
                         fileTypeAccepted="video"
+                        duration={form.getValues("duration") ?? undefined}
+                        initialSpriteKey={form.getValues("spriteKey")}
                       />
                     </FormControl>
                     <FormMessage />

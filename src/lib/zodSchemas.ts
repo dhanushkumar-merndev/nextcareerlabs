@@ -75,6 +75,14 @@ export const lessonSchema = z.object({
     .optional(),
   videoKey: z.string().min(1, { message: "Video must be selected" }).nullable().optional(),
   duration: z.number().optional().nullable(),
+
+  // Sprite sheet metadata
+  spriteKey: z.string().nullable().optional(),
+  spriteCols: z.number().nullable().optional(),
+  spriteRows: z.number().nullable().optional(),
+  spriteInterval: z.number().nullable().optional(),
+  spriteWidth: z.number().nullable().optional(),
+  spriteHeight: z.number().nullable().optional(),
 });
 
 

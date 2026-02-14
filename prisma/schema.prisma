@@ -153,6 +153,14 @@ model Lesson{
     position      Int
     duration      Int?
 
+    // Sprite sheet metadata for instant hover preview
+    spriteKey      String?  // S3 key to sprite sheet image
+    spriteCols     Int?     // Number of columns in sprite grid
+    spriteRows     Int?     // Number of rows in sprite grid
+    spriteInterval Float?   // Seconds between frames
+    spriteWidth    Int?     // Width of each thumbnail in px
+    spriteHeight   Int?     // Height of each thumbnail in px
+
     createdAt     DateTime @default(now())
     updatedAt     DateTime @updatedAt
 

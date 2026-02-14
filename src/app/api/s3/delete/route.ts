@@ -39,30 +39,47 @@ export async function DELETE(request: Request) {
     }
 
     // 2. Delete the specific HLS folder for this video from Tigris
-    const hlsPrefix = `hls/${key.replace(/\.[^/.]+$/, "")}/`;
-    try {
-      // List all objects in the HLS folder
-      const listCommand = new ListObjectsV2Command({
-        Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
-        Prefix: hlsPrefix,
-      });
-      const listedObjects = await tigris.send(listCommand);
+    const baseKey = key.replace(/\.[^/.]+$/, "");
+    const hlsPrefix = `hls/${baseKey}/`;
+    const spritePrefix = `sprites/${baseKey}/`;
+    
+    console.log(`Deleting assets for baseKey: ${baseKey}`);
+    console.log(`HLS Prefix: ${hlsPrefix}`);
+    console.log(`Sprite Prefix: ${spritePrefix}`);
 
-      if (listedObjects.Contents && listedObjects.Contents.length > 0) {
-        // Delete all segments
-        const deletePromises = listedObjects.Contents.map((obj) =>
-          tigris.send(
-            new DeleteObjectCommand({
-              Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
-              Key: obj.Key!,
-            })
-          )
-        );
-        await Promise.all(deletePromises);
+    const deleteFolder = async (prefix: string) => {
+      try {
+        console.log(`Listing objects for prefix: ${prefix}`);
+        const listCommand = new ListObjectsV2Command({
+          Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
+          Prefix: prefix,
+        });
+        const listedObjects = await tigris.send(listCommand);
+
+        if (listedObjects.Contents && listedObjects.Contents.length > 0) {
+          console.log(`Found ${listedObjects.Contents.length} objects to delete for prefix ${prefix}`);
+          const deletePromises = listedObjects.Contents.map((obj) =>
+            tigris.send(
+              new DeleteObjectCommand({
+                Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
+                Key: obj.Key!,
+              })
+            )
+          );
+          await Promise.all(deletePromises);
+          console.log(`Successfully deleted all objects for prefix ${prefix}`);
+        } else {
+          console.log(`No objects found for prefix: ${prefix}`);
+        }
+      } catch (err) {
+        console.error(`Failed to delete folder ${prefix}:`, err);
       }
-    } catch (err) {
-      console.error("Failed to delete HLS segments:", err);
-    }
+    };
+
+    await Promise.all([
+      deleteFolder(hlsPrefix),
+      deleteFolder(spritePrefix)
+    ]);
 
     return NextResponse.json(
       { message: "File deleted successfully" },

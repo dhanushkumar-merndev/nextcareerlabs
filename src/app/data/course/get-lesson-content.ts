@@ -35,6 +35,13 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
       thumbnailKey: true,
       videoKey: true,
       position: true,
+      // Sprite sheet metadata for hover preview
+      spriteKey: true,
+      spriteCols: true,
+      spriteRows: true,
+      spriteInterval: true,
+      spriteWidth: true,
+      spriteHeight: true,
       lessonProgress: {
         where: {
           userId: session.id,
