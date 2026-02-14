@@ -9,7 +9,7 @@ import { useConstructUrl } from "@/hooks/use-construct-url";
 import { BookIcon, CheckCircle, X } from "lucide-react";
 import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
 import {
   Drawer,
@@ -19,10 +19,10 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { IconFileText } from "@tabler/icons-react";
-import Hls from "hls.js";
 import { env } from "@/lib/env";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
+import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
 
 import { LessonContentSkeleton } from "./lessonSkeleton";
 
@@ -44,9 +44,7 @@ function VideoPlayer({
   lessonId: string;
   initialTime?: number;
 }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
-  
+  // const videoRef = useRef<HTMLVideoElement>(null); // Removed as CustomPlayer handles the tech
   // Track video coverage delta
   const lastPositionRef = useRef<number>(initialTime);
   const unsyncedDeltaRef = useRef<number>(0);
@@ -54,8 +52,13 @@ function VideoPlayer({
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
-  const [levels, setLevels] = useState<number[]>([]);
-  const [currentLevel, setCurrentLevel] = useState<number>(-1);
+
+  const sources = useMemo(() => {
+    const list = [];
+    if (videoUrl) list.push({ src: videoUrl, type: "video/mp4" });
+    if (hlsUrl) list.push({ src: hlsUrl, type: "application/x-mpegURL" });
+    return list;
+  }, [hlsUrl, videoUrl]);
 
   const thumbnailUrl = useConstructUrl(thumbnailkey);
 
@@ -109,7 +112,7 @@ function VideoPlayer({
   ============================================================ */
   const syncToDB = async (specificLessonId?: string, delta?: number, position?: number) => {
     const targetId = specificLessonId || lessonId;
-    const currentPosition = position !== undefined ? position : (videoRef.current?.currentTime || lastPositionRef.current);
+    const currentPosition = position !== undefined ? position : lastPositionRef.current;
     const deltaToSync = Math.round(delta !== undefined ? delta : unsyncedDeltaRef.current);
 
     if (deltaToSync === 0 && position === undefined) return;
@@ -173,14 +176,10 @@ function VideoPlayer({
   /* ============================================================
      TRACK WATCHED SECONDS (Every second during playback)
   ============================================================ */
-  const trackCoverage = () => {
-    const video = videoRef.current;
-    if (!video || video.paused || video.ended) return;
-
+  const trackCoverage = (currentPos: number) => {
     // 🔴 Multi-tab safety: Only track if the page is active
     if (document.visibilityState !== "visible") return;
 
-    const currentPos = video.currentTime;
     const delta = currentPos - lastPositionRef.current;
 
     // Only track positive progress and ignore large jumps (seeks)
@@ -201,8 +200,7 @@ function VideoPlayer({
   ============================================================ */
   useEffect(() => {
     const interval = setInterval(() => {
-      const video = videoRef.current;
-      if (video && !video.paused && !video.ended && document.visibilityState === "visible") {
+      if (document.visibilityState === "visible") {
         saveUnsyncedDelta(); // Update cookie backup
       }
     }, 5000);
@@ -216,60 +214,22 @@ function VideoPlayer({
   useEffect(() => {
     if (!videoKey) return;
 
-    const hlsKey = `hls/${videoKey.replace(/\.[^/.]+$/, "")}/master.m3u8`;
-    const hlsFullUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${hlsKey}`;
+    const fetchUrls = async () => {
+      // 1. Setup HLS URL (Static construction)
+      const hlsKey = `hls/${videoKey.replace(/\.[^/.]+$/, "")}/master.m3u8`;
+      const hlsFullUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${hlsKey}`;
+      setHlsUrl(hlsFullUrl);
 
-    setHlsUrl(hlsFullUrl);
+      // 2. Setup Signed MP4 URL (Fallback)
+      const response = await getSignedVideoUrl(videoKey) as any;
+      if (response && response.status === "success" && response.url) {
+        setVideoUrl(response.url);
+      }
+    };
+
+    fetchUrls();
   }, [videoKey]);
 
-  /* ============================================================
-     INIT HLS PLAYER
-  ============================================================ */
-  useEffect(() => {
-    if (!hlsUrl || !videoRef.current) return;
-
-    const video = videoRef.current;
-
-    // Safari (native HLS)
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = hlsUrl;
-      video.currentTime = initialTime;
-      return;
-    }
-
-    // Chrome / Firefox / Edge
-    if (Hls.isSupported()) {
-      hlsRef.current?.destroy();
-
-      const savedTime = parseFloat(
-        localStorage.getItem(`video-progress-${lessonId}`) || initialTime.toString()
-      );
-      const hls = new Hls({ startPosition: savedTime });
-      hlsRef.current = hls;
-
-      video.currentTime = savedTime;
-      hls.loadSource(hlsUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        setLevels(hls.levels.map((_, i) => i));
-      });
-
-      hls.on(Hls.Events.ERROR, (_, data) => {
-        if (data.fatal) {
-          hls.destroy();
-          hlsRef.current = null;
-          setHlsUrl(null);
-          getSignedVideoUrl(videoKey).then(setVideoUrl);
-        }
-      });
-
-      return () => {
-        hls.destroy();
-        hlsRef.current = null;
-      };
-    }
-  }, [hlsUrl, videoKey, initialTime, lessonId]);
 
   /* ============================================================
      ON UNMOUNT: Sync to DB
@@ -277,7 +237,6 @@ function VideoPlayer({
   useEffect(() => {
     return () => {
       // Final tracking call to capture the very last seconds
-      trackCoverage();
       syncToDB();
     };
   }, [lessonId]);
@@ -313,22 +272,13 @@ function VideoPlayer({
     localStorage.setItem(`video-progress-${lessonId}`, time.toString());
   };
 
-  const onLoadedMetadata = () => {
-    const savedTime = localStorage.getItem(`video-progress-${lessonId}`);
-    const timeToSeek = savedTime ? parseFloat(savedTime) : initialTime;
-
-    if (videoRef.current) {
-      videoRef.current.currentTime = timeToSeek;
-    }
+  const onLoadedMetadata = (duration: number) => {
+    // No-op for now as CustomPlayer handles seeking initially
   };
 
-  const onTimeUpdate = () => {
-    if (!videoRef.current) return;
-
-    const currentTime = videoRef.current.currentTime;
-    
+  const onTimeUpdate = (currentTime: number) => {
     // ✅ Track coverage
-    trackCoverage();
+    trackCoverage(currentTime);
 
     // Save position for resume (every 5 seconds)
     const lastSavedTime = parseFloat(
@@ -344,10 +294,7 @@ function VideoPlayer({
      VIDEO EVENT HANDLERS
   ============================================================ */
   const onPlay = () => {
-    // Sync initial position
-    if (videoRef.current) {
-      lastPositionRef.current = videoRef.current.currentTime;
-    }
+    // Handled via onTimeUpdate implicitly
   };
 
   const onPause = () => {
@@ -360,18 +307,6 @@ function VideoPlayer({
     syncToDB(); // Keep sync on end just in case, or remove if user strictly wants refresh/exit only
   };
 
-  const onWaiting = () => {
-    // Don't stop auto-save during buffering, just stop tracking
-  };
-
-  /* ============================================================
-     QUALITY SWITCH
-  ============================================================ */
-  const changeQuality = (level: number) => {
-    if (!hlsRef.current) return;
-    hlsRef.current.currentLevel = level;
-    setCurrentLevel(level);
-  };
 
   /* ============================================================
      UI STATES
@@ -393,43 +328,21 @@ function VideoPlayer({
      PLAYER RENDER
   ============================================================ */
   return (
-    <div className="relative aspect-video bg-muted rounded-lg border overflow-hidden">
-      {levels.length > 0 && (
-        <select
-          value={currentLevel}
-          onChange={(e) => changeQuality(Number(e.target.value))}
-          className="absolute top-2 right-2 z-10 bg-primary text-primary-foreground text-sm font-medium rounded-md px-3 py-1 shadow-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          <option value={-1}>Auto</option>
-          {levels.map((l) => (
-            <option key={l} value={l}>
-              {hlsRef.current?.levels[l]?.height}p
-            </option>
-          ))}
-        </select>
+    <div className="relative aspect-video rounded-lg border overflow-hidden">
+      {sources.length > 0 && (
+        <CustomPlayer
+          key={lessonId}
+          sources={sources}
+          poster={thumbnailUrl}
+          initialTime={initialTime}
+          onTimeUpdate={onTimeUpdate}
+          onPlay={onPlay}
+          onPause={onPause}
+          onEnded={onEnded}
+          onLoadedMetadata={onLoadedMetadata}
+          className="w-full h-full"
+        />
       )}
-
-      <video
-        ref={videoRef}
-        data-lenis-prevent
-        className="w-full h-full object-contain accent-primary"
-        controls
-        preload="none"
-        playsInline
-        poster={thumbnailUrl}
-        controlsList="nodownload"
-        onContextMenu={(e) => e.preventDefault()}
-        crossOrigin="anonymous"
-        onLoadedMetadata={onLoadedMetadata}
-        onTimeUpdate={onTimeUpdate}
-        onPlay={onPlay}
-        onPause={onPause}
-        onEnded={onEnded}
-        onWaiting={onWaiting}
-      >
-        {!hlsUrl && videoUrl && <source src={videoUrl} type="video/mp4" />}
-        Your browser does not support HTML5 video.
-      </video>
     </div>
   );
 }
