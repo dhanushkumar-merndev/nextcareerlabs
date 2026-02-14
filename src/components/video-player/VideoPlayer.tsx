@@ -403,6 +403,11 @@ export function VideoPlayer({
           visibility: visible !important;
           object-fit: contain !important;
         }
+        ${currentTime > 0 ? `
+          .video-js .vjs-poster {
+            display: none !important;
+          }
+        ` : ''}
       `}} />
 
       <div data-vjs-player ref={videoRef} className="absolute inset-0 w-full h-full bg-black" />
@@ -448,7 +453,9 @@ export function VideoPlayer({
                 {spriteMetadata ? (() => {
                   const spritePos = getSpritePosition(hoverPosition.time);
                   return spritePos ? (
-                    <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md">
+                    // Move responsive scaling here to the container
+                    // origin-bottom ensures it grows upwards from the seekbar
+                    <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.7] sm:scale-[0.9] md:scale-[1.1] transition-transform duration-200">
                       <div className="relative rounded-md overflow-hidden">
                         <div
                           style={{

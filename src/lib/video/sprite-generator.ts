@@ -15,12 +15,13 @@ export class SpriteGenerator {
   private interval: number; // seconds
   private colCount: number;
   private rowCount: number; // max rows per sheet (calculated from max frames per sheet)
+ 
 
   constructor(
-    width = 160,
-    height = 90,
+    width = 240,     // Increased from 160px for better visibility
+    height = 135,    // Increased from 90px (maintains 16:9 ratio)
     interval = 10,
-    colCount = 5 // 5 cols * 160 = 800px wide
+    colCount = 5     // 5 cols * 240 = 1200px wide
   ) {
     this.width = width;
     this.height = height;
@@ -46,78 +47,95 @@ export class SpriteGenerator {
     }
   }
 
-  public async generate(file: File, onProgress?: ProgressCallback): Promise<SpriteGenerationResult> {
+  public async generate(
+    file: File, 
+    onProgress?: ProgressCallback,
+    timeRange?: { start: number; end: number }
+  ): Promise<SpriteGenerationResult> {
     const objectUrl = URL.createObjectURL(file);
     this.video.src = objectUrl;
 
     try {
       await this.loadVideoMetadata();
       const duration = this.video.duration;
-      const totalFrames = Math.ceil(duration / this.interval);
       
-      // Strategy: 1 Sprite Sheet per hour of video
-      // 1 hour = 3600s = 360 frames (at 10s interval)
+      const startTimestamp = timeRange?.start ?? 0;
+      const endTimestamp = timeRange?.end ?? duration;
+      
+      // Calculate global frame indices
+      // We align startTimestamp to the nearest interval to avoid drift
+      const startFrameIndex = Math.floor(startTimestamp / this.interval);
+      const endFrameIndex = Math.ceil(endTimestamp / this.interval);
+      const totalFramesToProcess = endFrameIndex - startFrameIndex;
+      
+      // Strategy: 1 Sprite Sheet per hour of video (360 frames)
       const framesPerSheet = 360; 
-      const sheetCount = Math.ceil(totalFrames / framesPerSheet);
+      
+      // We need to offset the sheet index if we are processing a chunk
+      // relativeSheetIndex 0 corresponds to the first sheet *of this chunk*
+      // But we want output filenames to be consistent globally? 
+      // Actually, if we merge later, we can just return blobs and let the merger handle naming?
+      // No, best to have unique names. "sprite-<timestamp>-<index>.jpg"?
+      // Or just return ordered list of blobs and generic names, then rename on merge.
+      
+      const chunkSheetCount = Math.ceil(totalFramesToProcess / framesPerSheet);
       
       const spriteBlobs: Blob[] = [];
       const spriteFileNames: string[] = [];
-      const vttLines: string[] = ["WEBVTT", ""];
+      const vttLines: string[] = []; // We won't add header here if merging, but for single run we might.
+      
+      // Only add header if this is a standalone run (no range) or the start
+      if (!timeRange || timeRange.start === 0) {
+        vttLines.push("WEBVTT", "");
+      }
 
-      for (let i = 0; i < sheetCount; i++) {
-        const startFrame = i * framesPerSheet;
-        const endFrame = Math.min((i + 1) * framesPerSheet, totalFrames);
-        const frameCountForSheet = endFrame - startFrame;
+      for (let i = 0; i < chunkSheetCount; i++) {
+        // Global frame numbers for this sheet
+        const sheetStartFrame = startFrameIndex + (i * framesPerSheet);
+        const sheetEndFrame = Math.min(startFrameIndex + ((i + 1) * framesPerSheet), endFrameIndex);
         
-        // Calculate canvas dimensions for this sheet
-        const rows = Math.ceil(frameCountForSheet / this.colCount);
+        // Calculate canvas dimensions
+        const framesInSheet = sheetEndFrame - sheetStartFrame;
+        const rows = Math.ceil(framesInSheet / this.colCount);
         const sheetWidth = this.colCount * this.width;
         const sheetHeight = rows * this.height;
 
-        // Resize canvas for the full sheet
-        if (this.canvas instanceof OffscreenCanvas) {
-            this.canvas.width = sheetWidth;
-            this.canvas.height = sheetHeight;
-        } else {
-            (this.canvas as HTMLCanvasElement).width = sheetWidth;
-            (this.canvas as HTMLCanvasElement).height = sheetHeight;
-        }
+        this.configureCanvas(sheetWidth, sheetHeight);
 
-        // Fill background with black (optional, good for letterboxing if needed)
+        // Fill background
         this.ctx.fillStyle = "black";
         this.ctx.fillRect(0, 0, sheetWidth, sheetHeight);
-
-        const fileName = `sprite-${i}.jpg`;
+        
+        // Use a unique name to avoid collision in parallel uploads if we used that
+        // But for consistency: "sprite-<startFrame>.jpg" is safe
+        const fileName = `sprite-${sheetStartFrame}.jpg`;
         spriteFileNames.push(fileName);
         
-        // Process frames for this sheet
         await this.processBatch(
-          startFrame, 
-          endFrame, 
-          i, 
+          sheetStartFrame, 
+          sheetEndFrame, 
           fileName, 
           vttLines, 
           onProgress, 
-          totalFrames
+          totalFramesToProcess, // logical total for this generator's progress
+          startFrameIndex // logical zero for progress calc
         );
 
-        // Export sheet to blob
         const blob = await this.canvasToBlob();
         spriteBlobs.push(blob);
         
-        // Minimal cleanup between sheets
         this.ctx.clearRect(0, 0, sheetWidth, sheetHeight);
       }
 
-      // Generate final VTT blob
       const vttContent = vttLines.join("\n");
       const vttBlob = new Blob([vttContent], { type: "text/vtt" });
 
       return {
         vttBlob,
         spriteBlobs,
-        spriteFileNames
-      };
+        spriteFileNames,
+        vttLinesRaw: vttLines // Return raw lines for merging
+      } as any; 
 
     } finally {
       URL.revokeObjectURL(objectUrl);
@@ -126,35 +144,47 @@ export class SpriteGenerator {
     }
   }
 
+  private configureCanvas(width: number, height: number) {
+        if (this.canvas instanceof OffscreenCanvas) {
+            this.canvas.width = width;
+            this.canvas.height = height;
+        } else {
+            (this.canvas as HTMLCanvasElement).width = width;
+            (this.canvas as HTMLCanvasElement).height = height;
+        }
+  }
+
   private async processBatch(
     startFrame: number, 
     endFrame: number, 
-    sheetIndex: number, 
     fileName: string, 
     vttLines: string[], 
     onProgress: ProgressCallback | undefined,
-    totalFrames: number
+    totalFrames: number,
+    baseFrameIndex: number
   ) {
-    const framesInThisBatch = endFrame - startFrame;
-    const batchSize = 50; // Process 50 seek/draw operations before yielding
+    const count = endFrame - startFrame;
+    const batchSize = 50;
     
-    for (let i = 0; i < framesInThisBatch; i++) {
+    for (let i = 0; i < count; i++) {
       const globalFrameIndex = startFrame + i;
-      const localFrameIndex = i;
+      // Local index relative to THIS sheet
+      const sheetLocalFrameIndex = i; 
       const timestamp = globalFrameIndex * this.interval;
 
-      // Yield to main thread every few frames to prevent UI freeze
       if (i % batchSize === 0) {
         await new Promise(resolve => setTimeout(resolve, 0));
         if (onProgress) {
-          const percent = Math.round((globalFrameIndex / totalFrames) * 100);
-          onProgress(percent, `Generating sprites... (${globalFrameIndex}/${totalFrames})`);
+            // Progress relative to this chunk
+            const processed = globalFrameIndex - baseFrameIndex;
+            const percent = Math.round((processed / totalFrames) * 100);
+            onProgress(percent, `Generating part...`);
         }
       }
 
       await this.seekTo(timestamp);
-      this.drawFrame(localFrameIndex);
-      this.addVTTEntry(vttLines, globalFrameIndex, localFrameIndex, fileName, timestamp);
+      this.drawFrame(sheetLocalFrameIndex);
+      this.addVTTEntry(vttLines, sheetLocalFrameIndex, fileName, timestamp);
     }
   }
 
@@ -170,7 +200,6 @@ export class SpriteGenerator {
 
   private addVTTEntry(
     vttLines: string[], 
-    globalFrameIndex: number, 
     localFrameIndex: number, 
     fileName: string, 
     timestamp: number
@@ -187,6 +216,81 @@ export class SpriteGenerator {
     vttLines.push(`${startTime} --> ${endTime}`);
     vttLines.push(`${fileName}#xywh=${x},${y},${this.width},${this.height}`);
   }
+
+  // --- Static Parallel Processing ---
+
+  static async generateParallel(
+    file: File, 
+    concurrency = 4,
+    onProgress?: (progress: number) => void
+  ): Promise<SpriteGenerationResult> {
+    
+    // 1. Get Duration
+    const tempVideo = document.createElement("video");
+    tempVideo.preload = "metadata";
+    const objectUrl = URL.createObjectURL(file);
+    tempVideo.src = objectUrl;
+    
+    await new Promise<void>((resolve, reject) => {
+        tempVideo.onloadedmetadata = () => resolve();
+        tempVideo.onerror = (e) => reject(e);
+    });
+    const duration = tempVideo.duration;
+    URL.revokeObjectURL(objectUrl); // Clean up temp
+
+    // 2. Split Duration
+    const chunkDuration = Math.ceil(duration / concurrency);
+    const generators: SpriteGenerator[] = [];
+    const promises: Promise<any>[] = [];
+    
+    // Track progress of each chunk
+    const progressMap = new Array(concurrency).fill(0);
+    
+    for (let i = 0; i < concurrency; i++) {
+        const gen = new SpriteGenerator();
+        generators.push(gen);
+        
+        const start = i * chunkDuration;
+        const end = Math.min((i + 1) * chunkDuration, duration);
+        
+        if (start >= duration) continue; // Skip empty chunks
+
+        promises.push(gen.generate(file, (p) => {
+            progressMap[i] = p;
+            const totalP = Math.round(progressMap.reduce((a, b) => a + b, 0) / concurrency);
+            onProgress?.(totalP);
+        }, { start, end }));
+    }
+
+    // 3. Wait for all
+    const results = await Promise.all(promises);
+
+    // 4. Merge Results
+    const finalVTTLines = ["WEBVTT", ""];
+    const finalBlobs: Blob[] = [];
+    const finalFileNames: string[] = [];
+
+    // Sort results by start time (implicitly handled by array order 0..3)
+    results.forEach((res) => {
+        // Filter out existing WEBVTT headers if any sub-gen added them
+        const lines = (res.vttLinesRaw || []).filter((l: string) => l !== "WEBVTT" && l !== "");
+        finalVTTLines.push(...lines);
+        
+        finalBlobs.push(...res.spriteBlobs);
+        finalFileNames.push(...res.spriteFileNames);
+    });
+
+    const mergedVTTContent = finalVTTLines.join("\n");
+    const mergedVTTBlob = new Blob([mergedVTTContent], { type: "text/vtt" });
+
+    return {
+        vttBlob: mergedVTTBlob,
+        spriteBlobs: finalBlobs,
+        spriteFileNames: finalFileNames
+    };
+  }
+
+  // ... (keep private methods: drawFrame, loadVideoMetadata, seekTo, canvasToBlob, formatVTTTime, pad)
 
   private loadVideoMetadata(): Promise<void> {
     return new Promise((resolve, reject) => {
