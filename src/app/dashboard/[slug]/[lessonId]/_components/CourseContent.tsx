@@ -60,18 +60,36 @@ function VideoPlayer({
   const spriteUrl = useConstructUrl(spriteKey || "");
 
   const spriteMetadata = useMemo(() => {
-    if (!spriteKey || !spriteCols || !spriteRows || !spriteInterval || !spriteWidth || !spriteHeight) {
-      return undefined;
+    // 1. If we have an explicit spriteKey, use it (VTT or Legacy)
+    if (spriteKey) {
+       // Legacy check: if it's meant to be a grid but missing dims, we might fail, 
+       // but for VTT we just need the key.
+       return {
+          url: spriteUrl,
+          cols: spriteCols ?? 0,
+          rows: spriteRows ?? 0,
+          interval: spriteInterval ?? 0,
+          width: spriteWidth ?? 0,
+          height: spriteHeight ?? 0,
+       };
     }
-    return {
-      url: spriteUrl,
-      cols: spriteCols,
-      rows: spriteRows,
-      interval: spriteInterval,
-      width: spriteWidth,
-      height: spriteHeight,
-    };
-  }, [spriteUrl, spriteKey, spriteCols, spriteRows, spriteInterval, spriteWidth, spriteHeight]);
+
+    // 2. Fallback: If no spriteKey but we have a videoKey, infer standard VTT path
+    if (videoKey) {
+        const baseKey = videoKey.replace(/\.[^/.]+$/, "");
+        const inferredKey = `sprites/${baseKey}/thumbnails.vtt`;
+        // We can't use useConstructUrl inside useMemo meaningfully if we didn't call it top level,
+        // but here we know the bucket pattern. 
+        // Better: let's use the hook for the inferred key if possible, or just construct it manually via env.
+        const inferredUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredKey}`;
+        return {
+           url: inferredUrl,
+           cols: 0, rows: 0, interval: 0, width: 0, height: 0
+        };
+    }
+
+    return undefined;
+  }, [spriteUrl, spriteKey, videoKey, spriteCols, spriteRows, spriteInterval, spriteWidth, spriteHeight]);
   // const videoRef = useRef<HTMLVideoElement>(null); // Removed as CustomPlayer handles the tech
   // Track video coverage delta
   const lastPositionRef = useRef<number>(initialTime);

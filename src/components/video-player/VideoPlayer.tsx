@@ -248,8 +248,101 @@ export function VideoPlayer({
     return { x, time };
   };
 
+  const [vttCues, setVttCues] = useState<any[]>([]);
+
+  // Fetch and parse VTT if spriteMetadata.url contains .vtt
+  useEffect(() => {
+    const isVTT = spriteMetadata?.url && (spriteMetadata.url.includes(".vtt") || spriteMetadata.url.includes("thumbnails"));
+    
+    if (!isVTT) {
+        console.log("VideoPlayer: Not a VTT URL", spriteMetadata?.url);
+        setVttCues([]);
+        return;
+    }
+
+    console.log("VideoPlayer: Fetching VTT from", spriteMetadata.url);
+    fetch(spriteMetadata.url)
+      .then(res => {
+        if (!res.ok) throw new Error(`VTT fetch failed: ${res.status}`);
+        return res.text();
+      })
+      .then(text => {
+        console.log("VideoPlayer: VTT Loaded, length:", text.length);
+        const lines = text.split("\n");
+        // ... (rest of parser)
+        const parsedCues: any[] = [];
+        let currentCue: any = {};
+        
+        // Simple VTT parser
+        lines.forEach(line => {
+          line = line.trim();
+          if (line === "WEBVTT" || line === "") return;
+          
+          if (line.includes("-->")) {
+            const [start, end] = line.split("-->").map(t => {
+              const parts = t.trim().split(":");
+              let s = 0;
+              if (parts.length === 3) {
+                s += parseFloat(parts[0]) * 3600;
+                s += parseFloat(parts[1]) * 60;
+                s += parseFloat(parts[2]);
+              } else {
+                s += parseFloat(parts[0]) * 60;
+                s += parseFloat(parts[1]);
+              }
+              return s;
+            });
+            currentCue.startTime = start;
+            currentCue.endTime = end;
+          } else if (line.includes("#xywh=")) {
+            const [url, hash] = line.split("#xywh=");
+            const [x, y, w, h] = hash.split(",").map(Number);
+            currentCue.url = url;
+            currentCue.x = x;
+            currentCue.y = y;
+            currentCue.w = w;
+            currentCue.h = h;
+            parsedCues.push(currentCue);
+            currentCue = {};
+          }
+        });
+        console.log("VideoPlayer: Parsed Cues:", parsedCues.length);
+        setVttCues(parsedCues);
+      })
+      .catch(err => console.error("VideoPlayer: Error loading VTT:", err));
+  }, [spriteMetadata?.url]);
+
   const getSpritePosition = (time: number) => {
     if (!spriteMetadata) return null;
+
+    // VTT Logic (New)
+    if (vttCues.length > 0) {
+        const cue = vttCues.find(c => time >= c.startTime && time < c.endTime);
+        if (!cue) {
+            // console.log("VideoPlayer: No cue found for time", time);
+            return null;
+        }
+        
+        // Construct full URL relative to VTT or absolute
+        const baseUrl = spriteMetadata.url.substring(0, spriteMetadata.url.lastIndexOf("/") + 1);
+        const imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
+        
+        // console.log("VideoPlayer: Showing sprite", imageUrl, cue.x, cue.y);
+
+        return {
+            backgroundImage: `url(${imageUrl})`,
+            backgroundPosition: `-${cue.x}px -${cue.y}px`,
+            backgroundSize: "initial", // Size is irrelevant for VTT as we just clip
+            width: cue.w,
+            height: cue.h,
+        };
+    }
+
+    // Legacy Grid Logic
+    // Guard against VTT-based metadata falling through (cols=0)
+    if (!spriteMetadata.cols || !spriteMetadata.rows || !spriteMetadata.interval) {
+        return null;
+    }
     const index = Math.min(
       Math.floor(time / spriteMetadata.interval),
       spriteMetadata.cols * spriteMetadata.rows - 1
@@ -337,6 +430,7 @@ export function VideoPlayer({
         <div 
           className="space-y-3 pb-4 px-4"
           onClick={(e) => e.stopPropagation()}
+          onMouseLeave={() => setHoverPosition(null)}
         >
           <div 
             className="relative group/seekbar pt-4 touch-none"
@@ -348,7 +442,7 @@ export function VideoPlayer({
           >
             {hoverPosition && (
               <div 
-                className="absolute bottom-full mb-3 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150"
+                className="absolute bottom-full mb-3 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none"
                 style={{ left: `${(hoverPosition.time / duration) * 100}%` }}
               >
                 {spriteMetadata ? (() => {

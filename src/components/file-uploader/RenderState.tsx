@@ -52,10 +52,8 @@ export function RenderUploadedState({
   fileType,
   hlsUrl,
   isSpriteGenerated,
-  spriteGenerating,
   spriteMetadata,
   onDurationLoaded,
-  onManualSpriteClick,
 }: {
   previewUrl: string;
   isDeleting: boolean;
@@ -67,7 +65,6 @@ export function RenderUploadedState({
   spriteGenerating?: boolean;
   spriteMetadata?: any;
   onDurationLoaded?: (duration: number) => void;
-  onManualSpriteClick?: () => void;
 }) {
   const spriteProps = spriteMetadata ? {
     url: useConstructUrl(spriteMetadata.spriteKey),
@@ -77,6 +74,11 @@ export function RenderUploadedState({
     width: spriteMetadata.spriteWidth,
     height: spriteMetadata.spriteHeight,
   } : undefined;
+
+  useEffect(() => {
+    if (spriteMetadata) console.log("RenderUploadedState: spriteMetadata", spriteMetadata);
+    if (spriteProps) console.log("RenderUploadedState: spriteProps", spriteProps);
+  }, [spriteMetadata, spriteProps]);
 
   return (
     <div className="relative group w-full h-full flex items-center justify-center">
@@ -104,35 +106,7 @@ export function RenderUploadedState({
         </div>
       )}
 
-      {/* Manual Sprite Upload Button */}
-      {fileType === "video" && !isSpriteGenerated && !spriteGenerating && (
-        <div className="absolute top-2 right-16 z-50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-end gap-1">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onManualSpriteClick?.();
-            }}
-            className="bg-black/60 hover:bg-black/80 text-white border-white/20 backdrop-blur-md shadow-lg h-9 px-3"
-          >
-            <ImageIcon className="size-4 mr-2" />
-            Upload sprite.jpg
-          </Button>
-          <span className="text-[10px] text-white/50 pr-1 drop-shadow-md">
-            (160x90, 10 cols)
-          </span>
-        </div>
-      )}
 
-      {/* Sprites Live Badge */}
-      {isSpriteGenerated && (
-        <div className="absolute top-4 right-16 z-50 flex items-center gap-1.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded-md backdrop-blur-sm pointer-events-none">
-          <div className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[10px] font-bold tracking-wider uppercase">Sprites Live</span>
-        </div>
-      )}
 
       {/* Delete Button */}
       <Button

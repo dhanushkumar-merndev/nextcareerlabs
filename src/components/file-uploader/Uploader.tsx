@@ -15,6 +15,7 @@ import { useConstructUrl } from "@/hooks/use-construct-url";
 import { transcodeToHLS } from "@/lib/client-video-processor";
 import { env } from "@/lib/env";
 import { Loader2 } from "lucide-react";
+import { SpriteGenerator } from "@/lib/video/sprite-generator";
 
 const getS3Url = (key: string) => `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${key}`;
 
@@ -55,11 +56,11 @@ const getHLSDuration = async (url: string): Promise<number> => {
 
 export interface SpriteMetadata {
   spriteKey: string;
-  spriteCols: number;
-  spriteRows: number;
-  spriteInterval: number;
-  spriteWidth: number;
-  spriteHeight: number;
+  spriteCols?: number;
+  spriteRows?: number;
+  spriteInterval?: number;
+  spriteWidth?: number;
+  spriteHeight?: number;
 }
 
 interface iAppProps {
@@ -92,7 +93,6 @@ interface UploaderState {
 }
 
 export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey }: iAppProps) {
-  const spriteInputRef = useRef<HTMLInputElement>(null);
   const fileUrl = useConstructUrl(value || "");
   
   // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
@@ -115,7 +115,12 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
     transcodingProgress: 0,
     spriteGenerating: false,
     spriteUploadProgress: 0,
-    isSpriteGenerated: !!initialSpriteKey,
+    isSpriteGenerated: !!initialSpriteKey || !!extractedBaseKey,
+    spriteMetadata: initialSpriteKey ? {
+        spriteKey: initialSpriteKey
+    } : (extractedBaseKey ? {
+        spriteKey: `sprites/${extractedBaseKey}/thumbnails.vtt`
+    } : undefined),
     baseKey: extractedBaseKey,
     duration: initialDuration,
   });
@@ -156,8 +161,23 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           }, duration);
           setFileState((s) => ({ ...s, transcoding: false }));
 
+          // 1.5 Generate Sprites (New Auto Step)
+          setFileState((s) => ({ ...s, spriteGenerating: true, spriteUploadProgress: 0 }));
+          toast.info("Generating thumbnails...");
+          
+          let spriteResult: any = null;
+          try {
+             const generator = new SpriteGenerator();
+             spriteResult = await generator.generate(file, (progress, status) => {
+                setFileState(s => ({ ...s, spriteUploadProgress: progress }));
+             });
+          } catch (spriteError) {
+             console.error("Auto sprite generation failed:", spriteError);
+             toast.error("Thumbnail generation failed, but video will still upload.");
+          }
+
           // 2. Prepare for upload
-          setFileState((s) => ({ ...s, uploading: true, progress: 0 }));
+          setFileState((s) => ({ ...s, uploading: true, progress: 0, spriteGenerating: false }));
           const baseKey = `${uuidv4()}-${file.name.replace(/\.[^/.]+$/, "")}`;
 
           // Create the list of all files that need pre-signed URLs
@@ -180,6 +200,33 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
             })),
           ];
 
+          // Add Sprites to Upload Request if generated
+          let vttKey: string | null = null;
+          if (spriteResult) {
+             // Sprites
+             spriteResult.spriteBlobs.forEach((blob: Blob, index: number) => {
+                const name = spriteResult.spriteFileNames[index];
+                uploadRequests.push({
+                    fileName: name,
+                    contentType: "image/jpeg",
+                    size: blob.size,
+                    isImage: true,
+                    isKeyDirect: true,
+                    customKey: `sprites/${baseKey}/${name}`
+                });
+             });
+             // VTT
+             vttKey = `sprites/${baseKey}/thumbnails.vtt`;
+             uploadRequests.push({
+                fileName: "thumbnails.vtt",
+                contentType: "text/vtt",
+                size: spriteResult.vttBlob.size,
+                isImage: false,
+                isKeyDirect: true,
+                customKey: vttKey
+             });
+          }
+
           // Batch request all pre-signed URLs at once
           const presignedRes = await fetch("/api/s3/upload", {
             method: "POST",
@@ -190,43 +237,80 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           if (!presignedRes.ok) throw new Error("Failed to get pre-signed URLs");
           const presignedUrls: { presignedUrl: string; key: string }[] = await presignedRes.json();
 
-          // 3. Upload Master Playlist (it's the first in our batch)
+          // 3. Upload Master Playlist (index 0)
           const m3u8Data = presignedUrls[0];
-          const masterRes = await fetch(m3u8Data.presignedUrl, {
+          await fetch(m3u8Data.presignedUrl, {
             method: "PUT",
             body: m3u8,
             headers: { "Content-Type": "application/x-mpegURL" },
           });
-          if (!masterRes.ok) throw new Error("Failed to upload master playlist");
 
-          // 4. Upload Segments (Now just one file: index.ts)
-          for (let i = 0; i < segments.length; i++) {
-            const segment = segments[i];
-            const { presignedUrl } = presignedUrls[i + 1]; // +1 because master was at 0
-            
-            await new Promise<void>((resolve, reject) => {
-              const xhr = new XMLHttpRequest();
-              xhr.upload.onprogress = (event) => {
-                if (event.lengthComputable) {
-                  const percent = Math.round((event.loaded / event.total) * 100);
-                  setFileState((s) => ({ ...s, progress: percent }));
-                }
-              };
-              xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                  resolve();
-                } else {
-                  reject(new Error(`Upload failed for segment ${i}`));
-                }
-              };
-              xhr.onerror = () => reject(new Error(`Network error for segment ${i}`));
-              xhr.open("PUT", presignedUrl);
-              xhr.setRequestHeader("Content-Type", "video/MP2T");
-              xhr.send(segment.blob);
-            });
+          // 4. Upload Segments & Sprites
+          // We map the original requests to the presigned URLs. 
+          // presignedUrls matches uploadRequests index-for-index.
+          
+          let completedUploads = 0;
+          const totalUploads = uploadRequests.length - 1; // Exclude master which is done
+
+          const uploadFileToS3 = async (index: number, blob: Blob, contentType: string) => {
+             const { presignedUrl } = presignedUrls[index];
+             await new Promise<void>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.upload.onprogress = (event) => {
+                   // ...
+                };
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        console.log(`Uploader: Success ${contentType} (${blob.size}b)`);
+                        resolve();
+                    } else {
+                        console.error(`Uploader: Failed ${contentType} status ${xhr.status}`);
+                        reject();
+                    }
+                };
+                xhr.onerror = () => {
+                    console.error(`Uploader: Network Error ${contentType}`);
+                    reject();
+                };
+                xhr.open("PUT", presignedUrl);
+                xhr.setRequestHeader("Content-Type", contentType);
+                xhr.send(blob);
+             });
+             completedUploads++;
+             setFileState((s) => ({ ...s, progress: Math.round((completedUploads / totalUploads) * 100) }));
+          };
+
+          // HLS Segments (indices 1 to segments.length)
+          const segmentPromises = segments.map((segment, i) => 
+             uploadFileToS3(i + 1, segment.blob, "video/MP2T")
+          );
+
+          // Sprites (indices after segments)
+          const spritePromises: Promise<void>[] = [];
+          if (spriteResult) {
+             let startIndex = 1 + segments.length;
+             // Sprite Images
+             spriteResult.spriteBlobs.forEach((blob: Blob, i: number) => {
+                spritePromises.push(uploadFileToS3(startIndex + i, blob, "image/jpeg"));
+             });
+             // VTT
+             const vttIndex = startIndex + spriteResult.spriteBlobs.length;
+             spritePromises.push(uploadFileToS3(vttIndex, spriteResult.vttBlob, "text/vtt"));
           }
 
+          await Promise.all([...segmentPromises, ...spritePromises]);
+
           const finalKey = `${baseKey}.${file.name.split(".").pop()}`;
+
+          // Update Metadata if sprites were generated
+          if (vttKey) {
+             const metadata: SpriteMetadata = {
+                spriteKey: vttKey, 
+             };
+             onSpriteChange?.(metadata);
+             setFileState(s => ({ ...s, isSpriteGenerated: true, spriteMetadata: metadata }));
+          }
+
           setFileState((prevState) => ({
             ...prevState,
             uploading: false,
@@ -298,144 +382,6 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
     [onChange, fileTypeAccepted]
   );
 
-  const handleManualSpriteUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setFileState(s => ({ ...s, spriteGenerating: true, spriteUploadProgress: 1 }));
-      toast.info("Preparing upload...");
-
-      let currentDuration = fileState.duration;
-      let currentBaseKey = fileState.baseKey;
-
-      // 1. Recover Base Key if missing
-      if (!currentBaseKey && value) {
-        if (value.startsWith('hls/')) currentBaseKey = value.split('/')[1];
-        else currentBaseKey = value.split('.')[0];
-      }
-      
-      console.log("Manual Sprite Upload - Pre-recovery check:", { 
-        value, 
-        currentBaseKey, 
-        currentDuration,
-      });
-
-      // 2. Recover Duration if missing
-      if (!currentDuration && value) {
-        // If the key is mistakenly an image, WE CANNOT RECOVER DURATION
-        if (value.match(/\.(jpg|jpeg|png|webp)$/i)) {
-          const errorMsg = `CANNOT RECOVER DURATION: Video field points to an image file (${value}). Please re-upload the actual video file first.`;
-          console.error(errorMsg);
-          toast.error(errorMsg);
-          setFileState(s => ({ ...s, spriteGenerating: false }));
-          return;
-        }
-
-        try {
-          // If it's a video, we ALWAYS try HLS first because transcoding creates it
-          const hlsKey = value.startsWith('hls/') ? value : `hls/${currentBaseKey}/master.m3u8`;
-          const playlistUrl = getS3Url(hlsKey);
-          
-          console.log("Attempting HLS duration recovery from:", playlistUrl);
-          currentDuration = await getHLSDuration(playlistUrl);
-          
-          // Fallback to MP4 only if HLS failed
-          if (!currentDuration) {
-            console.log("HLS recovery failed, attempting MP4 fallback...");
-            const mp4Key = value.startsWith('hls/') ? `${currentBaseKey}.mp4` : value;
-            const mp4Url = getS3Url(mp4Key);
-            currentDuration = await getVideoDuration(mp4Url);
-          }
-
-          if (currentDuration) {
-            onDurationChange?.(Math.round(currentDuration));
-            console.log("Recovered duration:", currentDuration);
-          }
-        } catch (e) {
-          console.error("Failed to recover duration:", e);
-        }
-      }
-
-      if (!currentBaseKey || !currentDuration) {
-        setFileState(s => ({ ...s, spriteGenerating: false }));
-        const errorMsg = `Video details missing (Key: ${currentBaseKey}, Dur: ${currentDuration}). Please verify your video upload is correct.`;
-        console.error(errorMsg);
-        toast.error(errorMsg);
-        return;
-      }
-
-      toast.info("Uploading custom sprite sheet...");
-
-      // Standard metadata matching the Python script (Smart Density)
-      const cols = 10;
-      // 1. Min 100 frames
-      // 2. Target 30s interval for long videos
-      // 3. Cap at 300 frames
-      const totalFrames = Math.max(100, Math.min(Math.floor(currentDuration / 30), 300));
-      
-      const interval = currentDuration / totalFrames;
-      const rows = Math.ceil(totalFrames / cols);
-
-      const spriteKey = `sprites/${currentBaseKey}/sprite.jpg`;
-      const response = await fetch("/api/s3/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: "sprite.jpg",
-          contentType: "image/jpeg",
-          size: file.size,
-          baseKey: currentBaseKey,
-          isImage: true,
-          isKeyDirect: true,
-          customKey: spriteKey
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to get upload URL");
-      const { presignedUrl, key } = await response.json();
-      
-      await new Promise<void>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percent = Math.round((event.loaded / event.total) * 100);
-            setFileState((s) => ({ ...s, spriteUploadProgress: percent }));
-          }
-        };
-        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error("Upload failed"));
-        xhr.onerror = () => reject(new Error("Upload error"));
-        xhr.open("PUT", presignedUrl);
-        xhr.setRequestHeader("Content-Type", "image/jpeg");
-        xhr.send(file);
-      });
-
-      const metadata = {
-        spriteKey: key,
-        spriteCols: cols,
-        spriteRows: rows,
-        spriteInterval: interval,
-        spriteWidth: 160,
-        spriteHeight: 90,
-      };
-
-      onSpriteChange?.(metadata);
-
-      setFileState(s => ({ 
-        ...s, 
-        isSpriteGenerated: true,
-        spriteMetadata: metadata,
-        baseKey: currentBaseKey,
-        duration: currentDuration
-      }));
-      toast.success("Custom sprite uploaded successfully");
-    } catch (e) {
-      console.error("Manual sprite upload failed:", e);
-      toast.error("Failed to upload custom sprite.");
-    } finally {
-      setFileState(s => ({ ...s, spriteGenerating: false }));
-    }
-  }, [fileState.baseKey, fileState.duration, onSpriteChange, value, onDurationChange]);
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -543,13 +489,17 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
 
   function renderContent() {
     // 1. If currently uploading or transcoding the MAIN video, show full-screen progress
-    if (fileState.uploading || fileState.transcoding) {
+    if (fileState.uploading || fileState.transcoding || fileState.spriteGenerating) {
       let label = "Uploading...";
       let progress = fileState.progress;
 
       if (fileState.transcoding) {
         label = "Optimizing for streaming...";
         progress = fileState.transcodingProgress;
+      }
+      else if (fileState.spriteGenerating) {
+        label = "Generating thumbnails...";
+        progress = fileState.spriteUploadProgress;
       }
 
       return (
@@ -581,6 +531,11 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
       const isExistingVideo = !fileState.file;
       const hlsKey = (isExistingVideo && fileState.key) ? `hls/${fileState.key.replace(/\.[^/.]+$/, "")}/master.m3u8` : undefined;
       const hlsUrl = hlsKey ? useConstructUrl(hlsKey) : undefined;
+      
+      // Reactive Sprite Metadata: Use state if available (new upload), otherwise derive from key (existing)
+      const effectiveSpriteMetadata = fileState.spriteMetadata || (extractedBaseKey ? {
+          spriteKey: `sprites/${extractedBaseKey}/thumbnails.vtt`
+      } : undefined);
 
       return (
         <div className="relative w-full h-full">
@@ -590,9 +545,9 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
             handleRemoveFile={handleRemoveFile}
             isDeleting={fileState.isDeleting}
             fileType={fileTypeAccepted}
-            isSpriteGenerated={fileState.isSpriteGenerated}
+            isSpriteGenerated={fileState.isSpriteGenerated || !!effectiveSpriteMetadata}
             spriteGenerating={fileState.spriteGenerating}
-            spriteMetadata={fileState.spriteMetadata}
+            spriteMetadata={effectiveSpriteMetadata}
             onDurationLoaded={(d) => {
               if (!fileState.duration) {
                 console.log("Uploader: Auto-captured duration from player:", d);
@@ -600,7 +555,6 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
                 onDurationChange?.(Math.round(d));
               }
             }}
-            onManualSpriteClick={() => spriteInputRef.current?.click()}
           />
           {/* Background Upload Indicator */}
           {fileState.spriteGenerating && (
@@ -639,7 +593,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
     <Card
       {...getRootProps()}
       className={cn(
-        "relative border-2 border-dashed transition-colors duration-200 ease-ini-out w-full h-64 rounded-lg",
+        "relative border-2 border-dashed transition-colors duration-200 ease-ini-out w-full h-72 md:h-[500px] rounded-lg",
         isDragActive
           ? "border-primary bg-primary/10 border-solid"
           : "border-border hover:border-primary"
@@ -647,13 +601,6 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
     >
       <CardContent className="flex items-center justify-center h-full w-full p-4">
         <input {...getInputProps()} />
-        <input 
-          ref={spriteInputRef}
-          type="file"
-          accept="image/jpeg"
-          className="hidden"
-          onChange={handleManualSpriteUpload}
-        />
         {renderContent()}
       </CardContent>
     </Card>
