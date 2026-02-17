@@ -24,65 +24,68 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
     return { ...cached, version: currentVersion };
   }
 
-  const lesson = await prisma.lesson.findUnique({
-    where: {
-      id: lessonId,
-    },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      thumbnailKey: true,
-      videoKey: true,
-      position: true,
-      // Sprite sheet metadata for hover preview
-      spriteKey: true,
-      spriteCols: true,
-      spriteRows: true,
-      spriteInterval: true,
-      spriteWidth: true,
-      spriteHeight: true,
-      lessonProgress: {
-        where: {
-          userId: session.id,
-        },
-        select: {
-          completed: true,
-          lessonId: true,
-          lastWatched: true,
-          actualWatchTime: true,
-        },
+  // ✅ Optimization: Concurrent fetching of lesson and enrollment
+  const [lesson, enrollment] = await Promise.all([
+    prisma.lesson.findUnique({
+      where: {
+        id: lessonId,
       },
-      Chapter: {
-        select: {
-          courseId: true,
-          Course: {
-            select: {
-              slug: true,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        thumbnailKey: true,
+        videoKey: true,
+        position: true,
+        spriteKey: true,
+        spriteCols: true,
+        spriteRows: true,
+        spriteInterval: true,
+        spriteWidth: true,
+        spriteHeight: true,
+        lessonProgress: {
+          where: {
+            userId: session.id,
+          },
+          select: {
+            completed: true,
+            lessonId: true,
+            lastWatched: true,
+            actualWatchTime: true,
+          },
+        },
+        Chapter: {
+          select: {
+            courseId: true,
+            Course: {
+              select: {
+                slug: true,
+              },
             },
           },
         },
       },
-    },
-  });
+    }),
+    prisma.enrollment.findFirst({
+        where: {
+            userId: session.id,
+            Course: {
+                chapter: {
+                    some: {
+                        lesson: {
+                            some: {
+                                id: lessonId
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        select: { status: true }
+    })
+  ]);
 
-  if (!lesson) {
-    return notFound();
-  }
-
-  const enrollment = await prisma.enrollment.findUnique({
-    where: {
-      userId_courseId: {
-        userId: session.id,
-        courseId: lesson.Chapter.courseId,
-      },
-    },
-    select: {
-      status: true,
-    },
-  });
-
-  if (!enrollment || enrollment.status !== "Granted") {
+  if (!lesson || !enrollment || enrollment.status !== "Granted") {
     return notFound();
   }
 
