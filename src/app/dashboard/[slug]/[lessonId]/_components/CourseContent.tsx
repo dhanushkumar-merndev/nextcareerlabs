@@ -62,12 +62,11 @@ function VideoPlayer({
 }) {
   const thumbnailUrl = useConstructUrl(thumbnailkey);
   const spriteUrl = useConstructUrl(spriteKey || "");
+  const [vttCues, setVttCues] = useState<any[]>([]);
 
   const spriteMetadata = useMemo(() => {
     // 1. If we have an explicit spriteKey, use it (VTT or Legacy)
     if (spriteKey) {
-       // Legacy check: if it's meant to be a grid but missing dims, we might fail, 
-       // but for VTT we just need the key.
        return {
           url: spriteUrl,
           cols: spriteCols ?? 0,
@@ -82,9 +81,6 @@ function VideoPlayer({
     if (videoKey) {
         const baseKey = videoKey.replace(/\.[^/.]+$/, "");
         const inferredKey = `sprites/${baseKey}/thumbnails.vtt`;
-        // We can't use useConstructUrl inside useMemo meaningfully if we didn't call it top level,
-        // but here we know the bucket pattern. 
-        // Better: let's use the hook for the inferred key if possible, or just construct it manually via env.
         const inferredUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredKey}`;
         return {
            url: inferredUrl,
@@ -94,6 +90,61 @@ function VideoPlayer({
 
     return undefined;
   }, [spriteUrl, spriteKey, videoKey, spriteCols, spriteRows, spriteInterval, spriteWidth, spriteHeight]);
+
+  // ✅ Prefetch VTT metadata
+  useEffect(() => {
+    if (!spriteMetadata?.url || !spriteMetadata.url.includes(".vtt")) return;
+    
+    const fetchVtt = async () => {
+        try {
+            const res = await fetch(spriteMetadata.url);
+            if (!res.ok) return;
+            const text = await res.text();
+            
+            // Simple VTT parser to pre-parse for the player
+            const lines = text.split("\n");
+            const parsedCues: any[] = [];
+            let currentCue: any = {};
+            
+            lines.forEach(line => {
+              line = line.trim();
+              if (line === "WEBVTT" || line === "") return;
+              
+              if (line.includes("-->")) {
+                const [start, end] = line.split("-->").map(t => {
+                  const parts = t.trim().split(":");
+                  let s = 0;
+                  if (parts.length === 3) {
+                    s += parseFloat(parts[0]) * 3600;
+                    s += parseFloat(parts[1]) * 60;
+                    s += parseFloat(parts[2]);
+                  } else {
+                    s += parseFloat(parts[0]) * 60;
+                    s += parseFloat(parts[1]);
+                  }
+                  return s;
+                });
+                currentCue.startTime = start;
+                currentCue.endTime = end;
+              } else if (line.includes("#xywh=")) {
+                const [url, hash] = line.split("#xywh=");
+                const [x, y, w, h] = hash.split(",").map(Number);
+                currentCue.url = url;
+                currentCue.x = x;
+                currentCue.y = y;
+                currentCue.w = w;
+                currentCue.h = h;
+                parsedCues.push(currentCue);
+                currentCue = {};
+              }
+            });
+            setVttCues(parsedCues);
+        } catch (e) {
+            console.error("[VTT Prefetch] Failed:", e);
+        }
+    };
+    fetchVtt();
+  }, [spriteMetadata?.url]);
   // const videoRef = useRef<HTMLVideoElement>(null); // Removed as CustomPlayer handles the tech
   // Track video coverage delta
   const lastPositionRef = useRef<number>(initialTime);
@@ -421,7 +472,7 @@ function VideoPlayer({
           onPause={onPause}
           onEnded={onEnded}
           onLoadedMetadata={onLoadedMetadata}
-          spriteMetadata={spriteMetadata}
+          spriteMetadata={spriteMetadata ? { ...spriteMetadata, initialCues: vttCues } : undefined}
           className="w-full h-full"
         />
       )}

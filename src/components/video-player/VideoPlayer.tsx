@@ -21,6 +21,7 @@ import {
   DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import Loader from "@/components/ui/Loader";
 
 export interface VideoSource {
   src: string;
@@ -34,6 +35,7 @@ export interface SpriteMetadata {
   interval: number;
   width: number;
   height: number;
+  initialCues?: any[];
 }
 
 interface VideoPlayerProps {
@@ -249,8 +251,16 @@ export function VideoPlayer({
   };
 
 
-  const [vttCues, setVttCues] = useState<any[]>([]);
+  const [vttCues, setVttCues] = useState<any[]>(spriteMetadata?.initialCues || []);
   const [vttLoading, setVttLoading] = useState(false);
+
+  // Sync initial cues if they arrive later
+  useEffect(() => {
+    if (spriteMetadata?.initialCues && spriteMetadata.initialCues.length > 0) {
+        setVttCues(spriteMetadata.initialCues);
+        preloadSpriteImages(spriteMetadata.initialCues, spriteMetadata.url);
+    }
+  }, [spriteMetadata?.initialCues]);
 
   // Preload sprite images so they're cached by browser
   const preloadSpriteImages = (cues: any[], vttUrl: string) => {
@@ -513,7 +523,7 @@ export function VideoPlayer({
                     // Move responsive scaling here to the container
                     // origin-bottom ensures it grows upwards from the seekbar
                     <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">
-                      <div className="relative rounded-md overflow-hidden">
+                      <div className="relative rounded-md overflow-hidden bg-muted flex items-center justify-center" style={{ width: `${spritePos.width}px`, height: `${spritePos.height}px` }}>
                         <div
                           style={{
                             width: `${spritePos.width}px`,
@@ -524,12 +534,17 @@ export function VideoPlayer({
                             backgroundRepeat: 'no-repeat',
                           }}
                         />
+                        {/* Overlay label */}
                         <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/90">
                           {formatTime(hoverPosition.time)}
                         </div>
                       </div>
                     </div>
-                  ) : null;
+                  ) : (
+                    <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md flex items-center justify-center w-32 aspect-video">
+                        <Loader size={16} />
+                    </div>
+                  );
                 })() : (
                   <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 shadow-2xl backdrop-blur-md">
                     <div className="text-sm font-mono text-white/90">
