@@ -245,7 +245,7 @@ export function SlugPageWrapper({
         </div>
         {/* Course Sidebar */}
         <div className="order-2 lg:col-span-1">
-          <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
+          <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))] overflow-y-auto pb-6 px-2 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
             <div className="relative">
               <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
                 <CardContent className="p-6 space-y-8">

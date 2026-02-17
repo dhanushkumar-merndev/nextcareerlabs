@@ -10,9 +10,9 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.5541 0.2134 268.5328);
+  --primary: oklch(0.5627 0.0965 219.6548);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.5541 0.2134 268.5328);
+  --secondary: oklch(0.5627 0.0965 219.6548);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
@@ -43,7 +43,7 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     "Liberation Mono", "Courier New", monospace;
   --radius: 0.625rem;
-  --loader-color: #3b82f6;
+  --loader-color: #18829c;
   --shadow-x: 0;
   --shadow-y: 1px;
   --shadow-blur: 3px;
@@ -222,17 +222,17 @@ html.lenis body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4161ed;
+  background: #18829c;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgb(65, 97, 237);
+  background: #18829c;
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #4161ed transparent;
+  scrollbar-color: #18829c transparent;
 }
 
 @layer utilities {
@@ -245,11 +245,15 @@ html.lenis body {
   }
 }
 
+
 /* NextTopLoader Theme Overrides */
 #nprogress .bar {
-  background: var(--loader-color) !important;
+  background: linear-gradient(to right, #3b82f6, #4b64ee, #3b82f6) !important;
+  height: 2.5px !important;
+  opacity: 0.9;
+  border-radius: 5px !important;
 }
 
 #nprogress .peg {
-  box-shadow: 0 0 15px var(--loader-color), 0 0 10px var(--loader-color), 0 0 5px var(--loader-color) !important;
+  display: none !important;
 }

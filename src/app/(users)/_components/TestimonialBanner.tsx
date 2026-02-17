@@ -1,9 +1,8 @@
-/* This is Testimonial Banner Component */
-
 "use client";
+
 import { useState } from "react";
 import Image from "next/image";
-import { Twitter } from "lucide-react";
+
 import { Testimonial } from "@/lib/types/components";
 
 /* ================= DATA ================= */
@@ -82,83 +81,88 @@ const testimonials: Testimonial[] = [
   },
 ];
 
-// Testimonial Banner Component
-export default function TestimonialMasonry() {
-  const [showAll, setShowAll] = useState(false);
+/* ================= CARD ================= */
+function TestimonialCard({ t }: { t: Testimonial }) {
   return (
-    <section className="pt-16 md:py-28 px-4 ">
-      <div className="mx-auto max-w-7xl">
-        {/* TITLE */}
-        <div className="mb-12 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold tracking-tight">
-            What people are saying
-          </h2>
-          <p className="mt-3 text-muted-foreground">
-            Real feedback from our community
+    <div className="break-inside-avoid mb-6 rounded-2xl bg-card border border-border overflow-hidden hover:border-primary/40 hover:shadow-md transition-all duration-200">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 pt-5 pb-3">
+        <img
+          src={t.avatar}
+          alt={t.name}
+          className="size-10 rounded-full object-cover ring-2 ring-border"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          crossOrigin="anonymous"
+        />
+        <div>
+          <p className="text-sm font-semibold text-card-foreground leading-none mb-1">
+            {t.name}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {t.role} · {t.company}
           </p>
         </div>
-        {/* GRID WRAPPER */}
+      </div>
+
+      {/* Message */}
+      <p className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">
+        {t.message}
+      </p>
+
+      {/* Optional image */}
+      {t.image && (
+        <div className="relative w-full aspect-video">
+          <Image
+            src={t.image}
+            alt="testimonial media"
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            crossOrigin="anonymous"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================= SECTION ================= */
+export default function TestimonialMasonry() {
+  const [showAll, setShowAll] = useState(false);
+
+  return (
+    <section className="pt-10 md:pt-20 px-4">
+      <div className="mx-auto max-w-6xl">
+
+        {/* ── Header ── */}
+        <div className="mb-12 md:mb-18 text-center">
+          <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">
+            What people are saying
+          </h2>
+
+        </div>
+
+        {/* ── Grid ── */}
         <div className="relative">
-          {/* MASONRY GRID */}
           <div
-            className={`columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6 transition-[max-height] duration-500 ${
-              !showAll ? "max-h-[900px] overflow-hidden" : ""
+            className={`columns-1 sm:columns-2 lg:columns-3 gap-6 transition-[max-height] duration-500 ${
+              !showAll ? "max-h-[540px] md:max-h-[860px] overflow-hidden" : ""
             }`}
           >
             {testimonials.map((t) => (
-              <div
-                key={t.id}
-                className="break-inside-avoid rounded-xl bg-background border shadow-sm hover:shadow-md transition"
-              >
-                {/* HEADER */}
-                <div className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={t.avatar}
-                      alt={t.name}
-                      className="h-10 w-10 rounded-full object-cover"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      crossOrigin="anonymous"
-                    />
-                    <div>
-                      <p className="font-semibold leading-none">{t.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {t.role}, {t.company}
-                      </p>
-                    </div>
-                  </div>
-                  <Twitter className="h-5 w-5 text-sky-500" />
-                </div>
-                {/* MESSAGE */}
-                <div className="px-4 pb-4 text-sm leading-relaxed">
-                  {t.message}
-                </div>
-                {/* IMAGE */}
-                {t.image && (
-                  <div className="relative w-full aspect-video overflow-hidden rounded-b-xl">
-                    <Image
-                      src={t.image}
-                      alt="testimonial image"
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                      crossOrigin="anonymous"
-                    />
-                  </div>
-                )}
-              </div>
+              <TestimonialCard key={t.id} t={t} />
             ))}
           </div>
-          {/* FADE + BUTTON (OVERLAY) */}
+
+          {/* Fade + show more */}
           {!showAll && (
             <>
-              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-48 bg-linear-to-t from-background to-transparent" />
-
-              <div className="absolute bottom-0 md:-bottom-10 left-1/2 -translate-x-1/2">
+              <div className="pointer-events-none absolute bottom-0 inset-x-0 h-40 md:h-52 bg-linear-to-t from-background via-background/90 to-transparent" />
+              <div className="absolute bottom-4 inset-x-0 flex justify-center">
                 <button
                   onClick={() => setShowAll(true)}
-                  className="rounded-md border bg-background/70 px-6 py-2 text-sm font-medium backdrop-blur hover:bg-accent transition"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-semibold backdrop-blur-md bg-white/10 dark:bg-white/5 border border-white/30 dark:border-white/10 text-foreground shadow-[0_4px_24px_0_rgba(0,0,0,0.08)] hover:bg-white/20 dark:hover:bg-white/10 hover:border-white/50 active:scale-95 transition-all duration-200"
                 >
                   Show more stories
                 </button>
@@ -166,12 +170,13 @@ export default function TestimonialMasonry() {
             </>
           )}
         </div>
-        {/* SHOW LESS */}
+
+        {/* Show less */}
         {showAll && (
-          <div className="mt-8 flex justify-center">
+          <div className="mt-10 flex justify-center">
             <button
               onClick={() => setShowAll(false)}
-              className="rounded-md border px-6 py-2 text-sm font-medium hover:bg-accent transition"
+              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-border text-sm font-medium text-foreground hover:bg-accent transition-colors duration-150"
             >
               Show less
             </button>

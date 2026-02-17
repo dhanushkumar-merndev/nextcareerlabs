@@ -22,7 +22,7 @@ export function UserDropdown({ email, name, image }: UserDropdownProps) {
           </Avatar>
           <ChevronDownIcon
             size={16}
-            className="opacity-60 text-blue-500"
+            className="opacity-60 text-primary"
             aria-hidden="true"
           />
         </Button>

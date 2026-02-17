@@ -22,14 +22,14 @@ export function PublicCourseCard({data,enrollmentStatus = null,}: CoursesProps) 
         {data.level}
       </Badge>
       <Image
-        src={thumbnaiUrl}
-        alt="Thumbnail Url"
-        width={600}
-        height={400}
-        className="w-full aspect-video h-full object-cover rounded-t-lg"
-        priority
-        crossOrigin="anonymous"
-      />
+      src={thumbnaiUrl}
+      alt={data.title}
+      width={600}
+      height={400}
+      className="w-full aspect-video h-full object-cover rounded-t-lg"
+      loading="lazy"
+    />
+
       <CardContent className="p-4">
         <Link
           className="font-medium text-lg line-clamp-2 hover:underline group-hover:text-primary transition-colors"

@@ -128,7 +128,7 @@ export default function Stacking() {
     <section className="pt-10 flex justify-center">
       <div className="w-full max-w-7xl px-4">
         {/* STICKY HEADING */}
-        <div ref={headingRef} className="sticky top-28 z-30 bg-background/90 backdrop-blur pb-6 will-change-transform text-center">
+        <div ref={headingRef} className="sticky top-28 z-30 bg-background pb-6 will-change-transform text-center">
           <h2 className="text-3xl md:text-5xl font-bold tracking-tight">
             Our Programs
           </h2>
@@ -139,56 +139,66 @@ export default function Stacking() {
             const isReverse = i % 2 !== 0;
 
             return (
-              <li key={i} className="stack-item sticky top-50 md:top-60 aspect-square md:aspect-5/2 rounded-xl bg-background border shadow-xl transform-gpu origin-top">
-                <div className={`h-full w-full flex flex-col md:flex-row ${isReverse ? "md:flex-row-reverse" : ""} items-center justify-center md:justify-start`}>
-                  {/* TEXT */}
-                  <div className="w-full md:w-[45%] p-6 md:p-10 space-y-4">
-                    {/* TITLE + LOGO */}
-                    <div className="flex items-center gap-3">
-                      {/* Logo */}
+              <li key={i} className="stack-item sticky top-50 md:top-60 aspect-4/5 md:aspect-5/2 rounded-3xl bg-background border shadow-2xl transform-gpu origin-top overflow-hidden">
+                <div className={`h-full w-full flex flex-col md:flex-row ${isReverse ? "md:flex-row-reverse" : ""} transition-all duration-500`}>
+                  
+                  {/* IMAGE SECTION - Top 50% on Mobile, 55% Width on Desktop */}
+                  <div className="w-full h-1/2 md:h-full md:w-[55%] p-4 md:p-8">
+                    <div className="relative h-full w-full rounded-2xl overflow-hidden border bg-muted/20">
                       <Image
-                        src={program.logo}
-                        alt={`${program.title} logo`}
-                        width={56}
-                        height={56}
-                        className="h-8 w-8 md:h-14 md:w-14 object-contain"
+                        src={program.image}
+                        alt={program.title}
+                        fill
+                        className="object-cover transition-transform duration-700 group-hover:scale-105"
                         loading="lazy"
                       />
-                      {/* Title */}
-                      <h3 className="text-2xl md:text-3xl font-semibold tracking-tight">
+                    </div>
+                  </div>
+
+                  {/* TEXT SECTION - Bottom 50% on Mobile, 45% Width on Desktop */}
+                  <div className="w-full h-1/2 md:h-full md:w-[45%] p-6 md:p-10 flex flex-col">
+                    {/* TITLE + LOGO */}
+                    <div className="flex items-center gap-4 mb-4">
+                      <div className="p-2 rounded-xl bg-background border shadow-sm">
+                        <Image
+                          src={program.logo}
+                          alt={`${program.title} logo`}
+                          width={48}
+                          height={48}
+                          className="h-8 w-8 md:h-12 md:w-12 object-contain"
+                          loading="lazy"
+                        />
+                      </div>
+                      <h3 className="text-xl md:text-3xl font-bold tracking-tight">
                         {program.title}
                       </h3>
                     </div>
 
-                    {/* Description */}
-                    <p className="text-muted-foreground leading-relaxed text-base md:text-lg whitespace-pre-line">
-                      {program.description}
-                    </p>
+                    {/* Description Container with Gradient Fade for Overflow */}
+                    <div className="relative flex-1 overflow-hidden min-h-0">
+                      <p className="text-muted-foreground leading-relaxed text-sm md:text-lg whitespace-pre-line">
+                        {program.description}
+                      </p>
+                      {/* Gradient Fade to indicate overflow on mobile */}
+                      <div className="absolute bottom-0 left-0 w-full h-16 bg-linear-to-t from-background via-background/80 to-transparent pointer-events-none md:hidden" />
+                      <div className="absolute bottom-0 left-0 w-full h-12 bg-linear-to-t from-background/40 to-transparent hidden md:block pointer-events-none" />
+                    </div>
 
-                    {/* View Button */}
-                    <div className="flex justify-end">
+                    {/* View Button - Aligned Right */}
+                    <div className="flex justify-end pt-4 mt-auto">
                       <Link
                         href="/courses"
-                        className={buttonVariants({ className: "gap-2" , variant:"outline" })}
+                        className={buttonVariants({ 
+                          className: "group/btn px-6 rounded-full font-medium transition-all hover:pr-5", 
+                          variant: "outline" 
+                        })}
                       >
-                        View
-                        <ChevronRight className="h-4 w-4" />
+                        Explore
+                        <ChevronRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
                       </Link>
                     </div>
                   </div>
 
-                  {/* IMAGE — DESKTOP */}
-                  <div className="hidden md:block w-full md:w-[55%] p-6 md:p-10">
-                    {/* Image Container */}
-                    <div className="relative aspect-video w-full rounded-lg overflow-hidden border">
-                      <img
-                        src={program.image}
-                        alt={program.title}
-                        className="absolute inset-0 h-full w-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                  </div>
                 </div>
               </li>
             );
