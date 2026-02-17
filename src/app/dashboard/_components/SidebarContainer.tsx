@@ -129,7 +129,7 @@ export function SidebarContainer({
       {/* MAIN CONTENT AREA */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
         {/* DESKTOP SIDEBAR */}
-       <div className="hidden md:block w-80 border-r border-border shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
+       <div className="hidden md:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
           {isLoading && !activeCourse ? (
             <div className="p-4 space-y-4">
               <div className="h-8 bg-muted animate-pulse rounded" />
@@ -149,7 +149,7 @@ export function SidebarContainer({
           </div>
           
           {/* MOBILE PLAYLIST (Visible only on mobile, below content) */}
-          <div className="md:hidden border-t border-border mt-4  pb-12">
+          <div className="md:hidden border-t border-border pb-12">
             {!activeCourse ? (
                <div className="p-4 space-y-2">
                  {[1,2,3].map(i => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}

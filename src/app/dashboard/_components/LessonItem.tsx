@@ -1,8 +1,8 @@
-"use client";
-
 import { cn } from "@/lib/utils";
-import { Play, Check } from "lucide-react";
+import { Play, Check, Clock } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
+import { useConstructUrl } from "@/hooks/use-construct-url";
 
 interface iAppProps {
   lesson: {
@@ -10,106 +10,104 @@ interface iAppProps {
     title: string;
     position: number;
     description: string | null;
+    thumbnailKey?: string | null;
+    duration?: number | null;
   };
   slug: string;
   isActive?: boolean;
   completed: boolean;
+  courseThumbnail?: string | null;
 }
 
-export function LessonItem({ lesson, slug, isActive, completed }: iAppProps) {
+export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail }: iAppProps) {
+  const thumbnail = useConstructUrl(lesson.thumbnailKey || courseThumbnail || "");
+
   return (
     <Link
       href={`/dashboard/${slug}/${lesson.id}`}
       className={cn(
-        "w-full p-3 h-auto flex items-center justify-start rounded-xl transition-all border group",
+        "w-full p-2 h-auto flex items-center justify-start rounded-xl transition-all border group relative overflow-hidden",
 
         // Normal
-        !completed &&
-          !isActive &&
-          "bg-card text-foreground hover:bg-accent hover:text-accent-foreground",
+        !isActive &&
+          "bg-card/50 hover:bg-accent border-transparent hover:border-border/50",
 
-        // Active (not completed)
+        // Active
         isActive &&
-          !completed &&
-          "bg-primary/10 border-primary shadow-md ring-1 ring-primary/30",
+          "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20",
 
-        // Completed (dimmed)
-        completed &&
-          !isActive &&
-          "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-900 dark:text-green-200 opacity-70",
-
-        // Active + Completed (bright)
-        completed &&
-          isActive &&
-          "opacity-100 bg-green-100 dark:bg-green-900/40 border-green-600 ring-2 ring-green-500/40 shadow-md"
+        // Completed (subtle indicator)
+        completed && !isActive && "opacity-80"
       )}
     >
+      {/* Background active indicator */}
+      {isActive && (
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
+      )}
+
       <div className="flex items-center gap-3 w-full min-w-0">
-        {/* ICON */}
-        <div className="shrink-0">
-          <div
+        {/* THUMBNAIL CONTAINER */}
+        <div className="relative shrink-0 w-24 md:w-28 aspect-video rounded-lg overflow-hidden border bg-muted">
+          <Image
+            src={thumbnail}
+            alt={lesson.title}
+            fill
             className={cn(
-              "size-6 rounded-full flex justify-center items-center transition-all",
-
-              !completed &&
-                "border border-primary/40 bg-background text-primary/60",
-
-              completed &&
-                !isActive &&
-                "border-green-500 bg-green-100 dark:bg-green-900/40 text-green-700/70 dark:text-green-300/70",
-
-              completed &&
-                isActive &&
-                "border-green-700 bg-green-200 dark:bg-green-900/60 text-green-800 dark:text-green-300 shadow"
+              "object-cover transition-transform duration-500 group-hover:scale-105",
+              isActive ? "opacity-40" : "opacity-90"
             )}
-          >
-            {completed ? (
-              <Check className="size-3" />
-            ) : (
-              <Play className="size-3" />
-            )}
-          </div>
+            loading="lazy"
+          />
+          
+          {/* Active Overlay */}
+          {isActive && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="p-1.5 rounded-full bg-primary/20 backdrop-blur-sm border border-primary/40">
+                <Play className="size-3 text-primary fill-primary" />
+              </div>
+            </div>
+          )}
+
+          {/* Progress Indicator (if completed) */}
+          {completed && (
+            <div className="absolute top-1 right-1 p-0.5 rounded-full bg-green-500 shadow-sm border border-white dark:border-zinc-900">
+              <Check className="size-2 text-white" strokeWidth={4} />
+            </div>
+          )}
         </div>
 
-        {/* TEXT */}
-        <div className="flex flex-col min-w-0">
-          <p
+        {/* TEXT CONTENT */}
+        <div className="flex flex-col min-w-0 flex-1 py-0.5">
+          <h4
             className={cn(
-              "text-sm font-medium truncate",
-
-              completed &&
-                !isActive &&
-                "text-green-700 dark:text-green-200 opacity-70",
-
-              completed &&
-                isActive &&
-                "text-green-700 dark:text-green-300 font-semibold opacity-100",
-
-              isActive && !completed && "text-primary font-semibold"
+              "text-xs md:text-sm font-semibold line-clamp-2 leading-snug transition-colors",
+              isActive ? "text-primary" : "text-card-foreground group-hover:text-primary/90",
+              completed && !isActive && "text-muted-foreground"
             )}
           >
-            {lesson.position}. {lesson.title}
-          </p>
+            {lesson.title}
+          </h4>
 
-          {/* ⭐ CURRENTLY WATCHING TAG */}
-          {!completed && isActive && (
-            <p className="text-xs text-primary font-medium mt-0.5">
-              Currently watching
-            </p>
-          )}
-
-          {/* Completed Label */}
-          {completed && (
-            <span
-              className={cn(
-                "text-xs mt-0.5",
-                !isActive && "text-green-600/70 dark:text-green-300/70",
-                isActive && "text-green-600 dark:text-green-300"
-              )}
-            >
-              Completed
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className="text-[10px] md:text-xs text-muted-foreground font-medium flex items-center gap-1">
+              Lesson {lesson.position}
             </span>
-          )}
+            
+            {lesson.duration && (
+              <>
+                <span className="text-[10px] text-muted-foreground/40">•</span>
+                <span className="text-[10px] md:text-xs text-muted-foreground font-medium flex items-center gap-1">
+                   {lesson.duration}m
+                </span>
+              </>
+            )}
+
+            {isActive && (
+              <span className="text-[10px] font-bold text-primary uppercase ml-auto pr-1">
+                Now Playing
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </Link>

@@ -17,11 +17,11 @@ export async function getCourseSidebarData(slug: string, clientVersion?: string)
     return { status: "not-modified", version: currentVersion };
   }
 
-  // Check Redis cache
-  const cacheKey = `user:sidebar:${session.id}:${slug}`;
+  // Check Redis cache (versioned)
+  const cacheKey = `user:sidebar:${session.id}:${slug}:${currentVersion}`;
   const cached = await getCache<any>(cacheKey);
   if (cached) {
-    console.log(`[Redis] Cache HIT for sidebar: ${session.id}:${slug}`);
+    console.log(`[Redis] Cache HIT for sidebar: ${session.id}:${slug} (v${currentVersion})`);
     return { ...cached, version: currentVersion };
   }
 
@@ -54,6 +54,7 @@ export async function getCourseSidebarData(slug: string, clientVersion?: string)
               title: true,
               position: true,
               description: true,
+              thumbnailKey: true,
               lessonProgress: {
                 where: {
                   userId: session.id,

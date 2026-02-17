@@ -3,10 +3,11 @@
  */
 
 export const dynamic = "force-static";
+export const revalidate = 3600; // Cache on CDN for 1 hour, then background refresh
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { FeatureCard } from "./_components/FeatureCard";
+import FeaturesSection from "./_components/FeaturesSection";
 import HomeClient from "./_components/HomeClient";
 import { BookTextIcon } from "@/components/ui/book-text";
 import { LayersIcon } from "@/components/ui/layers";
@@ -76,12 +77,8 @@ export default function Home() {
         </div>
       </main>
 
-      {/* FEATURES (Server-rendered & fast) */}
-      <section className="grid grid-cols-1 gap-6 px-4 pb-8 md:grid-cols-2 lg:grid-cols-4 lg:px-6 xl:pb-16">
-        {features.map(feature => (
-          <FeatureCard key={feature.title} {...feature} />
-        ))}
-      </section>
+      {/* FEATURES (Accordion behavior on mobile) */}
+      <FeaturesSection features={features} />
 
       {/* Client-only sections */}
       <HomeClient />

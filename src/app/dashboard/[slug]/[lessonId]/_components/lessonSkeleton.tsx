@@ -4,10 +4,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function LessonContentSkeleton() {
   return (
-    <div className="flex flex-col h-full bg-background pl-6">
+    <div className="flex flex-col h-full bg-background md:pl-6">
       {/* Video Skeleton */}
-      <div className="aspect-video w-full">
-        <Skeleton className="w-full h-full rounded-lg" />
+      <div className="w-full h-[210px] sm:h-[150px] md:aspect-video">
+        <Skeleton className="w-full h-full md:rounded-lg rounded-none" />
       </div>
 
       {/* Button Skeleton */}

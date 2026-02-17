@@ -12,6 +12,8 @@
 import { CoursesClient } from "./_components/CoursesClient";
 import { CourseSearch } from "./_components/CourseSearch";
 import { getAllCoursesAction } from "./actions";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { Suspense } from "react";
 import { PublicCourseCardSkeleton } from "../_components/PublicCourseCard";
 
@@ -27,10 +29,12 @@ function CoursesSkeleton() {
 }
 
 export default async function PublicCoursesRoute() {
-  // 🔹 Fetch initial courses for guests/first-paint on the server.
-  // Since we removed 'force-dynamic', this page can be statically pre-rendered (ISR).
-  // The 'user' is now handled on the client in CoursesClient.
-  const initialData = await getAllCoursesAction(undefined, undefined);
+  // Get session on server to handle enrollment status on first-paint
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  const initialData = await getAllCoursesAction(undefined, session?.user.id);
 
   return (
     <div className="mt-5 px-4 lg:px-6 md:mb-40">

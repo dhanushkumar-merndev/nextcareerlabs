@@ -8,6 +8,8 @@ export interface FeatureCardProps {
     React.PropsWithoutRef<HTMLAttributes<HTMLDivElement>> &
       React.RefAttributes<AnimatedIconHandle>
   >;
+  isExpanded?: boolean;
+  onToggle?: () => void;
 }
 export interface PhoneNumberDialogProps {
   isOpen: boolean;

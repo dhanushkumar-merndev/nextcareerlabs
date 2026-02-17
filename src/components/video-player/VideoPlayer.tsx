@@ -18,6 +18,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
@@ -60,7 +61,6 @@ export function VideoPlayer({
   spriteMetadata,
   onTimeUpdate,
   onPlay,
-  onPause,
   onEnded,
   onLoadedMetadata,
 }: VideoPlayerProps) {
@@ -438,7 +438,7 @@ export function VideoPlayer({
       ref={containerRef}
       className={cn(
         "relative group w-full h-full bg-black shadow-2xl overflow-hidden",
-        isFullscreen ? "fixed inset-0 z-9999 rounded-none" : "rounded-lg border border-white/10",
+        isFullscreen ? "fixed inset-0 z-9999 rounded-none" : "md:rounded-lg md:border md:border-white/10 rounded-none border-none",
         className
       )}
       onMouseMove={handleMouseMove}
@@ -581,27 +581,36 @@ export function VideoPlayer({
 
             <div className="flex items-center gap-4 text-white">
               <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-1.5 text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 px-2 py-1.5 rounded-md border border-white/5">
-                  <Settings className="w-4 h-4" />
-                  {playbackRate}x
+                <DropdownMenuTrigger asChild>
+                  <button className="flex items-center gap-1.5 text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-md border border-white/10">
+                    <Settings className="w-4 h-4" />
+                    {playbackRate}x
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent 
                   side="top"
                   align="end"
-                  sideOffset={8}
+                  sideOffset={12}
                   avoidCollisions
-                  className="bg-black/95 border-white/10 text-white min-w-[100px] backdrop-blur-xl"
+                  container={isFullscreen ? containerRef.current : undefined}
+                  className="bg-black/95 border-white/20 text-white w-32 sm:w-40 backdrop-blur-2xl p-1 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200"
                 >
+                  <div className="px-2.5 py-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest border-b border-white/5 mb-1">
+                    Speed
+                  </div>
                   {[0.5, 1, 1.5, 2].map((rate) => (
                     <DropdownMenuItem 
                       key={rate} 
                       onClick={() => handlePlaybackRate(rate)}
                       className={cn(
-                        "cursor-pointer focus:bg-primary/20 focus:text-primary text-sm font-medium",
-                        playbackRate === rate && "bg-primary/20 text-primary"
+                        "cursor-pointer focus:bg-primary/20 focus:text-primary text-[12px] font-medium px-2.5 py-2 rounded-md transition-colors",
+                        playbackRate === rate && "bg-primary/20 text-primary font-bold"
                       )}
                     >
-                      {rate}x Speed
+                      <div className="flex items-center justify-between w-full">
+                        <span>{rate === 1 ? "Normal" : `${rate}x`}</span>
+                        {playbackRate === rate && <div className="w-1 h-1 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.6)]" />}
+                      </div>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -616,10 +625,26 @@ export function VideoPlayer({
       </div>
 
       {!isPlaying && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-           <div className="p-4 bg-primary/90 rounded-full shadow-2xl transition-transform group-hover:scale-110">
-              <Play className="w-7 h-7 fill-white text-white ml-1" />
-           </div>
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none group/playbtn">
+          <div 
+            onClick={togglePlay}
+            className="
+              w-12 h-12 sm:w-16 sm:h-16
+              flex items-center justify-center
+              rounded-full 
+              backdrop-blur-md 
+              bg-primary/20
+              border-2 border-primary/50
+              text-primary
+              shadow-[0_0_30px_rgba(var(--primary),0.3)]
+              transition-all duration-300
+              hover:scale-110 hover:bg-primary/20 hover:border-primary
+              pointer-events-auto
+              cursor-pointer
+            "
+          >
+            <Play className="w-6 h-6 sm:w-8 sm:h-8 fill-white ml-0.5" />
+          </div>
         </div>
       )}
     </div>

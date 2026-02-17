@@ -4,7 +4,12 @@ import { prisma } from "@/lib/db";
 import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
 
 export async function getUserDashboardData(userId: string, clientVersion?: string) {
-    const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
+    const [userVersion, globalCoursesVersion] = await Promise.all([
+        getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
+        getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
+    
+    const currentVersion = `${userVersion}:${globalCoursesVersion}`;
 
     // Smart Sync
     if (clientVersion && clientVersion === currentVersion) {

@@ -12,11 +12,11 @@ export async function getIndividualCourse(slug: string, clientVersion?: string) 
     return { status: "not-modified", version: currentVersion };
   }
 
-  // Check Redis cache for this specific course
-  const cacheKey = GLOBAL_CACHE_KEYS.COURSE_DETAIL(slug);
+  // Check Redis cache for this specific course (versioned to skip stale data)
+  const cacheKey = `${GLOBAL_CACHE_KEYS.COURSE_DETAIL(slug)}:${currentVersion}`;
   const cached = await getCache<any>(cacheKey);
   if (cached) {
-    console.log(`[Redis] Cache HIT for course: ${slug}`);
+    console.log(`[Redis] Cache HIT for course: ${slug} (v${currentVersion})`);
     return { course: cached, version: currentVersion };
   }
 

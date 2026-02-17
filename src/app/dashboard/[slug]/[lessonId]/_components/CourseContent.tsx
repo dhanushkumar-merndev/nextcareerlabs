@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-import { BookIcon, CheckCircle, X } from "lucide-react";
+import { BookIcon, CheckCircle, ChevronRight, X } from "lucide-react";
 import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
@@ -14,7 +14,6 @@ import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
 import {
   Drawer,
   DrawerContent,
-  DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
@@ -475,10 +474,12 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
+  const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
 
   useEffect(() => {
     setIsDescriptionOpen(false);
+    setIsMobileDescriptionOpen(false);
   }, [lessonId]);
 
   if (isLoading && !lesson) {
@@ -541,8 +542,8 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
 
   return (
     <div className="relative flex flex-col md:flex-row bg-background h-full overflow-hidden">
-      <div className="flex-1 flex flex-col py-2 md:pl-6 overflow-y-auto">
-        <div className="order-2 md:order-1 w-full">
+      <div className="flex-1 flex flex-col md:pl-6 overflow-y-auto ">
+        <div className="order-1 md:order-1 w-full relative">
           <VideoPlayer
             thumbnailkey={data.thumbnailKey ?? ""}
             videoKey={data.videoKey ?? ""}
@@ -564,15 +565,63 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
           </h1>
         </div>
 
-        <div className="order-2 md:order-3 flex items-center justify-between gap-4 pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
+        {/* MOBILE ONLY: SIMPLIFIED HEADER (Completion Button Left, Description Arrow Right) */}
+        <div className="md:hidden order-2 flex items-center justify-between p-4 bg-background ">
+           <div className="flex items-center gap-2">
+              {isCompleted ? (
+                <Button disabled size="sm" className="gap-2 rounded-full h-9 bg-primary/10 text-primary border-none shadow-none font-bold text-xs uppercase tracking-tight">
+                  <CheckCircle className="size-4" />
+                  Completed
+                </Button>
+              ) : (
+                <Button 
+                  disabled={isPending || !hasVideo} 
+                  onClick={onSubmit} 
+                  size="sm"
+                  className="gap-2 rounded-full px-5 h-9 font-bold text-xs uppercase tracking-tight shadow-[0_2px_10px_rgba(var(--primary),0.2)]"
+                >
+                  {hasVideo ? (
+                    <>
+                      <CheckCircle className="size-4" />
+                      Mark as Completed
+                    </>
+                  ) : (
+                    "No Video"
+                  )}
+                </Button>
+              )}
+           </div>
+
+           <Drawer open={isMobileDescriptionOpen} onOpenChange={setIsMobileDescriptionOpen}>
+              <DrawerTrigger asChild>
+                 <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full bg-muted transition-colors">
+                    <ChevronRight className="size-6 ml-0.5" />
+                 </Button>
+              </DrawerTrigger>
+              <DrawerContent className="max-h-[85vh] bg-background">
+                 <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
+                    {/* Accessibility: DrawerTitle is required */}
+                    <DrawerTitle className="sr-only">Lesson Description</DrawerTitle>
+                    <div className="flex-1 overflow-y-auto px-6 pt-8 pb-12 overscroll-contain" data-lenis-prevent>
+                       <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <h3 className="text-xl font-bold mb-4">{data.title}</h3>
+                          {data.description && <RenderDescription json={JSON.parse(data.description)} />}
+                       </div>
+                    </div>
+                 </div>
+              </DrawerContent>
+           </Drawer>
+        </div>
+
+        <div className="hidden md:flex order-3 md:order-3 items-center justify-between gap-4 px-4 md:px-0 pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
           <div className="flex items-center gap-2">
             {isCompleted ? (
-              <Button disabled className="gap-2">
+              <Button disabled className="gap-2 rounded-full">
                 <CheckCircle className="size-4" />
                 Completed
               </Button>
             ) : (
-              <Button disabled={isPending || !hasVideo} onClick={onSubmit} className="gap-2">
+              <Button disabled={isPending || !hasVideo} onClick={onSubmit} className="gap-2 rounded-full px-6">
                 {hasVideo ? (
                   <>
                     <CheckCircle className="size-4" />
@@ -585,59 +634,36 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
             )}
           </div>
 
-          {data.description && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant={isDescriptionOpen ? "secondary" : "outline"}
-                className="gap-2 shrink-0 hidden md:flex"
-                onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
-              >
-                <IconFileText className="size-4" />
-                {isDescriptionOpen ? "Hide Description" : "View Description"}
-              </Button>
-
-              <Drawer>
-                <DrawerTrigger asChild>
-                  <Button variant="outline" className="gap-2 shrink-0 md:hidden">
-                    <IconFileText className="size-4" />
-                    View Description
-                  </Button>
-                </DrawerTrigger>
-                <DrawerContent className="max-h-[85vh]">
-                  <div className="max-w-4xl mx-auto w-full overflow-y-auto px-4 pb-8">
-                    <DrawerHeader className="px-0">
-                      <DrawerTitle className="text-2xl font-bold flex items-center gap-2">
-                        <IconFileText className="size-6 text-primary" />
-                        {data.title}
-                      </DrawerTitle>
-                    </DrawerHeader>
-                    <div className="mt-4">
-                      <RenderDescription json={JSON.parse(data.description)} />
-                    </div>
-                  </div>
-                </DrawerContent>
-              </Drawer>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <Button
+              variant={isDescriptionOpen ? "secondary" : "outline"}
+              className="gap-2 shrink-0 rounded-full"
+              onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
+            >
+              <IconFileText className="size-4" />
+              {isDescriptionOpen ? "Hide Description" : "View Description"}
+            </Button>
+          </div>
         </div>
       </div>
 
       {data.description && isDescriptionOpen && (
-        <div className="absolute bottom-0 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col border border-border shadow-xl bg-background/95 animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
-          <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
+        <div className="absolute -bottom-1 left-6 right-0 h-[80vh] z-30 hidden md:flex flex-col border border-border shadow-2xl bg-background animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
+          <div className="flex items-center justify-between p-5 border-b border-border shrink-0 bg-muted/30">
             <h2 className="font-bold text-lg flex items-center gap-2">
               <IconFileText className="size-5 text-primary" />
-              {data.title}
+              Description
             </h2>
-            <Button variant="ghost" size="icon" onClick={() => setIsDescriptionOpen(false)}>
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setIsDescriptionOpen(false)}>
               <X className="size-4" />
             </Button>
           </div>
 
           <div
-            className="flex-1 min-h-0 overflow-y-auto p-6 overscroll-contain"
+            className="flex-1 min-h-0 overflow-y-auto p-6 overscroll-contain scrollbar-thin scrollbar-thumb-primary/10"
             data-lenis-prevent
           >
+            <h3 className="text-base font-bold mb-4">{data.title}</h3>
             <RenderDescription json={JSON.parse(data.description!)} />
           </div>
         </div>

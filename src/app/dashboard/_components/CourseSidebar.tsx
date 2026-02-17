@@ -49,7 +49,7 @@ export function CourseSidebar({ course }: iAppProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full ">
       {/* HEADER (Desktop Only) */}
       <div className="hidden md:block">
         <CourseProgressBar course={course} />
@@ -125,6 +125,7 @@ export function CourseSidebar({ course }: iAppProps) {
                 lesson={lesson}
                 slug={course.slug}
                 isActive={currentLessonId === lesson.id}
+                courseThumbnail={course.fileKey}
                 completed={
                   lesson.lessonProgress.some((p:any) => p.completed) || false
                 }
@@ -179,6 +180,7 @@ export function CourseSidebar({ course }: iAppProps) {
                     lesson={lesson}
                     slug={course.slug}
                     isActive={currentLessonId === lesson.id}
+                    courseThumbnail={course.fileKey}
                     completed={
                       lesson.lessonProgress.some((p:any) => p.completed) || false
                     }

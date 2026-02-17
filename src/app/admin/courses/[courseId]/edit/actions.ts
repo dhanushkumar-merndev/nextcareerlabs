@@ -124,6 +124,13 @@ export async function reorderLessons(
       });
     });
     await prisma.$transaction(updates);
+    
+    // Invalidate caches
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
+
     revalidatePath(`/admin/courses/${courseId}/edit`);
     return {
       status: "success",
@@ -161,6 +168,13 @@ export async function reorderChapters(
       });
     });
     await prisma.$transaction(updates);
+    
+    // Invalidate caches
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
+
     revalidatePath(`/admin/courses/${courseId}/edit`);
     return {
       status: "success",
@@ -206,6 +220,15 @@ export async function createChapter(
         },
       });
     });
+
+    // Invalidate analytics and dashboard caches
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
+
     revalidatePath(`/admin/courses/${result.data.courseId}/edit`);
     return {
       status: "success",
@@ -254,6 +277,15 @@ export async function createLesson(
         },
       });
     });
+
+    // Invalidate analytics and dashboard caches
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
+
     revalidatePath(`/admin/courses/${result.data.courseId}/edit`);
     return {
       status: "success",
@@ -337,6 +369,15 @@ export async function deleteLesson({
       ...updates,
       prisma.lesson.delete({ where: { id: lessonId, chapterId: chapterId } }),
     ]);
+
+    // Invalidate analytics and dashboard caches
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
+
     revalidatePath(`/admin/courses/${courseId}/edit`);
     return {
       status: "success",
@@ -415,6 +456,14 @@ export async function deleteChapter({
       }),
     ]);
 
+    // Invalidate analytics and dashboard caches
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
+
     revalidatePath(`/admin/courses/${courseId}/edit`);
 
     return {
@@ -457,6 +506,14 @@ export async function editChapter({
         title: name.trim(),
       },
     });
+
+    // Invalidate analytics and dashboard caches
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
 
     // Revalidate the edit page
     revalidatePath(`/admin/courses/${courseId}/edit`);
