@@ -1,13 +1,14 @@
-"use client";
-
 import { Skeleton } from "@/components/ui/skeleton";
+import Loader from "@/components/ui/Loader";
 
 export function LessonContentSkeleton() {
   return (
     <div className="flex flex-col h-full bg-background md:pl-6">
-      {/* Video Skeleton */}
-      <div className="w-full h-[210px] sm:h-[150px] md:aspect-video">
-        <Skeleton className="w-full h-full md:rounded-lg rounded-none" />
+      <div className="w-full aspect-video relative md:rounded-lg rounded-none overflow-hidden bg-accent/50 border md:border-border border-transparent">
+        <Skeleton className="w-full h-full" />
+        <div className="absolute inset-0 flex items-center justify-center">
+            <Loader size={32} />
+        </div>
       </div>
 
       {/* Button Skeleton */}

@@ -24,6 +24,8 @@ import { chatCache } from "@/lib/chat-cache";
 import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
 import CryptoJS from "crypto-js";
 
+import { Skeleton } from "@/components/ui/skeleton";
+import Loader from "@/components/ui/Loader";
 import { LessonContentSkeleton } from "./lessonSkeleton";
 
 interface iAppProps {
@@ -385,15 +387,22 @@ function VideoPlayer({
   ============================================================ */
   if (!videoKey) {
     return (
-      <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border">
-        <BookIcon className="size-16 text-primary mb-4" />
-        <p className="text-muted-foreground">This lesson does not have a video yet</p>
+      <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border relative group overflow-hidden">
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-6 bg-background/50">
+            <BookIcon className="size-16 text-primary/40 mb-4 animate-pulse" />
+            <p className="text-muted-foreground font-medium">This lesson does not have a video yet</p>
+        </div>
       </div>
     );
   }
 
   if (!videoUrl && !hlsUrl) {
-    return <div className="aspect-video bg-muted rounded-lg border animate-pulse" />;
+    return (
+        <div className="aspect-video bg-muted rounded-lg border flex items-center justify-center relative overflow-hidden">
+            <Skeleton className="absolute inset-0 w-full h-full" />
+            <Loader size={40} className="z-10" />
+        </div>
+    );
   }
 
   /* ============================================================
@@ -541,7 +550,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const hasVideo = Boolean(data.videoKey);
 
   return (
-    <div className="relative flex flex-col md:flex-row bg-background h-full overflow-hidden">
+    <div className="relative flex flex-col md:flex-row bg-background h-full overflow-hidden md:border-l border-border ">
       <div className="flex-1 flex flex-col md:pl-6 overflow-y-auto ">
         <div className="order-1 md:order-1 w-full relative">
           <VideoPlayer
@@ -648,7 +657,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       </div>
 
       {data.description && isDescriptionOpen && (
-        <div className="absolute -bottom-1 left-6 right-0 h-[80vh] z-30 hidden md:flex flex-col border border-border shadow-2xl bg-background animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
+        <div className="absolute -bottom-1 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col border border-border shadow-2xl bg-background animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
           <div className="flex items-center justify-between p-5 border-b border-border shrink-0 bg-muted/30">
             <h2 className="font-bold text-lg flex items-center gap-2">
               <IconFileText className="size-5 text-primary" />

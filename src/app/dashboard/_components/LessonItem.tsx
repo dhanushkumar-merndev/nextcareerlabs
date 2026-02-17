@@ -26,7 +26,7 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
     <Link
       href={`/dashboard/${slug}/${lesson.id}`}
       className={cn(
-        "w-full p-2 h-auto flex items-center justify-start rounded-xl transition-all border group relative overflow-hidden",
+        "w-full p-2 md:p-1.5 h-auto flex items-center justify-start rounded-xl transition-all border group relative overflow-hidden",
 
         // Normal
         !isActive &&
@@ -47,7 +47,7 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
 
       <div className="flex items-center gap-3 w-full min-w-0">
         {/* THUMBNAIL CONTAINER */}
-        <div className="relative shrink-0 w-24 md:w-28 aspect-video rounded-lg overflow-hidden border bg-muted">
+        <div className="relative shrink-0 w-24 md:w-20 aspect-video rounded-lg overflow-hidden border bg-muted">
           <Image
             src={thumbnail}
             alt={lesson.title}
