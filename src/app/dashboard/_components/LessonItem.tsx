@@ -62,18 +62,13 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
           {/* Active Overlay */}
           {isActive && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="p-1.5 rounded-full bg-primary/20 backdrop-blur-sm border border-primary/40">
-                <Play className="size-3 text-primary fill-primary" />
+              <div className="p-1.5 rounded-full bg-primary/50 backdrop-blur-sm border border-primary/40">
+                <Play className="size-2 text-white fill-white" />
               </div>
             </div>
           )}
 
-          {/* Progress Indicator (if completed) */}
-          {completed && (
-            <div className="absolute top-1 right-1 p-0.5 rounded-full bg-green-500 shadow-sm border border-white dark:border-zinc-900">
-              <Check className="size-2 text-white" strokeWidth={4} />
-            </div>
-          )}
+          
         </div>
 
         {/* TEXT CONTENT */}
@@ -101,7 +96,11 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
                 </span>
               </>
             )}
-
+            {completed && (
+              <div className="absolute top-2 right-2 p-0.5 rounded-full bg-green-500 shadow-sm  ">
+                <Check className="size-2 text-white" strokeWidth={4} />
+              </div>
+            )}
             {isActive && (
               <span className="text-[10px] font-bold text-primary uppercase ml-auto pr-1">
                 Now Playing
