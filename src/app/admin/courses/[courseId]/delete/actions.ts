@@ -91,6 +91,8 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
         invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
     ]);

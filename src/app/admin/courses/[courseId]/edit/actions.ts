@@ -172,6 +172,7 @@ export async function reorderChapters(
     // Invalidate caches
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);
 
@@ -460,6 +461,7 @@ export async function deleteChapter({
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);
@@ -511,6 +513,7 @@ export async function editChapter({
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);

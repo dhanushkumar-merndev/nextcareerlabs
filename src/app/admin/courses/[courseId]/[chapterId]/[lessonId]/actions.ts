@@ -4,6 +4,7 @@ import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types/auth";
 import { lessonSchema, LessonSchemaType } from "@/lib/zodSchemas";
+import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
 
 export async function updateLesson(
   values: LessonSchemaType,
@@ -57,6 +58,12 @@ export async function updateLesson(
         });
       }
     });
+    
+    // Invalidate caches
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
 
     return {
       status: "success",
