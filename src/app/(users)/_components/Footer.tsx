@@ -5,6 +5,7 @@ import { Mail, Youtube, Facebook, Instagram, GraduationCap } from "lucide-react"
 import { getAllPublishedCourses } from "@/app/data/course/get-course";
 import { SupportFooterLink } from "./SupportFooterLink";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Logo } from "@/components/Logo";
 
 // This component is used to display the footer skeleton
 export function FooterSkeleton() {
@@ -61,8 +62,8 @@ export async function Footer() {
           {/* BRAND SECTION */}
           <div className="space-y-6">
             <Link href="/" className="flex items-center gap-2 group w-fit">
-              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-all duration-300">
-                <GraduationCap className="h-6 w-6 text-primary" />
+              <div className="h-10 w-10 rounded-xl flex items-center justify-center">
+                <Logo className="h-full w-full" />
               </div>
               <span className="font-bold text-xl tracking-tight">Skill Force Cloud</span>
             </Link>

@@ -27,8 +27,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { Logo } from "@/components/Logo";
 
 const data = {
   navMain: [
@@ -147,24 +147,9 @@ export function AppSidebar({ isEnrolled, ...props }: React.ComponentProps<typeof
               className="data-[slot=sidebar-menu-button]:p-1.5!"
             >
               <Link href="/" onClick={handleLogoClick}>
-                <div className="w-10 h-10 relative">
-                  <Image
-                    src="/logo.svg"
-                    alt="Skill Force Cloud"
-                    fill
-                    className="object-contain dark:hidden"
-                    priority
-                  />
-                  <Image
-                    src="/blacklogo.svg"
-                    alt="Skill Force Cloud"
-                    fill
-                    className="object-contain hidden dark:block"
-                    priority
-                  />
-                </div>
+                <Logo className="w-10 h-10" />
 
-                <span className="text-base font-semibold ml-2">
+                <span className="text-base font-semibold ml-1">
                   Skill Force Cloud LMS
                 </span>
               </Link>

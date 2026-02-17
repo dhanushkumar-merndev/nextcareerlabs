@@ -6,13 +6,14 @@
 */
 
 "use client";
+import { authClient } from "@/lib/auth-client";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { getAllCoursesAction } from "../actions";
 import { chatCache } from "@/lib/chat-cache";
-import {PublicCourseCard,PublicCourseCardSkeleton} from "../../_components/PublicCourseCard";
+import { PublicCourseCard, PublicCourseCardSkeleton } from "../../_components/PublicCourseCard";
 import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
-import {CoursesCacheWithCursor,CoursesClientProps,PublicCourseType} from "@/lib/types/course";
+import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
 
@@ -23,9 +24,9 @@ type CoursesPage = {
 };
 
 // CoursesClient Component
-export function CoursesClient({ currentUserId, initialData }: CoursesClientProps) {
-
-  // console.log("[CoursesClient] component mounted");
+export function CoursesClient({ initialData }: { initialData?: any }) {
+  const { data: session, isPending: isSessionPending } = authClient.useSession();
+  const currentUserId = session?.user?.id;
 
   // Read search param (?title=...)
   const searchParams = useSearchParams();
@@ -43,9 +44,8 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
     rootMargin: "0px",
   });
 
-  // Mark component as mounted (client-only rendering)
+  // Mark component as mounted
   useEffect(() => {
-    // console.log("[CoursesClient] setting mounted = true");
     setMounted(true);
   }, []);
 
@@ -69,13 +69,13 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
     readonly unknown[],
     string | null
   >({
-    // Query key depends on user + search
+    // Query key depends on user + search 
     queryKey: ["all_courses", safeUserId, searchTitle],
 
     // Seed data from cache for instant refresh (background revalidation)
     placeholderData: (previousData) => {
         if (previousData) return previousData;
-        if (!mounted) return undefined;
+        
         // 🔹 SEARCH MODE → Try to show whatever we have in cache first
         if (searchTitle && cached) {
             const q = searchTitle.toLowerCase();
@@ -106,7 +106,7 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
         return undefined;
     },
 
-    // 🔹 USES SERVER DATA FOR FIRST PAINT
+    // 🔹 USES SERVER DATA FOR FIRST PAINT (if guest or no cache)
     initialData: (!searchTitle && initialData && initialData.status === "data") ? {
         pages: [{
             courses: initialData.courses,
@@ -114,8 +114,6 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
         }],
         pageParams: [null]
     } : undefined,
-
-
 
     // Fetch function (handles search + pagination)
     queryFn: async ({ pageParam }) => {
@@ -154,8 +152,6 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
         pageParam ?? null
       );
 
-      // console.log("[CoursesClient] API result:", result);
-
       // Server says cache is still valid
       if (result.status === "not-modified") {
         return {
@@ -163,7 +159,6 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
           nextCursor: cached?.data.nextCursor ?? null,
         };
       }
-
 
       // Persist merged courses + cursor
       if (!searchTitle) {
@@ -194,9 +189,6 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
         );
       }
 
-
-      // console.groupEnd();
-
       return {
         courses: result.courses,
         nextCursor: result.nextCursor,
@@ -226,7 +218,6 @@ export function CoursesClient({ currentUserId, initialData }: CoursesClientProps
   }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage]);
 
   // Initial loading skeleton (only if we have NO courses to show)
-  // 🔹 If we have initialData, we don't need to show skeleton even if not mounted
   if ((!mounted && !initialData) || (isLoading && courses.length === 0)) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">

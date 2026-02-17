@@ -24,7 +24,7 @@ import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from "@/compon
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
-import { LoadingAnalyticsBody } from "../loading";
+import Loader from "@/components/ui/Loader";
 
 // Analytics Client Component
 export function AnalyticsClient({ initialData }: { initialData?: any }) {
@@ -72,7 +72,9 @@ export function AnalyticsClient({ initialData }: { initialData?: any }) {
   // If not mounted or loading, return loading state
   if ((!mounted && !initialData) || (isLoading && !data)) {
     return (
-        <LoadingAnalyticsBody/>
+      <div className="flex-1 flex items-center justify-center p-8 min-h-[400px]">
+        <Loader size={40} />
+      </div>
     );
   }
 

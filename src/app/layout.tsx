@@ -16,6 +16,8 @@ export const metadata: Metadata = {
     "Our LMS is a complete e-learning solution with modern, interactive learning.",
 };
 
+import NextTopLoader from "nextjs-toploader";
+
 export default function RootLayout({
   children,
 }: {
@@ -61,6 +63,17 @@ export default function RootLayout({
       </head>
 
       <body suppressHydrationWarning>
+        <NextTopLoader 
+          color="#3b82f6" 
+          initialPosition={0.08} 
+          crawlSpeed={200} 
+          height={2} 
+          crawl={true} 
+          showSpinner={false} 
+          easing="ease" 
+          speed={200} 
+          shadow="0 0 15px #3b82f6,0 0 10px #3b82f6,0 0 5px #3b82f6"
+        />
         <Providers>
           <ThemeProvider
             attribute="class"

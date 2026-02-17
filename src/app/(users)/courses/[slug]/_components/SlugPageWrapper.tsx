@@ -24,68 +24,76 @@ import { EnrollmentButton } from "./EnrollmentButton";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { useQuery } from "@tanstack/react-query";
 import { getSlugPageDataAction } from "../actions";
+import { authClient } from "@/lib/auth-client";
 import { chatCache } from "@/lib/chat-cache";
 import { useState, useEffect } from "react";
-import Loading from "../loading";
-import { SlugPageWrapperProps } from "@/lib/types/course";
+import Loader from "@/components/ui/Loader";
 
 // SlugPageWrapper Component
 export function SlugPageWrapper({
   slug,
-  currentUserId,
-  initialData,
-}: SlugPageWrapperProps) {
+}: {
+  slug: string;
+}) {
+  const { data: session } = authClient.useSession();
+  const currentUserId = session?.user?.id;
 
   // State to track component mount
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
+
   // UseQuery to fetch course data
   const { data, isLoading } = useQuery({
     queryKey: ["course_detail", slug, currentUserId],
     queryFn: async () => {
       const cacheKey = `course_${slug}`;
-      const cached = chatCache.get<any>(cacheKey, currentUserId);
+      
+      // 🔹 TRY USER-SPECIFIC FIRST, FALLBACK TO GUEST
+      let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+      if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+      
       const clientVersion = cached?.version;
 
-      console.log(`[Slug] Syncing with server... (Version: ${clientVersion || 'None'})`);
       const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
 
       if (result && (result as any).status === "not-modified" && cached) {
-        console.log(`[Slug] Version match. Using local data.`);
         return cached.data;
       }
 
       if (result && !(result as any).status) {
-        console.log(`[Slug] Fresh data received.`);
         chatCache.set(cacheKey, result, currentUserId, (result as any).version);
       }
       return result;
     },
-    // Use initial data from cache or server
-    initialData: () => {
-      if (initialData) return initialData;
-      const cacheKey = `course_${slug}`;
-      const cached = chatCache.get<any>(cacheKey, currentUserId);
-      if (cached) {
-        console.log(`[Slug] Loaded cached data for ${slug}`);
-        return cached.data;
-      }
-      return undefined;
+    // Use cached data for instant initial paint
+    placeholderData: (previousData) => {
+        if (previousData) return previousData;
+        
+        const cacheKey = `course_${slug}`;
+
+        // 🔹 DURING HYDRATION / SESSION LOADING:
+        // Try to find ANY cache for this slug (User or Guest)
+        let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+        if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+
+        if (cached) {
+            return cached.data;
+        }
+        return undefined;
     },
 
     staleTime: 1800000, // 30 mins
   });
 
-  // Loading state
-  // 🔹 If we have initialData, we don't need to show skeleton even if not mounted
-  if ((!mounted && !initialData) || (isLoading && !data)) {
+  if (!data && isLoading) {
     return (
-   <Loading/>
+      <div className="flex-1 flex items-center justify-center p-4 min-h-[400px]">
+        <Loader size={40} />
+      </div>
     );
   }
-
 
   const rawData = data as any;
   // Resiliency: Handle new format {course, enrollmentStatus...} or old raw course object

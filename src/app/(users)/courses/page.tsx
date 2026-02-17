@@ -11,19 +11,26 @@
 
 import { CoursesClient } from "./_components/CoursesClient";
 import { CourseSearch } from "./_components/CourseSearch";
-import { getCurrentUser } from "@/lib/session";
 import { getAllCoursesAction } from "./actions";
+import { Suspense } from "react";
+import { PublicCourseCardSkeleton } from "../_components/PublicCourseCard";
 
-// Ensure this route is always dynamically rendered
-export const dynamic = "force-dynamic";
+// Helper for local skeleton grid
+function CoursesSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+      {Array.from({ length: 9 }).map((_, i) => (
+        <PublicCourseCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
 
 export default async function PublicCoursesRoute() {
-  // Get authenticated user (if any)
-  const user = await getCurrentUser();
-
-  // 🔹 Fetch initial courses on the server
-  // This avoids the "skeleton flash" by providing data for the first paint
-  const initialData = await getAllCoursesAction(undefined, user?.id);
+  // 🔹 Fetch initial courses for guests/first-paint on the server.
+  // Since we removed 'force-dynamic', this page can be statically pre-rendered (ISR).
+  // The 'user' is now handled on the client in CoursesClient.
+  const initialData = await getAllCoursesAction(undefined, undefined);
 
   return (
     <div className="mt-5 px-4 lg:px-6 md:mb-40">
@@ -43,8 +50,10 @@ export default async function PublicCoursesRoute() {
         <CourseSearch />
       </div>
 
-      {/* Courses list - Pass initial server data */}
-      <CoursesClient currentUserId={user?.id} initialData={initialData} />
+      {/* Courses list - Rendered inside Suspense to avoid blocking the shell */}
+      <Suspense fallback={<CoursesSkeleton />}>
+        <CoursesClient initialData={initialData} />
+      </Suspense>
     </div>
   );
 }

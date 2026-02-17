@@ -1,42 +1,31 @@
-import Image from "next/image";
+import LogoLight from "@/assets/logo.svg";
+import LogoDark from "@/assets/blacklogo.svg";
 import { cn } from "@/lib/utils";
 
-interface LogoProps {
+interface LogoProps extends React.SVGProps<SVGSVGElement> {
   className?: string;
   ariaLabel?: string;
 }
 
 export function Logo({
   className,
-  ariaLabel = "Company Logo",
+  ariaLabel = "Skill Force Cloud",
+  ...props
 }: LogoProps) {
   return (
-    <span
-      className={cn("relative inline-flex h-10 w-10", className)}
-      role="img"
-      aria-label={ariaLabel}
-    >
-      {/* Light mode */}
-      <Image
-        src="/logo.svg"
-        alt={ariaLabel}
-        fill
-        sizes="40px"
-        priority
-        loading="eager"
-        className="object-contain dark:hidden"
+    <div className={cn("relative inline-flex shrink-0", className)}>
+      <LogoLight
+        className="w-full h-full dark:hidden"
+        role="img"
+        aria-label={ariaLabel}
+        {...props}
       />
-
-      {/* Dark mode */}
-      <Image
-        src="/blacklogo.svg"
-        alt={ariaLabel}
-        fill
-        sizes="40px"
-        priority
-        loading="eager"
-        className="object-contain hidden dark:block"
+      <LogoDark
+        className="w-full h-full hidden dark:block"
+        role="img"
+        aria-label={ariaLabel}
+        {...props}
       />
-    </span>
+    </div>
   );
 }
