@@ -29,6 +29,8 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { updateLesson } from "../actions";
 import { useRouter } from "next/navigation";
+import { TranscriptionWorkflow } from "./TranscriptionWorkflow";
+import { env } from "@/lib/env";
 
 interface iAppProps {
   data: AdminLessonType;
@@ -49,8 +51,17 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       videoKey: data.videoKey ?? undefined,
       thumbnailKey: data.thumbnailKey ?? undefined,
       duration: data.duration ?? undefined,
+      spriteKey: data.spriteKey ?? undefined,
+      spriteCols: data.spriteCols ?? undefined,
+      spriteRows: data.spriteRows ?? undefined,
+      spriteInterval: data.spriteInterval ?? undefined,
+      spriteWidth: data.spriteWidth ?? undefined,
+      spriteHeight: data.spriteHeight ?? undefined,
+      lowResKey: data.lowResKey ?? undefined,
     },
   });
+
+  const watchedVideoKey = form.watch("videoKey");
 
   async function onSubmit(values: LessonSchemaType, skipRedirect = false) {
     startTransition(async () => {
@@ -164,6 +175,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                           form.setValue("spriteInterval", sprite.spriteInterval);
                           form.setValue("spriteWidth", sprite.spriteWidth);
                           form.setValue("spriteHeight", sprite.spriteHeight);
+                          form.setValue("lowResKey", sprite.lowResKey);
                           // Auto-save with sprite data
                           onSubmit({
                             ...form.getValues(),
@@ -173,6 +185,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                             spriteInterval: sprite.spriteInterval,
                             spriteWidth: sprite.spriteWidth,
                             spriteHeight: sprite.spriteHeight,
+                            lowResKey: sprite.lowResKey,
                           }, true);
                         }}
                         value={field.value}
@@ -181,6 +194,13 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                         initialSpriteKey={form.getValues("spriteKey")}
                       />
                     </FormControl>
+                    <TranscriptionWorkflow 
+                      lessonId={data.id}
+                      lessonTitle={data.title}
+                      videoUrl={watchedVideoKey ? `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${watchedVideoKey}` : undefined}
+                      videoKey={watchedVideoKey ?? undefined}
+                      onComplete={() => router.refresh()}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}

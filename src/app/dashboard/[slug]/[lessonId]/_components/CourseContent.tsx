@@ -47,6 +47,7 @@ function VideoPlayer({
   spriteInterval,
   spriteWidth,
   spriteHeight,
+  lowResKey,
 }: {
   thumbnailkey: string;
   videoKey: string;
@@ -59,9 +60,11 @@ function VideoPlayer({
   spriteInterval?: number | null;
   spriteWidth?: number | null;
   spriteHeight?: number | null;
+  lowResKey?: string | null;
 }) {
   const thumbnailUrl = useConstructUrl(thumbnailkey);
   const spriteUrl = useConstructUrl(spriteKey || "");
+  const lowResUrl = useConstructUrl(lowResKey || "");
   const [vttCues, setVttCues] = useState<any[]>([]);
 
   const spriteMetadata = useMemo(() => {
@@ -69,6 +72,7 @@ function VideoPlayer({
     if (spriteKey) {
        return {
           url: spriteUrl,
+          lowResUrl: lowResUrl,
           cols: spriteCols ?? 0,
           rows: spriteRows ?? 0,
           interval: spriteInterval ?? 0,
@@ -82,8 +86,12 @@ function VideoPlayer({
         const baseKey = videoKey.replace(/\.[^/.]+$/, "");
         const inferredKey = `sprites/${baseKey}/thumbnails.vtt`;
         const inferredUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredKey}`;
+        const inferredLowKey = `sprites/${baseKey}/preview_low.jpg`;
+        const inferredLowUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredLowKey}`;
+        
         return {
            url: inferredUrl,
+           lowResUrl: inferredLowUrl,
            cols: 0, rows: 0, interval: 0, width: 0, height: 0
         };
     }
@@ -616,6 +624,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
             spriteInterval={data.spriteInterval}
             spriteWidth={data.spriteWidth}
             spriteHeight={data.spriteHeight}
+            lowResKey={data.lowResKey}
           />
         </div>
 

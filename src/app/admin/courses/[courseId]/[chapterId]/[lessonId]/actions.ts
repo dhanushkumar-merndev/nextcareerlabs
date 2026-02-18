@@ -46,22 +46,36 @@ export async function updateLesson(
           spriteInterval: result.data.spriteInterval,
           spriteWidth: result.data.spriteWidth,
           spriteHeight: result.data.spriteHeight,
+          lowResKey: result.data.lowResKey,
         },
       });
 
       if (isVideoChanged) {
-        // Reset progress for all users if the video has changed
-        await tx.lessonProgress.deleteMany({
-          where: {
-            lessonId: lessonId,
-          },
-        });
+        // Reset progress and delete all video-related content
+        await Promise.all([
+          tx.lessonProgress.deleteMany({ where: { lessonId } }),
+          tx.question.deleteMany({ where: { lessonId } }),
+          tx.transcription.deleteMany({ where: { lessonId } }),
+          tx.quizAttempt.deleteMany({ where: { lessonId } }),
+        ]);
+
+        // Cleanup old S3 files (HLS, Sprites, etc.)
+        if (existingLesson?.videoKey) {
+          const { deleteS3File } = await import("@/lib/s3-delete-utils");
+          // Non-blocking cleanup (don't await to avoid slowing down the response)
+          deleteS3File(existingLesson.videoKey).catch(err => 
+            console.error("[Cleanup Error] Failed to delete old video assets:", err)
+          );
+        }
       }
     });
     
     // Invalidate caches
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(`lesson:${lessonId}`),
+        invalidateCache(`lesson:questions:${lessonId}`),
+        invalidateCache(`lesson:content:${lessonId}`),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);
 

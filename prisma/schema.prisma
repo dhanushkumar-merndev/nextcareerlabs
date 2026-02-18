@@ -14,33 +14,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-
 model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @default(now()) @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  courses       Course[]
-  enrollment    Enrollment[]
+  id             String           @id
+  name           String
+  email          String
+  emailVerified  Boolean          @default(false)
+  image          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @default(now()) @updatedAt
+  sessions       Session[]
+  accounts       Account[]
+  courses        Course[]
+  enrollment     Enrollment[]
   lessonProgress LessonProgress[]
 
   // Notification relations
-  sentNotifications     Notification[]          @relation("SentNotifications")
-  receivedNotifications Notification[]          @relation("ReceivedNotifications")
-  threadStates         UserThreadState[]
+  sentNotifications     Notification[]    @relation("SentNotifications")
+  receivedNotifications Notification[]    @relation("ReceivedNotifications")
+  threadStates          UserThreadState[]
 
-  role       String?
-  phoneNumber String?
-  banned     Boolean?  @default(false)
-  banReason  String?
-  banExpires DateTime?
-  isSupportBanned Boolean? @default(false)
+  role            String?
+  phoneNumber     String?
+  banned          Boolean?  @default(false)
+  banReason       String?
+  banExpires      DateTime?
+  isSupportBanned Boolean?  @default(false)
+
+  quizAttempts QuizAttempt[]
 
   @@unique([email])
   @@map("user")
@@ -94,27 +94,27 @@ model Verification {
 }
 
 model Course {
-  id               String       @id @default(uuid())
-  title            String
-  description      String
-  fileKey          String
-  duration         Int
-  level            CourseLevel  @default(Beginner)
+  id          String      @id @default(uuid())
+  title       String
+  description String
+  fileKey     String
+  duration    Int
+  level       CourseLevel @default(Beginner)
 
   category         String
   smallDescription String
   slug             String       @unique
   status           CourseStatus @default(Draft)
-  createdAt         DateTime     @default(now())
+  createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
   User   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
 
-  chapter Chapter[]
-  enrollment Enrollment[]
+  chapter       Chapter[]
+  enrollment    Enrollment[]
   notifications Notification[]
-  chatGroups ChatGroup[]
+  chatGroups    ChatGroup[]
 }
 
 enum CourseLevel {
@@ -129,120 +129,122 @@ enum CourseStatus {
   Archived
 }
 
-
-model Chapter{
+model Chapter {
   id        String   @id @default(uuid())
   title     String
   position  Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  Course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  Course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId String
 
   lesson Lesson[]
 }
 
-model Lesson{
-    id            String  @id @default(uuid())
-    title         String
-    description   String?
-    thumbnailKey  String?
-    videoKey      String?
+model Lesson {
+  id           String  @id @default(uuid())
+  title        String
+  description  String?
+  thumbnailKey String?
+  videoKey     String?
 
-    position      Int
-    duration      Int?
+  position Int
+  duration Int?
 
-    // Sprite sheet metadata for instant hover preview
-    spriteKey      String?  // S3 key to sprite sheet image
-    spriteCols     Int?     // Number of columns in sprite grid
-    spriteRows     Int?     // Number of rows in sprite grid
-    spriteInterval Float?   // Seconds between frames
-    spriteWidth    Int?     // Width of each thumbnail in px
-    spriteHeight   Int?     // Height of each thumbnail in px
+  // Sprite sheet metadata for instant hover preview
+  spriteKey      String? // S3 key to sprite sheet image
+  spriteCols     Int? // Number of columns in sprite grid
+  spriteRows     Int? // Number of rows in sprite grid
+  spriteInterval Float? // Seconds between frames
+  spriteWidth    Int? // Width of each thumbnail in px
+  spriteHeight   Int? // Height of each thumbnail in px
+  lowResKey      String? // S3 key to the low-res preview grid
 
-    createdAt     DateTime @default(now())
-    updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-    Chapter   Chapter   @relation(fields: [chapterId ], references: [id],onDelete: Cascade)
-    chapterId String
-    lessonProgress LessonProgress[]
+  Chapter        Chapter          @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  chapterId      String
+  lessonProgress LessonProgress[]
+  transcription  Transcription?
+  questions      Question[]
+  quizAttempts   QuizAttempt[]
 }
 
+model Enrollment {
+  id         String           @id @default(uuid())
+  status     EnrollmentStatus @default(Pending)
+  grantedAt  DateTime?
+  rejectedAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  Course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId   String
+  User       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
 
-model Enrollment{
-  id         String   @id @default(uuid())
-status       EnrollmentStatus @default(Pending)
-grantedAt    DateTime?
-rejectedAt   DateTime?
-createdAt    DateTime @default(now())
-updatedAt    DateTime @updatedAt
-Course       Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-courseId     String
-User         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-userId       String
-@@unique([userId,courseId])
+  @@unique([userId, courseId])
 }
 
 enum EnrollmentStatus {
-Pending
-Granted
-Rejected
-Revoked
+  Pending
+  Granted
+  Rejected
+  Revoked
 }
 
-
 model LessonProgress {
-  id        String   @id @default(uuid())
-  completed Boolean @default(false)
-  lastWatched Float    @default(0)
-  actualWatchTime Float @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  User   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String
-  
-  Lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  id              String   @id @default(uuid())
+  completed       Boolean  @default(false)
+  quizPassed      Boolean  @default(false)
+  lastWatched     Float    @default(0)
+  actualWatchTime Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  User            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
+
+  Lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId String
 
-@@unique([userId,lessonId])
+  @@unique([userId, lessonId])
 }
 
 model Notification {
-  id          String   @id @default(uuid())
-  title       String
-  content     String
-  type        NotificationType
-  
-  senderId    String
-  sender      User     @relation("SentNotifications", fields: [senderId], references: [id], onDelete: Cascade)
-  
+  id      String           @id @default(uuid())
+  title   String
+  content String
+  type    NotificationType
+
+  senderId String
+  sender   User   @relation("SentNotifications", fields: [senderId], references: [id], onDelete: Cascade)
+
   // For targeted broadcasts or specific course tickets
-  courseId    String?
-  course      Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  
+  courseId String?
+  course   Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
   // recipientId is null for broadcasts to "All" or "Course Users"
   // If specific recipient is needed (like a reply to a ticket)
   recipientId String?
-  recipient   User?    @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: SetNull)
+  recipient   User?   @relation("ReceivedNotifications", fields: [recipientId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime @default(now())
-  
-  imageUrl    String?
-  feedback    String?
-  resolved    Boolean  @default(false)
-  
+  createdAt DateTime @default(now())
+
+  imageUrl String?
+  feedback String?
+  resolved Boolean @default(false)
+
   // For chat-like threading
-  threadId    String?
+  threadId String?
 
   // For persistent Chat Groups
   chatGroupId String?
   chatGroup   ChatGroup? @relation(fields: [chatGroupId], references: [id], onDelete: Cascade)
 
-  
   // File attachments (PDFs, docs, etc.)
-  fileUrl     String?
-  fileName    String?
+  fileUrl  String?
+  fileName String?
 
   @@index([senderId])
   @@index([courseId])
@@ -252,38 +254,36 @@ model Notification {
 }
 
 model ChatGroup {
-  id        String   @id @default(uuid())
-  name      String
-  courseId  String?  
-  course    Course?  @relation(fields: [courseId], references: [id], onDelete: SetNull)
-  
-  imageUrl  String?
-  
+  id       String  @id @default(uuid())
+  name     String
+  courseId String?
+  course   Course? @relation(fields: [courseId], references: [id], onDelete: SetNull)
+
+  imageUrl String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  messages  Notification[]
+  messages Notification[]
 }
 
-
-
 enum NotificationType {
-  BROADCAST      // To all users
-  COURSE_MODAL   // To users of a specific course
+  BROADCAST // To all users
+  COURSE_MODAL // To users of a specific course
   SUPPORT_TICKET // User to Admin
-  ADMIN_REPLY    // Admin to User
-  SYSTEM         // System generated
-  GROUP_CHAT     // Message in a Chat Group
+  ADMIN_REPLY // Admin to User
+  SYSTEM // System generated
+  GROUP_CHAT // Message in a Chat Group
 }
 
 model UserThreadState {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  threadId  String
-  hidden    Boolean  @default(false)
-  archived  Boolean  @default(false)
-  muted     Boolean  @default(false)
+  id       String  @id @default(uuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  threadId String
+  hidden   Boolean @default(false)
+  archived Boolean @default(false)
+  muted    Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -291,4 +291,56 @@ model UserThreadState {
   @@unique([userId, threadId])
   @@index([userId])
   @@index([threadId])
+}
+
+model Transcription {
+  id        String              @id @default(uuid())
+  lessonId  String              @unique
+  vttUrl    String // S3 URL to WebVTT file
+  vttKey    String // S3 key for the VTT file
+  status    TranscriptionStatus @default(PENDING)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+}
+
+enum TranscriptionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Question {
+  id          String   @id @default(uuid())
+  lessonId    String
+  question    String   @db.Text
+  options     Json // Array of 4 options
+  correctIdx  Int // Index of correct answer (0-3)
+  explanation String?  @db.Text
+  order       Int // Question order (1-20)
+  createdAt   DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  userId      String
+  lessonId    String
+  answers     Json // Array of selected answer indices
+  score       Int // Number correct (out of 20)
+  passed      Boolean // true if score >= 15
+  completedAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([userId, lessonId])
+  @@index([lessonId])
 }

@@ -18,7 +18,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import Loader from "@/components/ui/Loader";
@@ -30,6 +29,7 @@ export interface VideoSource {
 
 export interface SpriteMetadata {
   url: string;
+  lowResUrl?: string; // URL to the ultra-low-res grid
   cols: number;
   rows: number;
   interval: number;
@@ -262,14 +262,29 @@ export function VideoPlayer({
     }
   }, [spriteMetadata?.initialCues]);
 
-  // Preload sprite images so they're cached by browser
+  // Preload sprite images/ranges so they're cached by browser
   const preloadSpriteImages = (cues: any[], vttUrl: string) => {
     if (cues.length === 0) return;
     
+    // ✅ Preload Low-Res Grid First (Instant Placeholder)
+    if (spriteMetadata?.lowResUrl) {
+      const img = new Image();
+      img.src = spriteMetadata.lowResUrl;
+      console.log("VideoPlayer: Preloading low-res grid...");
+    }
+
     const baseUrl = vttUrl.substring(0, vttUrl.lastIndexOf("/") + 1);
-    const uniqueImages = new Set<string>();
     
-    // Collect all unique sprite image URLs
+    // For Byte-Range consolidated sprites, we don't want to preload the WHOLE .bin
+    // We only preload the FIRST stripe to give instant feedback
+    const firstCue = cues[0];
+    if (firstCue?.url?.includes("#range=")) {
+        console.log("VideoPlayer: Byte-Range mode detected. Preloading first stripe...");
+        // getSpritePosition will handle the specific range fetch
+        return;
+    }
+
+    const uniqueImages = new Set<string>();
     cues.forEach(cue => {
       if (cue.url) {
         const imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
@@ -278,8 +293,6 @@ export function VideoPlayer({
     });
     
     console.log(`VideoPlayer: Preloading ${uniqueImages.size} sprite images...`);
-    
-    // Preload each unique image
     uniqueImages.forEach(url => {
       const img = new Image();
       img.src = url;
@@ -379,35 +392,115 @@ export function VideoPlayer({
   }, [spriteMetadata?.url]);
 
 
+  const [rangeCache] = useState<Map<string, string>>(new Map());
+  const fullBinaryRef = useRef<Blob | null>(null);
+  const [, setVttUpdateTick] = useState(0);
+
+  // Background Preload the Full Binary
+  const preloadFullBinary = async (pureUrl: string) => {
+    if (fullBinaryRef.current) return;
+    try {
+      console.log("VideoPlayer: Starting background preload for", pureUrl);
+      const res = await fetch(pureUrl);
+      const blob = await res.blob();
+      fullBinaryRef.current = blob;
+      console.log("VideoPlayer: Sprite binary preloaded (", Math.round(blob.size / 1024), "KB )");
+      // No re-render needed immediately, it will be used on next hover
+    } catch (err) {
+      console.error("VideoPlayer: Background preload failed", err);
+    }
+  };
+
   const getSpritePosition = (time: number) => {
     if (!spriteMetadata) return null;
 
-    // VTT Logic (New)
     if (vttCues.length > 0) {
         const cue = vttCues.find(c => time >= c.startTime && time < c.endTime);
-        if (!cue) {
-            // console.log("VideoPlayer: No cue found for time", time);
-            return null;
-        }
+        if (!cue) return null;
         
-        // Construct full URL relative to VTT or absolute
         const baseUrl = spriteMetadata.url.substring(0, spriteMetadata.url.lastIndexOf("/") + 1);
-        const imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
+        let imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
         
-        // console.log("VideoPlayer: Showing sprite", imageUrl, cue.x, cue.y);
+        if (imageUrl.includes("#range=")) {
+            const [pureUrl, fragment] = imageUrl.split("#range=");
+            const cacheKey = `${pureUrl}#${fragment}`;
+            
+            // 1. If we have the full binary, use it (Truly Instant)
+            if (fullBinaryRef.current) {
+                if (!rangeCache.has(cacheKey)) {
+                   const [start, end] = fragment.split("-").map(Number);
+                   const slice = fullBinaryRef.current.slice(start, end + 1);
+                   const blobUrl = URL.createObjectURL(slice);
+                   rangeCache.set(cacheKey, blobUrl);
+                }
+                imageUrl = rangeCache.get(cacheKey)!;
+            } 
+            // 2. WHILE LOADING: Fallback to individual range fetch (Instant Feedback)
+            else if (rangeCache.has(cacheKey)) {
+                imageUrl = rangeCache.get(cacheKey)!;
+            } else {
+                if (!rangeCache.has(`pending-${cacheKey}`)) {
+                    rangeCache.set(`pending-${cacheKey}`, "true");
+                    preloadFullBinary(pureUrl); // Trigger full load in background
+                    
+                    const [start, end] = fragment.split("-").map(Number);
+                    fetch(pureUrl, { headers: { "Range": `bytes=${start}-${end}` } })
+                        .then(res => res.blob())
+                        .then(blob => {
+                            const blobUrl = URL.createObjectURL(blob);
+                            rangeCache.set(cacheKey, blobUrl);
+                            setVttUpdateTick(t => t + 1); // Trigger re-render to show frame
+                        })
+                        .catch(err => {
+                            console.error("Sprite range fetch failed:", err);
+                            rangeCache.delete(`pending-${cacheKey}`);
+                        });
+                }
+                return null; 
+            }
+        }
 
         return {
             backgroundImage: `url(${imageUrl})`,
             backgroundPosition: `-${cue.x}px -${cue.y}px`,
-            backgroundSize: "initial", // Size is irrelevant for VTT as we just clip
+            backgroundSize: "initial",
             width: cue.w,
             height: cue.h,
+            startTime: cue.startTime,
+            isHighRes: true,
         };
     }
 
-    // Legacy Grid Logic
-    // Guard against VTT-based metadata falling through (cols=0)
-    if (!spriteMetadata.cols || !spriteMetadata.rows || !spriteMetadata.interval) {
+    // 3. Fallback to Low-Res Grid if High-Res is pending
+    if (spriteMetadata?.lowResUrl) {
+        // High-res interval is used for both
+        const index = Math.floor(time / spriteMetadata.interval);
+        
+        // Low-res grid constants (matched with sprite-generator.ts)
+        const lowWidth = 40;
+        const lowHeight = 22;
+        const lowCols = 25;
+        
+        const col = index % lowCols;
+        const row = Math.floor(index / lowCols);
+        
+        // Calculate total rows in the low-res grid for accurate backgroundSize scaling
+        const totalFrames = Math.ceil(duration / (spriteMetadata.interval || 10));
+        const lowRows = Math.ceil(totalFrames / lowCols);
+        
+        return {
+            backgroundImage: `url(${spriteMetadata.lowResUrl})`,
+            backgroundPosition: `-${col * spriteMetadata.width}px -${row * spriteMetadata.height}px`,
+            backgroundSize: `${lowCols * spriteMetadata.width}px ${lowRows * spriteMetadata.height}px`,
+            width: spriteMetadata.width, 
+            height: spriteMetadata.height,
+            isHighRes: false,
+            startTime: index * spriteMetadata.interval,
+        };
+    }
+
+    // Legacy Grid Logic (Ensure metadata exists)
+    if (!spriteMetadata || !spriteMetadata.cols || !spriteMetadata.interval) {
         return null;
     }
     const index = Math.min(
@@ -422,6 +515,7 @@ export function VideoPlayer({
       backgroundSize: `${spriteMetadata.cols * spriteMetadata.width}px ${spriteMetadata.rows * spriteMetadata.height}px`,
       width: spriteMetadata.width,
       height: spriteMetadata.height,
+      startTime: index * spriteMetadata.interval, // Added for snapping
     };
   };
 
@@ -452,6 +546,12 @@ export function VideoPlayer({
         className
       )}
       onMouseMove={handleMouseMove}
+      onMouseEnter={() => {
+        if (spriteMetadata?.url) {
+          const pureUrl = spriteMetadata.url.replace("thumbnails.vtt", "sprites.bin");
+          preloadFullBinary(pureUrl);
+        }
+      }}
       onMouseLeave={() => {
         if (isPlaying) setShowControls(false);
         setHoverPosition(null);
@@ -505,63 +605,93 @@ export function VideoPlayer({
           onMouseLeave={() => setHoverPosition(null)}
         >
           <div 
-            className="relative group/seekbar pt-4 touch-none"
+            className="relative group/seekbar py-4 -my-2 touch-none cursor-pointer"
             onMouseMove={handleSeekbarMouseMove}
             onMouseLeave={() => setHoverPosition(null)}
+            onPointerDown={(e) => {
+              // Expand hit area: allow clicking near the line to seek
+              const pos = calculatePosition(e.clientX);
+              if (pos) handleSeek([pos.time]);
+            }}
             onTouchMove={handleSeekbarTouchMove}
             onTouchEnd={handleSeekbarTouchEnd}
             ref={seekbarRef}
           >
-            {hoverPosition && (
-              <div 
-                className="absolute bottom-full mb-3 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none"
-                style={{ left: `${(hoverPosition.time / duration) * 100}%` }}
-              >
-                {spriteMetadata ? (() => {
-                  const spritePos = getSpritePosition(hoverPosition.time);
-                  return spritePos ? (
-                    // Move responsive scaling here to the container
-                    // origin-bottom ensures it grows upwards from the seekbar
-                    <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">
-                      <div className="relative rounded-md overflow-hidden bg-muted flex items-center justify-center" style={{ width: `${spritePos.width}px`, height: `${spritePos.height}px` }}>
-                        <div
-                          style={{
-                            width: `${spritePos.width}px`,
-                            height: `${spritePos.height}px`,
-                            backgroundImage: spritePos.backgroundImage,
-                            backgroundPosition: spritePos.backgroundPosition,
-                            backgroundSize: spritePos.backgroundSize,
-                            backgroundRepeat: 'no-repeat',
-                          }}
-                        />
-                        {/* Overlay label */}
-                        <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/90">
+            {hoverPosition && (() => {
+                const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
+                const snapTime = spritePos?.startTime ?? hoverPosition.time;
+                
+                return (
+                  <div 
+                    className="absolute bottom-full mb-3 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none"
+                    style={{ left: `${(snapTime / duration) * 100}%` }}
+                  >
+                    {spriteMetadata ? (
+                      spritePos ? (
+                        <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">
+                          <div className="relative rounded-md overflow-hidden bg-muted flex items-center justify-center" style={{ width: `${spritePos.width}px`, height: `${spritePos.height}px` }}>
+                            {/* Low Res Layer (visible while loading HD or as base) */}
+                            {(!spritePos.isHighRes || true) && (
+                                <div
+                                    className={cn(
+                                        "absolute inset-0 transition-opacity duration-300",
+                                        spritePos.isHighRes ? "opacity-0" : "opacity-100 blur-[2px] scale-105"
+                                    )}
+                                    style={{
+                                        width: `${spritePos.width}px`,
+                                        height: `${spritePos.height}px`,
+                                        backgroundImage: spritePos.backgroundImage,
+                                        backgroundPosition: spritePos.backgroundPosition,
+                                        backgroundSize: spritePos.backgroundSize,
+                                        backgroundRepeat: 'no-repeat',
+                                    }}
+                                />
+                            )}
+                            
+                            {/* High Res Layer */}
+                            <div
+                              className={cn(
+                                  "transition-opacity duration-300",
+                                  spritePos.isHighRes ? "opacity-100" : "opacity-0"
+                              )}
+                              style={{
+                                width: `${spritePos.width}px`,
+                                height: `${spritePos.height}px`,
+                                backgroundImage: spritePos.backgroundImage,
+                                backgroundPosition: spritePos.backgroundPosition,
+                                backgroundSize: spritePos.backgroundSize,
+                                backgroundRepeat: 'no-repeat',
+                              }}
+                            />
+                            
+                            <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/90">
+                              {formatTime(snapTime)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md flex items-center justify-center w-32 aspect-video">
+                            <Loader size={16} />
+                        </div>
+                      )
+                    ) : (
+                      <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 shadow-2xl backdrop-blur-md">
+                        <div className="text-sm font-mono text-white/90">
                           {formatTime(hoverPosition.time)}
                         </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md flex items-center justify-center w-32 aspect-video">
-                        <Loader size={16} />
-                    </div>
-                  );
-                })() : (
-                  <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 shadow-2xl backdrop-blur-md">
-                    <div className="text-sm font-mono text-white/90">
-                      {formatTime(hoverPosition.time)}
-                    </div>
+                    )}
+                    <div className="w-2.5 h-2.5 bg-black/95 rotate-45 border-r border-b border-white/20 -mt-1.5 -z-1" />
                   </div>
-                )}
-                <div className="w-2.5 h-2.5 bg-black/95 rotate-45 border-r border-b border-white/20 -mt-1.5" />
-              </div>
-            )}
+                );
+            })()}
             
             <Slider
               value={[currentTime]}
               max={duration || 100}
               step={0.1}
               onValueChange={handleSeek}
-              className="cursor-pointer"
+              className="cursor-pointer h-1 flex items-center"
             />
           </div>
 

@@ -375,6 +375,9 @@ export async function deleteLesson({
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        invalidateCache(`lesson:${lessonId}`),
+        invalidateCache(`lesson:questions:${lessonId}`),
+        invalidateCache(`lesson:content:${lessonId}`),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);

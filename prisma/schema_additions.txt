@@ -1,0 +1,51 @@
+model Transcription {
+  id        String   @id @default(uuid())
+  lessonId  String   @unique
+  vttUrl    String   // S3 URL to WebVTT file
+  vttKey    String   // S3 key for the VTT file
+  status    TranscriptionStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+}
+
+enum TranscriptionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Question {
+  id          String   @id @default(uuid())
+  lessonId    String
+  question    String   @db.Text
+  options     Json     // Array of 4 options
+  correctIdx  Int      // Index of correct answer (0-3)
+  explanation String?  @db.Text
+  order       Int      // Question order (1-20)
+  createdAt   DateTime @default(now())
+  
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  @@index([lessonId])
+}
+
+model QuizAttempt {
+  id          String   @id @default(uuid())
+  userId      String
+  lessonId    String
+  answers     Json     // Array of selected answer indices
+  score       Int      // Number correct (out of 20)
+  passed      Boolean  // true if score >= 15
+  completedAt DateTime @default(now())
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson      Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, lessonId])
+  @@index([lessonId])
+}

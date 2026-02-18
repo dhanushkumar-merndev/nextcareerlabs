@@ -1,7 +1,9 @@
 export interface SpriteGenerationResult {
   vttBlob: Blob;
-  spriteBlobs: Blob[];
-  spriteFileNames: string[]; // e.g. ["sprite-0.jpg", "sprite-1.jpg"]
+  combinedBlob: Blob;
+  spriteFileName: string;
+  vttLinesRaw: string[];
+  previewLowBlob?: Blob; // Added for progressive loading
 }
 
 export type ProgressCallback = (progress: number, status: string) => void;
@@ -12,7 +14,7 @@ export class SpriteGenerator {
   private ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
   private width: number;
   private height: number;
-  private interval: number; // seconds
+  public readonly interval: number; // seconds
   private colCount: number;
   private rowCount: number; // max rows per sheet (calculated from max frames per sheet)
  
@@ -21,7 +23,7 @@ export class SpriteGenerator {
     width = 240,     // Increased from 160px for better visibility
     height = 135,    // Increased from 90px (maintains 16:9 ratio)
     interval = 10,
-    colCount = 5     // 5 cols * 240 = 1200px wide
+    colCount = 10     // Updated to 10 columns as requested
   ) {
     this.width = width;
     this.height = height;
@@ -62,41 +64,31 @@ export class SpriteGenerator {
       const startTimestamp = timeRange?.start ?? 0;
       const endTimestamp = timeRange?.end ?? duration;
       
-      // Calculate global frame indices
-      // We align startTimestamp to the nearest interval to avoid drift
       const startFrameIndex = Math.floor(startTimestamp / this.interval);
       const endFrameIndex = Math.ceil(endTimestamp / this.interval);
       const totalFramesToProcess = endFrameIndex - startFrameIndex;
       
-      // Strategy: 1 Sprite Sheet per hour of video (360 frames)
-      const framesPerSheet = 360; 
-      
-      // We need to offset the sheet index if we are processing a chunk
-      // relativeSheetIndex 0 corresponds to the first sheet *of this chunk*
-      // But we want output filenames to be consistent globally? 
-      // Actually, if we merge later, we can just return blobs and let the merger handle naming?
-      // No, best to have unique names. "sprite-<timestamp>-<index>.jpg"?
-      // Or just return ordered list of blobs and generic names, then rename on merge.
-      
-      const chunkSheetCount = Math.ceil(totalFramesToProcess / framesPerSheet);
-      
       const spriteBlobs: Blob[] = [];
-      const spriteFileNames: string[] = [];
-      const vttLines: string[] = []; // We won't add header here if merging, but for single run we might.
+      const vttLines: string[] = []; 
       
-      // Only add header if this is a standalone run (no range) or the start
       if (!timeRange || timeRange.start === 0) {
         vttLines.push("WEBVTT", "");
       }
 
-      for (let i = 0; i < chunkSheetCount; i++) {
-        // Global frame numbers for this sheet
-        const sheetStartFrame = startFrameIndex + (i * framesPerSheet);
-        const sheetEndFrame = Math.min(startFrameIndex + ((i + 1) * framesPerSheet), endFrameIndex);
-        
-        // Calculate canvas dimensions
-        const framesInSheet = sheetEndFrame - sheetStartFrame;
-        const rows = Math.ceil(framesInSheet / this.colCount);
+      // Max frames per sheet to keep size reasonable and improve seeking performance
+      // Using 25 allows for better densitity while keeping individual canvases manageable
+      const maxFramesPerSheet = 25; 
+      const totalSheets = Math.ceil(totalFramesToProcess / maxFramesPerSheet);
+      
+      let currentOffset = 0;
+      const binaryFileName = "sprites.bin";
+
+      for (let s = 0; s < totalSheets; s++) {
+        const sheetStartFrame = startFrameIndex + (s * maxFramesPerSheet);
+        const sheetEndFrame = Math.min(sheetStartFrame + maxFramesPerSheet, endFrameIndex);
+        const framesInThisSheet = sheetEndFrame - sheetStartFrame;
+
+        const rows = Math.ceil(framesInThisSheet / this.colCount);
         const sheetWidth = this.colCount * this.width;
         const sheetHeight = rows * this.height;
 
@@ -106,41 +98,115 @@ export class SpriteGenerator {
         this.ctx.fillStyle = "black";
         this.ctx.fillRect(0, 0, sheetWidth, sheetHeight);
         
-        // Use a unique name to avoid collision in parallel uploads if we used that
-        // But for consistency: "sprite-<startFrame>.jpg" is safe
-        const fileName = `sprite-${sheetStartFrame}.jpg`;
-        spriteFileNames.push(fileName);
-        
-        await this.processBatch(
-          sheetStartFrame, 
-          sheetEndFrame, 
-          fileName, 
-          vttLines, 
-          onProgress, 
-          totalFramesToProcess, // logical total for this generator's progress
-          startFrameIndex // logical zero for progress calc
-        );
+        // Draw frames to canvas
+        for (let i = 0; i < framesInThisSheet; i++) {
+          const globalFrameIndex = sheetStartFrame + i;
+          const timestamp = globalFrameIndex * this.interval;
+          
+          if (globalFrameIndex % 5 === 0 && onProgress) {
+             const processed = globalFrameIndex - startFrameIndex;
+             // Give 85% weight to high-res generation
+             const percent = Math.round((processed / totalFramesToProcess) * 85);
+             onProgress(Math.min(85, percent), `Generating snapshots...`);
+          }
+
+          await this.seekTo(timestamp);
+          this.drawFrame(i);
+        }
 
         const blob = await this.canvasToBlob();
-        spriteBlobs.push(blob);
+        const startOffset = currentOffset;
+        const endOffset = currentOffset + blob.size - 1;
         
-        this.ctx.clearRect(0, 0, sheetWidth, sheetHeight);
-      }
+        // After blob is generated, we know the EXACT range for these frames
+        for (let i = 0; i < framesInThisSheet; i++) {
+            const globalFrameIndex = sheetStartFrame + i;
+            const timestamp = globalFrameIndex * this.interval;
+            this.addVTTEntry(vttLines, i, `${binaryFileName}#range=${startOffset}-${endOffset}`, timestamp);
+        }
 
+        spriteBlobs.push(blob);
+        currentOffset += blob.size;
+      }
+      
+      const combinedBlob = new Blob(spriteBlobs, { type: "application/octet-stream" });
       const vttContent = vttLines.join("\n");
       const vttBlob = new Blob([vttContent], { type: "text/vtt" });
 
+      // Generate Low-Res Master Grid
+      // Low-res grid needs progress too so it doesn't look stuck at 85%
+      const lowResBlob = await this.generateLowResGrid(file, this.interval, (p) => {
+        if (onProgress) {
+            const cumulative = 85 + (p * 0.15); // Remaining 15%
+            onProgress(Math.min(99, Math.round(cumulative)), `Optimizing previews...`);
+        }
+      });
+
+      if (onProgress) onProgress(100, "Done!");
+
       return {
         vttBlob,
-        spriteBlobs,
-        spriteFileNames,
-        vttLinesRaw: vttLines // Return raw lines for merging
-      } as any; 
+        combinedBlob,
+        spriteFileName: binaryFileName,
+        vttLinesRaw: vttLines,
+        previewLowBlob: lowResBlob
+      }; 
 
     } finally {
       URL.revokeObjectURL(objectUrl);
+      this.video.pause();
       this.video.removeAttribute("src");
       this.video.load();
+      if (typeof this.video.remove === "function") this.video.remove();
+    }
+  }
+
+  /**
+   * Generates a single, ultra-low resolution grid for the entire video.
+   * This is used as an instant blurred placeholder.
+   */
+  public async generateLowResGrid(
+    file: File,
+    interval: number,
+    onProgress?: (progress: number) => void
+  ): Promise<Blob> {
+    const objectUrl = URL.createObjectURL(file);
+    this.video.src = objectUrl;
+
+    try {
+      await this.loadVideoMetadata();
+      const duration = this.video.duration;
+      const totalFrames = Math.ceil(duration / interval);
+      
+      const lowWidth = 40;
+      const lowHeight = 22;
+      const lowCols = 25;
+      const lowRows = Math.ceil(totalFrames / lowCols);
+      
+      this.configureCanvas(lowCols * lowWidth, lowRows * lowHeight);
+      this.ctx.fillStyle = "black";
+      this.ctx.fillRect(0, 0, lowCols * lowWidth, lowRows * lowHeight);
+
+      for (let i = 0; i < totalFrames; i++) {
+        const timestamp = i * interval;
+        
+        if (i % 10 === 0 && onProgress) {
+            onProgress((i / totalFrames) * 100);
+        }
+
+        await this.seekTo(timestamp);
+        
+        const col = i % lowCols;
+        const row = Math.floor(i / lowCols);
+        this.ctx.drawImage(this.video, col * lowWidth, row * lowHeight, lowWidth, lowHeight);
+      }
+
+      if (onProgress) onProgress(100);
+
+      return await this.canvasToBlob(0.4); // Very low quality for instant load
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      this.video.pause();
     }
   }
 
@@ -152,40 +218,6 @@ export class SpriteGenerator {
             (this.canvas as HTMLCanvasElement).width = width;
             (this.canvas as HTMLCanvasElement).height = height;
         }
-  }
-
-  private async processBatch(
-    startFrame: number, 
-    endFrame: number, 
-    fileName: string, 
-    vttLines: string[], 
-    onProgress: ProgressCallback | undefined,
-    totalFrames: number,
-    baseFrameIndex: number
-  ) {
-    const count = endFrame - startFrame;
-    const batchSize = 50;
-    
-    for (let i = 0; i < count; i++) {
-      const globalFrameIndex = startFrame + i;
-      // Local index relative to THIS sheet
-      const sheetLocalFrameIndex = i; 
-      const timestamp = globalFrameIndex * this.interval;
-
-      if (i % batchSize === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-        if (onProgress) {
-            // Progress relative to this chunk
-            const processed = globalFrameIndex - baseFrameIndex;
-            const percent = Math.round((processed / totalFrames) * 100);
-            onProgress(percent, `Generating part...`);
-        }
-      }
-
-      await this.seekTo(timestamp);
-      this.drawFrame(sheetLocalFrameIndex);
-      this.addVTTEntry(vttLines, sheetLocalFrameIndex, fileName, timestamp);
-    }
   }
 
   private drawFrame(localFrameIndex: number) {
@@ -268,25 +300,35 @@ export class SpriteGenerator {
     // 4. Merge Results
     const finalVTTLines = ["WEBVTT", ""];
     const finalBlobs: Blob[] = [];
-    const finalFileNames: string[] = [];
 
-    // Sort results by start time (implicitly handled by array order 0..3)
     results.forEach((res) => {
-        // Filter out existing WEBVTT headers if any sub-gen added them
         const lines = (res.vttLinesRaw || []).filter((l: string) => l !== "WEBVTT" && l !== "");
         finalVTTLines.push(...lines);
-        
-        finalBlobs.push(...res.spriteBlobs);
-        finalFileNames.push(...res.spriteFileNames);
+        finalBlobs.push(res.combinedBlob);
     });
 
     const mergedVTTContent = finalVTTLines.join("\n");
     const mergedVTTBlob = new Blob([mergedVTTContent], { type: "text/vtt" });
+    const mergedCombinedBlob = new Blob(finalBlobs, { type: "application/octet-stream" });
+
+    // 5. Generate Low-Res Master Grid
+    const lowResGen = new SpriteGenerator();
+    const lowResBlob = await lowResGen.generateLowResGrid(file, generators[0].interval, (p) => {
+        // Late stage progress 95% -> 100%
+        onProgress?.(95 + (p * 0.05));
+    });
+
+    onProgress?.(100);
+
+    // 6. Cleanup: Null out chunk references so GC can reclaim them
+    results.length = 0;
 
     return {
         vttBlob: mergedVTTBlob,
-        spriteBlobs: finalBlobs,
-        spriteFileNames: finalFileNames
+        combinedBlob: mergedCombinedBlob,
+        spriteFileName: "sprites.bin",
+        vttLinesRaw: finalVTTLines,
+        previewLowBlob: lowResBlob
     };
   }
 
@@ -309,27 +351,37 @@ export class SpriteGenerator {
 
   private seekTo(time: number): Promise<void> {
     return new Promise((resolve) => {
-      // Optimization: if time is beyond duration, clamp it? 
-      // User requested seek to every 10s. If longer than duration, video will just hold last frame.
-      
+      let resolved = false;
       const onSeeked = () => {
+        if (resolved) return;
+        resolved = true;
         this.video.removeEventListener("seeked", onSeeked);
         resolve();
       };
+      
+      // Safety timeout: some browsers/files might miss 'seeked' if seeking to same/invalid time
+      setTimeout(() => {
+        if (!resolved) {
+            resolved = true;
+            this.video.removeEventListener("seeked", onSeeked);
+            resolve();
+        }
+      }, 2000);
+
       this.video.addEventListener("seeked", onSeeked);
       this.video.currentTime = time;
     });
   }
 
-  private async canvasToBlob(): Promise<Blob> {
+  private async canvasToBlob(quality = 0.5): Promise<Blob> {
     if (this.canvas instanceof OffscreenCanvas) {
-      return this.canvas.convertToBlob({ type: "image/jpeg", quality: 0.8 });
+      return this.canvas.convertToBlob({ type: "image/jpeg", quality });
     } else {
       return new Promise<Blob>((resolve, reject) => {
         (this.canvas as HTMLCanvasElement).toBlob(blob => {
           if (blob) resolve(blob);
           else reject(new Error("Canvas to Blob failed"));
-        }, "image/jpeg", 0.8);
+        }, "image/jpeg", quality);
       });
     }
   }

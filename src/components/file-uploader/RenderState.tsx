@@ -68,11 +68,12 @@ export function RenderUploadedState({
 }) {
   const spriteProps = spriteMetadata ? {
     url: useConstructUrl(spriteMetadata.spriteKey),
-    cols: spriteMetadata.spriteCols,
-    rows: spriteMetadata.spriteRows,
-    interval: spriteMetadata.spriteInterval,
-    width: spriteMetadata.spriteWidth,
-    height: spriteMetadata.spriteHeight,
+    lowResUrl: spriteMetadata.lowResKey ? useConstructUrl(spriteMetadata.lowResKey) : undefined,
+    cols: spriteMetadata.spriteCols || 10,
+    rows: spriteMetadata.spriteRows || 0,
+    interval: spriteMetadata.spriteInterval || 10,
+    width: spriteMetadata.spriteWidth || 240,
+    height: spriteMetadata.spriteHeight || 135,
   } : undefined;
 
   useEffect(() => {

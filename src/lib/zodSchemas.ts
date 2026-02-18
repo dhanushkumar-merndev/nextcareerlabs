@@ -83,6 +83,7 @@ export const lessonSchema = z.object({
   spriteInterval: z.number().nullable().optional(),
   spriteWidth: z.number().nullable().optional(),
   spriteHeight: z.number().nullable().optional(),
+  lowResKey: z.string().nullable().optional(),
 });
 
 

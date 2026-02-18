@@ -24,6 +24,7 @@ export async function adminGetLesson(id: string) {
       spriteInterval: true,
       spriteWidth: true,
       spriteHeight: true,
+      lowResKey: true,
     },
   });
 

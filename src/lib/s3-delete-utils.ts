@@ -9,20 +9,33 @@ export async function deleteS3File(key: string) {
   if (!key) return;
 
   // 1. Delete the raw file from Tigris
-  const command = new DeleteObjectCommand({
+  const deleteRawCommand = new DeleteObjectCommand({
     Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
     Key: key,
   });
 
   try {
-    await tigris.send(command);
+    await tigris.send(deleteRawCommand);
   } catch (err) {
     console.error(`Failed to delete raw file ${key}:`, err);
   }
 
-  // 2. Delete the specific HLS folder for this video from Tigris
-  const hlsPrefix = `hls/${key.replace(/\.[^/.]+$/, "")}/`;
-  
+  // 2. Delete the associated folders (HLS and Sprites)
+  const baseName = key.replace(/\.[^/.]+$/, "");
+  const foldersToCleanup = [
+    `hls/${baseName}/`,
+    `sprites/${baseName}/`
+  ];
+
+  for (const prefix of foldersToCleanup) {
+    await deleteFolder(prefix);
+  }
+}
+
+/**
+ * Helper to delete all objects with a certain prefix (folder cleanup)
+ */
+async function deleteFolder(prefix: string) {
   try {
     let isTruncated = true;
     let continuationToken: string | undefined = undefined;
@@ -30,12 +43,10 @@ export async function deleteS3File(key: string) {
     while (isTruncated) {
       const listCommand = new ListObjectsV2Command({
         Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
-        Prefix: hlsPrefix,
+        Prefix: prefix,
         ContinuationToken: continuationToken,
       });
       
-      // Explicitly cast or let TS infer from properly typed client. 
-      // Sometimes in loops TS gets confused.
       const listedObjects: ListObjectsV2CommandOutput = await tigris.send(listCommand);
 
       if (listedObjects.Contents && listedObjects.Contents.length > 0) {
@@ -48,12 +59,13 @@ export async function deleteS3File(key: string) {
           )
         );
         await Promise.all(deletePromises);
+        console.log(`[Cleanup] Deleted ${listedObjects.Contents.length} objects with prefix: ${prefix}`);
       }
 
       isTruncated = listedObjects.IsTruncated ?? false;
       continuationToken = listedObjects.NextContinuationToken;
     }
   } catch (err) {
-    console.error(`Failed to delete HLS segments for ${key}:`, err);
+    console.error(`Failed to delete folder ${prefix}:`, err);
   }
 }

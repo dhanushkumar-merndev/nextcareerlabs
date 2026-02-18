@@ -53,6 +53,19 @@ export async function transcodeToHLS(
   return window.transcodeVideoToHLS(file, onProgress, duration);
 }
 
+export async function compressAudio(
+  file: File,
+  onProgress: (progress: number) => void
+): Promise<Blob> {
+  await ensureScriptsLoaded();
+
+  if (!window.compressAudio) {
+    throw new Error("Audio compressor script not initialized properly");
+  }
+
+  return window.compressAudio(file, onProgress);
+}
+
 // Keep this to satisfy types, but it's now handled by processor.js
 export async function loadFFmpeg() {
   return null;
@@ -68,5 +81,9 @@ declare global {
     ) => Promise<TranscodeResult>;
     FFmpegWASM: any;
     FFmpegUtil: any;
+    compressAudio: (
+      file: File,
+      onProgress: (progress: number) => void
+    ) => Promise<Blob>;
   }
 }
