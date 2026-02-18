@@ -114,3 +114,96 @@ export async function updateVideoProgress(
     };
   }
 }
+/**
+ * Submit a quiz attempt for a lesson
+ */
+export async function submitQuizAttempt(
+  lessonId: string,
+  slug: string,
+  answers: number[]
+): Promise<ApiResponse & { score?: number; passed?: boolean }> {
+  const session = await requireUser();
+
+  try {
+    // 1. Fetch correct answers from DB
+    const questions = await prisma.question.findMany({
+      where: { lessonId },
+      orderBy: { order: "asc" },
+      select: { correctIdx: true },
+    });
+
+    if (questions.length === 0) {
+      return { status: "error", message: "No quiz found for this lesson" };
+    }
+
+    // 2. Calculate score
+    let score = 0;
+    questions.forEach((q, i) => {
+      if (answers[i] === q.correctIdx) {
+        score++;
+      }
+    });
+
+    const passed = score >= 15;
+
+    // 3. Save attempt and update progress state
+    await prisma.$transaction(async (tx) => {
+      // Create the attempt record
+      await tx.quizAttempt.create({
+        data: {
+          userId: session.id,
+          lessonId,
+          answers: answers as any,
+          score,
+          passed,
+        },
+      });
+
+      // Update lesson progress
+      await tx.lessonProgress.upsert({
+        where: {
+          userId_lessonId: {
+            userId: session.id,
+            lessonId,
+          },
+        },
+        create: {
+          userId: session.id,
+          lessonId,
+          completed: passed, // Mark complete ONLY if passed
+          quizPassed: passed,
+        },
+        update: {
+          // If they already completed it, don't un-complete it? 
+          // Usually, if they retake and fail, we should keep it completed if they passed before.
+          // But our logic says quizPassed: true if they passed THIS time.
+          quizPassed: passed,
+          completed: {
+            set: passed ? true : undefined, // Only upgrade to true, don't downgrade
+          },
+        },
+      });
+    });
+
+    // 4. Invalidate caches (same as markLessonComplete)
+    await Promise.all([
+      invalidateCache(`user:dashboard:${session.id}`),
+      invalidateCache(`user:sidebar:${session.id}:${slug}`),
+      invalidateCache(`user:lesson:${session.id}:${lessonId}`),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+    ]);
+
+    revalidatePath(`/dashboard/${slug}`, "layout");
+    revalidatePath(`/dashboard/${slug}/${lessonId}`);
+
+    return {
+      status: "success",
+      message: passed ? "Congratulations! You passed the quiz." : "You didn't pass the quiz. Please try again.",
+      score,
+      passed,
+    };
+  } catch (error) {
+    console.error("Error submitting quiz attempt:", error);
+    return { status: "error", message: "Failed to submit quiz attempt" };
+  }
+}

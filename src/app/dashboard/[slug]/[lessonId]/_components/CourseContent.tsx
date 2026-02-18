@@ -23,6 +23,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
 import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
 import CryptoJS from "crypto-js";
+import { getLessonMCQs } from "@/app/admin/lessons/mcqs/actions";
+import { AssessmentModal } from "./AssessmentModal";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import Loader from "@/components/ui/Loader";
@@ -545,6 +547,27 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
 
+  // Assessment State
+  const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
+  const [questions, setQuestions] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchMCQs = async () => {
+      try {
+        const res = await getLessonMCQs(lessonId);
+        if (res.success && res.questions) {
+          setQuestions(res.questions);
+        } else {
+          setQuestions([]);
+        }
+      } catch (error) {
+        setQuestions([]);
+      }
+    };
+    fetchMCQs();
+  }, [lessonId]);
+
+
   useEffect(() => {
     setIsDescriptionOpen(false);
     setIsMobileDescriptionOpen(false);
@@ -566,6 +589,12 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const data = lesson;
 
   function onSubmit() {
+    // If there's a quiz, open the modal instead of completing instantly
+    if (questions.length > 0) {
+      setIsAssessmentOpen(true);
+      return;
+    }
+
     setOptimisticCompleted(true);
     triggerConfetti();
 
@@ -736,6 +765,21 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
             <RenderDescription json={JSON.parse(data.description!)} />
           </div>
         </div>
+      )}
+
+      {questions.length > 0 && (
+        <AssessmentModal 
+          isOpen={isAssessmentOpen}
+          onClose={() => setIsAssessmentOpen(false)}
+          questions={questions}
+          lessonId={data.id}
+          slug={data.Chapter.Course.slug}
+          onSuccess={() => {
+            setOptimisticCompleted(true);
+            triggerConfetti();
+            setIsAssessmentOpen(false);
+          }}
+        />
       )}
     </div>
   );

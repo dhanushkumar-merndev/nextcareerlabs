@@ -7,10 +7,14 @@ import {
   Play, 
   Pause, 
   Volume2, 
+  Volume1,
+  Volume,
   VolumeX, 
   Maximize, 
   Minimize, 
-  Settings 
+  Settings,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -21,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import Loader from "@/components/ui/Loader";
+import { toast } from "sonner";
 
 export interface VideoSource {
   src: string;
@@ -79,6 +84,13 @@ export function VideoPlayer({
   const [showControls, setShowControls] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [seekAnimation, setSeekAnimation] = useState<{ type: "forward" | "backward", amount: number } | null>(null);
+  const seekAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [volumeAnimation, setVolumeAnimation] = useState<{ level: number, visible: boolean }>({ level: 1, visible: false });
+  const volumeAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isDraggingVolume, setIsDraggingVolume] = useState(false);
+  const touchStartYRef = useRef<number | null>(null);
+  const startVolumeRef = useRef<number>(1);
   const seekbarRef = useRef<HTMLDivElement>(null);
 
   // Initialize player only once, then update sources
@@ -115,8 +127,10 @@ export function VideoPlayer({
             overrideNative: true,
             fastQualityChange: true,
             enableLowInitialPlaylist: true,
-            smoothQualityChange: true,
+            smoothQualityChange: false,
             useDevicePixelRatio: true,
+            experimentalExactSeeking: true,
+            experimentalExactManifestTimings: true,
           },
           nativeVideoTracks: false,
           nativeAudioTracks: false,
@@ -139,8 +153,9 @@ export function VideoPlayer({
         onTimeUpdate?.(time);
       });
       player.on("loadedmetadata", () => {
-        setDuration(player.duration() || 0);
-        onLoadedMetadata?.(player.duration() || 0);
+        const duration = player.duration() || 0;
+        setDuration(duration);
+        onLoadedMetadata?.(duration);
         if (initialTime > 0) player.currentTime(initialTime);
       });
       player.on("ended", () => onEnded?.());
@@ -153,6 +168,76 @@ export function VideoPlayer({
       const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
       document.addEventListener("fullscreenchange", handleFullscreenChange);
       player.on("fullscreenchange", handleFullscreenChange);
+
+      // Keyboard Shortcuts (J, K, L)
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (!player || player.isDisposed()) return;
+        
+        // Ignore if user is typing in an input or textarea
+        if (
+          document.activeElement instanceof HTMLInputElement ||
+          document.activeElement instanceof HTMLTextAreaElement
+        ) {
+          return;
+        }
+
+        switch (e.key.toLowerCase()) {
+          case "k":
+            e.preventDefault();
+            if (player.paused()) player.play();
+            else player.pause();
+            break;
+          case "j":
+            e.preventDefault();
+            player.currentTime(Math.max(0, (player.currentTime() || 0) - 10));
+            triggerSeekAnimation("backward", 10);
+            break;
+          case "l":
+            e.preventDefault();
+            player.currentTime(Math.min(player.duration() || 0, (player.currentTime() || 0) + 10));
+            triggerSeekAnimation("forward", 10);
+            break;
+          case "arrowleft":
+            e.preventDefault();
+            player.currentTime(Math.max(0, (player.currentTime() || 0) - 5));
+            triggerSeekAnimation("backward", 5);
+            break;
+          case "arrowright":
+            e.preventDefault();
+            player.currentTime(Math.min(player.duration() || 0, (player.currentTime() || 0) + 5));
+            triggerSeekAnimation("forward", 5);
+            break;
+          case "arrowup":
+            e.preventDefault();
+            const currentVolUp = player.volume() || 0;
+            const newVolUp = Math.min(1, currentVolUp + 0.1);
+            player.volume(newVolUp);
+            setVolume(newVolUp);
+            setIsMuted(newVolUp === 0);
+            triggerVolumeAnimation(newVolUp);
+            break;
+          case "arrowdown":
+            e.preventDefault();
+            const currentVolDown = player.volume() || 0;
+            const newVolDown = Math.max(0, currentVolDown - 0.1);
+            player.volume(newVolDown);
+            setVolume(newVolDown);
+            setIsMuted(newVolDown === 0);
+            triggerVolumeAnimation(newVolDown);
+            break;
+          case "f":
+            e.preventDefault();
+            if (!document.fullscreenElement) {
+              containerRef.current?.requestFullscreen();
+            } else {
+              document.exitFullscreen();
+            }
+            break;
+        }
+      };
+
+      window.addEventListener("keydown", handleKeyDown);
+      player.on("dispose", () => window.removeEventListener("keydown", handleKeyDown));
     };
 
     const frame = requestAnimationFrame(initPlayer);
@@ -180,6 +265,20 @@ export function VideoPlayer({
     controlsTimeoutRef.current = setTimeout(() => {
       if (isPlaying) setShowControls(false);
     }, 3000);
+  };
+
+  const triggerSeekAnimation = (type: "forward" | "backward", amount: number = 10) => {
+    setSeekAnimation({ type, amount });
+    if (seekAnimationTimeoutRef.current) clearTimeout(seekAnimationTimeoutRef.current);
+    seekAnimationTimeoutRef.current = setTimeout(() => setSeekAnimation(null), 800);
+  };
+
+  const triggerVolumeAnimation = (level: number) => {
+    setVolumeAnimation({ level, visible: true });
+    if (volumeAnimationTimeoutRef.current) clearTimeout(volumeAnimationTimeoutRef.current);
+    volumeAnimationTimeoutRef.current = setTimeout(() => {
+      setVolumeAnimation(prev => ({ ...prev, visible: false }));
+    }, 1000);
   };
 
   const togglePlay = (e: React.MouseEvent) => {
@@ -226,6 +325,81 @@ export function VideoPlayer({
     } else {
       document.exitFullscreen();
     }
+  };
+
+  const lastTapTimeRef = useRef<number>(0);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.innerWidth >= 768) return;
+    const touch = e.touches[0];
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    const x = touch.clientX - rect.left;
+    if (x > rect.width * 0.66) {
+      // Right side: Volume gesture
+      touchStartYRef.current = touch.clientY;
+      startVolumeRef.current = playerRef.current?.volume() || 0;
+      setIsDraggingVolume(true);
+      setVolumeAnimation({ level: startVolumeRef.current, visible: true });
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!isDraggingVolume || touchStartYRef.current === null || !playerRef.current) return;
+    
+    const touch = e.touches[0];
+    const deltaY = touchStartYRef.current - touch.clientY; // Swipe up = positive delta
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    
+    // Proportional volume change: full height = 1.0 volume
+    const volumeChange = deltaY / (rect.height * 0.5);
+    const newVol = Math.min(1, Math.max(0, startVolumeRef.current + volumeChange));
+    
+    playerRef.current.volume(newVol);
+    setVolume(newVol);
+    setIsMuted(newVol === 0);
+    setVolumeAnimation({ level: newVol, visible: true });
+    
+    // Prevent scrolling while dragging
+    if (e.cancelable) e.preventDefault();
+  };
+
+  const handleTouchEnd = () => {
+    if (isDraggingVolume) {
+      setIsDraggingVolume(false);
+      touchStartYRef.current = null;
+      triggerVolumeAnimation(volume);
+    }
+  };
+
+  const handleContainerClick = (e: React.MouseEvent) => {
+    // Only handle double tap on mobile for seeking
+    const now = Date.now();
+    const isDoubleTap = now - lastTapTimeRef.current < 300;
+    lastTapTimeRef.current = now;
+
+    if (isDoubleTap && window.innerWidth < 768) {
+      if (!containerRef.current || !playerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const mid = rect.width / 2;
+
+      if (x < mid) {
+        // Rewind
+        const newTime = Math.max(0, playerRef.current.currentTime() - 10);
+        playerRef.current.currentTime(newTime);
+        triggerSeekAnimation("backward", 10);
+      } else {
+        // Forward
+        const newTime = Math.min(playerRef.current.duration(), playerRef.current.currentTime() + 10);
+        playerRef.current.currentTime(newTime);
+        triggerSeekAnimation("forward", 10);
+      }
+      return;
+    }
+
+    togglePlay(e);
   };
 
   const formatTime = (seconds: number) => {
@@ -556,7 +730,10 @@ export function VideoPlayer({
         if (isPlaying) setShowControls(false);
         setHoverPosition(null);
       }}
-      onClick={togglePlay}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onClick={handleContainerClick}
     >
       <style dangerouslySetInnerHTML={{ __html: `
         .video-js .vjs-tech {
@@ -578,6 +755,119 @@ export function VideoPlayer({
       `}} />
 
       <div data-vjs-player ref={videoRef} className="absolute inset-0 w-full h-full bg-black" />
+
+{seekAnimation?.type && (
+  <div
+    className={cn(
+      "absolute inset-y-0 z-20 w-1/3 flex items-center justify-center pointer-events-none",
+      seekAnimation.type === "forward" ? "right-0" : "left-0"
+    )}
+  >
+    {/* Soft side glow */}
+    <div
+      className={cn(
+        "absolute inset-0 opacity-60",
+        seekAnimation.type === "forward"
+          ? "bg-linear-to-l from-primary/10 to-transparent rounded-l-[100%]"
+          : "bg-linear-to-r from-primary/10 to-transparent rounded-r-[100%]"
+      )}
+    />
+
+    <div className="relative flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+
+      {/* Direction Chevrons */}
+<div className="flex items-center -space-x-3">
+  {[0, 1, 2].map((i) => {
+    const isForward = seekAnimation.type === "forward";
+    const Icon = isForward ? ChevronRight : ChevronLeft;
+
+    // Reverse index for backward
+    const visualIndex = isForward ? i : 2 - i;
+
+    return (
+      <Icon
+        key={i}
+        className={cn(
+          "size-10 text-primary animate-in fade-in duration-300",
+          isForward
+            ? "slide-in-from-left-2"
+            : "slide-in-from-right-2"
+        )}
+        style={{
+          animationDelay: `${visualIndex * 80}ms`,
+          opacity: 0.4 + visualIndex * 0.3,
+          filter: `blur(${
+            visualIndex === 2
+              ? 0
+              : visualIndex === 1
+              ? 0.3
+              : 0.6
+          }px)`
+        }}
+      />
+    );
+  })}
+</div>
+
+
+
+      {/* Time Label */}
+      <span className="text-primary font-bold text-sm tracking-wide tabular-nums animate-in fade-in duration-300 delay-200">
+        {seekAnimation.type === "forward" ? "+" : "-"}
+        {seekAnimation.amount}s
+      </span>
+
+    </div>
+  </div>
+)}
+
+{/* Centered Volume Indicator */}
+{volumeAnimation.visible && !isDraggingVolume && (
+  <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+    <div className="px-6 py-4 rounded-2xl flex flex-col items-center gap-2 animate-in fade-in zoom-in duration-200 border border-white/10">
+      {(() => {
+        const lv = volumeAnimation.level;
+        if (lv === 0) return <VolumeX className="size-8 text-primary fill-white" />;
+        if (lv <= 0.33) return <Volume className="size-8 text-primary fill-white" />;
+        if (lv <= 0.66) return <Volume1 className="size-8 text-primary fill-white" />;
+        return <Volume2 className="size-8 text-primary fill-white" />;
+      })()}
+      <span className="text-primary font-black text-2xl tabular-nums">
+        {Math.round(volumeAnimation.level * 100)}%
+      </span>
+    </div>
+  </div>
+)}
+
+{/* Mobile Vertical Volume Bar (Right Side) */}
+{isDraggingVolume && (
+  <div className="absolute inset-y-0 right-4 z-40 w-12 flex flex-col items-center justify-center pointer-events-none">
+    <div className="h-2/3 w-1.5 bg-white/20 rounded-full overflow-hidden relative">
+      <div 
+        className="absolute bottom-0 w-full bg-primary transition-all duration-75"
+        style={{ height: `${volume * 100}%` }}
+      />
+    </div>
+    <div className="mt-4 bg-black/60 backdrop-blur-md p-3 rounded-full border border-white/10">
+      {(() => {
+        if (volume === 0) return <VolumeX className="size-6 text-primary fill-white" />;
+        if (volume <= 0.33) return <Volume className="size-6 text-primary fill-white" />;
+        if (volume <= 0.66) return <Volume1 className="size-6 text-primary fill-white" />;
+        return <Volume2 className="size-6 text-primary fill-white" />;
+      })()}
+    </div>
+  </div>
+)}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes flash {
+          0%, 100% { opacity: 0.2; transform: scale(0.9); }
+          50% { opacity: 1; transform: scale(1.1); }
+        }
+        .animate-flash {
+          animation: flash 0.6s ease-in-out infinite;
+        }
+      `}} />
+
       {error && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-6 text-center animate-in fade-in duration-300 rounded-lg">
           <div className="bg-destructive/20 border border-destructive/50 p-4 rounded-lg max-w-sm">
@@ -689,13 +979,13 @@ export function VideoPlayer({
             <Slider
               value={[currentTime]}
               max={duration || 100}
-              step={0.1}
+              step={0.01}
               onValueChange={handleSeek}
-              className="cursor-pointer h-1 flex items-center"
+              className="cursor-pointer h-0.5 flex items-center"
             />
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-4 text-white">
               <button 
                 onClick={togglePlay}
@@ -769,7 +1059,7 @@ export function VideoPlayer({
         </div>
       </div>
 
-      {!isPlaying && (
+      {(!isPlaying && !seekAnimation && !volumeAnimation.visible) && (
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none group/playbtn">
           <div 
             onClick={togglePlay}

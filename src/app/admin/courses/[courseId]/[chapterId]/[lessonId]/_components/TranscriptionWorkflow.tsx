@@ -22,10 +22,11 @@ interface TranscriptionWorkflowProps {
 export function TranscriptionWorkflow({
   lessonId,
   lessonTitle,
-  videoUrl,
   videoKey,
   onComplete,
 }: TranscriptionWorkflowProps) {
+  if (!videoKey) return null;
+
   const [status, setStatus] = useState<"idle" | "uploading" | "complete" | "error" | "saved">("idle");
   const [vttContent, setVttContent] = useState<string | null>(null);
   const [pastedJson, setPastedJson] = useState("");
@@ -174,49 +175,52 @@ export function TranscriptionWorkflow({
           </p>
         </div>
         
-        {(status === "idle" || status === "error") && (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".vtt"
-              className="hidden"
-              onChange={handleVTTUpload}
-            />
-            <Button type="button" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="size-4 mr-2" />
-              Upload .vtt
-            </Button>
-            {audioUrl && (
-              <Button size="sm" variant="outline" asChild>
-                <a href={audioUrl} download="audio.ogg">
-                  <Download className="size-4 mr-2" />
-                  Download Audio
-                </a>
+        <div className="flex items-center gap-2">
+          {(status === "idle" || status === "error") && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".vtt"
+                className="hidden"
+                onChange={handleVTTUpload}
+              />
+              <Button type="button" size="sm" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="size-4 mr-2" />
+                Upload .vtt
               </Button>
-            )}
-          </>
-        )}
+              {audioUrl && (
+                <Button size="sm" variant="outline" asChild>
+                  <a href={audioUrl} download="audio.ogg">
+                    <Download className="size-4 mr-2" />
+                    Download Audio
+                  </a>
+                </Button>
+              )}
+            </>
+          )}
 
-        {status === "uploading" && (
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            <span className="text-xs">Uploading...</span>
-          </div>
-        )}
+          {status === "uploading" && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              <span className="text-xs">Uploading...</span>
+            </div>
+          )}
 
-        {status === "complete" && (
-          <div className="flex items-center gap-2 text-green-600">
-            <CheckCircle2 className="size-4" />
-            <span className="text-xs font-medium">Transcript Ready</span>
-            <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
-              setStatus("idle");
-              setVttContent(null);
-            }}>
-              Re-upload
-            </Button>
-          </div>
-        )}
+          {status === "complete" && (
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="size-4" />
+              <span className="text-xs font-medium">Transcript Ready</span>
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                setStatus("idle");
+                setVttContent(null);
+                setPastedJson("");
+              }}>
+                Re-upload
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {status === "complete" && vttContent && (
