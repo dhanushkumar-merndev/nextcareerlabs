@@ -4,6 +4,7 @@
 export interface TranscodeResult {
   m3u8: Blob;
   segments: { name: string; blob: Blob }[];
+  audioBlob: Blob | null;
 }
 
 // Helper to load a script dynamically
@@ -36,7 +37,7 @@ async function ensureScriptsLoaded() {
   }
 
   await loadScript(`/ffmpeg/ffmpeg.js?v=final-1`);
-  await loadScript(`/ffmpeg/processor.js?v=final-1`);
+  await loadScript(`/ffmpeg/processor.js?v=opt-2`);
 }
 
 export async function transcodeToHLS(
@@ -78,7 +79,7 @@ declare global {
       file: File,
       onProgress: (progress: number) => void,
       duration: number
-    ) => Promise<TranscodeResult>;
+    ) => Promise<TranscodeResult & { audioBlob: Blob | null }>;
     FFmpegWASM: any;
     FFmpegUtil: any;
     compressAudio: (

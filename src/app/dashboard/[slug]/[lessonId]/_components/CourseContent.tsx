@@ -50,6 +50,7 @@ function VideoPlayer({
   spriteWidth,
   spriteHeight,
   lowResKey,
+  transcriptionUrl,
 }: {
   thumbnailkey: string;
   videoKey: string;
@@ -63,6 +64,7 @@ function VideoPlayer({
   spriteWidth?: number | null;
   spriteHeight?: number | null;
   lowResKey?: string | null;
+  transcriptionUrl?: string | null;
 }) {
   const thumbnailUrl = useConstructUrl(thumbnailkey);
   const spriteUrl = useConstructUrl(spriteKey || "");
@@ -163,6 +165,7 @@ function VideoPlayer({
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
+  const [captionUrl, setCaptionUrl] = useState<string | undefined>(undefined);
 
   const sources = useMemo(() => {
     const list = [];
@@ -351,14 +354,28 @@ function VideoPlayer({
 
     const fetchUrls = async () => {
       // 1. Setup HLS URL (Static construction)
-      const hlsKey = `hls/${videoKey.replace(/\.[^/.]+$/, "")}/master.m3u8`;
+      const baseKey = videoKey.startsWith('hls/') 
+        ? videoKey.split('/')[1] 
+        : videoKey.replace(/\.[^/.]+$/, "");
+
+      const hlsKey = `hls/${baseKey}/master.m3u8`;
       const hlsFullUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${hlsKey}`;
       setHlsUrl(hlsFullUrl);
 
-      // 2. Setup Signed MP4 URL (Fallback)
       const response = await getSignedVideoUrl(videoKey) as any;
       if (response && response.status === "success" && response.url) {
         setVideoUrl(response.url);
+      }
+
+      // 3. Setup Caption URL (Dynamic from DB with Static Fallback)
+      if (transcriptionUrl) {
+        console.log("[CourseContent] Using DB Transcription URL:", transcriptionUrl);
+        setCaptionUrl(transcriptionUrl);
+      } else {
+        const captionKey = `hls/${baseKey}/caption.vtt`;
+        const captionFullUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${captionKey}`;
+        console.log("[CourseContent] Falling back to Static Caption URL:", captionFullUrl);
+        setCaptionUrl(captionFullUrl);
       }
     };
 
@@ -482,6 +499,7 @@ function VideoPlayer({
           onPause={onPause}
           onEnded={onEnded}
           onLoadedMetadata={onLoadedMetadata}
+          captionUrl={captionUrl}
           spriteMetadata={spriteMetadata ? { ...spriteMetadata, initialCues: vttCues } : undefined}
           className="w-full h-full"
         />
@@ -654,6 +672,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
             spriteWidth={data.spriteWidth}
             spriteHeight={data.spriteHeight}
             lowResKey={data.lowResKey}
+            transcriptionUrl={data.transcription?.vttUrl}
           />
         </div>
 

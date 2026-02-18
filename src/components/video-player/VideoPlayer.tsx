@@ -14,7 +14,8 @@ import {
   Minimize, 
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Captions
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -56,6 +57,7 @@ interface VideoPlayerProps {
   onPause?: () => void;
   onEnded?: () => void;
   onLoadedMetadata?: (duration: number) => void;
+  captionUrl?: string;
 }
 
 export function VideoPlayer({
@@ -70,6 +72,7 @@ export function VideoPlayer({
   onPlay,
   onEnded,
   onLoadedMetadata,
+  captionUrl,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,6 +83,7 @@ export function VideoPlayer({
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -131,6 +135,8 @@ export function VideoPlayer({
             useDevicePixelRatio: true,
             experimentalExactSeeking: true,
             experimentalExactManifestTimings: true,
+            handlePartialData: true,       // Start playback before full segment loads
+            maxBufferLength: 30,           // Buffer only 30s ahead (faster seeks)
           },
           nativeVideoTracks: false,
           nativeAudioTracks: false,
@@ -165,6 +171,8 @@ export function VideoPlayer({
         setError(errorMsg);
       });
 
+      // (Removed in-initializer caption logic to move to reactive effect)
+
       const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
       document.addEventListener("fullscreenchange", handleFullscreenChange);
       player.on("fullscreenchange", handleFullscreenChange);
@@ -182,6 +190,11 @@ export function VideoPlayer({
         }
 
         switch (e.key.toLowerCase()) {
+          case "spacebar":
+            e.preventDefault();
+            if (player.paused()) player.play();
+            else player.pause();
+            break;
           case "k":
             e.preventDefault();
             if (player.paused()) player.play();
@@ -251,6 +264,45 @@ export function VideoPlayer({
     };
   }, []);
 
+  // Reactive Captions: Handle URL changes or late arrivals without reload
+  useEffect(() => {
+    const player = playerRef.current;
+    if (!player || !captionUrl) return;
+
+    player.ready(() => {
+      console.log("VideoPlayer: Updating caption track", captionUrl);
+      
+      // 1. Remove any existing caption/subtitle tracks to allow hot-swapping
+      const tracks = player.textTracks();
+      for (let i = tracks.length - 1; i >= 0; i--) {
+        const track = tracks[i];
+        if (track.kind === "captions" || track.kind === "subtitles") {
+          player.removeRemoteTextTrack(track);
+        }
+      }
+
+      // 2. Add the new track
+      player.addRemoteTextTrack({
+        kind: "captions",
+        src: captionUrl,
+        srclang: "en",
+        label: "English",
+        default: captionsEnabled,
+      }, false);
+
+      // 3. Sync track mode with UI state after a short delay
+      setTimeout(() => {
+        const newTracks = player.textTracks();
+        for (let i = 0; i < newTracks.length; i++) {
+          const t = newTracks[i];
+          if (t.kind === "captions" || t.kind === "subtitles") {
+            t.mode = captionsEnabled ? "showing" : "disabled";
+          }
+        }
+      }, 100);
+    });
+  }, [captionUrl, playerRef.current, sources, src]);
+
   // Sync sources when they change after initialization
   useEffect(() => {
     if (playerRef.current) {
@@ -281,6 +333,7 @@ export function VideoPlayer({
     }, 1000);
   };
 
+
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (playerRef.current.paused()) {
@@ -301,6 +354,11 @@ export function VideoPlayer({
     const muted = !isMuted;
     setIsMuted(muted);
     playerRef.current.muted(muted);
+    
+    toast.success(muted ? "Audio muted" : "Audio unmuted", {
+      duration: 1000,
+      position: "top-center"
+    });
   };
 
   const handleVolumeChange = (value: number[]) => {
@@ -313,6 +371,26 @@ export function VideoPlayer({
   const handlePlaybackRate = (rate: number) => {
     setPlaybackRate(rate);
     playerRef.current.playbackRate(rate);
+  };
+
+  const toggleCaptions = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (playerRef.current) {
+      const tracks = playerRef.current.textTracks();
+      const enabled = !captionsEnabled;
+      
+      for (let i = 0; i < tracks.length; i++) {
+        if (tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') {
+          tracks[i].mode = enabled ? 'showing' : 'disabled';
+        }
+      }
+      
+      setCaptionsEnabled(enabled);
+      toast.success(enabled ? "Captions enabled" : "Captions disabled", {
+        duration: 1000,
+        position: "top-center"
+      });
+    }
   };
 
   const toggleFullscreen = (e: React.MouseEvent) => {
@@ -756,6 +834,54 @@ export function VideoPlayer({
 
       <div data-vjs-player ref={videoRef} className="absolute inset-0 w-full h-full bg-black" />
 
+    <style
+  dangerouslySetInnerHTML={{
+    __html: `
+.video-js {
+  container-type: size;
+}
+
+/* Bottom center wrapper */
+.video-js .vjs-text-track-display {
+  position: absolute !important;
+  bottom: 6% !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: 92% !important;
+  display: flex !important;
+  justify-content: center !important;
+  pointer-events: none !important;
+}
+
+/* Remove defaults */
+.video-js .vjs-text-track-display div {
+  background: transparent !important;
+}
+
+/* Caption text */
+.video-js .vjs-text-track-cue > div {
+  display: inline-block !important;
+  max-width: 100% !important;
+
+  font-size: clamp(14px, 3.5cqh, 32px) !important;
+
+  padding: clamp(6px, 1cqh, 14px) clamp(12px, 2cqh, 28px) !important;
+
+  background: rgba(0,0,0,0.80) !important;
+  color: #fff !important;
+
+  border-radius: clamp(6px, 1cqh, 12px) !important;
+
+  line-height: 1.4 !important;
+  text-align: center !important;
+  white-space: pre-wrap !important;
+}
+`,
+  }}
+/>
+
+
+
 {seekAnimation?.type && (
   <div
     className={cn(
@@ -874,6 +1000,7 @@ export function VideoPlayer({
             <h3 className="text-destructive font-bold mb-2">Playback Error</h3>
             <p className="text-sm text-white/70 mb-4">{error}</p>
             <button 
+              type="button"
               onClick={() => window.location.reload()}
               className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-md text-sm transition-colors"
             >
@@ -988,6 +1115,7 @@ export function VideoPlayer({
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-4 text-white">
               <button 
+                type="button"
                 onClick={togglePlay}
                 className="hover:text-primary transition-colors focus:outline-none"
               >
@@ -995,7 +1123,7 @@ export function VideoPlayer({
               </button>
 
               <div className="flex items-center gap-2 group/volume">
-                <button onClick={toggleMute} className="hover:text-primary focus:outline-none">
+                <button type="button" onClick={toggleMute} className="hover:text-primary focus:outline-none">
                   {isMuted || volume === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
                 </button>
                 <div className="w-0 group-hover/volume:w-20 transition-all duration-300 overflow-hidden">
@@ -1015,9 +1143,23 @@ export function VideoPlayer({
             </div>
 
             <div className="flex items-center gap-4 text-white">
+              {captionUrl && (
+                <button 
+                  type="button" 
+                  onClick={toggleCaptions} 
+                  className={cn(
+                    "hover:text-primary focus:outline-none transition-all duration-200",
+                    captionsEnabled ? "text-primary scale-110" : "text-white/70"
+                  )}
+                  title="Toggle Captions"
+                >
+                  <Captions className="w-5 h-5" />
+                </button>
+              )}
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="flex items-center gap-1.5 text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-md border border-white/10">
+                  <button type="button" className="flex items-center gap-1.5 text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-md border border-white/10">
                     <Settings className="w-4 h-4" />
                     {playbackRate}x
                   </button>
@@ -1051,7 +1193,7 @@ export function VideoPlayer({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <button onClick={toggleFullscreen} className="hover:text-primary focus:outline-none transition-colors">
+              <button type="button" onClick={toggleFullscreen} className="hover:text-primary focus:outline-none transition-colors">
                 {isFullscreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
               </button>
             </div>

@@ -62,7 +62,7 @@ export default function RootLayout({
         <link rel="manifest" href="/site.webmanifest" />
       </head>
 
-      <body suppressHydrationWarning>
+      <body suppressHydrationWarning className="mt-0.5">
         <NextTopLoader 
           showSpinner={false} 
           crawl={true}
@@ -76,11 +76,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-         
-
             {children}
-
-            {/* UI / utilities */}
             <SmoothScroll />
             <Toaster />
             <Analytics />

@@ -111,6 +111,17 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
     audioCompressing: false,
   });
 
+  // Sync state when value prop changes (e.g. after router.refresh)
+  useEffect(() => {
+    if (value !== fileState.key) {
+      setFileState(prev => ({
+        ...prev,
+        key: value,
+        baseKey: value ? (value.startsWith('hls/') ? value.split('/')[1] : value.split('.')[0]) : null
+      }));
+    }
+  }, [value]);
+
   // Safety: Prevent closing tab during upload/processing
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -146,24 +157,28 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           // LOCK: Start Memory-Intensive Phase
           (window as any).__PROCESSING_VIDEO__ = true;
           
-          const { m3u8, segments } = await transcodeToHLS(file, (p) => {
+          // Combined HLS transcode + audio compression in a single FFmpeg session
+          const { m3u8, segments, audioBlob: transcodedAudio } = await transcodeToHLS(file, (p) => {
             setFileState((s) => ({ ...s, transcodingProgress: p }));
           }, duration);
           setFileState((s) => ({ ...s, transcoding: false }));
 
-
-          // 1.2 Extract & compress audio for transcription (16kHz, mono, 32kbps)
-          setFileState((s) => ({ ...s, audioCompressing: true, transcodingProgress: 0 }));
-          let audioBlob: Blob | null = null;
-          try {
-            audioBlob = await compressAudio(file, (p) => {
-              setFileState(s => ({ ...s, transcodingProgress: p }));
-            });
-            console.log(`Uploader: Compressed audio: ${(audioBlob.size / 1024).toFixed(0)}KB`);
-          } catch (audioErr) {
-            console.error("Audio compression failed:", audioErr);
+          // Use audio from combined session; fallback to standalone only if needed
+          let audioBlob: Blob | null = transcodedAudio;
+          if (!audioBlob) {
+            setFileState((s) => ({ ...s, audioCompressing: true, transcodingProgress: 0 }));
+            try {
+              audioBlob = await compressAudio(file, (p) => {
+                setFileState(s => ({ ...s, transcodingProgress: p }));
+              });
+            } catch (audioErr) {
+              console.error("Audio compression fallback failed:", audioErr);
+            }
+            setFileState((s) => ({ ...s, audioCompressing: false }));
           }
-          setFileState((s) => ({ ...s, audioCompressing: false }));
+          if (audioBlob) {
+            console.log(`Uploader: Compressed audio: ${(audioBlob.size / 1024).toFixed(0)}KB`);
+          }
 
           // 1.5 Generate Sprites (New Auto Step)
           setFileState((s) => ({ ...s, spriteGenerating: true, spriteUploadProgress: 0 }));
@@ -620,7 +635,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
       }
 
       const isExistingVideo = !fileState.file;
-      const hlsKey = (isExistingVideo && fileState.key) ? `hls/${fileState.key.replace(/\.[^/.]+$/, "")}/master.m3u8` : undefined;
+      const hlsKey = (isExistingVideo && fileState.baseKey) ? `hls/${fileState.baseKey}/master.m3u8` : undefined;
       const hlsUrl = hlsKey ? useConstructUrl(hlsKey) : undefined;
       
       // Reactive Sprite Metadata: Use state if available (new upload), otherwise derive from key (existing)

@@ -1,6 +1,6 @@
 'use server';
 
-import { db } from '@/lib/db';
+import { prisma as db } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { invalidateCache, incrementGlobalVersion } from '@/lib/redis';
@@ -95,7 +95,7 @@ export async function submitQuiz(
         invalidateCache(`user:${session.user.id}:progress`),
         invalidateCache(`lesson:${lessonId}:progress:${session.user.id}`),
         invalidateCache(`course:progress:${session.user.id}`),
-        incrementGlobalVersion(),
+
       ]);
     }
 

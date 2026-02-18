@@ -144,7 +144,7 @@ export function LessonQuiz({
 
                   <RadioGroup
                     value={answers[qIndex]?.toString()}
-                    onValueChange={(val) => handleAnswerChange(qIndex, parseInt(val))}
+                    onValueChange={(val: string) => handleAnswerChange(qIndex, parseInt(val))}
                     className="pl-11 space-y-2"
                   >
                     {question.options.map((option, optIndex) => (

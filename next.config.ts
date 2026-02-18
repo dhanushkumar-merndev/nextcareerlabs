@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
+  // Disabled: causes "Expected static flag was missing" errors with Turbopack in dev
+  // reactCompiler: true,
 
   // Enable Cross-Origin Isolation for FFmpeg WASM (SharedArrayBuffer)
   async headers() {

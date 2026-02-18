@@ -92,6 +92,7 @@ export function RenderUploadedState({
           spriteMetadata={spriteProps}
           className="w-full h-full"
           onLoadedMetadata={onDurationLoaded}
+          captionUrl={hlsUrl ? hlsUrl.replace("master.m3u8", "caption.vtt") : undefined}
         />
       ) : (
         <div className="relative w-full h-full">

@@ -162,6 +162,25 @@ export function TranscriptionWorkflow({
     }
   };
 
+  const handleDownloadAudio = async () => {
+    if (!audioUrl) return;
+    try {
+      const response = await fetch(audioUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${lessonTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_audio.ogg`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast.error("Failed to download audio. Try right-click > Save as.");
+    }
+  };
+
   return (
     <div className="space-y-4 border rounded-lg p-4 bg-muted/30">
       <div className="flex items-center justify-between">
@@ -190,11 +209,9 @@ export function TranscriptionWorkflow({
                 Upload .vtt
               </Button>
               {audioUrl && (
-                <Button size="sm" variant="outline" asChild>
-                  <a href={audioUrl} download="audio.ogg">
-                    <Download className="size-4 mr-2" />
-                    Download Audio
-                  </a>
+                <Button type="button" size="sm" variant="outline" onClick={handleDownloadAudio}>
+                  <Download className="size-4 mr-2" />
+                  Download Audio
                 </Button>
               )}
             </>

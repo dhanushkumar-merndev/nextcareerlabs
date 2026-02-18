@@ -133,14 +133,33 @@ export class SpriteGenerator {
       const vttContent = vttLines.join("\n");
       const vttBlob = new Blob([vttContent], { type: "text/vtt" });
 
-      // Generate Low-Res Master Grid
-      // Low-res grid needs progress too so it doesn't look stuck at 85%
-      const lowResBlob = await this.generateLowResGrid(file, this.interval, (p) => {
-        if (onProgress) {
-            const cumulative = 85 + (p * 0.15); // Remaining 15%
-            onProgress(Math.min(99, Math.round(cumulative)), `Optimizing previews...`);
+      // Generate Low-Res Master Grid — INLINE to reuse the already-loaded video element.
+      // No second URL.createObjectURL or loadVideoMetadata needed.
+      const lowResInterval = Math.max(this.interval, 10); // Cap at 10s min for low-res (saves tons of seeks)
+      const lowResDuration = this.video.duration;
+      const lowResTotalFrames = Math.ceil(lowResDuration / lowResInterval);
+      const lowWidth = 40;
+      const lowHeight = 22;
+      const lowCols = 25;
+      const lowRows = Math.ceil(lowResTotalFrames / lowCols);
+
+      this.configureCanvas(lowCols * lowWidth, lowRows * lowHeight);
+      this.ctx.fillStyle = "black";
+      this.ctx.fillRect(0, 0, lowCols * lowWidth, lowRows * lowHeight);
+
+      for (let i = 0; i < lowResTotalFrames; i++) {
+        const timestamp = i * lowResInterval;
+        if (i % 10 === 0 && onProgress) {
+          const cumulative = 85 + ((i / lowResTotalFrames) * 14);
+          onProgress(Math.min(99, Math.round(cumulative)), `Optimizing previews...`);
         }
-      });
+        await this.seekTo(timestamp);
+        const col = i % lowCols;
+        const row = Math.floor(i / lowCols);
+        this.ctx.drawImage(this.video, col * lowWidth, row * lowHeight, lowWidth, lowHeight);
+      }
+
+      const lowResBlob = await this.canvasToBlob(0.4);
 
       if (onProgress) onProgress(100, "Done!");
 
@@ -359,14 +378,16 @@ export class SpriteGenerator {
         resolve();
       };
       
-      // Safety timeout: some browsers/files might miss 'seeked' if seeking to same/invalid time
+      // Safety timeout: reduced from 2000ms to 500ms.
+      // Most browsers fire 'seeked' within 50-200ms. The old 2s timeout added
+      // minutes of dead time on videos with hundreds of frames.
       setTimeout(() => {
         if (!resolved) {
             resolved = true;
             this.video.removeEventListener("seeked", onSeeked);
             resolve();
         }
-      }, 2000);
+      }, 500);
 
       this.video.addEventListener("seeked", onSeeked);
       this.video.currentTime = time;

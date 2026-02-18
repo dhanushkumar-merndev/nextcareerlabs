@@ -54,6 +54,11 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
             actualWatchTime: true,
           },
         },
+        transcription: {
+          select: {
+            vttUrl: true,
+          }
+        },
         Chapter: {
           select: {
             courseId: true,

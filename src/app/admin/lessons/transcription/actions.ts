@@ -30,8 +30,10 @@ export async function storeTranscription(
 
     // Upload VTT to S3. Group with video if videoKey provided.
     let customKey: string | undefined;
-    if (videoKey && videoKey.includes('.')) {
-        const baseKey = videoKey.substring(0, videoKey.lastIndexOf('.'));
+    if (videoKey) {
+        const baseKey = videoKey.startsWith('hls/') 
+            ? videoKey.split('/')[1] 
+            : videoKey.replace(/\.[^/.]+$/, "");
         customKey = `hls/${baseKey}/caption.vtt`;
     }
 
