@@ -81,6 +81,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
       }
       if (result.status === "success") {
         toast.success(result.message);
+        chatCache.invalidate("admin_chat_sidebar");
         chatCache.invalidate("admin_courses_list");
         chatCache.invalidate("all_courses");
         chatCache.invalidate("admin_dashboard_stats");
@@ -88,6 +89,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
         chatCache.invalidate("admin_dashboard_recent_courses");
         chatCache.invalidate("admin_analytics");
 
+        queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_stats"] });

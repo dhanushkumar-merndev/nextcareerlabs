@@ -55,6 +55,7 @@ interface iAppProps {
   duration?: number;
   initialSpriteKey?: string | null;
   captionUrl?: string | null;
+  isPrivate?: boolean;
 }
 interface UploaderState {
   id: string | null;
@@ -78,7 +79,7 @@ interface UploaderState {
   audioCompressing: boolean;
 }
 
-export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey, captionUrl }: iAppProps) {
+export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey, captionUrl, isPrivate }: iAppProps) {
   const fileUrl = useConstructUrl(value || "");
   
   // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
@@ -276,6 +277,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/master.m3u8`,
+              isPrivate,
             },
             ...segments.map((segment) => ({
               fileName: `hls/${baseKey}/${segment.name}`,
@@ -284,6 +286,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/${segment.name}`,
+              isPrivate,
             })),
           ];
 
@@ -296,6 +299,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/audio.ogg`,
+              isPrivate,
             });
           }
 
@@ -311,7 +315,8 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
                  size: spriteResult.combinedBlob.size,
                  isImage: false,
                  isKeyDirect: true,
-                 customKey: `sprites/${baseKey}/${spriteResult.spriteFileName}`
+                 customKey: `sprites/${baseKey}/${spriteResult.spriteFileName}`,
+                 isPrivate,
              });
              
              // VTT
@@ -322,7 +327,8 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
                 size: spriteResult.vttBlob.size,
                 isImage: false,
                 isKeyDirect: true,
-                customKey: vttKey
+                customKey: vttKey,
+                isPrivate,
              });
 
              // Low-Res Preview
@@ -333,7 +339,8 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
                   size: spriteResult.previewLowBlob.size,
                   isImage: false,
                   isKeyDirect: true,
-                  customKey: `sprites/${baseKey}/preview_low.jpg`
+                  customKey: `sprites/${baseKey}/preview_low.jpg`,
+                  isPrivate,
                });
              }
           }
@@ -498,6 +505,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
               contentType: file.type,
               size: file.size,
               isImage: true,
+              isPrivate,
             }),
           });
 

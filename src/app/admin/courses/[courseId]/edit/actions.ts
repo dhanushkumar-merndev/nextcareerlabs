@@ -15,6 +15,7 @@ import {
 import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
 import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
+import { invalidateAdminsCache } from "@/app/data/notifications/actions";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
@@ -88,8 +89,11 @@ export async function editCourse(
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION)
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
+        invalidateAdminsCache()
     ]);
+
+    revalidatePath("/admin/resources");
 
     return {
       status: "success",

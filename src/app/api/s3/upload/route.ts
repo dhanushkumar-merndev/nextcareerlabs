@@ -14,6 +14,8 @@ const fileItemSchema = z.object({
   contentType: z.string().min(1, { message: "Content type is required" }),
   size: z.number().min(0, { message: "Size is required" }),
   isImage: z.boolean(),
+  isPrivate: z.boolean().optional(),
+  prefix: z.string().optional(),
   isKeyDirect: z.boolean().optional(),
   customKey: z.string().optional(),
 });
@@ -48,12 +50,25 @@ export async function POST(request: Request) {
 
     const results = await Promise.all(
       items.map(async (item) => {
-        const { fileName, contentType, size, isKeyDirect, customKey } = item;
-        const key =
-          isKeyDirect && customKey ? customKey : `${uuidv4()}-${fileName}`;
+        const { fileName, contentType, size, isKeyDirect, customKey, isPrivate, prefix } = item;
+        
+        // Generate the base filename
+        const baseFileName = `${uuidv4()}-${fileName}`;
+        
+        // Construct the full key: folder/prefix + baseFileName
+        let key = isKeyDirect && customKey ? customKey : baseFileName;
+        if (!isKeyDirect && prefix) {
+          // Normalize prefix to ensure it doesn't end with / and starts with required path
+          const cleanPrefix = prefix.replace(/\/$/, "");
+          key = `${cleanPrefix}/${baseFileName}`;
+        }
+
+        const bucketName = isPrivate 
+          ? env.S3_BUCKET_NAME_PRIVATE 
+          : env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES;
 
         const command = new PutObjectCommand({
-          Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
+          Bucket: bucketName,
           ContentType: contentType,
           ContentLength: size,
           Key: key,

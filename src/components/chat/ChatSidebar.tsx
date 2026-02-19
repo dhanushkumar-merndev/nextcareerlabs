@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { getSidebarKey } from "@/lib/chat-cache";
 
 
 import { ChatSidebarSkeleton } from "./ChatSkeleton";
@@ -21,6 +22,7 @@ interface ChatSidebarProps {
   threads: any[];
   loading?: boolean;
   currentUserId: string;
+  isAdmin: boolean;
 }
 
 export function ChatSidebar({ 
@@ -29,7 +31,8 @@ export function ChatSidebar({
   removedIds = [], 
   threads = [], 
   loading = false,
-  currentUserId
+  currentUserId,
+  isAdmin
 }: ChatSidebarProps) {
   const [search, setSearch] = useState("");
   const [filter] = useState<"All" | "Groups" | "Tickets" | "Resolved">("All");
@@ -52,7 +55,9 @@ export function ChatSidebar({
   const queryClient = useQueryClient();
 
   const refetch = () => {
-    queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+    queryClient.invalidateQueries({ 
+      queryKey: getSidebarKey(currentUserId, isAdmin) 
+    });
   };
 
   useEffect(() => {
@@ -64,7 +69,7 @@ export function ChatSidebar({
         setView("recent");
       }
 
-      queryClient.setQueryData(["sidebarData", currentUserId], (old: any) => {
+      queryClient.setQueryData(getSidebarKey(currentUserId, isAdmin), (old: any) => {
         if (!old || !old.threads) return old;
 
         let updatedThreads = [...old.threads];
@@ -137,7 +142,7 @@ export function ChatSidebar({
   const filteredThreads = (threads as any[]).filter(t => {
     const matchesSearch = t.display.name.toLowerCase().includes(search.toLowerCase()) ||
       t.lastMessage.toLowerCase().includes(search.toLowerCase());
-
+    if (removedIds.includes(t.threadId)) return false;
     if (!matchesSearch) return false;
 
     if (filter === "All") return true;
@@ -146,7 +151,7 @@ export function ChatSidebar({
     if (filter === "Resolved") return !t.isGroup && t.resolved; // Resolved tickets only (No groups)
 
     // Optimistic removal filter
-    if (removedIds.includes(t.threadId)) return false;
+   
 
     return true;
   });

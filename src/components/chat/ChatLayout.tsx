@@ -9,7 +9,7 @@ import { SupportTicketDialog } from "@/app/(users)/_components/SupportTicketDial
 import { getThreadsAction } from "@/app/data/notifications/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, getSidebarKey, getSidebarLocalKey } from "@/lib/chat-cache";
 
 interface ChatLayoutProps {
    isAdmin: boolean;
@@ -26,67 +26,94 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
    const getTime = () => new Date().toLocaleTimeString();
 
    // Centralized Data Fetch (Threads + Courses + Version)
-   const { data: sidebarData, isLoading: loadingSidebar } = useQuery({
-      queryKey: ["sidebarData", currentUserId],
-      queryFn: async () => {
-         const cached = chatCache.get<any>("sidebarData", currentUserId);
-         const clientVersion = cached?.version;
+   const { data: sidebarData, isLoading } = useQuery({
+  queryKey: getSidebarKey(currentUserId, isAdmin),
 
-         if (cached) {
-            console.log(`[${getTime()}] [Resources] LOCAL HIT (v${clientVersion}). Validating...`);
-         } else {
-            console.log(`[${getTime()}] [Resources] Cache MISS. Fetching...`);
-         }
+  queryFn: async () => {
+    const localKey = getSidebarLocalKey(isAdmin);
 
-         const result = await getThreadsAction(clientVersion);
+    const cached = chatCache.get<any>(
+      localKey,
+      isAdmin ? undefined : currentUserId
+    );
 
-         // SMART CHECK: If server says nothing changed, use our cached data
-         if ((result as any).status === "not-modified" && cached) {
-            console.log(`[${getTime()}] [Resources] Result: NOT_MODIFIED. Using local cache.`);
-            return cached.data;
-         }
+    const clientVersion = cached?.version;
 
-         // If we got new data, save it to LocalStorage for next time
-         if (result && !(result as any).status) {
-            console.log(`[${getTime()}] [Resources] Result: NEW_DATA. Updating cache.`);
-            chatCache.set("sidebarData", result, currentUserId, result.version, 21600000); // 6 hours
-         }
-         return result;
-      },
-      initialData: () => {
-         if (typeof window === "undefined") return undefined;
-         const cached = chatCache.get<any>("sidebarData", currentUserId);
-         if (cached) {
-             console.log(`[${getTime()}] [Resources] LOCAL HIT (initialData).`);
-             return cached.data;
-         }
-         return undefined;
-      },
-      staleTime: 1800000, // 30 minutes - only sync version every 30m
-      refetchOnWindowFocus: true,
-   });
+    if (cached) {
+      console.log(
+        `[${getTime()}] [Chat] LOCAL HIT (v${clientVersion}). Validating...`
+      );
+    } else {
+      console.log(`[${getTime()}] [Chat] Cache MISS. Fetching...`);
+    }
+
+    const result = await getThreadsAction(clientVersion);
+
+    // If server says no change → use cache
+    if ((result as any)?.status === "not-modified" && cached) {
+      console.log(
+        `[${getTime()}] [Chat] NOT_MODIFIED → Using local cache`
+      );
+      return cached.data;
+    }
+
+    // If new data received → update cache
+    if (result && !(result as any)?.status) {
+      console.log(
+        `[${getTime()}] [Chat] NEW_DATA → Updating cache`
+      );
+
+      chatCache.set(
+        localKey,
+        result,
+        isAdmin ? undefined : currentUserId,
+        result.version,
+        21600000 // 6 hours
+      );
+
+      return result;
+    }
+
+    return cached?.data || null;
+  },
+
+  initialData: () => {
+    if (typeof window === "undefined") return undefined;
+
+    const localKey = getSidebarLocalKey(isAdmin);
+
+    const cached = chatCache.get<any>(
+      localKey,
+      isAdmin ? undefined : currentUserId
+    );
+
+    if (cached) {
+      console.log(
+        `[${getTime()}] [Chat] LOCAL HIT (initialData)`
+      );
+      return cached.data;
+    }
+
+    return undefined;
+  },
+
+  // 🔥 Optimization (better than staleTime: 0)
+  staleTime: 21600000, // 6 hours
+  refetchOnWindowFocus: true,
+});
 
    const threads = (sidebarData as any)?.threads || [];
    const version = (sidebarData as any)?.version;
-   const enrolledCourses = (sidebarData as any)?.enrolledCourses || [];
+
 
    // Group initialization is now handled more efficiently inside getThreadsAction
 
-   // Handle centralized invalidation
+   // Version tracking (for potential real-time sync later)
    useEffect(() => {
-      // Only invalidate if version is GREATER than last seen version
-      // version === 0 means no notifications yet, so don't trigger anything unless it's the first load
       if (version !== undefined && version !== null) {
-         const isInitial = lastVersionRef.current === null;
-         if (!isInitial && version > (lastVersionRef.current || 0)) {
-            queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
-            if (selectedThread?.id) {
-               queryClient.invalidateQueries({ queryKey: ["messages", selectedThread.id, currentUserId] });
-            }
-         }
          lastVersionRef.current = version;
       }
-   }, [version, queryClient, selectedThread?.id]);
+   }, [version]);
 
    const handleRemoveThread = (threadId: string) => {
       setRemovedThreadIds(prev => [...prev, threadId]);
@@ -127,8 +154,9 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
                onSelectThread={handleSelectThread}
                removedIds={removedThreadIds}
                threads={threads}
-               loading={loadingSidebar}
+               loading={isLoading}
                currentUserId={currentUserId}
+               isAdmin={isAdmin}
             />
          </div>
 

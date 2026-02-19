@@ -61,3 +61,9 @@ export const chatCache = {
       .forEach((key) => localStorage.removeItem(key));
   },
 };
+
+export const getSidebarKey = (userId: string, isAdmin: boolean) =>
+  ["chat_sidebar", userId, isAdmin] as const;
+
+export const getSidebarLocalKey = (isAdmin: boolean) =>
+  isAdmin ? "admin_chat_sidebar" : "user_chat_sidebar";

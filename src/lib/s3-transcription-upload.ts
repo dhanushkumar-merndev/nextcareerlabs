@@ -29,7 +29,7 @@ export async function uploadTranscriptionToS3(
 
   // Upload to S3-compatible storage (Tigris Data)
   const command = new PutObjectCommand({
-    Bucket: env.S3_BUCKET_NAME,
+    Bucket: env.S3_BUCKET_NAME_PRIVATE,
     Key: key,
     Body: vttContent,
     ContentType: 'text/vtt',
@@ -39,7 +39,7 @@ export async function uploadTranscriptionToS3(
   await s3Client.send(command);
 
   // Construct public URL for Tigris Data (using the same format as Uploader.tsx)
-  const url = `https://${env.S3_BUCKET_NAME}.t3.storage.dev/${key}`;
+  const url = key; // Store the key, we'll sign it on access
 
   return { key, url };
 }
@@ -68,9 +68,11 @@ export async function uploadSpriteToS3(
   const key = `transcriptions/${lessonId}/sprites/${filename}`;
 
   const buffer = await spriteBlob.arrayBuffer();
+  
+  const bucketName = env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES;
 
   const command = new PutObjectCommand({
-    Bucket: env.S3_BUCKET_NAME,
+    Bucket: bucketName,
     Key: key,
     Body: Buffer.from(buffer),
     ContentType: 'image/jpeg',
@@ -79,7 +81,7 @@ export async function uploadSpriteToS3(
 
   await s3Client.send(command);
 
-  const url = `${env.AWS_ENDPOINT_URL_S3}/${env.S3_BUCKET_NAME}/${key}`;
+  const url = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${key}`;
 
   return { key, url };
 }

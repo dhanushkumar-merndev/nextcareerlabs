@@ -91,6 +91,7 @@ function VideoPlayer({
     if (videoKey) {
         const baseKey = videoKey.replace(/\.[^/.]+$/, "");
         const inferredKey = `sprites/${baseKey}/thumbnails.vtt`;
+        // Sprites stay in the PUBLIC bucket for performance/simplicity
         const inferredUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredKey}`;
         const inferredLowKey = `sprites/${baseKey}/preview_low.jpg`;
         const inferredLowUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredLowKey}`;
@@ -366,24 +367,36 @@ function VideoPlayer({
     if (!videoKey) return;
 
     const fetchUrls = async () => {
-      // 1. Setup HLS URL (Static construction)
+      // 1. Setup HLS URL (Now signed from private bucket)
       const baseKey = videoKey.startsWith('hls/') 
         ? videoKey.split('/')[1] 
         : videoKey.replace(/\.[^/.]+$/, "");
 
       const hlsKey = `hls/${baseKey}/master.m3u8`;
-      const hlsFullUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${hlsKey}`;
-      setHlsUrl(hlsFullUrl);
+      const hlsResponse = await getSignedVideoUrl(hlsKey) as any;
+      if (hlsResponse && hlsResponse.status === "success" && hlsResponse.url) {
+        setHlsUrl(hlsResponse.url);
+      }
 
+      // 2. Setup Video URL
       const response = await getSignedVideoUrl(videoKey) as any;
       if (response && response.status === "success" && response.url) {
         setVideoUrl(response.url);
       }
 
-      // 3. Setup Caption URL (Only when explicitly available from DB)
+      // 3. Setup Caption URL (Now signed from private bucket if it's an internal key)
       if (transcriptionUrl) {
         console.log("[CourseContent] Using DB Transcription URL:", transcriptionUrl);
-        setCaptionUrl(transcriptionUrl);
+        
+        // If it's a relative path/key, sign it. If it's already a full URL (HTTPS), use as is.
+        if (transcriptionUrl.startsWith('http')) {
+          setCaptionUrl(transcriptionUrl);
+        } else {
+          const captionResponse = await getSignedVideoUrl(transcriptionUrl) as any;
+          if (captionResponse && captionResponse.status === "success" && captionResponse.url) {
+            setCaptionUrl(captionResponse.url);
+          }
+        }
       } else {
         // No transcription available — pass undefined to skip captions
         setCaptionUrl(undefined);

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MessageContent } from "./MessageContent";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, getSidebarKey, getSidebarLocalKey } from "@/lib/chat-cache";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
 interface ChatWindowProps {
@@ -39,6 +39,7 @@ interface ChatWindowProps {
 
 export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, currentUserId, onRemoveThread, onBack, externalPresence }: ChatWindowProps) {
     const queryClient = useQueryClient();
+    const SIDEBAR_KEY = getSidebarKey(currentUserId, isAdmin);
     const { data: session } = useSmartSession();
     const [inputText, setInputText] = useState("");
     const [imageUrl, setImageUrl] = useState("");
@@ -323,8 +324,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 }
 
                 chatCache.invalidate(`messages_${threadId}`, currentUserId);
-                chatCache.invalidate("sidebarData", currentUserId);
-                queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+                chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
+                queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
+                queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
 
             } catch (error) {
                 toast.error("Failed to send message");
@@ -356,6 +358,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     contentType: file.type || "application/pdf",
                     size: file.size,
                     isImage: false,
+                    isPrivate: true,
+                    prefix: `chat/${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`
                 }),
             });
 
@@ -419,6 +423,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     contentType: file.type,
                     size: file.size,
                     isImage: true,
+                    isPrivate: true,
+                    prefix: `chat/${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`
                 }),
             });
 
@@ -568,6 +574,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     contentType: file.type || "application/pdf",
                     size: file.size,
                     isImage: false,
+                    isPrivate: true,
+                    prefix: `chat/${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`
                 }),
             });
 
@@ -683,9 +691,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 }
                 
                 chatCache.invalidate(`messages_${threadId}`, currentUserId);
-                chatCache.invalidate("sidebarData", currentUserId);
-                queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
-                refetch();
+                chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
+                queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
+                queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
             } catch (e) {
                 toast.error("Failed to submit feedback");
                 refetch(); // Revert to server state
@@ -705,17 +713,62 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     const submitEditDialog = async () => {
         if (!editingMessageId || (!editContent.trim() && !editImageUrl && !editFileUrl)) return;
 
+        const newContent = editContent.trim();
+        const newImageUrl = editImageUrl;
+        const newFileUrl = editFileUrl;
+        const newFileName = editFileName;
+        const msgId = editingMessageId;
+
+        // OPTIMISTIC UPDATE
+        queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
+            if (!oldData) return oldData;
+            const newPages = oldData.pages.map((page: any) => ({
+                ...page,
+                messages: page.messages.map((m: any) =>
+                    m.id === msgId
+                        ? {
+                            ...m,
+                            content: newContent,
+                            imageUrl: newImageUrl || null,
+                            fileUrl: newFileUrl || null,
+                            fileName: newFileName || null,
+                            updatedAt: new Date().toISOString()
+                        }
+                        : m
+                )
+            }));
+            return { ...oldData, pages: newPages };
+        });
+
+        // SYNC SIDEBAR if latest
+        if (messages.length > 0 && messages[messages.length - 1].id === msgId) {
+            window.dispatchEvent(new CustomEvent("chat-thread-update", {
+                detail: {
+                    threadId,
+                    lastMessage: newContent || (newImageUrl ? "Image" : (newFileUrl ? "PDF" : "Message")),
+                    updatedAt: new Date().toISOString()
+                }
+            }));
+        }
+
+        setIsEditOpen(false);
+        setEditingMessageId(null);
+        setEditImageUrl("");
+        setEditFileUrl("");
+        setEditFileName("");
+
         try {
-            await editMessageAction(editingMessageId, editContent, editImageUrl, editFileUrl, editFileName);
+            await editMessageAction(msgId, newContent, newImageUrl, newFileUrl, newFileName);
+            
+            chatCache.invalidate(`messages_${threadId}`, currentUserId);
+            chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
+            queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
             queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
-            setIsEditOpen(false);
-            setEditingMessageId(null);
-            setEditImageUrl("");
-            setEditFileUrl("");
-            setEditFileName("");
+            
             toast.success("Message updated");
         } catch (e) {
             toast.error("Failed to update");
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
         }
     };
 
@@ -739,8 +792,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             }
 
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
-            chatCache.invalidate("sidebarData", currentUserId);
-            queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+            chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
+            queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
 
 
             // SYNC SIDEBAR: Find the next latest message to show as preview
@@ -830,10 +884,10 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         }));
 
         try {
-            await resolveTicketAction(id, status);
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
-            chatCache.invalidate("sidebarData", currentUserId);
-            queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+            chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
+            queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
         } catch (e) {
             queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
             toast.error("Failed to update ticket status");
@@ -853,7 +907,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         setIsArchived(nextArchived);
 
         // 2. OPTIMISTIC UPDATE SIDEBAR CACHE
-        queryClient.setQueryData(["sidebarData", currentUserId], (old: any) => {
+        queryClient.setQueryData(SIDEBAR_KEY, (old: any) => {
             if (!old || !old.threads) return old;
             return {
                 ...old,
@@ -883,11 +937,13 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         try {
             await archiveThreadAction(threadId);
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
-            chatCache.invalidate("sidebarData", currentUserId);
+            chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
+            queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
         } catch (e) {
             // REVERT ON FAILURE
             setIsArchived(!nextArchived);
-            queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+            queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
             queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
 
             toast.error("Failed to archive chat");
@@ -910,7 +966,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
             await deleteThreadMessagesAction(threadId); // Now deletes from DB!
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
-            chatCache.invalidate("sidebarData", currentUserId);
+            chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
+            queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
+            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
             toast.success("Chat deleted successfully");
         } catch (e: any) {
             toast.error(e.message || "Failed to remove");
