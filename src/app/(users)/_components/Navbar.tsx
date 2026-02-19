@@ -1,7 +1,7 @@
 /* This component is used to display the navbar */
 
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
@@ -23,7 +23,7 @@ export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isCompact, setIsCompact] = useState(false);
   const [activeSection, setActiveSection] = useState<Section>("home");
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const lastScrollY = useRef(0);
   const dashboardLink = session?.user?.role === "admin" ? "/admin" : "/dashboard";
 
 // Compact mode on scroll
@@ -64,7 +64,7 @@ export function Navbar() {
     let ticking = false;
     const onScroll = () => {
       const currentScrollY = window.scrollY;
-      const isScrollingDown = currentScrollY > lastScrollY;
+      const isScrollingDown = currentScrollY > lastScrollY.current;
       // Dynamic offset based on scroll direction (hysteresis)
       const offset = isScrollingDown ? 250 : 150;
       const scrollPos = currentScrollY + offset;
@@ -87,7 +87,7 @@ export function Navbar() {
         }
         return prev;
       });
-      setLastScrollY(currentScrollY);
+      lastScrollY.current = currentScrollY;
       ticking = false;
     };
     const handleScroll = () => {
@@ -101,7 +101,7 @@ export function Navbar() {
     return () => {
       window.removeEventListener("scroll", handleScroll);
     };
-  }, [isHomePage, lastScrollY]);
+  }, [isHomePage]);
 
  // Route active helper
   const isRouteActive = (href: string) =>

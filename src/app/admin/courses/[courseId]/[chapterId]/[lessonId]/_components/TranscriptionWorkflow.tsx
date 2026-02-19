@@ -4,8 +4,8 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Loader2, FileText, Sparkles, CheckCircle2, AlertTriangle, Copy, Save, Upload, Download } from "lucide-react";
-import { storeTranscription, getTranscription } from "@/app/admin/lessons/transcription/actions";
+import { Loader2, FileText, Sparkles, CheckCircle2, AlertTriangle, Copy, Save, Upload, Download, Trash2 } from "lucide-react";
+import { storeTranscription, getTranscription, deleteTranscription } from "@/app/admin/lessons/transcription/actions";
 import { saveMCQs } from "@/app/admin/lessons/mcqs/actions";
 import { generateMCQPrompt, copyToClipboard, validateMCQJSON } from "@/lib/mcq/mcq-prompt-generator";
 import { useEffect } from "react";
@@ -17,6 +17,8 @@ interface TranscriptionWorkflowProps {
   videoUrl?: string;
   videoKey?: string;
   onComplete?: () => void;
+  onTranscriptionUpload?: (url: string) => void;
+  onCaptionDelete?: () => void;
 }
 
 export function TranscriptionWorkflow({
@@ -24,6 +26,8 @@ export function TranscriptionWorkflow({
   lessonTitle,
   videoKey,
   onComplete,
+  onTranscriptionUpload,
+  onCaptionDelete,
 }: TranscriptionWorkflowProps) {
   if (!videoKey) return null;
 
@@ -31,7 +35,9 @@ export function TranscriptionWorkflow({
   const [vttContent, setVttContent] = useState<string | null>(null);
   const [pastedJson, setPastedJson] = useState("");
   const [isSavingMCQs, setIsSavingMCQs] = useState(false);
+  const [hasMCQs, setHasMCQs] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Derive compressed audio URL from videoKey
@@ -56,10 +62,12 @@ export function TranscriptionWorkflow({
           if (vttRes.ok) {
             const content = await vttRes.text();
             setVttContent(content);
-            // If MCQs already exist, show the "saved" state directly
+            // If MCQs already exist, track it
             if (result.transcription.hasMCQs) {
+              setHasMCQs(true);
               setStatus("saved");
             } else {
+              setHasMCQs(false);
               setStatus("complete");
             }
           }
@@ -114,8 +122,22 @@ export function TranscriptionWorkflow({
         throw new Error(result.error || "Failed to save transcription");
       }
 
-      setStatus("complete");
-      toast.success("Transcript uploaded and saved!");
+      // 🔔 Notify parent to update preview player instantly
+      if (result.transcriptionId) {
+        // Fetch new VTT URL (or we could return it from storeTranscription)
+        const check = await getTranscription(lessonId);
+        if (check.success && check.transcription?.vttUrl) {
+           onTranscriptionUpload?.(check.transcription.vttUrl);
+        }
+      }
+
+      // If we already have MCQs, go back to "saved" status but with new transcript loaded
+      if (hasMCQs) {
+        setStatus("saved");
+      } else {
+        setStatus("complete");
+      }
+      toast.success("Transcript updated!");
     } catch (error: any) {
       console.error("[VTT Upload Error]", error);
       setStatus("error");
@@ -150,6 +172,7 @@ export function TranscriptionWorkflow({
       if (result.success) {
         toast.success(`Saved ${result.count} MCQs!`);
         setPastedJson("");
+        setHasMCQs(true);
         setStatus("saved"); // Switch to saved state
         onComplete?.();
       } else {
@@ -178,6 +201,26 @@ export function TranscriptionWorkflow({
     } catch (error) {
       console.error("Download failed:", error);
       toast.error("Failed to download audio. Try right-click > Save as.");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete the captions?")) return;
+    try {
+      setIsDeleting(true);
+      const result = await deleteTranscription(lessonId);
+      if (result.success) {
+        toast.success("Captions deleted");
+        setVttContent(null);
+        setStatus("idle");
+        onCaptionDelete?.();
+      } else {
+        toast.error(result.error || "Failed to delete");
+      }
+    } catch (err) {
+      toast.error("Cleanup failed");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -234,6 +277,16 @@ export function TranscriptionWorkflow({
                 setPastedJson("");
               }}>
                 Re-upload
+              </Button>
+              <Button 
+                type="button" 
+                size="sm" 
+                variant="ghost" 
+                className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
               </Button>
             </div>
           )}
@@ -300,19 +353,43 @@ export function TranscriptionWorkflow({
             <p className="text-sm font-semibold">20 MCQs Saved Successfully!</p>
             <p className="text-xs text-muted-foreground">The lesson assessment is now updated.</p>
           </div>
-          <Button 
-            type="button" 
-            variant="outline" 
-            size="sm" 
-            className="mt-4"
-            onClick={() => {
-              setStatus("idle");
-              setVttContent(null);
-            }}
-          >
-            <Upload className="size-4 mr-2" />
-            Re-upload / Update Questions
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setStatus("complete");
+              }}
+            >
+              <Sparkles className="size-4 mr-2 text-amber-500" />
+              Update Questions
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setStatus("idle");
+                setVttContent(null);
+                setPastedJson("");
+              }}
+            >
+              <Upload className="size-4 mr-2" />
+              Re-upload Transcript
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm" 
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={handleDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? <Loader2 className="size-4 animate-spin mr-2" /> : <Trash2 className="size-4 mr-2" />}
+              Delete Captions
+            </Button>
+          </div>
         </div>
       )}
 

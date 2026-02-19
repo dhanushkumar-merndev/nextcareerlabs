@@ -3,10 +3,10 @@ import { CloudUploadIcon, ImageIcon, Loader2, XIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import Image from "next/image";
 import CircularProgressColorDemo from "@/components/ui/progress-10";
-import Hls from "hls.js";
 import { useEffect, useRef } from "react";
 import { VideoPlayer } from "../video-player/VideoPlayer";
 import { useConstructUrl } from "@/hooks/use-construct-url";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 export function RenderEmptyState({ isDragActive }: { isDragActive: boolean }) {
   return (
     <div className="text-center">
@@ -54,6 +54,7 @@ export function RenderUploadedState({
   isSpriteGenerated,
   spriteMetadata,
   onDurationLoaded,
+  captionUrl,
 }: {
   previewUrl: string;
   isDeleting: boolean;
@@ -65,6 +66,7 @@ export function RenderUploadedState({
   spriteGenerating?: boolean;
   spriteMetadata?: any;
   onDurationLoaded?: (duration: number) => void;
+  captionUrl?: string;
 }) {
   const spriteProps = spriteMetadata ? {
     url: useConstructUrl(spriteMetadata.spriteKey),
@@ -92,7 +94,7 @@ export function RenderUploadedState({
           spriteMetadata={spriteProps}
           className="w-full h-full"
           onLoadedMetadata={onDurationLoaded}
-          captionUrl={hlsUrl ? hlsUrl.replace("master.m3u8", "caption.vtt") : undefined}
+          captionUrl={captionUrl}
         />
       ) : (
         <div className="relative w-full h-full">
@@ -100,7 +102,7 @@ export function RenderUploadedState({
             src={previewUrl}
             alt="Upload File"
             fill
-            className="object-contain p-2"
+            className="object-cover"
             sizes="300px"
             loading="eager"
             crossOrigin="anonymous"
@@ -135,13 +137,15 @@ export function RenderUploadingState({
   progress,
   file,
   label = "Uploading...",
+  onCancel,
 }: {
   progress: number;
   file?: File | null;
   label?: string;
+  onCancel?: () => void;
 }) {
   return (
-    <div className="text-center flex justify-center items-center flex-col w-full px-8">
+    <div className="text-center flex justify-center items-center flex-col w-full px-8 relative">
       <CircularProgressColorDemo progress={progress} />
       <p className="mt-2 text-sm font-medium text-foreground animate-pulse">
         {label}
@@ -150,6 +154,41 @@ export function RenderUploadingState({
         <p className="mt-1 text-xs text-muted-foreground truncate max-w-xs mx-auto">
           {file.name}
         </p>
+      )}
+      {onCancel && (
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="
+          mt-3
+          h-8 w-8
+          rounded-full
+          hover:text-destructive
+          hover:border-destructive
+          hover:shadow-sm
+          active:scale-95
+          transition-all duration-200 ease-in-out
+          cursor-pointer
+        "
+        onClick={(e) => {
+          e.stopPropagation();
+          onCancel();
+        }}
+      >
+        <XIcon className="h-4 w-4" />
+      </Button>
+    </TooltipTrigger>
+
+    <TooltipContent side="bottom" className="text-xs">
+      Cancel
+    </TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+
       )}
     </div>
   );

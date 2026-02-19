@@ -86,6 +86,7 @@ export function VideoPlayer({
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [seekAnimation, setSeekAnimation] = useState<{ type: "forward" | "backward", amount: number } | null>(null);
@@ -169,7 +170,15 @@ export function VideoPlayer({
         const err = player.error();
         const errorMsg = err ? `Error ${err.code}: ${err.message}` : "An unknown error occurred";
         setError(errorMsg);
+        setIsBuffering(false);
       });
+
+      // Buffer/Loading States
+      player.on("waiting", () => setIsBuffering(true));
+      player.on("playing", () => setIsBuffering(false));
+      player.on("canplay", () => setIsBuffering(false));
+      player.on("seeking", () => setIsBuffering(true));
+      player.on("seeked", () => setIsBuffering(false));
 
       // (Removed in-initializer caption logic to move to reactive effect)
 
@@ -269,38 +278,66 @@ export function VideoPlayer({
     const player = playerRef.current;
     if (!player || !captionUrl) return;
 
-    player.ready(() => {
-      console.log("VideoPlayer: Updating caption track", captionUrl);
-      
-      // 1. Remove any existing caption/subtitle tracks to allow hot-swapping
-      const tracks = player.textTracks();
-      for (let i = tracks.length - 1; i >= 0; i--) {
-        const track = tracks[i];
-        if (track.kind === "captions" || track.kind === "subtitles") {
-          player.removeRemoteTextTrack(track);
+    let cancelled = false;
+
+    // Validate URL returns a real WebVTT file before adding to player
+    const validateAndAdd = async () => {
+      try {
+        const res = await fetch(captionUrl, { method: "GET", headers: { Range: "bytes=0-20" } });
+        if (!res.ok) {
+          console.log("VideoPlayer: Caption URL returned", res.status, "— skipping");
+          return;
         }
+        const text = await res.text();
+        if (!text.trimStart().startsWith("WEBVTT")) {
+          console.log("VideoPlayer: Caption URL is not valid WebVTT — skipping");
+          return;
+        }
+      } catch (err) {
+        console.log("VideoPlayer: Caption URL unreachable — skipping", err);
+        return;
       }
 
-      // 2. Add the new track
-      player.addRemoteTextTrack({
-        kind: "captions",
-        src: captionUrl,
-        srclang: "en",
-        label: "English",
-        default: captionsEnabled,
-      }, false);
+      if (cancelled) return;
 
-      // 3. Sync track mode with UI state after a short delay
-      setTimeout(() => {
-        const newTracks = player.textTracks();
-        for (let i = 0; i < newTracks.length; i++) {
-          const t = newTracks[i];
-          if (t.kind === "captions" || t.kind === "subtitles") {
-            t.mode = captionsEnabled ? "showing" : "disabled";
+      player.ready(() => {
+        if (cancelled) return;
+        console.log("VideoPlayer: Updating caption track", captionUrl);
+        
+        // 1. Remove any existing caption/subtitle tracks to allow hot-swapping
+        const tracks = player.textTracks();
+        for (let i = tracks.length - 1; i >= 0; i--) {
+          const track = tracks[i];
+          if (track.kind === "captions" || track.kind === "subtitles") {
+            player.removeRemoteTextTrack(track);
           }
         }
-      }, 100);
-    });
+
+        // 2. Add the new track
+        player.addRemoteTextTrack({
+          kind: "captions",
+          src: captionUrl,
+          srclang: "en",
+          label: "English",
+          default: captionsEnabled,
+        }, false);
+
+        // 3. Sync track mode with UI state after a short delay
+        setTimeout(() => {
+          const newTracks = player.textTracks();
+          for (let i = 0; i < newTracks.length; i++) {
+            const t = newTracks[i];
+            if (t.kind === "captions" || t.kind === "subtitles") {
+              t.mode = captionsEnabled ? "showing" : "disabled";
+            }
+          }
+        }, 100);
+      });
+    };
+
+    validateAndAdd();
+
+    return () => { cancelled = true; };
   }, [captionUrl, playerRef.current, sources, src]);
 
   // Sync sources when they change after initialization
@@ -344,7 +381,13 @@ export function VideoPlayer({
   };
 
   const handleSeek = (value: number[]) => {
-    const time = value[0];
+    let time = value[0];
+    
+    // Snap to sprite interval if available for better HLS performance and preview matching
+    if (spriteMetadata?.interval) {
+        time = Math.floor(time / spriteMetadata.interval) * spriteMetadata.interval;
+    }
+    
     playerRef.current.currentTime(time);
     setCurrentTime(time);
   };
@@ -663,6 +706,9 @@ export function VideoPlayer({
     }
   };
 
+  // Fixed display width for preview (source res is 320x180)
+  const PREVIEW_DISPLAY_WIDTH = typeof window !== 'undefined' && window.innerWidth < 640 ? 180 : 240;
+
   const getSpritePosition = (time: number) => {
     if (!spriteMetadata) return null;
 
@@ -712,12 +758,21 @@ export function VideoPlayer({
             }
         }
 
+        // Scale display: source is e.g. 320x180, display at PREVIEW_DISPLAY_WIDTH
+        const scale = PREVIEW_DISPLAY_WIDTH / cue.w;
+        
+        // Accurate background size for the sprite sheet
+        // We calculate based on the source size and the current display scale
+        const sheetWidth = (spriteMetadata.cols || 10) * PREVIEW_DISPLAY_WIDTH;
+
         return {
             backgroundImage: `url(${imageUrl})`,
-            backgroundPosition: `-${cue.x}px -${cue.y}px`,
-            backgroundSize: "initial",
-            width: cue.w,
-            height: cue.h,
+            backgroundPosition: `-${cue.x * scale}px -${cue.y * scale}px`,
+            backgroundSize: `${sheetWidth}px auto`, // Allow height to auto-scale proportionately
+            width: Math.round(cue.w * scale),
+            height: Math.round(cue.h * scale),
+            sourceWidth: cue.w,
+            sourceHeight: cue.h,
             startTime: cue.startTime,
             isHighRes: true,
         };
@@ -736,16 +791,22 @@ export function VideoPlayer({
         const col = index % lowCols;
         const row = Math.floor(index / lowCols);
         
-        // Calculate total rows in the low-res grid for accurate backgroundSize scaling
+        // Match preview-generator.ts: low-res frames are 40x22
+        const lowFrameW = 40;
+        const lowFrameH = 22;
+        
+        // Scale the 40px frame to fill PREVIEW_DISPLAY_WIDTH
+        const lowScale = PREVIEW_DISPLAY_WIDTH / lowFrameW;
+        
         const totalFrames = Math.ceil(duration / (spriteMetadata.interval || 10));
         const lowRows = Math.ceil(totalFrames / lowCols);
-        
+
         return {
             backgroundImage: `url(${spriteMetadata.lowResUrl})`,
-            backgroundPosition: `-${col * spriteMetadata.width}px -${row * spriteMetadata.height}px`,
-            backgroundSize: `${lowCols * spriteMetadata.width}px ${lowRows * spriteMetadata.height}px`,
-            width: spriteMetadata.width, 
-            height: spriteMetadata.height,
+            backgroundPosition: `-${col * PREVIEW_DISPLAY_WIDTH}px -${row * (lowFrameH * lowScale)}px`,
+            backgroundSize: `${lowCols * PREVIEW_DISPLAY_WIDTH}px ${lowRows * (lowFrameH * lowScale)}px`,
+            width: PREVIEW_DISPLAY_WIDTH, 
+            height: Math.round(lowFrameH * lowScale),
             isHighRes: false,
             startTime: index * spriteMetadata.interval,
         };
@@ -761,13 +822,16 @@ export function VideoPlayer({
     );
     const col = index % spriteMetadata.cols;
     const row = Math.floor(index / spriteMetadata.cols);
+    const scale = PREVIEW_DISPLAY_WIDTH / spriteMetadata.width;
+    const displayW = Math.round(spriteMetadata.width * scale);
+    const displayH = Math.round(spriteMetadata.height * scale);
     return {
       backgroundImage: `url(${spriteMetadata.url})`,
-      backgroundPosition: `-${col * spriteMetadata.width}px -${row * spriteMetadata.height}px`,
-      backgroundSize: `${spriteMetadata.cols * spriteMetadata.width}px ${spriteMetadata.rows * spriteMetadata.height}px`,
-      width: spriteMetadata.width,
-      height: spriteMetadata.height,
-      startTime: index * spriteMetadata.interval, // Added for snapping
+      backgroundPosition: `-${col * displayW}px -${row * displayH}px`,
+      backgroundSize: `${spriteMetadata.cols * displayW}px ${spriteMetadata.rows * displayH}px`,
+      width: displayW,
+      height: displayH,
+      startTime: index * spriteMetadata.interval,
     };
   };
 
@@ -824,6 +888,18 @@ export function VideoPlayer({
           opacity: 1 !important;
           visibility: visible !important;
           object-fit: contain !important;
+        }
+        .vjs-poster {
+          background-size: cover !important;
+          background-position: center !important;
+        }
+        .vjs-poster img {
+          object-fit: cover !important;
+          width: 100% !important;
+          height: 100% !important;
+        }
+        .vjs-loading-spinner {
+          display: none !important;
         }
         ${currentTime > 0 ? `
           .video-js .vjs-poster {
@@ -994,6 +1070,13 @@ export function VideoPlayer({
         }
       `}} />
 
+      {/* Primary Custom Buffer Loader */}
+      {isBuffering && !error && (
+        <div className="absolute inset-0 z-45 flex items-center justify-center">
+          <Loader size={48} />
+        </div>
+      )}
+
       {error && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-6 text-center animate-in fade-in duration-300 rounded-lg">
           <div className="bg-destructive/20 border border-destructive/50 p-4 rounded-lg max-w-sm">
@@ -1023,15 +1106,33 @@ export function VideoPlayer({
         >
           <div 
             className="relative group/seekbar py-4 -my-2 touch-none cursor-pointer"
-            onMouseMove={handleSeekbarMouseMove}
-            onMouseLeave={() => setHoverPosition(null)}
+            onMouseMove={(e) => {
+              e.stopPropagation();
+              handleSeekbarMouseMove(e);
+            }}
+            onMouseLeave={(e) => {
+              e.stopPropagation();
+              setHoverPosition(null);
+            }}
             onPointerDown={(e) => {
+              e.stopPropagation();
               // Expand hit area: allow clicking near the line to seek
               const pos = calculatePosition(e.clientX);
-              if (pos) handleSeek([pos.time]);
+              if (pos) {
+                // Snap to sprite timestamp to match the preview exactly
+                const spritePos = spriteMetadata ? getSpritePosition(pos.time) : null;
+                const snapTime = spritePos?.startTime ?? pos.time;
+                handleSeek([snapTime]);
+              }
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
             }}
             onTouchMove={handleSeekbarTouchMove}
             onTouchEnd={handleSeekbarTouchEnd}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
             ref={seekbarRef}
           >
             {hoverPosition && (() => {
@@ -1061,6 +1162,7 @@ export function VideoPlayer({
                                         backgroundPosition: spritePos.backgroundPosition,
                                         backgroundSize: spritePos.backgroundSize,
                                         backgroundRepeat: 'no-repeat',
+                                        imageRendering: 'crisp-edges' as any,
                                     }}
                                 />
                             )}
@@ -1078,6 +1180,7 @@ export function VideoPlayer({
                                 backgroundPosition: spritePos.backgroundPosition,
                                 backgroundSize: spritePos.backgroundSize,
                                 backgroundRepeat: 'no-repeat',
+                                imageRendering: 'auto',
                               }}
                             />
                             
@@ -1201,7 +1304,7 @@ export function VideoPlayer({
         </div>
       </div>
 
-      {(!isPlaying && !seekAnimation && !volumeAnimation.visible) && (
+      {(!isPlaying && !isBuffering && !seekAnimation && !volumeAnimation.visible) && (
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none group/playbtn">
           <div 
             onClick={togglePlay}

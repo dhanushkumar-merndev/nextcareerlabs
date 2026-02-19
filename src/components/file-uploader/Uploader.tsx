@@ -54,6 +54,7 @@ interface iAppProps {
   fileTypeAccepted: "image" | "video";
   duration?: number;
   initialSpriteKey?: string | null;
+  captionUrl?: string | null;
 }
 interface UploaderState {
   id: string | null;
@@ -77,7 +78,7 @@ interface UploaderState {
   audioCompressing: boolean;
 }
 
-export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey }: iAppProps) {
+export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey, captionUrl }: iAppProps) {
   const fileUrl = useConstructUrl(value || "");
   
   // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
@@ -85,6 +86,54 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
     if (value.startsWith('hls/')) return value.split('/')[1];
     return value.split('.')[0];
   })() : null;
+
+  // ── Cancel Infrastructure ──
+  const abortRef = useRef<AbortController>(new AbortController());
+  const activeXHRs = useRef<Set<XMLHttpRequest>>(new Set());
+
+  const handleCancelUpload = useCallback(() => {
+    // 1. Abort all async operations (fetch, timers etc.)
+    abortRef.current.abort();
+
+    // 2. Abort all in-flight XHR uploads
+    activeXHRs.current.forEach(xhr => {
+      try { xhr.abort(); } catch {}
+    });
+    activeXHRs.current.clear();
+
+    // 3. Unlock processing flag
+    (window as any).__PROCESSING_VIDEO__ = false;
+
+    // 4. Reset state to empty
+    setFileState(prev => {
+      // Revoke blob URL if exists
+      if (prev.objectUrl && prev.objectUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(prev.objectUrl);
+      }
+      return {
+        error: false,
+        file: null,
+        id: null,
+        uploading: false,
+        progress: 0,
+        isDeleting: false,
+        fileType: fileTypeAccepted,
+        key: null,
+        objectUrl: undefined,
+        transcoding: false,
+        transcodingProgress: 0,
+        spriteGenerating: false,
+        spriteUploadProgress: 0,
+        audioCompressing: false,
+        baseKey: null,
+      };
+    });
+
+    // 5. Create fresh AbortController for next upload
+    abortRef.current = new AbortController();
+
+    toast.info("Upload cancelled");
+  }, [fileTypeAccepted]);
 
   const [fileState, setFileState] = useState<UploaderState>({
     error: false,
@@ -136,6 +185,11 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
 
   const uploadFile = useCallback(
     async (file: File) => {
+      // Capture the signal NOW so it stays aborted even after handleCancelUpload
+      // replaces abortRef.current with a fresh controller.
+      const signal = abortRef.current.signal;
+      const isCancelled = () => signal.aborted;
+
       setFileState((prevState) => ({
         ...prevState,
         uploading: true,
@@ -152,6 +206,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           }));
           
           const duration = await getVideoDuration(file);
+          if (isCancelled()) return;
           onDurationChange?.(Math.round(duration));
           
           // LOCK: Start Memory-Intensive Phase
@@ -161,6 +216,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           const { m3u8, segments, audioBlob: transcodedAudio } = await transcodeToHLS(file, (p) => {
             setFileState((s) => ({ ...s, transcodingProgress: p }));
           }, duration);
+          if (isCancelled()) return;
           setFileState((s) => ({ ...s, transcoding: false }));
 
           // Use audio from combined session; fallback to standalone only if needed
@@ -174,6 +230,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
             } catch (audioErr) {
               console.error("Audio compression fallback failed:", audioErr);
             }
+            if (isCancelled()) return;
             setFileState((s) => ({ ...s, audioCompressing: false }));
           }
           if (audioBlob) {
@@ -195,7 +252,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
              console.log(`Uploader: Generating thumbnails with ${interval}s interval for ${duration}s video`);
              
              // 240x135, dynamic interval, 10 columns
-             const generator = new SpriteGenerator(240, 135, interval, 10);
+             const generator = new SpriteGenerator(320, 180, interval, 10);
              spriteResult = await generator.generate(file, (progress, status) => {
                 setFileState(s => ({ ...s, spriteUploadProgress: progress, spriteStatus: status }));
              });
@@ -203,6 +260,8 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
              console.error("Auto sprite generation failed:", spriteError);
              toast.error("Thumbnail generation failed, but video will still upload.");
           }
+
+          if (isCancelled()) return;
 
           // 2. Prepare for upload
           setFileState((s) => ({ ...s, uploading: true, spriteGenerating: false }));
@@ -279,11 +338,14 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
              }
           }
 
+          if (isCancelled()) return;
+
           // Batch request all pre-signed URLs at once
           const presignedRes = await fetch("/api/s3/upload", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(uploadRequests),
+            signal,
           });
 
           if (!presignedRes.ok) throw new Error("Failed to get pre-signed URLs");
@@ -305,9 +367,11 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           loadedBytes[0] = uploadRequests[0].size;
 
           const uploadFileToS3 = async (index: number, blob: Blob, contentType: string) => {
+             if (isCancelled()) return;
              const { presignedUrl } = presignedUrls[index];
              await new Promise<void>((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
+                activeXHRs.current.add(xhr);
                 
                 // Real-time byte tracking
                 if (xhr.upload) {
@@ -322,13 +386,21 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
                 }
 
                 xhr.onload = () => {
+                    activeXHRs.current.delete(xhr);
                     if (xhr.status >= 200 && xhr.status < 300) {
-                      loadedBytes[index] = blob.size; // Ensure it's fully marked
+                      loadedBytes[index] = blob.size;
                       resolve();
                     }
                     else reject(new Error(`Status ${xhr.status}`));
                 };
-                xhr.onerror = () => reject(new Error("Network error"));
+                xhr.onerror = () => {
+                    activeXHRs.current.delete(xhr);
+                    reject(new Error("Network error"));
+                };
+                xhr.onabort = () => {
+                    activeXHRs.current.delete(xhr);
+                    reject(new Error("Upload cancelled"));
+                };
                 xhr.open("PUT", presignedUrl);
                 xhr.setRequestHeader("Content-Type", contentType);
                 xhr.send(blob);
@@ -463,13 +535,16 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
             xhr.send(file);
           });
         }
-      } catch (error) {
+      } catch (error: any) {
+        // Don't show error toast if it was a user-initiated cancel
+        if (isCancelled() || error?.message === "Upload cancelled" || error?.name === "AbortError") return;
         toast.error("Something went wrong during upload");
+        (window as any).__PROCESSING_VIDEO__ = false;
         setFileState((prevState) => ({
           ...prevState,
           uploading: false,
           transcoding: false,
-          audioExtracting: false,
+          audioCompressing: false,
           spriteGenerating: false,
           progress: 0,
           error: true,
@@ -613,6 +688,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           progress={progress}
           file={fileState.file}
           label={label}
+          onCancel={handleCancelUpload}
         />
       );
     }
@@ -661,6 +737,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
                 onDurationChange?.(Math.round(d));
               }
             }}
+            captionUrl={captionUrl || undefined}
           />
           {/* Background Upload Indicator */}
           {fileState.spriteGenerating && (

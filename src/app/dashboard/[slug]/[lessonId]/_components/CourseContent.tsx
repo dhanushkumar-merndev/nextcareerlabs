@@ -367,15 +367,13 @@ function VideoPlayer({
         setVideoUrl(response.url);
       }
 
-      // 3. Setup Caption URL (Dynamic from DB with Static Fallback)
+      // 3. Setup Caption URL (Only when explicitly available from DB)
       if (transcriptionUrl) {
         console.log("[CourseContent] Using DB Transcription URL:", transcriptionUrl);
         setCaptionUrl(transcriptionUrl);
       } else {
-        const captionKey = `hls/${baseKey}/caption.vtt`;
-        const captionFullUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${captionKey}`;
-        console.log("[CourseContent] Falling back to Static Caption URL:", captionFullUrl);
-        setCaptionUrl(captionFullUrl);
+        // No transcription available — pass undefined to skip captions
+        setCaptionUrl(undefined);
       }
     };
 

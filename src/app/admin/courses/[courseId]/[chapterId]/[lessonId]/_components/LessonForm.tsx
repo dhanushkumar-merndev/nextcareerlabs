@@ -31,6 +31,8 @@ import { updateLesson } from "../actions";
 import { useRouter } from "next/navigation";
 import { TranscriptionWorkflow } from "./TranscriptionWorkflow";
 import { env } from "@/lib/env";
+import { useEffect, useState } from "react";
+import { getTranscription } from "@/app/admin/lessons/transcription/actions";
 
 interface iAppProps {
   data: AdminLessonType;
@@ -41,6 +43,21 @@ interface iAppProps {
 export function LessonForm({ data, chapterId, courseId }: iAppProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const [captionUrl, setCaptionUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTranscription = async () => {
+      try {
+        const res = await getTranscription(data.id);
+        if (res.success && res.transcription) {
+          setCaptionUrl(res.transcription.vttUrl);
+        }
+      } catch (err) {
+        console.error("Failed to fetch transcription in LessonForm", err);
+      }
+    };
+    fetchTranscription();
+  }, [data.id]);
   const form = useForm<LessonSchemaType>({
     resolver: zodResolver(lessonSchema),
     defaultValues: {
@@ -134,10 +151,19 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                 name="thumbnailKey"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Thumbnai Image</FormLabel>
+                    <FormLabel>Thumbnail Image</FormLabel>
                     <FormControl>
                       <Uploader
-                        onChange={field.onChange}
+                        onChange={(val: string | null) => {
+                          field.onChange(val);
+                          // Auto-save to DB so the key isn't lost on refresh
+                          if (val) {
+                            onSubmit({
+                              ...form.getValues(),
+                              thumbnailKey: val,
+                            }, true);
+                          }
+                        }}
                         value={field.value}
                         fileTypeAccepted="image"
                       />
@@ -192,6 +218,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                         fileTypeAccepted="video"
                         duration={form.getValues("duration") ?? undefined}
                         initialSpriteKey={form.getValues("spriteKey")}
+                        captionUrl={captionUrl}
                       />
                     </FormControl>
                     <TranscriptionWorkflow 
@@ -200,6 +227,8 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                       videoUrl={watchedVideoKey ? `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${watchedVideoKey}` : undefined}
                       videoKey={watchedVideoKey ?? undefined}
                       onComplete={() => router.refresh()}
+                      onTranscriptionUpload={(url) => setCaptionUrl(url)}
+                      onCaptionDelete={() => setCaptionUrl(null)}
                     />
                     <FormMessage />
                   </FormItem>

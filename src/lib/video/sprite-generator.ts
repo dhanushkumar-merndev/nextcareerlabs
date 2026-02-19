@@ -20,8 +20,8 @@ export class SpriteGenerator {
  
 
   constructor(
-    width = 240,     // Increased from 160px for better visibility
-    height = 135,    // Increased from 90px (maintains 16:9 ratio)
+    width = 320,     // 320px wide for crisp hover previews
+    height = 180,    // 180px tall (maintains 16:9 ratio)
     interval = 10,
     colCount = 10     // Updated to 10 columns as requested
   ) {
@@ -76,12 +76,35 @@ export class SpriteGenerator {
       }
 
       // Max frames per sheet to keep size reasonable and improve seeking performance
-      // Using 25 allows for better densitity while keeping individual canvases manageable
       const maxFramesPerSheet = 25; 
       const totalSheets = Math.ceil(totalFramesToProcess / maxFramesPerSheet);
       
       let currentOffset = 0;
       const binaryFileName = "sprites.bin";
+
+      // ── Low-Res Grid Setup (captured in same seek pass) ──
+      const lowResInterval = Math.max(this.interval, 10);
+      const lowResTotalFrames = Math.ceil(duration / lowResInterval);
+      const lowWidth = 40;
+      const lowHeight = 22;
+      const lowCols = 25;
+      const lowRows = Math.ceil(lowResTotalFrames / lowCols);
+      
+      // Create separate low-res canvas to capture frames alongside high-res
+      let lowCanvas: OffscreenCanvas | HTMLCanvasElement;
+      let lowCtx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+      if (typeof OffscreenCanvas !== "undefined") {
+        lowCanvas = new OffscreenCanvas(lowCols * lowWidth, lowRows * lowHeight);
+        lowCtx = lowCanvas.getContext("2d", { alpha: false }) as OffscreenCanvasRenderingContext2D;
+      } else {
+        lowCanvas = document.createElement("canvas");
+        lowCanvas.width = lowCols * lowWidth;
+        lowCanvas.height = lowRows * lowHeight;
+        lowCtx = lowCanvas.getContext("2d", { alpha: false }) as CanvasRenderingContext2D;
+      }
+      lowCtx.fillStyle = "black";
+      lowCtx.fillRect(0, 0, lowCols * lowWidth, lowRows * lowHeight);
+      const capturedLowFrames = new Set<number>();
 
       for (let s = 0; s < totalSheets; s++) {
         const sheetStartFrame = startFrameIndex + (s * maxFramesPerSheet);
@@ -105,13 +128,21 @@ export class SpriteGenerator {
           
           if (globalFrameIndex % 5 === 0 && onProgress) {
              const processed = globalFrameIndex - startFrameIndex;
-             // Give 85% weight to high-res generation
-             const percent = Math.round((processed / totalFramesToProcess) * 85);
-             onProgress(Math.min(85, percent), `Generating snapshots...`);
+             const percent = Math.round((processed / totalFramesToProcess) * 95);
+             onProgress(Math.min(95, percent), `Generating snapshots...`);
           }
 
           await this.seekTo(timestamp);
           this.drawFrame(i);
+
+          // ── Capture low-res frame in same seek (no extra seek needed) ──
+          const lowFrameIndex = Math.floor(timestamp / lowResInterval);
+          if (!capturedLowFrames.has(lowFrameIndex) && lowFrameIndex < lowResTotalFrames) {
+            const col = lowFrameIndex % lowCols;
+            const row = Math.floor(lowFrameIndex / lowCols);
+            lowCtx.drawImage(this.video, col * lowWidth, row * lowHeight, lowWidth, lowHeight);
+            capturedLowFrames.add(lowFrameIndex);
+          }
         }
 
         const blob = await this.canvasToBlob();
@@ -133,33 +164,18 @@ export class SpriteGenerator {
       const vttContent = vttLines.join("\n");
       const vttBlob = new Blob([vttContent], { type: "text/vtt" });
 
-      // Generate Low-Res Master Grid — INLINE to reuse the already-loaded video element.
-      // No second URL.createObjectURL or loadVideoMetadata needed.
-      const lowResInterval = Math.max(this.interval, 10); // Cap at 10s min for low-res (saves tons of seeks)
-      const lowResDuration = this.video.duration;
-      const lowResTotalFrames = Math.ceil(lowResDuration / lowResInterval);
-      const lowWidth = 40;
-      const lowHeight = 22;
-      const lowCols = 25;
-      const lowRows = Math.ceil(lowResTotalFrames / lowCols);
-
-      this.configureCanvas(lowCols * lowWidth, lowRows * lowHeight);
-      this.ctx.fillStyle = "black";
-      this.ctx.fillRect(0, 0, lowCols * lowWidth, lowRows * lowHeight);
-
-      for (let i = 0; i < lowResTotalFrames; i++) {
-        const timestamp = i * lowResInterval;
-        if (i % 10 === 0 && onProgress) {
-          const cumulative = 85 + ((i / lowResTotalFrames) * 14);
-          onProgress(Math.min(99, Math.round(cumulative)), `Optimizing previews...`);
-        }
-        await this.seekTo(timestamp);
-        const col = i % lowCols;
-        const row = Math.floor(i / lowCols);
-        this.ctx.drawImage(this.video, col * lowWidth, row * lowHeight, lowWidth, lowHeight);
+      // Convert low-res canvas to blob (no second seek pass needed!)
+      let lowResBlob: Blob;
+      if (lowCanvas instanceof OffscreenCanvas) {
+        lowResBlob = await lowCanvas.convertToBlob({ type: "image/jpeg", quality: 0.4 });
+      } else {
+        lowResBlob = await new Promise<Blob>((resolve, reject) => {
+          (lowCanvas as HTMLCanvasElement).toBlob(blob => {
+            if (blob) resolve(blob);
+            else reject(new Error("Low-res canvas to blob failed"));
+          }, "image/jpeg", 0.4);
+        });
       }
-
-      const lowResBlob = await this.canvasToBlob(0.4);
 
       if (onProgress) onProgress(100, "Done!");
 
@@ -371,30 +387,29 @@ export class SpriteGenerator {
   private seekTo(time: number): Promise<void> {
     return new Promise((resolve) => {
       let resolved = false;
-      const onSeeked = () => {
+      const done = () => {
         if (resolved) return;
         resolved = true;
-        this.video.removeEventListener("seeked", onSeeked);
+        this.video.removeEventListener("seeked", done);
         resolve();
       };
       
-      // Safety timeout: reduced from 2000ms to 500ms.
-      // Most browsers fire 'seeked' within 50-200ms. The old 2s timeout added
-      // minutes of dead time on videos with hundreds of frames.
-      setTimeout(() => {
-        if (!resolved) {
-            resolved = true;
-            this.video.removeEventListener("seeked", onSeeked);
-            resolve();
-        }
-      }, 500);
+      // Use requestVideoFrameCallback for instant frame-accurate delivery
+      // when available (Chrome 83+, Edge 83+). Falls back to seeked event.
+      if ('requestVideoFrameCallback' in this.video) {
+        (this.video as any).requestVideoFrameCallback(() => done());
+      }
+      this.video.addEventListener("seeked", done);
 
-      this.video.addEventListener("seeked", onSeeked);
+      // Safety timeout: 150ms is plenty — browsers fire seeked in 50-100ms.
+      // The old 500ms timeout was adding minutes of dead time on long videos.
+      setTimeout(done, 150);
+
       this.video.currentTime = time;
     });
   }
 
-  private async canvasToBlob(quality = 0.5): Promise<Blob> {
+  private async canvasToBlob(quality = 0.85): Promise<Blob> {
     if (this.canvas instanceof OffscreenCanvas) {
       return this.canvas.convertToBlob({ type: "image/jpeg", quality });
     } else {
