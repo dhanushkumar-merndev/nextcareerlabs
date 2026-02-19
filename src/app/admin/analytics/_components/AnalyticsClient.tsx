@@ -45,7 +45,7 @@ export function AnalyticsClient() {
       const clientVersion = cached?.version;
 
       if (cached) {
-          console.log(`[${getTime()}] [Analytics] Cache HIT (v${clientVersion}). Validating...`);
+          console.log(`[${getTime()}] [Analytics] LOCAL HIT (v${clientVersion}). Validating...`);
       } else {
           console.log(`[${getTime()}] [Analytics] Cache MISS. Fetching...`);
       }
@@ -66,7 +66,12 @@ export function AnalyticsClient() {
     },
     initialData: () => {
       if (typeof window === "undefined") return undefined;
-      return chatCache.get<any>("admin_analytics")?.data;
+      const cached = chatCache.get<any>("admin_analytics");
+      if (cached) {
+          console.log(`[${getTime()}] [Analytics] LOCAL HIT (initialData).`);
+          return cached.data;
+      }
+      return undefined;
     },
 
     // Version check every 30 min or on window focus

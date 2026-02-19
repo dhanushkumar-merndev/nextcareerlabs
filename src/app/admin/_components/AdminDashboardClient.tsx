@@ -33,7 +33,7 @@ export function AdminDashboardClient() {
             const clientVersion = cached?.version;
 
             if (cached) {
-                 console.log(`[${getTime()}] [Dashboard] Cache HIT (v${clientVersion}). Validating...`);
+                 console.log(`[${getTime()}] [Dashboard] LOCAL HIT (v${clientVersion}). Validating...`);
             } else {
                  console.log(`[${getTime()}] [Dashboard] Cache MISS. Fetching...`);
             }
@@ -54,7 +54,12 @@ export function AdminDashboardClient() {
         },
         initialData: () => {
             if (typeof window === "undefined") return undefined;
-            return chatCache.get<any>("admin_dashboard_stats")?.data;
+            const cached = chatCache.get<any>("admin_dashboard_stats");
+            if (cached) {
+                console.log(`[${getTime()}] [Dashboard] LOCAL HIT (initialData).`);
+                return cached.data;
+            }
+            return undefined;
         },
         staleTime: 1800000, 
         refetchInterval: 1800000, 
@@ -69,7 +74,7 @@ export function AdminDashboardClient() {
             const clientVersion = cached?.version;
 
             if (cached) {
-                console.log(`[${getTime()}] [Enrollments] Cache HIT (v${clientVersion}). Validating...`);
+                console.log(`[${getTime()}] [Enrollments] LOCAL HIT (v${clientVersion}). Validating...`);
             } else {
                 console.log(`[${getTime()}] [Enrollments] Cache MISS. Fetching...`);
             }
@@ -90,7 +95,12 @@ export function AdminDashboardClient() {
         },
         initialData: () => {
              if (typeof window === "undefined") return undefined;
-             return chatCache.get<any>("admin_dashboard_enrollments")?.data;
+             const cached = chatCache.get<any>("admin_dashboard_enrollments");
+             if (cached) {
+                 console.log(`[${getTime()}] [Enrollments] LOCAL HIT (initialData).`);
+                 return cached.data;
+             }
+             return undefined;
         },
         staleTime: 1800000,
         refetchInterval: 1800000,
@@ -105,7 +115,7 @@ export function AdminDashboardClient() {
             const clientVersion = cached?.version;
 
             if (cached) {
-                console.log(`[${getTime()}] [RecentCourses] Cache HIT (v${clientVersion}). Validating...`);
+                console.log(`[${getTime()}] [RecentCourses] LOCAL HIT (v${clientVersion}). Validating...`);
             } else {
                 console.log(`[${getTime()}] [RecentCourses] Cache MISS. Fetching...`);
             }
@@ -126,7 +136,12 @@ export function AdminDashboardClient() {
         },
         initialData: () => {
              if (typeof window === "undefined") return undefined;
-             return chatCache.get<any>("admin_dashboard_recent_courses")?.data;
+             const cached = chatCache.get<any>("admin_dashboard_recent_courses");
+             if (cached) {
+                 console.log(`[${getTime()}] [RecentCourses] LOCAL HIT (initialData).`);
+                 return cached.data;
+             }
+             return undefined;
         },
         staleTime: 1800000,
         refetchInterval: 1800000,

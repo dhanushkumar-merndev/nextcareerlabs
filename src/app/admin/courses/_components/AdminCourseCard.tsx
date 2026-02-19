@@ -80,7 +80,7 @@ export function AdminCourseCard({ data }: iAppProps) {
           width={600}
           height={400}
           className="w-full aspect-video h-full object-cover rounded-t-lg transition-transform duration-500 ease-out group-hover:scale-110"
-          loading="lazy"
+          priority
           crossOrigin="anonymous"
         />
       </div>

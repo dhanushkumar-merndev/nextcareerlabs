@@ -92,16 +92,19 @@ export function AdminCoursesClient() {
     initialData: () => {
         if (typeof window === "undefined" || searchTitle) return undefined;
         const cached = chatCache.get<any>("admin_courses_list");
-        if (!cached) return undefined;
-        const courses = cached.data?.data ?? cached.data?.courses ?? cached.data ?? [];
-        return {
-            pages: [{
-                courses: courses.slice(0, 9),
-                nextCursor: cached.data?.nextCursor ?? null,
-                total: cached.data?.total ?? courses.length
-            }],
-            pageParams: [null]
-        };
+        if (cached) {
+            console.log(`[${getTime()}] [Courses] LOCAL HIT (initialData).`);
+            const courses = cached.data?.data ?? cached.data?.courses ?? cached.data ?? [];
+            return {
+                pages: [{
+                    courses: courses.slice(0, 9),
+                    nextCursor: cached.data?.nextCursor ?? null,
+                    total: cached.data?.total ?? courses.length
+                }],
+                pageParams: [null]
+            };
+        }
+        return undefined;
     },
 
     queryFn: async ({ pageParam }) => {
@@ -132,7 +135,7 @@ export function AdminCoursesClient() {
 
       if (!pageParam) {
           if (cached) {
-              console.log(`[${getTime()}] [Courses] Cache HIT (v${clientVersion}). Validating...`);
+              console.log(`[${getTime()}] [Courses] LOCAL HIT (v${clientVersion}). Validating...`);
           } else {
               console.log(`[${getTime()}] [Courses] Cache MISS. Fetching...`);
           }

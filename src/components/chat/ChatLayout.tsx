@@ -33,7 +33,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
          const clientVersion = cached?.version;
 
          if (cached) {
-            console.log(`[${getTime()}] [Resources] Cache HIT (v${clientVersion}). Validating...`);
+            console.log(`[${getTime()}] [Resources] LOCAL HIT (v${clientVersion}). Validating...`);
          } else {
             console.log(`[${getTime()}] [Resources] Cache MISS. Fetching...`);
          }
@@ -49,7 +49,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
          // If we got new data, save it to LocalStorage for next time
          if (result && !(result as any).status) {
             console.log(`[${getTime()}] [Resources] Result: NEW_DATA. Updating cache.`);
-            chatCache.set("sidebarData", result, currentUserId, result.version);
+            chatCache.set("sidebarData", result, currentUserId, result.version, 21600000); // 6 hours
          }
          return result;
       },
@@ -57,6 +57,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
          if (typeof window === "undefined") return undefined;
          const cached = chatCache.get<any>("sidebarData", currentUserId);
          if (cached) {
+             console.log(`[${getTime()}] [Resources] LOCAL HIT (initialData).`);
              return cached.data;
          }
          return undefined;
