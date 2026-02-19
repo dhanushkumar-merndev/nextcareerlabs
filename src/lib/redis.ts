@@ -60,6 +60,10 @@ export const GLOBAL_CACHE_KEYS = {
   ADMIN_ANALYTICS: "global:admin:analytics",
   ADMIN_DASHBOARD_STATS: "global:admin:dashboard:stats",
   ADMIN_ANALYTICS_VERSION: "global:version:analytics",
+  ADMIN_DASHBOARD_STATS_VERSION: "global:version:admin:dashboard:stats",
+  ADMIN_COURSES_VERSION: "global:version:admin:courses",
+  ADMIN_ENROLLMENTS_VERSION: "global:version:admin:enrollments",
+  ADMIN_RECENT_COURSES_VERSION: "global:version:admin:recent_courses",
   USER_ENROLLMENTS: (userId: string) => `user:enrollments:${userId}`,
   USER_VERSION: (userId: string) => `user:version:${userId}`,
 };
@@ -140,6 +144,7 @@ export async function incrementChatVersion(userId: string) {
 export async function getGlobalVersion(key: string): Promise<string> {
     if (!redis) return "0";
     const version = await getCache<string>(key);
+    console.log(`[Redis] getGlobalVersion key="${key}" value="${JSON.stringify(version)}"`);
     return version || "0";
 }
 

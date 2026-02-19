@@ -219,7 +219,7 @@ export async function getThreadsAction(clientVersion?: string) {
   
   // If client already has the latest version, don't download everything
   if (clientVersion && clientVersion === currentVersion) {
-      console.log(`[Sync] Version match for user ${session.user.id}: ${currentVersion}. Returning NOT_MODIFIED.`);
+      console.log(`[getThreadsAction] Version Match (${clientVersion}) for user ${session.user.id}. Returning NOT_MODIFIED.`);
       return { status: "not-modified", version: currentVersion };
   }
   const isAdmin = session.user.role === "admin";
@@ -228,10 +228,10 @@ export async function getThreadsAction(clientVersion?: string) {
   const cachedData = await getCache<any>(cacheKey);
 
   if (cachedData) {
-    console.log(`[Redis] Cache HIT for threads: ${session.user.id}`);
+    console.log(`[getThreadsAction] Redis Cache HIT for user ${session.user.id}.`);
     if (!isAdmin) return { ...cachedData, version: currentVersion };
   } else {
-    console.log(`[Redis] Cache MISS for threads: ${session.user.id}`);
+    console.log(`[getThreadsAction] Redis Cache MISS for user ${session.user.id}. Fetching from Prisma DB...`);
   }
 
   // Ensure default "Broadcast" group exists (Fast check: only if not present)
@@ -556,9 +556,14 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
   if (!session) return { messages: [], state: null, nextCursor: null };
 
   const cacheKey = !before ? CHAT_CACHE_KEYS.MESSAGES(threadId) : null;
+
   if (cacheKey) {
     const cached = await getCache<any>(cacheKey);
-    if (cached) return cached;
+    if (cached) {
+        console.log(`[getThreadMessagesAction] Redis Cache HIT for thread ${threadId}.`);
+        return cached;
+    }
+    console.log(`[getThreadMessagesAction] Redis Cache MISS for thread ${threadId}. Fetching from Prisma DB...`);
   }
 
   let referenceDate = before ? new Date(before) : new Date();

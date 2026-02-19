@@ -4,33 +4,42 @@ import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
 
 export async function getAdminAnalytics(startDate?: Date, endDate?: Date, clientVersion?: string) {
     await requireAdmin();
 
-    const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
-    
     // Smart Sync: Only compute if version changed (unless custom range is selected)
     // For now, if startDate/endDate is passed, we bypass cache for accurate custom ranges
     const isCustomRange = !!startDate || !!endDate;
 
-    if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
-        console.log(`[getAdminAnalytics] Version match. Returning NOT_MODIFIED.`);
-        return { status: "not-modified", version: currentVersion };
+    let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+
+    if (currentVersion === "0") {
+      console.log(`[getAdminAnalytics] Version key missing. Initializing...`);
+      await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+      currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
     }
+
+  if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
+    console.log(`[getAdminAnalytics] Version Match (${clientVersion}). Returning NOT_MODIFIED (Skipping Redis Data Fetch).`);
+    return { status: "not-modified", version: currentVersion };
+  }
+
+  if (!isCustomRange) {
+    console.log(`[getAdminAnalytics] Version Mismatch (Client: ${clientVersion || 'None'}, Server: ${currentVersion}). Checking Redis...`);
+  }
 
     // Check Redis cache for default range
     const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS;
     if (!isCustomRange) {
         const cached = await getCache<any>(cacheKey);
         if (cached) {
-            console.log(`[Redis] Cache HIT for admin analytics`);
+            console.log(`[getAdminAnalytics] Redis Cache HIT. Returning data.`);
             return { data: cached, version: currentVersion };
         }
+        console.log(`[getAdminAnalytics] Redis Cache MISS. Fetching from Prisma DB...`);
     }
-
-    console.log(`[Redis] Cache MISS for admin analytics. Fetching from DB`);
 
     try {
         const end = endDate ? new Date(endDate) : new Date();

@@ -1,12 +1,6 @@
 import { AnalyticsClient } from "./_components/AnalyticsClient";
-import { getAdminAnalytics } from "./actions";
 
-export const dynamic = 'force-dynamic';
-
-export default async function AdminAnalyticsPage() {
-  // 🔹 Fetch initial analytics data on the server
-  const initialData = await getAdminAnalytics();
-
+export default function AdminAnalyticsPage() {
   return (
     <div className="flex flex-col gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
       <div className="flex flex-col gap-2">
@@ -17,8 +11,7 @@ export default async function AdminAnalyticsPage() {
           Monitor platform performance and course growth metrics.
         </p>
       </div>
-      <AnalyticsClient initialData={initialData} />
+      <AnalyticsClient />
     </div>
   );
 }
-

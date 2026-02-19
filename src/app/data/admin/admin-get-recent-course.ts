@@ -1,24 +1,40 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
 
 export async function adminGetRecentCourses(clientVersion?: string) {
   await requireAdmin();
-  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+
+
+  let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION);
+
+  if (currentVersion === "0") {
+    console.log(`[adminGetRecentCourses] Version key missing. Initializing...`);
+    await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION);
+    currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION);
+  }
 
   if (clientVersion && clientVersion === currentVersion) {
+    console.log(`[adminGetRecentCourses] Version Match (${clientVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION}". Returning NOT_MODIFIED.`);
     return { status: "not-modified", version: currentVersion };
+  }
+
+  if (!clientVersion) {
+    console.log(`[adminGetRecentCourses] SSR Request (Client: None). Returning full data for Prop.`);
+  } else {
+    console.log(`[adminGetRecentCourses] Background Sync (Client: ${clientVersion}, Server: ${currentVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION}". Checking Redis...`);
   }
 
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`;
   const cached = await getCache<any[]>(cacheKey);
 
   if (cached) {
-     console.log(`[Redis] Cache HIT for admin recent courses`);
-     return { courses: cached, version: currentVersion };
+     console.log(`[adminGetRecentCourses] Redis Cache HIT. Returning data.`);
+     return { data: cached, version: currentVersion };
   }
 
+  console.log(`[adminGetRecentCourses] Redis Cache MISS. Fetching from Prisma DB...`);
   const data = await prisma.course.findMany({
     orderBy: {
       createdAt: "desc",
@@ -37,8 +53,8 @@ export async function adminGetRecentCourses(clientVersion?: string) {
     },
   });
 
-  // Cache for 1 hour
-  await setCache(cacheKey, data, 3600);
+  // Cache for 6 hours
+  await setCache(cacheKey, data, 21600);
 
   return {
     data: data,

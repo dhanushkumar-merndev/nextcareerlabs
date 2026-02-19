@@ -17,7 +17,7 @@ type AdminCoursesPage = {
   total: number;
 };
 
-export function AdminCoursesClient({ initialData }: { initialData?: any }) {
+export function AdminCoursesClient() {
 
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
@@ -27,30 +27,12 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
     threshold: 0.5,
     rootMargin: "0px",
   });
-
+  
   useEffect(() => {
     setMounted(true);
   }, []);
-  
-  // 🔥 Hydration: Sync server-provided data to local storage on mount
-  useEffect(() => {
-    if (initialData && !initialData.status) {
-        const cacheKey = "admin_courses_list";
-        const currentCache = chatCache.get<any>(cacheKey);
-        
-        // Sync if version differs or doesn't exist
-        if (!currentCache || currentCache.version !== initialData.version) {
-            console.log(`[Smart Sync] Hydrating admin courses to Local Storage (Version: ${initialData.version})`);
-            chatCache.set(cacheKey, {
-                data: initialData.data.courses,
-                version: initialData.version,
-                nextCursor: initialData.data.nextCursor,
-                total: initialData.data.total
-            }, undefined, initialData.version, 21600000); // 6 hours
-        }
-    }
-  }, [initialData]);
 
+  const getTime = () => new Date().toLocaleTimeString();
   const cached = chatCache.get<any>("admin_courses_list");
 
   const {
@@ -71,23 +53,24 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
     
     placeholderData: (previousData) => {
         if (previousData) return previousData;
-        if (!mounted) return undefined;
+        if (typeof window === "undefined") return undefined;
         // 🔹 SEARCH MODE → Try to show whatever we have in cache first
         if (searchTitle && cached) {
             const q = searchTitle.toLowerCase();
-            const allCached = cached.data.data ?? cached.data.courses ?? cached.data ?? [];
-            const filtered = allCached.filter((c: any) => 
+            const filtered = (cached.data?.data ?? cached.data?.courses ?? cached.data ?? []).filter((c: any) => 
                 c.title.toLowerCase().includes(q)
-            ).slice(0, 9);
+            );
             
-            return {
-                pages: [{
-                    courses: filtered,
-                    nextCursor: null,
-                    total: filtered.length
-                }],
-                pageParams: [null]
-            };
+            if (filtered.length > 0) {
+                return {
+                    pages: [{
+                        courses: filtered,
+                        nextCursor: null,
+                        total: filtered.length
+                    }],
+                    pageParams: [null]
+                } as InfiniteData<AdminCoursesPage, string | null>;
+            }
         }
 
         // 🔹 NORMAL MODE → Show cached first page
@@ -105,15 +88,21 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
         return undefined;
     },
 
-    // 🔹 USES SERVER DATA FOR FIRST PAINT
-    initialData: (!searchTitle && initialData && !initialData.status) ? {
-        pages: [{
-            courses: initialData.data.courses,
-            nextCursor: initialData.data.nextCursor,
-            total: initialData.data.total
-        }],
-        pageParams: [null]
-    } : undefined,
+    // Use localStorage data for first paint
+    initialData: () => {
+        if (typeof window === "undefined" || searchTitle) return undefined;
+        const cached = chatCache.get<any>("admin_courses_list");
+        if (!cached) return undefined;
+        const courses = cached.data?.data ?? cached.data?.courses ?? cached.data ?? [];
+        return {
+            pages: [{
+                courses: courses.slice(0, 9),
+                nextCursor: cached.data?.nextCursor ?? null,
+                total: cached.data?.total ?? courses.length
+            }],
+            pageParams: [null]
+        };
+    },
 
     queryFn: async ({ pageParam }) => {
       // SEARCH MODE → no cache optimization
@@ -137,15 +126,15 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
 
       // NORMAL MODE → cache + cursor support
       const cached = chatCache.get<any>("admin_courses_list");
-
-      // Send version only for first page
-      const clientVersion = pageParam ? undefined : cached?.version;
+      const clientVersion = pageParam 
+        ? undefined 
+        : cached?.version;
 
       if (!pageParam) {
           if (cached) {
-              console.log(`[Smart Sync] Courses: Local Cache HIT. Validating first page with Server...`);
+              console.log(`[${getTime()}] [Courses] Cache HIT (v${clientVersion}). Validating...`);
           } else {
-              console.log(`[Smart Sync] Courses: Local Cache MISS. Fetching from Server...`);
+              console.log(`[${getTime()}] [Courses] Cache MISS. Fetching...`);
           }
       }
 
@@ -156,7 +145,7 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
 
       // Server says cache is still valid
       if ((result as any).status === "not-modified") {
-        console.log(`[Smart Sync] Courses: Server says NOT_MODIFIED. Using Local Data.`);
+        console.log(`[${getTime()}] [Courses] Result: NOT_MODIFIED. Using local cache.`);
         return {
           courses: cached?.data.data ?? [],
           nextCursor: cached?.data.nextCursor ?? null,
@@ -181,7 +170,7 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
           mergedCourses = (result as any).data?.courses ?? [];
         }
 
-        console.log(`[Smart Sync] Courses: Received fresh data (Version: ${(result as any).version})`);
+        console.log(`[${getTime()}] [Courses] Result: NEW_DATA. Updating cache.`);
         chatCache.set("admin_courses_list", {
           data: mergedCourses,
           version: (result as any).version,
@@ -198,7 +187,8 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
     },
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    staleTime: 10800000, // 3 hours (Version check interval)
+    staleTime: 1800000, 
+    refetchInterval: 1800000, 
     refetchOnWindowFocus: true,
   });
 
@@ -210,7 +200,18 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
     }
   }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage]);
 
-  if ((!mounted && !initialData) || (isLoading && courses.length === 0)) {
+  // Strict hydration guard
+  if (!mounted) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+        {Array.from({ length: 9 }).map((_, i) => (
+          <AdminCourseCardSkeleton key={i} />
+        ))}
+      </div>
+    );
+  }
+
+  if (isLoading && courses.length === 0) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {Array.from({ length: 9 }).map((_, i) => (

@@ -29,6 +29,8 @@ import { useRouter } from "next/navigation";
 import { HomeIcon, Tv2 } from "lucide-react";
 import { useSignOut } from "@/hooks/use-signout";
 import { useSmartSession } from "@/hooks/use-smart-session";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useState, useEffect } from "react";
 
 export function NavUser() {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -48,8 +50,30 @@ export function NavUser() {
     }, 50);
   };
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { data: session, isPending } = useSmartSession();
-  if (isPending) return null;
+  
+  if (!mounted || isPending) {
+    return (
+        <SidebarMenu>
+            <SidebarMenuItem>
+                <SidebarMenuButton size="lg">
+                    <Skeleton className="h-8 w-8 rounded-2xl" />
+                    <div className="grid flex-1 text-left text-sm leading-tight gap-1">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-3 w-32" />
+                    </div>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+        </SidebarMenu>
+    );
+  }
+
+  if (!session) return null;
 
   return (
     <SidebarMenu>

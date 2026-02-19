@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
 
 const PAGE_SIZE = 9;
 
@@ -11,12 +11,22 @@ export async function adminGetCourses(
   searchQuery?: string
 ) {
   await requireAdmin();
-  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
+  let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION);
+
+  if (currentVersion === "0") {
+    console.log(`[adminGetCourses] Version key missing. Initializing...`);
+    await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION);
+    currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION);
+  }
 
   // Smart Sync ONLY for first page and no search
   if (!searchQuery && !cursor && clientVersion && clientVersion === currentVersion) {
-    console.log(`[adminGetCourses] Version match. Returning NOT_MODIFIED.`);
+    console.log(`[adminGetCourses] Version Match (${clientVersion}). Returning NOT_MODIFIED (Skipping Redis Data Fetch).`);
     return { status: "not-modified", version: currentVersion };
+  }
+
+  if (!searchQuery && !cursor) {
+    console.log(`[adminGetCourses] Version Mismatch (Client: ${clientVersion || 'None'}, Server: ${currentVersion}). Checking Redis...`);
   }
 
   // Check Redis cache
@@ -26,7 +36,7 @@ export async function adminGetCourses(
   let allCourses: any[];
 
   if (cached) {
-    console.log(`[Redis] Cache HIT for admin courses list`);
+    console.log(`[adminGetCourses] Redis Cache HIT. Preparing page...`);
     
     // Smart Sync: If no search/cursor, return first page immediately from Redis
     if (!searchQuery && !cursor) {
@@ -45,7 +55,7 @@ export async function adminGetCourses(
     
     allCourses = cached;
   } else {
-    console.log(`[Redis] Cache MISS. Fetching from DB`);
+    console.log(`[adminGetCourses] Redis Cache MISS. Fetching from Prisma DB...`);
     allCourses = await prisma.course.findMany({
       orderBy: {
         createdAt: "desc",

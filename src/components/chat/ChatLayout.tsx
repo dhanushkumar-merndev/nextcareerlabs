@@ -23,6 +23,8 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
    const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
    const lastVersionRef = useRef<number | null>(null);
 
+   const getTime = () => new Date().toLocaleTimeString();
+
    // Centralized Data Fetch (Threads + Courses + Version)
    const { data: sidebarData, isLoading: loadingSidebar } = useQuery({
       queryKey: ["sidebarData", currentUserId],
@@ -30,26 +32,31 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
          const cached = chatCache.get<any>("sidebarData", currentUserId);
          const clientVersion = cached?.version;
 
-         console.log(`[ChatLayout] Syncing with server... (Client Version: ${clientVersion || 'None'})`);
+         if (cached) {
+            console.log(`[${getTime()}] [Resources] Cache HIT (v${clientVersion}). Validating...`);
+         } else {
+            console.log(`[${getTime()}] [Resources] Cache MISS. Fetching...`);
+         }
+
          const result = await getThreadsAction(clientVersion);
 
          // SMART CHECK: If server says nothing changed, use our cached data
          if ((result as any).status === "not-modified" && cached) {
-            console.log(`[ChatLayout] Version matches. Keeping local data.`);
+            console.log(`[${getTime()}] [Resources] Result: NOT_MODIFIED. Using local cache.`);
             return cached.data;
          }
 
          // If we got new data, save it to LocalStorage for next time
          if (result && !(result as any).status) {
-            console.log(`[ChatLayout] Received fresh data. Saving to LocalStorage.`);
+            console.log(`[${getTime()}] [Resources] Result: NEW_DATA. Updating cache.`);
             chatCache.set("sidebarData", result, currentUserId, result.version);
          }
          return result;
       },
       initialData: () => {
+         if (typeof window === "undefined") return undefined;
          const cached = chatCache.get<any>("sidebarData", currentUserId);
          if (cached) {
-             console.log(`[ChatLayout] Loaded cached threads for user: ${currentUserId}`);
              return cached.data;
          }
          return undefined;

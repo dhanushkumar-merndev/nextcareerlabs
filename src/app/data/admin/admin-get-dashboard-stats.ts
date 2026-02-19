@@ -1,24 +1,40 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
 
 export async function adminGetDashboardStats(clientVersion?: string) {
   await requireAdmin();
-  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+
+
+  let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION);
+
+  if (currentVersion === "0") {
+    console.log(`[adminGetDashboardStats] Version key missing. Initializing...`);
+    await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION);
+    currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION);
+  }
 
   if (clientVersion && clientVersion === currentVersion) {
+    console.log(`[adminGetDashboardStats] Version Match (${clientVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION}". Returning NOT_MODIFIED.`);
     return { status: "not-modified", version: currentVersion };
+  }
+
+  if (!clientVersion) {
+    console.log(`[adminGetDashboardStats] SSR Request (Client: None). Returning full data for Prop.`);
+  } else {
+    console.log(`[adminGetDashboardStats] Background Sync (Client: ${clientVersion}, Server: ${currentVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION}". Checking Redis...`);
   }
 
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS;
   const cached = await getCache<any>(cacheKey);
 
   if (cached) {
-     console.log(`[Redis] Cache HIT for admin dashboard stats`);
-     return { stats: cached, version: currentVersion };
+     console.log(`[adminGetDashboardStats] Redis Cache HIT. Returning data.`);
+     return { data: cached, version: currentVersion };
   }
 
+  console.log(`[adminGetDashboardStats] Redis Cache MISS. Fetching from Prisma DB...`);
   const [totalUsers, enrolledUsers, totalCourses, totalLessons] =
     await Promise.all([
       prisma.user.count(),
@@ -39,8 +55,8 @@ export async function adminGetDashboardStats(clientVersion?: string) {
     totalLessons,
   };
 
-  // Cache for 1 hour
-  await setCache(cacheKey, stats, 3600);
+  // Cache for 6 hours
+  await setCache(cacheKey, stats, 21600);
 
   return {
     data: stats,

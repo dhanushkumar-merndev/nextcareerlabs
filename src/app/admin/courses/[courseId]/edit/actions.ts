@@ -85,7 +85,10 @@ export async function editCourse(
         invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(result.data.slug)),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION)
     ]);
 
     return {
@@ -128,7 +131,9 @@ export async function reorderLessons(
     // Invalidate caches
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);

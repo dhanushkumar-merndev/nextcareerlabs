@@ -11,8 +11,8 @@
  */
 
 "use client";
-import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { getAdminAnalytics } from "@/app/admin/analytics/actions";
 
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
@@ -28,26 +28,15 @@ import Loader from "@/components/ui/Loader";
 import { chatCache } from "@/lib/chat-cache";
 
 // Analytics Client Component
-export function AnalyticsClient({ initialData }: { initialData?: any }) {
+export function AnalyticsClient() {
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 🔥 Hydration: Sync server-provided data to local storage on mount
-  useEffect(() => {
-    if (initialData && !initialData.status) {
-        const cacheKey = "admin_analytics";
-        const currentCache = chatCache.get<any>(cacheKey);
-        
-        // Sync if version differs or doesn't exist
-        if (!currentCache || currentCache.version !== initialData.version) {
-            console.log(`[Smart Sync] Hydrating analytics to Local Storage (Version: ${initialData.version})`);
-            chatCache.set(cacheKey, initialData.data, undefined, initialData.version, 21600000); // 6 hours
-        }
-    }
-  }, [initialData]);
+  const getTime = () => new Date().toLocaleTimeString();
+
   // Use React Query to fetch analytics data
   const { data, isLoading } = useQuery({
     queryKey: ["admin_analytics"],
@@ -56,42 +45,47 @@ export function AnalyticsClient({ initialData }: { initialData?: any }) {
       const clientVersion = cached?.version;
 
       if (cached) {
-          console.log(`[Smart Sync] Analytics: Local Cache HIT (Version: ${clientVersion}). Validating with Server...`);
+          console.log(`[${getTime()}] [Analytics] Cache HIT (v${clientVersion}). Validating...`);
       } else {
-          console.log(`[Smart Sync] Analytics: Local Cache MISS. Fetching from Server...`);
+          console.log(`[${getTime()}] [Analytics] Cache MISS. Fetching...`);
       }
 
       const result = await getAdminAnalytics(undefined, undefined, clientVersion);
 
-      if (result && (result as any).status === "not-modified" && cached) {
-        console.log(`[Smart Sync] Analytics: Server says NOT_MODIFIED. Using Local Data.`);
-        return cached.data;
+      if ((result as any).status === "not-modified" && cached) {
+          console.log(`[${getTime()}] [Analytics] Result: NOT_MODIFIED. Using local cache.`);
+          return cached.data || null;
       }
 
-      if (result && !(result as any).status) {
-        console.log(`[Smart Sync] Analytics: Received fresh data (Version: ${(result as any).version})`);
-        chatCache.set("admin_analytics", result.data, undefined, (result as any).version, 21600000); // 6 hours
-        return result.data;
+      if (result && !(result as any).status && (result as any).data) {
+          console.log(`[${getTime()}] [Analytics] Result: NEW_DATA. Updating cache.`);
+          chatCache.set("admin_analytics", result.data, undefined, (result as any).version, 21600000); // 6 hours
+          return result.data;
       }
-      return result?.data;
+      return (result as any)?.data || cached?.data || null;
     },
-    // Use cached data if available
     initialData: () => {
-      if (initialData) return initialData.data;
-      if (!mounted) return undefined;
-      const cached = chatCache.get<any>("admin_analytics");
-      if (cached) {
-        return cached.data;
-      }
-      return undefined;
+      if (typeof window === "undefined") return undefined;
+      return chatCache.get<any>("admin_analytics")?.data;
     },
 
-    // Cache analytics data for 3 hours (Version check interval)
-    staleTime: 10800000, 
+    // Version check every 30 min or on window focus
+    staleTime: 1800000,
+    refetchInterval: 1800000,
     refetchOnWindowFocus: true,
   });
-  // If not mounted or loading, return loading state
-  if ((!mounted && !initialData) || (isLoading && !data)) {
+
+  // Strict hydration guard
+  if (!mounted) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8 min-h-[400px]">
+        <Loader size={40} />
+      </div>
+    );
+  }
+
+  // If loading, return loading state
+  if (isLoading && !data) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 min-h-[400px]">
         <Loader size={40} />
@@ -101,6 +95,7 @@ export function AnalyticsClient({ initialData }: { initialData?: any }) {
 
   // If no data, return error message
   if (!data) return <div>Failed to load analytics.</div>;
+
   // Render analytics dashboard
   return (
     // Analytics Dashboard

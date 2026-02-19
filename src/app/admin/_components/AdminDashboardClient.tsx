@@ -17,58 +17,13 @@ import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { chatCache } from "@/lib/chat-cache";
 
-interface AdminDashboardClientProps {
-    initialStats?: any;
-    initialEnrollments?: any;
-    initialRecentCourses?: any;
-}
-
-export function AdminDashboardClient({ 
-    initialStats, 
-    initialEnrollments, 
-    initialRecentCourses 
-}: AdminDashboardClientProps) {
-
+export function AdminDashboardClient() {
     const [mounted, setMounted] = useState(false);
     useEffect(() => {
         setMounted(true);
     }, []);
 
-    // 🔥 Hydration: Sync server-rendered stats to local storage
-    useEffect(() => {
-        if (initialStats && !initialStats.status) {
-            const cacheKey = "admin_dashboard_stats";
-            const currentCache = chatCache.get<any>(cacheKey);
-            if (!currentCache || currentCache.version !== initialStats.version) {
-                 console.log(`[Smart Sync] Hydrating admin stats to Local Storage (Version: ${initialStats.version})`);
-                 chatCache.set(cacheKey, initialStats.data, undefined, initialStats.version);
-            }
-        }
-    }, [initialStats]);
-
-    // 🔥 Hydration: Sync server-rendered enrollments to local storage
-    useEffect(() => {
-        if (initialEnrollments && !initialEnrollments.status) {
-            const cacheKey = "admin_dashboard_enrollments";
-            const currentCache = chatCache.get<any>(cacheKey);
-            if (!currentCache || currentCache.version !== initialEnrollments.version) {
-                 console.log(`[Smart Sync] Hydrating admin enrollments to Local Storage (Version: ${initialEnrollments.version})`);
-                 chatCache.set(cacheKey, initialEnrollments.data, undefined, initialEnrollments.version);
-            }
-        }
-    }, [initialEnrollments]);
-
-    // 🔥 Hydration: Sync server-rendered recent courses to local storage
-    useEffect(() => {
-        if (initialRecentCourses && !initialRecentCourses.status) {
-            const cacheKey = "admin_dashboard_recent_courses";
-            const currentCache = chatCache.get<any>(cacheKey);
-            if (!currentCache || currentCache.version !== initialRecentCourses.version) {
-                 console.log(`[Smart Sync] Hydrating recent courses to Local Storage (Version: ${initialRecentCourses.version})`);
-                 chatCache.set(cacheKey, initialRecentCourses.data, undefined, initialRecentCourses.version);
-            }
-        }
-    }, [initialRecentCourses]);
+    const getTime = () => new Date().toLocaleTimeString();
 
     // 1. Stats Query
     const { data: statsData, isLoading: statsLoading } = useQuery({
@@ -76,34 +31,34 @@ export function AdminDashboardClient({
         queryFn: async () => {
             const cached = chatCache.get<any>("admin_dashboard_stats");
             const clientVersion = cached?.version;
-            
+
             if (cached) {
-                 console.log(`[Smart Sync] Dashboard stats: Local Cache HIT. Validating with Server...`);
+                 console.log(`[${getTime()}] [Dashboard] Cache HIT (v${clientVersion}). Validating...`);
             } else {
-                 console.log(`[Smart Sync] Dashboard stats: Local Cache MISS. Fetching from Server...`);
+                 console.log(`[${getTime()}] [Dashboard] Cache MISS. Fetching...`);
             }
 
             const result = await adminGetDashboardStatsAction(clientVersion);
 
             if ((result as any).status === "not-modified" && cached) {
-                console.log(`[Smart Sync] Dashboard stats: Server says NOT_MODIFIED. Using Local Data.`);
-                return cached.data;
+                console.log(`[${getTime()}] [Dashboard] Result: NOT_MODIFIED. Using local cache.`);
+                return cached.data || null;
             }
 
-            if (!(result as any).status) {
-                console.log(`[Smart Sync] Dashboard stats: Received fresh data (Version: ${result.version})`);
-                chatCache.set("admin_dashboard_stats", result.data, undefined, result.version);
+            if (result && !(result as any).status && (result as any).data) {
+                console.log(`[${getTime()}] [Dashboard] Result: NEW_DATA. Updating cache.`);
+                chatCache.set("admin_dashboard_stats", result.data, undefined, result.version, 21600000);
                 return result.data;
             }
-            return result.data;
+            return (result as any)?.data || cached?.data || null;
         },
         initialData: () => {
-            if (initialStats) return initialStats.data;
-            if (!mounted) return undefined;
+            if (typeof window === "undefined") return undefined;
             return chatCache.get<any>("admin_dashboard_stats")?.data;
         },
-
-        staleTime: 600000, // 10 mins
+        staleTime: 1800000, 
+        refetchInterval: 1800000, 
+        refetchOnWindowFocus: true,
     });
 
     // 2. Enrollments Query
@@ -114,32 +69,32 @@ export function AdminDashboardClient({
             const clientVersion = cached?.version;
 
             if (cached) {
-                console.log(`[Smart Sync] Enrollments: Local Cache HIT. Validating with Server...`);
+                console.log(`[${getTime()}] [Enrollments] Cache HIT (v${clientVersion}). Validating...`);
             } else {
-                console.log(`[Smart Sync] Enrollments: Local Cache MISS. Fetching from Server...`);
+                console.log(`[${getTime()}] [Enrollments] Cache MISS. Fetching...`);
             }
 
             const result = await adminGetEnrollmentsStatsAction(clientVersion);
 
             if ((result as any).status === "not-modified" && cached) {
-                console.log(`[Smart Sync] Enrollments: Server says NOT_MODIFIED. Using Local Data.`);
-                return cached.data;
+                console.log(`[${getTime()}] [Enrollments] Result: NOT_MODIFIED. Using local cache.`);
+                return cached.data || null;
             }
 
-            if (!(result as any).status) {
-                console.log(`[Smart Sync] Enrollments: Received fresh data (Version: ${result.version})`);
-                chatCache.set("admin_dashboard_enrollments", result.data, undefined, result.version);
+            if (result && !(result as any).status && (result as any).data) {
+                console.log(`[${getTime()}] [Enrollments] Result: NEW_DATA. Updating cache.`);
+                chatCache.set("admin_dashboard_enrollments", result.data, undefined, result.version, 21600000);
                 return result.data;
             }
-            return result.data;
+            return (result as any)?.data || cached?.data || null;
         },
         initialData: () => {
-            if (initialEnrollments) return initialEnrollments.data;
-            if (!mounted) return undefined;
-            return chatCache.get<any>("admin_dashboard_enrollments")?.data;
+             if (typeof window === "undefined") return undefined;
+             return chatCache.get<any>("admin_dashboard_enrollments")?.data;
         },
-
-        staleTime: 600000,
+        staleTime: 1800000,
+        refetchInterval: 1800000,
+        refetchOnWindowFocus: true,
     });
 
     // 3. Recent Courses Query
@@ -150,39 +105,54 @@ export function AdminDashboardClient({
             const clientVersion = cached?.version;
 
             if (cached) {
-                console.log(`[Smart Sync] Recent Courses: Local Cache HIT. Validating with Server...`);
+                console.log(`[${getTime()}] [RecentCourses] Cache HIT (v${clientVersion}). Validating...`);
             } else {
-                console.log(`[Smart Sync] Recent Courses: Local Cache MISS. Fetching from Server...`);
+                console.log(`[${getTime()}] [RecentCourses] Cache MISS. Fetching...`);
             }
 
             const result = await adminGetRecentCoursesAction(clientVersion);
 
             if ((result as any).status === "not-modified" && cached) {
-                console.log(`[Smart Sync] Recent Courses: Server says NOT_MODIFIED. Using Local Data.`);
-                return cached.data;
+                console.log(`[${getTime()}] [RecentCourses] Result: NOT_MODIFIED. Using local cache.`);
+                return cached.data || null;
             }
 
-            if (!(result as any).status) {
-                console.log(`[Smart Sync] Recent Courses: Received fresh data (Version: ${result.version})`);
-                chatCache.set("admin_dashboard_recent_courses", result.data, undefined, result.version);
+            if (result && !(result as any).status && (result as any).data) {
+                console.log(`[${getTime()}] [RecentCourses] Result: NEW_DATA. Updating cache.`);
+                chatCache.set("admin_dashboard_recent_courses", result.data, undefined, result.version, 21600000);
                 return result.data;
             }
-            return result.data;
+            return (result as any)?.data || cached?.data || null;
         },
         initialData: () => {
-            if (initialRecentCourses) return initialRecentCourses.data;
-            if (!mounted) return undefined;
-            return chatCache.get<any>("admin_dashboard_recent_courses")?.data;
+             if (typeof window === "undefined") return undefined;
+             return chatCache.get<any>("admin_dashboard_recent_courses")?.data;
         },
-
-        staleTime: 600000,
+        staleTime: 1800000,
+        refetchInterval: 1800000,
+        refetchOnWindowFocus: true,
     });
 
+    // Hydration guard: ensures server and client render the same skeletons initially
+    if (!mounted) {
+        return (
+            <div className="lg:py-5 md:py-6">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 ">
+                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
+                </div>
+                <div className="px-4 lg:px-6 py-6">
+                    <Skeleton className="h-[400px] w-full rounded-xl mb-6" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
+                        {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video w-full rounded-xl" />)}
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="lg:py-5 md:py-6">
-            {(statsLoading && !statsData) || (!mounted && !initialStats) ? (
-
+            {(statsLoading && !statsData) ? (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 ">
                     {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
                 </div>
@@ -191,8 +161,7 @@ export function AdminDashboardClient({
             )}
 
             <div className="px-4 lg:px-6 py-6">
-                {(enrollmentsLoading && !enrollmentsData) || (!mounted && !initialEnrollments) ? (
-
+                {(enrollmentsLoading && !enrollmentsData) ? (
                     <Skeleton className="h-[400px] w-full rounded-xl mb-6" />
                 ) : (
                     <ChartAreaInteractive data={enrollmentsData || []} />
@@ -209,8 +178,7 @@ export function AdminDashboardClient({
                         </Link>
                     </div>
 
-                    {(coursesLoading && !coursesData) || (!mounted && !initialRecentCourses) ? (
-
+                    {(coursesLoading && !coursesData) ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                            {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video w-full rounded-xl" />)}
                         </div>

@@ -145,14 +145,15 @@ export default function Stacking() {
                   {/* IMAGE SECTION - Top 50% on Mobile, 55% Width on Desktop */}
                   <div className="w-full h-1/2 md:h-full md:w-[55%] p-4 md:p-8">
                     <div className="relative h-full w-full rounded-2xl overflow-hidden border bg-muted/20">
-                      <Image
-                        src={program.image}
-                        alt={program.title}
-                        fill
-                        className="object-cover transition-transform duration-700 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                    </div>
+                     <Image
+                      src={program.image}
+                      alt={program.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 55vw"
+                      className="object-cover transition-transform duration-700 group-hover:scale-105"
+                      loading="lazy"
+                     />
+                </div>
                   </div>
 
                   {/* TEXT SECTION - Bottom 50% on Mobile, 45% Width on Desktop */}
