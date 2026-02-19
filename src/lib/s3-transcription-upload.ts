@@ -29,7 +29,7 @@ export async function uploadTranscriptionToS3(
 
   // Upload to S3-compatible storage (Tigris Data)
   const command = new PutObjectCommand({
-    Bucket: env.S3_BUCKET_NAME_PRIVATE,
+    Bucket: env.S3_BUCKET_NAME,
     Key: key,
     Body: vttContent,
     ContentType: 'text/vtt',
@@ -69,7 +69,7 @@ export async function uploadSpriteToS3(
 
   const buffer = await spriteBlob.arrayBuffer();
   
-  const bucketName = env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES;
+  const bucketName = env.S3_BUCKET_NAME;
 
   const command = new PutObjectCommand({
     Bucket: bucketName,
@@ -81,7 +81,7 @@ export async function uploadSpriteToS3(
 
   await s3Client.send(command);
 
-  const url = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${key}`;
+  const url = `https://${env.S3_BUCKET_NAME}.t3.storage.dev/${key}`;
 
   return { key, url };
 }

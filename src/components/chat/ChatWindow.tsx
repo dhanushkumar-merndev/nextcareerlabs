@@ -358,7 +358,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     contentType: file.type || "application/pdf",
                     size: file.size,
                     isImage: false,
-                    isPrivate: true,
                     prefix: `chat/${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`
                 }),
             });
@@ -423,7 +422,6 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     contentType: file.type,
                     size: file.size,
                     isImage: true,
-                    isPrivate: true,
                     prefix: `chat/${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`
                 }),
             });
@@ -574,7 +572,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     contentType: file.type || "application/pdf",
                     size: file.size,
                     isImage: false,
-                    isPrivate: true,
+                
                     prefix: `chat/${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`
                 }),
             });

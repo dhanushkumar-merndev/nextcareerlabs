@@ -704,7 +704,7 @@ async function signMessageAttachments(msg: any) {
   if (signedMsg.imageUrl && !signedMsg.imageUrl.startsWith("http")) {
     try {
       const command = new GetObjectCommand({
-        Bucket: env.S3_BUCKET_NAME_PRIVATE,
+        Bucket: env.S3_BUCKET_NAME,
         Key: signedMsg.imageUrl,
       });
       signedMsg.imageUrl = await getSignedUrl(tigris, command, { expiresIn: 3600 });
@@ -716,7 +716,7 @@ async function signMessageAttachments(msg: any) {
   if (signedMsg.fileUrl && !signedMsg.fileUrl.startsWith("http")) {
     try {
       const command = new GetObjectCommand({
-        Bucket: env.S3_BUCKET_NAME_PRIVATE,
+        Bucket: env.S3_BUCKET_NAME,
         Key: signedMsg.fileUrl,
       });
       signedMsg.fileUrl = await getSignedUrl(tigris, command, { expiresIn: 3600 });
@@ -752,14 +752,14 @@ export async function deleteMessageAction(id: string) {
       if (message.imageUrl) {
           // Chat images are now in the private bucket
           const command = new DeleteObjectCommand({
-              Bucket: env.S3_BUCKET_NAME_PRIVATE,
+              Bucket: env.S3_BUCKET_NAME,
               Key: message.imageUrl,
           });
           await S3.send(command);
       }
       if (message.fileUrl) {
            const command = new DeleteObjectCommand({
-              Bucket: env.S3_BUCKET_NAME_PRIVATE,
+              Bucket: env.S3_BUCKET_NAME,
               Key: message.fileUrl,
           });
           await S3.send(command);

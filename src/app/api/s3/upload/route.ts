@@ -14,7 +14,6 @@ const fileItemSchema = z.object({
   contentType: z.string().min(1, { message: "Content type is required" }),
   size: z.number().min(0, { message: "Size is required" }),
   isImage: z.boolean(),
-  isPrivate: z.boolean().optional(),
   prefix: z.string().optional(),
   isKeyDirect: z.boolean().optional(),
   customKey: z.string().optional(),
@@ -50,7 +49,7 @@ export async function POST(request: Request) {
 
     const results = await Promise.all(
       items.map(async (item) => {
-        const { fileName, contentType, size, isKeyDirect, customKey, isPrivate, prefix } = item;
+        const { fileName, contentType, size, isKeyDirect, customKey, prefix, isImage } = item;
         
         // Generate the base filename
         const baseFileName = `${uuidv4()}-${fileName}`;
@@ -63,9 +62,9 @@ export async function POST(request: Request) {
           key = `${cleanPrefix}/${baseFileName}`;
         }
 
-        const bucketName = isPrivate 
-          ? env.S3_BUCKET_NAME_PRIVATE 
-          : env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES;
+        const bucketName = isImage 
+          ? env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES 
+          : env.S3_BUCKET_NAME;
 
         const command = new PutObjectCommand({
           Bucket: bucketName,

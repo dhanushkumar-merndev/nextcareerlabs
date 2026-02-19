@@ -221,18 +221,18 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                         captionUrl={captionUrl}
                       />
                     </FormControl>
-                    <TranscriptionWorkflow 
-                      lessonId={data.id}
-                      lessonTitle={data.title}
-                      videoUrl={watchedVideoKey ? `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${watchedVideoKey}` : undefined}
-                      videoKey={watchedVideoKey ?? undefined}
-                      onComplete={() => router.refresh()}
-                      onTranscriptionUpload={(url) => setCaptionUrl(url)}
-                      onCaptionDelete={() => setCaptionUrl(null)}
-                    />
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+              <TranscriptionWorkflow 
+                lessonId={data.id}
+                lessonTitle={data.title}
+                videoUrl={watchedVideoKey ? `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${watchedVideoKey}` : undefined}
+                videoKey={watchedVideoKey ?? undefined}
+                onComplete={() => router.refresh()}
+                onTranscriptionUpload={(url) => setCaptionUrl(url)}
+                onCaptionDelete={() => setCaptionUrl(null)}
               />
               <Button
                 type="submit"
