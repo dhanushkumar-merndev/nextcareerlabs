@@ -14,7 +14,8 @@ export async function adminGetDashboardStats(clientVersion?: string) {
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS;
   const cached = await getCache<any>(cacheKey);
 
-  if (cached && !clientVersion) {
+  if (cached) {
+     console.log(`[Redis] Cache HIT for admin dashboard stats`);
      return { stats: cached, version: currentVersion };
   }
 
@@ -42,7 +43,7 @@ export async function adminGetDashboardStats(clientVersion?: string) {
   await setCache(cacheKey, stats, 3600);
 
   return {
-    stats,
+    data: stats,
     version: currentVersion,
   };
 }

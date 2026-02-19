@@ -26,9 +26,11 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
         const cached = await getCache<any>(cacheKey);
         if (cached) {
             console.log(`[Redis] Cache HIT for admin analytics`);
-            return { ...cached, version: currentVersion };
+            return { data: cached, version: currentVersion };
         }
     }
+
+    console.log(`[Redis] Cache MISS for admin analytics. Fetching from DB`);
 
     try {
         const end = endDate ? new Date(endDate) : new Date();
@@ -188,7 +190,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             await setCache(cacheKey, result, 21600);
         }
 
-        return { ...result, version: currentVersion };
+        return { data: result, version: currentVersion };
     } catch (error) {
         return null;
     }

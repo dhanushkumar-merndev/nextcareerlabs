@@ -76,7 +76,8 @@ export async function updateLesson(
         invalidateCache(`lesson:${lessonId}`),
         invalidateCache(`lesson:questions:${lessonId}`),
         invalidateCache(`lesson:content:${lessonId}`),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
     ]);
 
     return {

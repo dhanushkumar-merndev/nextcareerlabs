@@ -93,10 +93,8 @@ export function VideoPlayer({
   const seekAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [volumeAnimation, setVolumeAnimation] = useState<{ level: number, visible: boolean }>({ level: 1, visible: false });
   const volumeAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [isDraggingVolume, setIsDraggingVolume] = useState(false);
-  const touchStartYRef = useRef<number | null>(null);
-  const startVolumeRef = useRef<number>(1);
   const seekbarRef = useRef<HTMLDivElement>(null);
+  const pendingPlayRef = useRef<Promise<void> | null>(null);
 
   // Initialize player only once, then update sources
   useEffect(() => {
@@ -373,10 +371,33 @@ export function VideoPlayer({
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!playerRef.current) return;
+
     if (playerRef.current.paused()) {
-      playerRef.current.play();
+      // Chain pause onto the play Promise to avoid AbortError
+      const playPromise = playerRef.current.play() as Promise<void> | undefined;
+      if (playPromise !== undefined) {
+        pendingPlayRef.current = playPromise;
+        playPromise
+          .then(() => {
+            pendingPlayRef.current = null;
+          })
+          .catch((err: Error) => {
+            pendingPlayRef.current = null;
+            if (err.name !== "AbortError") {
+              console.error("VideoPlayer play() error:", err);
+            }
+          });
+      }
     } else {
-      playerRef.current.pause();
+      if (pendingPlayRef.current) {
+        // play() is still resolving — pause after it settles
+        pendingPlayRef.current
+          .then(() => playerRef.current?.pause())
+          .catch(() => {});
+      } else {
+        playerRef.current.pause();
+      }
     }
   };
 
@@ -450,48 +471,16 @@ export function VideoPlayer({
 
   const lastTapTimeRef = useRef<number>(0);
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (window.innerWidth >= 768) return;
-    const touch = e.touches[0];
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    const x = touch.clientX - rect.left;
-    if (x > rect.width * 0.66) {
-      // Right side: Volume gesture
-      touchStartYRef.current = touch.clientY;
-      startVolumeRef.current = playerRef.current?.volume() || 0;
-      setIsDraggingVolume(true);
-      setVolumeAnimation({ level: startVolumeRef.current, visible: true });
-    }
+    // Mobile touch start
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDraggingVolume || touchStartYRef.current === null || !playerRef.current) return;
-    
-    const touch = e.touches[0];
-    const deltaY = touchStartYRef.current - touch.clientY; // Swipe up = positive delta
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    
-    // Proportional volume change: full height = 1.0 volume
-    const volumeChange = deltaY / (rect.height * 0.5);
-    const newVol = Math.min(1, Math.max(0, startVolumeRef.current + volumeChange));
-    
-    playerRef.current.volume(newVol);
-    setVolume(newVol);
-    setIsMuted(newVol === 0);
-    setVolumeAnimation({ level: newVol, visible: true });
-    
-    // Prevent scrolling while dragging
+    // Prevent scrolling while dragging (optional, but keeping it clean)
     if (e.cancelable) e.preventDefault();
   };
 
   const handleTouchEnd = () => {
-    if (isDraggingVolume) {
-      setIsDraggingVolume(false);
-      touchStartYRef.current = null;
-      triggerVolumeAnimation(volume);
-    }
+    // Mobile touch end
   };
 
   const handleContainerClick = (e: React.MouseEvent) => {
@@ -1024,7 +1013,7 @@ export function VideoPlayer({
 )}
 
 {/* Centered Volume Indicator */}
-{volumeAnimation.visible && !isDraggingVolume && (
+{volumeAnimation.visible && (
   <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
     <div className="px-6 py-4 rounded-2xl flex flex-col items-center gap-2 animate-in fade-in zoom-in duration-200 border border-white/10">
       {(() => {
@@ -1041,25 +1030,7 @@ export function VideoPlayer({
   </div>
 )}
 
-{/* Mobile Vertical Volume Bar (Right Side) */}
-{isDraggingVolume && (
-  <div className="absolute inset-y-0 right-4 z-40 w-12 flex flex-col items-center justify-center pointer-events-none">
-    <div className="h-2/3 w-1.5 bg-white/20 rounded-full overflow-hidden relative">
-      <div 
-        className="absolute bottom-0 w-full bg-primary transition-all duration-75"
-        style={{ height: `${volume * 100}%` }}
-      />
-    </div>
-    <div className="mt-4 bg-black/60 backdrop-blur-md p-3 rounded-full border border-white/10">
-      {(() => {
-        if (volume === 0) return <VolumeX className="size-6 text-primary fill-white" />;
-        if (volume <= 0.33) return <Volume className="size-6 text-primary fill-white" />;
-        if (volume <= 0.66) return <Volume1 className="size-6 text-primary fill-white" />;
-        return <Volume2 className="size-6 text-primary fill-white" />;
-      })()}
-    </div>
-  </div>
-)}
+{/* Mobile Vertical Volume Bar (Right Side) Removed */}
       <style dangerouslySetInnerHTML={{ __html: `
         @keyframes flash {
           0%, 100% { opacity: 0.2; transform: scale(0.9); }
@@ -1100,12 +1071,13 @@ export function VideoPlayer({
         )}
       >
         <div 
-          className="space-y-3 pb-4 px-4"
+          className="space-y-2 sm:space-y-3 pb-3 sm:pb-4 px-2 sm:px-4"
           onClick={(e) => e.stopPropagation()}
           onMouseLeave={() => setHoverPosition(null)}
         >
           <div 
-            className="relative group/seekbar py-4 -my-2 touch-none cursor-pointer"
+            className="relative group/seekbar touch-none cursor-pointer"
+            style={{ padding: "10px 0", margin: "-10px 0" }}
             onMouseMove={(e) => {
               e.stopPropagation();
               handleSeekbarMouseMove(e);
@@ -1211,25 +1183,25 @@ export function VideoPlayer({
               max={duration || 100}
               step={0.01}
               onValueChange={handleSeek}
-              className="cursor-pointer h-0.5 flex items-center"
+              className="cursor-pointer h-1.5 flex items-center "
             />
           </div>
 
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex items-center gap-4 text-white">
+          <div className="flex items-center justify-between mt-1 sm:mt-2">
+            <div className="flex items-center gap-2 sm:gap-4 text-white">
               <button 
                 type="button"
                 onClick={togglePlay}
-                className="hover:text-primary transition-colors focus:outline-none"
+                className="hover:text-primary transition-colors focus:outline-none p-1 sm:p-0"
               >
-                {isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current" />}
+                {isPlaying ? <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current" /> : <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />}
               </button>
 
-              <div className="flex items-center gap-2 group/volume">
-                <button type="button" onClick={toggleMute} className="hover:text-primary focus:outline-none">
-                  {isMuted || volume === 0 ? <VolumeX className="w-6 h-6" /> : <Volume2 className="w-6 h-6" />}
+              <div className="flex items-center gap-1 sm:gap-2 group/volume">
+                <button type="button" onClick={toggleMute} className="hover:text-primary focus:outline-none p-1 sm:p-0">
+                  {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" /> : <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />}
                 </button>
-                <div className="w-0 group-hover/volume:w-20 transition-all duration-300 overflow-hidden">
+                <div className="w-0 sm:group-hover/volume:w-20 transition-all duration-300 overflow-hidden hidden sm:block">
                    <Slider
                     value={[isMuted ? 0 : volume]}
                     max={1}
@@ -1240,18 +1212,18 @@ export function VideoPlayer({
                 </div>
               </div>
 
-              <div className="text-[13px] font-medium text-white/90">
+              <div className="text-[11px] sm:text-[13px] font-medium text-white/90 tabular-nums">
                 {formatTime(currentTime)} <span className="text-white/40">/</span> {formatTime(duration)}
               </div>
             </div>
 
-            <div className="flex items-center gap-4 text-white">
+            <div className="flex items-center gap-2 sm:gap-4 text-white">
               {captionUrl && (
                 <button 
                   type="button" 
                   onClick={toggleCaptions} 
                   className={cn(
-                    "hover:text-primary focus:outline-none transition-all duration-200",
+                    "hover:text-primary focus:outline-none transition-all duration-200 p-1 sm:p-0",
                     captionsEnabled ? "text-primary scale-110" : "text-white/70"
                   )}
                   title="Toggle Captions"
@@ -1262,8 +1234,8 @@ export function VideoPlayer({
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button type="button" className="flex items-center gap-1.5 text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2.5 py-1.5 rounded-md border border-white/10">
-                    <Settings className="w-4 h-4" />
+                  <button type="button" className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md border border-white/10">
+                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     {playbackRate}x
                   </button>
                 </DropdownMenuTrigger>
@@ -1272,10 +1244,10 @@ export function VideoPlayer({
                   align="end"
                   sideOffset={12}
                   avoidCollisions
-                  container={isFullscreen ? containerRef.current : undefined}
-                  className="bg-black/95 border-white/20 text-white w-32 sm:w-40 backdrop-blur-2xl p-1 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200"
+                  container={containerRef.current}
+                  className="bg-black/95 border-white/20 text-white w-28 sm:w-32 backdrop-blur-2xl p-1 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-10001"
                 >
-                  <div className="px-2.5 py-1.5 text-[10px] font-bold text-white/40 uppercase tracking-widest border-b border-white/5 mb-1">
+                  <div className="px-2 py-1 text-[9px] font-bold text-white/40 uppercase tracking-widest border-b border-white/5 mb-1">
                     Speed
                   </div>
                   {[0.5, 1, 1.5, 2].map((rate) => (
@@ -1283,21 +1255,21 @@ export function VideoPlayer({
                       key={rate} 
                       onClick={() => handlePlaybackRate(rate)}
                       className={cn(
-                        "cursor-pointer focus:bg-primary/20 focus:text-primary text-[12px] font-medium px-2.5 py-2 rounded-md transition-colors",
+                        "cursor-pointer focus:bg-primary/20 focus:text-primary text-[11px] font-medium px-2 py-1.5 rounded-md transition-colors",
                         playbackRate === rate && "bg-primary/20 text-primary font-bold"
                       )}
                     >
                       <div className="flex items-center justify-between w-full">
                         <span>{rate === 1 ? "Normal" : `${rate}x`}</span>
-                        {playbackRate === rate && <div className="w-1 h-1 rounded-full bg-primary shadow-[0_0_8px_rgba(var(--primary),0.6)]" />}
+                        {playbackRate === rate && <div className="w-1 h-1 rounded-full bg-primary" />}
                       </div>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <button type="button" onClick={toggleFullscreen} className="hover:text-primary focus:outline-none transition-colors">
-                {isFullscreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+              <button type="button" onClick={toggleFullscreen} className="hover:text-primary focus:outline-none transition-colors p-1 sm:p-0">
+                {isFullscreen ? <Minimize className="w-5 h-5 sm:w-6 sm:h-6" /> : <Maximize className="w-5 h-5 sm:w-6 sm:h-6" />}
               </button>
             </div>
           </div>

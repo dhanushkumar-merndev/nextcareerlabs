@@ -17,6 +17,31 @@ export async function markLessonComplete(
   const session = await requireUser();
   
   try {
+    // 1. Check if the lesson has any MCQs
+    const questionsCount = await prisma.question.count({
+      where: { lessonId: lessonId }
+    });
+
+    // 2. If questions exist, check if user has passed the assessment
+    if (questionsCount > 0) {
+      const progress = await prisma.lessonProgress.findUnique({
+        where: {
+          userId_lessonId: {
+            userId: session.id,
+            lessonId: lessonId,
+          },
+        },
+        select: { quizPassed: true, completed: true }
+      });
+
+      if (!progress?.quizPassed && !progress?.completed) {
+        return {
+          status: "error",
+          message: "You must pass the assessment quiz before marking this lesson as complete.",
+        };
+      }
+    }
+
     await prisma.lessonProgress.upsert({
       where: {
         userId_lessonId: {
@@ -174,15 +199,27 @@ export async function submitQuizAttempt(
           quizPassed: passed,
         },
         update: {
-          // If they already completed it, don't un-complete it? 
-          // Usually, if they retake and fail, we should keep it completed if they passed before.
-          // But our logic says quizPassed: true if they passed THIS time.
+          // 🛡️ Protection: only update to 'true', never downgrade if they already passed
           quizPassed: passed,
-          completed: {
-            set: passed ? true : undefined, // Only upgrade to true, don't downgrade
-          },
+          ...(passed ? { completed: true } : {}),
         },
       });
+
+      // Fetch the actual current state to handle the edge case where they were already passed
+      const currentProgress = await tx.lessonProgress.findUnique({
+        where: { userId_lessonId: { userId: session.id, lessonId } },
+        select: { quizPassed: true, completed: true }
+      });
+
+      // If they were already passed, we ensure the status remains 'true'
+      if (currentProgress && (currentProgress.quizPassed || currentProgress.completed)) {
+          if (!passed) {
+              await tx.lessonProgress.update({
+                  where: { userId_lessonId: { userId: session.id, lessonId } },
+                  data: { quizPassed: true, completed: true }
+              });
+          }
+      }
     });
 
     // 4. Invalidate caches (same as markLessonComplete)

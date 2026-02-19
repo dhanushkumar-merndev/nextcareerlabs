@@ -49,6 +49,7 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
           },
           select: {
             completed: true,
+            quizPassed: true,
             lessonId: true,
             lastWatched: true,
             actualWatchTime: true,

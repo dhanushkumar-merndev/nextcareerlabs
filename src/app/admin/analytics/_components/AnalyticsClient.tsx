@@ -14,7 +14,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect } from "react";
 import { getAdminAnalytics } from "@/app/admin/analytics/actions";
-import { chatCache } from "@/lib/chat-cache";
+
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { SimpleBarChart, SimplePieChart } from "@/components/analytics/Charts";
 import { GrowthChartWithFilter } from "@/components/analytics/GrowthChartWithFilter";
@@ -25,6 +25,7 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
 import Loader from "@/components/ui/Loader";
+import { chatCache } from "@/lib/chat-cache";
 
 // Analytics Client Component
 export function AnalyticsClient({ initialData }: { initialData?: any }) {
@@ -33,30 +34,50 @@ export function AnalyticsClient({ initialData }: { initialData?: any }) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // 🔥 Hydration: Sync server-provided data to local storage on mount
+  useEffect(() => {
+    if (initialData && !initialData.status) {
+        const cacheKey = "admin_analytics";
+        const currentCache = chatCache.get<any>(cacheKey);
+        
+        // Sync if version differs or doesn't exist
+        if (!currentCache || currentCache.version !== initialData.version) {
+            console.log(`[Smart Sync] Hydrating analytics to Local Storage (Version: ${initialData.version})`);
+            chatCache.set(cacheKey, initialData.data, undefined, initialData.version, 21600000); // 6 hours
+        }
+    }
+  }, [initialData]);
   // Use React Query to fetch analytics data
   const { data, isLoading } = useQuery({
     queryKey: ["admin_analytics"],
     queryFn: async () => {
       const cached = chatCache.get<any>("admin_analytics");
       const clientVersion = cached?.version;
-      // Log client version for debugging
-      //console.log(`[Analytics] Syncing with server... (Client Version: ${clientVersion || 'None'})`);
+
+      if (cached) {
+          console.log(`[Smart Sync] Analytics: Local Cache HIT (Version: ${clientVersion}). Validating with Server...`);
+      } else {
+          console.log(`[Smart Sync] Analytics: Local Cache MISS. Fetching from Server...`);
+      }
+
       const result = await getAdminAnalytics(undefined, undefined, clientVersion);
 
       if (result && (result as any).status === "not-modified" && cached) {
-        //console.log(`[Analytics] Version matches. Keeping local data.`);
+        console.log(`[Smart Sync] Analytics: Server says NOT_MODIFIED. Using Local Data.`);
         return cached.data;
       }
 
       if (result && !(result as any).status) {
-        //console.log(`[Analytics] Received fresh analytics data.`);
-        chatCache.set("admin_analytics", result, undefined, (result as any).version);
+        console.log(`[Smart Sync] Analytics: Received fresh data (Version: ${(result as any).version})`);
+        chatCache.set("admin_analytics", result.data, undefined, (result as any).version, 21600000); // 6 hours
+        return result.data;
       }
-      return result;
+      return result?.data;
     },
     // Use cached data if available
     initialData: () => {
-      if (initialData) return initialData;
+      if (initialData) return initialData.data;
       if (!mounted) return undefined;
       const cached = chatCache.get<any>("admin_analytics");
       if (cached) {
@@ -65,8 +86,8 @@ export function AnalyticsClient({ initialData }: { initialData?: any }) {
       return undefined;
     },
 
-    // Cache analytics data for 30 minutes
-    staleTime: 1800000, // 30 mins
+    // Cache analytics data for 3 hours (Version check interval)
+    staleTime: 10800000, 
     refetchOnWindowFocus: true,
   });
   // If not mounted or loading, return loading state

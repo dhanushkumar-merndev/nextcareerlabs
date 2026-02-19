@@ -44,8 +44,9 @@ import { CreateCourse } from "./actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useConfetti } from "@/hooks/use-confetti";
-import { chatCache } from "@/lib/chat-cache";
+
 import { useQueryClient } from "@tanstack/react-query";
+import { chatCache } from "@/lib/chat-cache";
 
 export default function CourseCreationPage() {
   const [isPending, startTransition] = useTransition();
@@ -77,9 +78,17 @@ export default function CourseCreationPage() {
         toast.success(result.message);
         chatCache.invalidate("admin_courses_list");
         chatCache.invalidate("all_courses");
+        chatCache.invalidate("admin_dashboard_stats");
+        chatCache.invalidate("admin_dashboard_enrollments");
+        chatCache.invalidate("admin_dashboard_recent_courses");
+        chatCache.invalidate("admin_analytics");
 
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_stats"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_enrollments"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
         triggerConfetti();
         form.reset();
         router.push("/admin/courses");

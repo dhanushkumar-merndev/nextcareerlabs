@@ -14,7 +14,8 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`;
   const cached = await getCache<any>(cacheKey);
 
-  if (cached && !clientVersion) {
+  if (cached) {
+     console.log(`[Redis] Cache HIT for admin enrollment stats`);
      return { data: cached, version: currentVersion };
   }
 

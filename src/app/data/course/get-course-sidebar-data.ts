@@ -61,6 +61,7 @@ export async function getCourseSidebarData(slug: string, clientVersion?: string)
                 },
                 select: {
                   completed: true,
+                  quizPassed: true,
                   lessonId: true,
                   id: true,
                 },

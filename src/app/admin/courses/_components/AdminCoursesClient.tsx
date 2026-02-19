@@ -2,13 +2,14 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { adminGetCoursesAction } from "../actions";
-import { chatCache } from "@/lib/chat-cache";
+
 import { AdminCourseCard, AdminCourseCardSkeleton } from "./AdminCourseCard";
 import { EmptyState } from "@/components/general/EmptyState";
 import { useState, useEffect } from "react";
 import { useInView } from "react-intersection-observer";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
+import { chatCache } from "@/lib/chat-cache";
 
 type AdminCoursesPage = {
   courses: any[];
@@ -30,6 +31,25 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
   useEffect(() => {
     setMounted(true);
   }, []);
+  
+  // 🔥 Hydration: Sync server-provided data to local storage on mount
+  useEffect(() => {
+    if (initialData && !initialData.status) {
+        const cacheKey = "admin_courses_list";
+        const currentCache = chatCache.get<any>(cacheKey);
+        
+        // Sync if version differs or doesn't exist
+        if (!currentCache || currentCache.version !== initialData.version) {
+            console.log(`[Smart Sync] Hydrating admin courses to Local Storage (Version: ${initialData.version})`);
+            chatCache.set(cacheKey, {
+                data: initialData.data.courses,
+                version: initialData.version,
+                nextCursor: initialData.data.nextCursor,
+                total: initialData.data.total
+            }, undefined, initialData.version, 21600000); // 6 hours
+        }
+    }
+  }, [initialData]);
 
   const cached = chatCache.get<any>("admin_courses_list");
 
@@ -88,9 +108,9 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
     // 🔹 USES SERVER DATA FOR FIRST PAINT
     initialData: (!searchTitle && initialData && !initialData.status) ? {
         pages: [{
-            courses: initialData.courses,
-            nextCursor: initialData.nextCursor,
-            total: initialData.total
+            courses: initialData.data.courses,
+            nextCursor: initialData.data.nextCursor,
+            total: initialData.data.total
         }],
         pageParams: [null]
     } : undefined,
@@ -109,9 +129,9 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
         }
 
         return {
-          courses: result.courses ?? [],
-          nextCursor: result.nextCursor ?? null,
-          total: result.total ?? 0,
+          courses: (result as any).data?.courses ?? [],
+          nextCursor: (result as any).data?.nextCursor ?? null,
+          total: (result as any).data?.total ?? 0,
         };
       }
 
@@ -121,6 +141,14 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
       // Send version only for first page
       const clientVersion = pageParam ? undefined : cached?.version;
 
+      if (!pageParam) {
+          if (cached) {
+              console.log(`[Smart Sync] Courses: Local Cache HIT. Validating first page with Server...`);
+          } else {
+              console.log(`[Smart Sync] Courses: Local Cache MISS. Fetching from Server...`);
+          }
+      }
+
       const result = await adminGetCoursesAction(
         clientVersion,
         pageParam ?? null
@@ -128,6 +156,7 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
 
       // Server says cache is still valid
       if ((result as any).status === "not-modified") {
+        console.log(`[Smart Sync] Courses: Server says NOT_MODIFIED. Using Local Data.`);
         return {
           courses: cached?.data.data ?? [],
           nextCursor: cached?.data.nextCursor ?? null,
@@ -144,31 +173,32 @@ export function AdminCoursesClient({ initialData }: { initialData?: any }) {
         if (pageParam) {
           // APPENDING: Merge new page with existing cached data
           const existingIds = new Set((currentCache?.data.data ?? []).map((c: any) => c.id));
-          const newUniqueCourses = (result.courses ?? []).filter((c: any) => !existingIds.has(c.id));
+          const newUniqueCourses = ((result as any).data?.courses ?? []).filter((c: any) => !existingIds.has(c.id));
           
           mergedCourses = [...(currentCache?.data.data ?? []), ...newUniqueCourses];
         } else {
           // FIRST PAGE FETCH: Reset with fresh data
-          mergedCourses = result.courses ?? [];
+          mergedCourses = (result as any).data?.courses ?? [];
         }
 
+        console.log(`[Smart Sync] Courses: Received fresh data (Version: ${(result as any).version})`);
         chatCache.set("admin_courses_list", {
           data: mergedCourses,
           version: (result as any).version,
-          nextCursor: result.nextCursor,
-          total: result.total
-        }, undefined, (result as any).version);
+          nextCursor: (result as any).data?.nextCursor,
+          total: (result as any).data?.total
+        }, undefined, (result as any).version, 21600000); // 6 hours
       }
 
       return {
-        courses: result.courses ?? [],
-        nextCursor: result.nextCursor ?? null,
-        total: result.total ?? 0
+        courses: (result as any).data?.courses ?? [],
+        nextCursor: (result as any).data?.nextCursor ?? null,
+        total: (result as any).data?.total ?? 0
       };
     },
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    staleTime: 30 * 60 * 1000,
+    staleTime: 10800000, // 3 hours (Version check interval)
     refetchOnWindowFocus: true,
   });
 

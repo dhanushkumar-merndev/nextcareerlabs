@@ -9,6 +9,8 @@ import { useConstructUrl } from "@/hooks/use-construct-url";
 import { BookIcon, CheckCircle, ChevronRight, X } from "lucide-react";
 import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
 import {
@@ -160,7 +162,7 @@ function VideoPlayer({
   // const videoRef = useRef<HTMLVideoElement>(null); // Removed as CustomPlayer handles the tech
   // Track video coverage delta
   const lastPositionRef = useRef<number>(initialTime);
-  const unsyncedDeltaRef = useRef<number>(0);
+  const sessionDeltaRef = useRef<number>(0);
   const hasSyncedOnMountRef = useRef<boolean>(false);
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -204,7 +206,7 @@ function VideoPlayer({
   };
 
   const saveUnsyncedDelta = () => {
-    const val = unsyncedDeltaRef.current;
+    const val = sessionDeltaRef.current;
     if (val === 0) return;
     
     // ✅ SECURE: Encrypt before storing
@@ -240,7 +242,7 @@ function VideoPlayer({
   };
 
   const clearLocalDelta = () => {
-    unsyncedDeltaRef.current = 0;
+    sessionDeltaRef.current = 0;
     localStorage.removeItem(`unsynced-delta-${lessonId}`);
     deleteCookie(`unsynced-delta-${lessonId}`);
   };
@@ -251,7 +253,14 @@ function VideoPlayer({
   const syncToDB = async (specificLessonId?: string, delta?: number, position?: number) => {
     const targetId = specificLessonId || lessonId;
     const currentPosition = position !== undefined ? position : lastPositionRef.current;
-    const deltaToSync = Math.round(delta !== undefined ? delta : unsyncedDeltaRef.current);
+    
+    // Calculate final delta from accumulated video progress
+    let deltaToSync = 0;
+    if (delta !== undefined) {
+      deltaToSync = Math.round(delta);
+    } else {
+      deltaToSync = Math.round(sessionDeltaRef.current);
+    }
 
     if (deltaToSync === 0 && position === undefined) return;
 
@@ -263,6 +272,7 @@ function VideoPlayer({
     if (response.status === "success" && !specificLessonId) {
       // ✅ Clear local state only after successful sync for current lesson
       clearLocalDelta();
+      sessionDeltaRef.current = 0;
     } else if (response.status === "success" && specificLessonId) {
         // Clear specific lesson delta
         localStorage.removeItem(`unsynced-delta-${specificLessonId}`);
@@ -281,6 +291,8 @@ function VideoPlayer({
     const performGlobalSync = async () => {
       // 1. Sync current lesson leftover
       const previousDelta = loadUnsyncedDelta();
+      sessionDeltaRef.current = previousDelta; // load into active ref
+      
       const savedTime = localStorage.getItem(`video-progress-${lessonId}`);
       const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
       
@@ -320,12 +332,12 @@ function VideoPlayer({
 
     const delta = currentPos - lastPositionRef.current;
 
-    // Only track positive progress and ignore large jumps (seeks)
+    // ✅ Equivalent Progress: Track delta in video time
     if (delta > 0 && delta < 2) {
-      unsyncedDeltaRef.current += delta;
+      sessionDeltaRef.current += delta;
       
-      // Heartbeat save to storage (LocalStorage)
-      if (Math.round(unsyncedDeltaRef.current) % 5 === 0) {
+      // Heartbeat save to storage every 10 video seconds
+      if (Math.round(sessionDeltaRef.current) % 10 === 0) {
         saveUnsyncedDelta();
       }
     }
@@ -334,12 +346,13 @@ function VideoPlayer({
   };
 
   /* ============================================================
-     PERSISTENCE HEARTBEAT (Every 5 seconds for Cookie)
+     PERSISTENCE HEARTBEAT (Position Only)
   ============================================================ */
   useEffect(() => {
     const interval = setInterval(() => {
+      // We only heartbeat the position now, delta is session-based
       if (document.visibilityState === "visible") {
-        saveUnsyncedDelta(); // Update cookie backup
+        saveProgress(lastPositionRef.current);
       }
     }, 5000);
 
@@ -444,17 +457,16 @@ function VideoPlayer({
      VIDEO EVENT HANDLERS
   ============================================================ */
   const onPlay = () => {
-    // Handled via onTimeUpdate implicitly
+    // Starting position is already tracked by onTimeUpdate
   };
 
   const onPause = () => {
-    saveUnsyncedDelta();
-    // ❌ Removed syncToDB() here to reduce server calls
+    // Save current breadcrumb to localStorage
+    saveProgress(lastPositionRef.current);
   };
 
   const onEnded = () => {
-    saveUnsyncedDelta();
-    syncToDB(); // Keep sync on end just in case, or remove if user strictly wants refresh/exit only
+    syncToDB();
   };
 
 
@@ -516,7 +528,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         // Sync if version differs or doesn't exist
         if (!cached || cached.version !== initialVersion) {
             console.log(`[Hydration] Syncing server data to local cache for ${lessonId}`);
-            chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, 10800000);
+            chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, 21600000); // 6 hours
         }
     }
   }, [lessonId, userId, initialLesson, initialVersion]);
@@ -536,7 +548,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       }
 
       if (result && !(result as any).status) {
-        chatCache.set(cacheKey, result, userId, (result as any).version, 10800000);
+        chatCache.set(cacheKey, result, userId, (result as any).version, 21600000); // 6 hours
         return (result as any).lesson;
       }
       return (result as any)?.lesson;
@@ -553,7 +565,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         }
         return undefined;
     },
-    staleTime: 1800000, // 30 mins
+    staleTime: 10800000, // 3 hours (Version check interval)
   });
 
   const queryClient = useQueryClient();
@@ -566,22 +578,38 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   // Assessment State
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
   const [questions, setQuestions] = useState<any[]>([]);
+  const [isLoadingMCQs, setIsLoadingMCQs] = useState(true);
 
   useEffect(() => {
     const fetchMCQs = async () => {
+      setIsLoadingMCQs(true);
       try {
+        const cacheKey = `lesson_mcqs_${lessonId}`;
+        const cached = chatCache.get<any[]>(cacheKey, userId);
+
+        if (cached) {
+          console.log(`[MCQ Cache] Hit for lesson ${lessonId}`);
+          setQuestions(cached.data);
+          setIsLoadingMCQs(false);
+          return;
+        }
+
         const res = await getLessonMCQs(lessonId);
         if (res.success && res.questions) {
           setQuestions(res.questions);
+          // Cache for 6 hours
+          chatCache.set(cacheKey, res.questions, userId, undefined, 21600000);
         } else {
           setQuestions([]);
         }
       } catch (error) {
         setQuestions([]);
+      } finally {
+        setIsLoadingMCQs(false);
       }
     };
     fetchMCQs();
-  }, [lessonId]);
+  }, [lessonId, userId]);
 
 
   useEffect(() => {
@@ -605,6 +633,8 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const data = lesson;
 
   function onSubmit() {
+    if (isLoadingMCQs) return;
+
     // If there's a quiz, open the modal instead of completing instantly
     if (questions.length > 0) {
       setIsAssessmentOpen(true);
@@ -631,7 +661,8 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         const cacheKeys = [
             `lesson_content_${lessonId}`,
             `course_sidebar_${slug}`,
-            `user_dashboard_${userId}`
+            `user_dashboard_${userId}`,
+            `lesson_mcqs_${lessonId}`
         ];
 
         // 1. Clear LocalStorage
@@ -650,7 +681,8 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
     });
   }
 
-  const isCompleted = optimisticCompleted || data.lessonProgress?.some((p: any) => p.completed);
+  const isCompleted = optimisticCompleted || lesson?.lessonProgress?.some((p: any) => p.completed);
+  const quizPassed = lesson?.lessonProgress?.some((p: any) => p.quizPassed);
   const hasVideo = Boolean(data.videoKey);
 
   return (
@@ -681,30 +713,28 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         </div>
 
         {/* MOBILE ONLY: SIMPLIFIED HEADER (Completion Button Left, Description Arrow Right) */}
-        <div className="md:hidden order-2 flex items-center justify-between p-4 bg-background ">
+        <div className="md:hidden order-2 flex items-center justify-between py-4 bg-background ">
            <div className="flex items-center gap-2">
-              {isCompleted ? (
-                <Button disabled size="sm" className="gap-2 rounded-full h-9 bg-primary/10 text-primary border-none shadow-none font-bold text-xs uppercase tracking-tight">
-                  <CheckCircle className="size-4" />
-                  Completed
-                </Button>
-              ) : (
-                <Button 
-                  disabled={isPending || !hasVideo} 
-                  onClick={onSubmit} 
+               <Button 
+                  disabled={isPending || isLoadingMCQs || !hasVideo} 
+              onClick={onSubmit} 
+               variant={"outline"}
                   size="sm"
-                  className="gap-2 rounded-full px-5 h-9 font-bold text-xs uppercase tracking-tight shadow-[0_2px_10px_rgba(var(--primary),0.2)]"
+                  className={cn(
+                    "gap-2 rounded-full px-5 h-9 font-bold text-xs uppercase tracking-tight shadow-[0_2px_10px_rgba(var(--primary),0.2)]",
+                  )}
                 >
-                  {hasVideo ? (
+                  {isLoadingMCQs ? (
+                    <Loader size={16} />
+                  ) : hasVideo ? (
                     <>
                       <CheckCircle className="size-4" />
-                      Mark as Completed
+                      {isCompleted ? "Assessment" : "Start Assessment"}
                     </>
                   ) : (
                     "No Video"
                   )}
                 </Button>
-              )}
            </div>
 
            <Drawer open={isMobileDescriptionOpen} onOpenChange={setIsMobileDescriptionOpen}>
@@ -730,23 +760,26 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
 
         <div className="hidden md:flex order-3 md:order-3 items-center justify-between gap-4 px-4 md:px-0 pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
           <div className="flex items-center gap-2">
-            {isCompleted ? (
-              <Button disabled className="gap-2 rounded-full">
-                <CheckCircle className="size-4" />
-                Completed
-              </Button>
-            ) : (
-              <Button disabled={isPending || !hasVideo} onClick={onSubmit} className="gap-2 rounded-full px-6">
-                {hasVideo ? (
-                  <>
-                    <CheckCircle className="size-4" />
-                    Mark as Completed
-                  </>
-                ) : (
-                  "No Video Available"
-                )}
-              </Button>
-            )}
+            <Button 
+              disabled={isPending || isLoadingMCQs || !hasVideo} 
+              onClick={onSubmit}
+              variant={"outline"}
+              className={cn(
+                "gap-2 rounded-full px-6",
+         
+              )}
+            >
+              {isLoadingMCQs ? (
+                 <Loader size={16} />
+              ) : hasVideo ? (
+                <>
+                  <CheckCircle className="size-4" />
+                  {isCompleted ? "Assessment" : "Start Assessment"}
+                </>
+              ) : (
+                "No Video Available"
+              )}
+            </Button>
           </div>
 
           <div className="flex items-center gap-2">
@@ -791,10 +824,28 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
           questions={questions}
           lessonId={data.id}
           slug={data.Chapter.Course.slug}
+          initialPassed={quizPassed}
           onSuccess={() => {
             setOptimisticCompleted(true);
             triggerConfetti();
             setIsAssessmentOpen(false);
+
+            // ✅ Invalidate ALL relevant Redis caches immediately
+            const slug = data.Chapter.Course.slug;
+            const cacheKeys = [
+                `lesson_content_${lessonId}`,
+                `course_sidebar_${slug}`,
+                `user_dashboard_${userId}`,
+                `lesson_mcqs_${lessonId}`
+            ];
+
+            // 1. Clear LocalStorage
+            cacheKeys.forEach(key => chatCache.invalidate(key, userId));
+
+            // 2. Invalidate React Query
+            queryClient.invalidateQueries({ queryKey: ["lesson_content", lessonId] });
+            queryClient.invalidateQueries({ queryKey: ["course_sidebar", slug] });
+            queryClient.invalidateQueries({ queryKey: ["user_dashboard", userId] });
           }}
         />
       )}

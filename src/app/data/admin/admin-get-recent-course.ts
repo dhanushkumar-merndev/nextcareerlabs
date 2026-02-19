@@ -14,7 +14,8 @@ export async function adminGetRecentCourses(clientVersion?: string) {
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`;
   const cached = await getCache<any[]>(cacheKey);
 
-  if (cached && !clientVersion) {
+  if (cached) {
+     console.log(`[Redis] Cache HIT for admin recent courses`);
      return { courses: cached, version: currentVersion };
   }
 
@@ -40,7 +41,7 @@ export async function adminGetRecentCourses(clientVersion?: string) {
   await setCache(cacheKey, data, 3600);
 
   return {
-    courses: data,
+    data: data,
     version: currentVersion,
   };
 }

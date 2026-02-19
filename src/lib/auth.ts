@@ -143,4 +143,15 @@ export const auth = betterAuth({
     }),
     admin(),
   ],
+  databaseHooks: {
+    user: {
+        create: {
+            after: async () => {
+                const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } = await import("./redis");
+                await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+                console.log("[Auth Hook] New user joined. Invalidated analytics cache.");
+            }
+        }
+    }
+  }
 });

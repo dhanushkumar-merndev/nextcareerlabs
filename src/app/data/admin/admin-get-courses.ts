@@ -27,6 +27,22 @@ export async function adminGetCourses(
 
   if (cached) {
     console.log(`[Redis] Cache HIT for admin courses list`);
+    
+    // Smart Sync: If no search/cursor, return first page immediately from Redis
+    if (!searchQuery && !cursor) {
+        const firstPage = cached.slice(0, PAGE_SIZE);
+        const nextCursor = cached.length > PAGE_SIZE ? firstPage[firstPage.length - 1].id : null;
+        
+        return {
+            data: {
+                courses: firstPage,
+                nextCursor,
+                total: cached.length
+            },
+            version: currentVersion
+        };
+    }
+    
     allCourses = cached;
   } else {
     console.log(`[Redis] Cache MISS. Fetching from DB`);
@@ -70,10 +86,12 @@ export async function adminGetCourses(
       : null;
 
   return { 
-    courses: page, 
+    data: {
+        courses: page, 
+        nextCursor,
+        total: allCourses.length 
+    },
     version: currentVersion, 
-    nextCursor,
-    total: allCourses.length 
   };
 }
 

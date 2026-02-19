@@ -1,4 +1,5 @@
 "use client";
+
 import { Button, buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { chatCache } from "@/lib/chat-cache";
 
 export default function DeleteCourseRoute() {
   const router = useRouter();
@@ -31,13 +33,20 @@ export default function DeleteCourseRoute() {
       }
       if (result.status === "success") {
         toast.success(result.message);
-        const { chatCache } = await import("@/lib/chat-cache");
         chatCache.invalidate("admin_courses_list");
         chatCache.invalidate("all_courses");
+        chatCache.invalidate("admin_dashboard_stats");
+        chatCache.invalidate("admin_dashboard_enrollments");
+        chatCache.invalidate("admin_dashboard_recent_courses");
+        chatCache.invalidate("admin_analytics");
         
         // Invalidate React Query memory cache
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_stats"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_enrollments"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
 
         router.push("/admin/courses");
       } else if (result.status === "error") {
