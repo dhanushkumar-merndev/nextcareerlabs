@@ -123,6 +123,7 @@ export function AnalyticsClient() {
           value={`${data.averageProgress}%`}
           icon="play"
           description="Average lesson completion rate"
+          lastUpdated={data.averageProgressLastUpdated}
         />
         <AnalyticsCard
           title="Shared Resources"

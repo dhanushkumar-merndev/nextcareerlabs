@@ -38,6 +38,7 @@ interface AnalyticsCardProps {
   value: string | number;
   icon: IconName | React.ForwardRefExoticComponent<any> | React.ComponentType<any>;
   description?: string;
+  lastUpdated?: string | Date;
 }
 
 export function AnalyticsCard({
@@ -45,6 +46,7 @@ export function AnalyticsCard({
   value,
   icon,
   description,
+  lastUpdated,
 }: AnalyticsCardProps) {
   const iconRef = useRef<{ startAnimation: () => void; stopAnimation: () => void }>(null);
 
@@ -92,8 +94,17 @@ export function AnalyticsCard({
       </CardHeader>
 
       {description && (
-        <CardFooter className="pb-4">
+        <CardFooter className={`${lastUpdated ? 'pb-2' : 'pb-4'}`}>
           <p className="text-muted-foreground text-sm">{description}</p>
+        </CardFooter>
+      )}
+
+      {lastUpdated && (
+        <CardFooter className="pt-0 pb-4">
+          <p className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
+            <Clock size={10} />
+            Updated: {new Date(lastUpdated).toLocaleString()}
+          </p>
         </CardFooter>
       )}
     </Card>

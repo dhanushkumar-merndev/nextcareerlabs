@@ -4,7 +4,7 @@ import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
+import { getCache, setCache, invalidateCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
 
 export async function getAdminAnalytics(startDate?: Date, endDate?: Date, clientVersion?: string) {
     await requireAdmin();
@@ -20,6 +20,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
       await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
       currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
     }
+
 
   if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
     console.log(`[getAdminAnalytics] Version Match (${clientVersion}). Returning NOT_MODIFIED (Skipping Redis Data Fetch).`);
@@ -61,7 +62,8 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             recentUsers,
             joinedUsersInRange,
             enrollmentCounts,
-            popularCourses
+            popularCourses,
+            averageProgressData
         ] = await Promise.all([
             prisma.user.count(),
             prisma.enrollment.count({ where: { status: "Granted" } }),
@@ -85,56 +87,11 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
                 _count: { courseId: true },
                 orderBy: { _count: { courseId: 'desc' } },
                 take: 5
-            })
+            }),
+            getAverageProgressCached()
         ]);
 
         const enrollRatio = totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
-
-        // --- Optimized Average Progress Calculation ---
-        // 1. Total Completed Lessons (only for users with granted enrollments)
-        const usersWithGrantedEnrollment = await prisma.enrollment.findMany({
-            where: { status: "Granted" },
-            select: { userId: true },
-            distinct: ['userId']
-        });
-
-        const grantedUserIds = usersWithGrantedEnrollment.map(e => e.userId);
-
-        // Count completed lessons only for these users
-        const totalCompleted = await prisma.lessonProgress.count({
-            where: {
-                completed: true,
-                userId: { in: grantedUserIds }
-            }
-        });
-
-        // 2. Total Potential Lessons
-        const coursesWithStats = await prisma.course.findMany({
-            select: {
-                id: true,
-                _count: {
-                    select: {
-                        enrollment: { where: { status: "Granted" } } // Count granted enrollments
-                    }
-                },
-                chapter: {
-                    select: {
-                        _count: { select: { lesson: true } } // Count lessons per chapter
-                    }
-                }
-            }
-        });
-
-        let totalPotential = 0;
-        coursesWithStats.forEach(course => {
-            const lessonsInCourse = course.chapter.reduce((sum, chap) => sum + chap._count.lesson, 0);
-            const grantedEnrollments = course._count.enrollment;
-            totalPotential += (lessonsInCourse * grantedEnrollments);
-        });
-
-        const averageProgress = totalPotential > 0
-            ? Math.round((totalCompleted / totalPotential) * 100)
-            : 0;
 
         // --- Chart Data Processing ---
         const diffTime = end.getTime() - start.getTime();
@@ -184,9 +141,8 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             totalEnrollments,
             totalLessons,
             totalResources,
-            averageProgress,
-            totalCompletedLessons: totalCompleted,
-            totalPotentialLessons: totalPotential,
+            averageProgress: averageProgressData.value,
+            averageProgressLastUpdated: averageProgressData.lastUpdated,
             enrollRatio,
             recentUsers,
             chartData,
@@ -201,7 +157,80 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
 
         return { data: result, version: currentVersion };
     } catch (error) {
+        console.error("[getAdminAnalytics Error]", error);
         return null;
+    }
+}
+
+/**
+ * Isolate CPU-intensive Average Progress calculation with 24h caching
+ */
+async function getAverageProgressCached() {
+    const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS;
+    const cached = await getCache<{ value: number; lastUpdated: string }>(cacheKey);
+
+    if (cached) {
+        return cached;
+    }
+
+    console.log("[getAverageProgressCached] Cache MISS. Computing heavy metrics (24h isolation)...");
+
+    try {
+        // --- Optimized Average Progress Calculation (Set-Based) ---
+        // We use relation filters to avoid fetching massive ID arrays into memory
+        
+        // 1. Total Completed Lessons for users with Granted enrollments
+        const totalCompleted = await prisma.lessonProgress.count({
+            where: {
+                completed: true,
+                User: {
+                    enrollment: {
+                        some: { status: "Granted" }
+                    }
+                }
+            }
+        });
+
+        // 2. Total Potential Lessons (Sum of lessons across all granted enrollments)
+        // Optimized: Instead of manual JS sum, we fetch course lesson counts and enrollment counts
+        const coursesWithStats = await prisma.course.findMany({
+            select: {
+                _count: {
+                    select: {
+                        enrollment: { where: { status: "Granted" } }
+                    }
+                },
+                chapter: {
+                    select: {
+                        _count: { select: { lesson: true } }
+                    }
+                }
+            }
+        });
+
+        let totalPotential = 0;
+        coursesWithStats.forEach(course => {
+            const lessonsInCourse = course.chapter.reduce((sum, chap) => sum + chap._count.lesson, 0);
+            const grantedEnrollments = course._count.enrollment;
+            totalPotential += (lessonsInCourse * grantedEnrollments);
+        });
+
+        const averageProgress = totalPotential > 0
+            ? Math.round((totalCompleted / totalPotential) * 100)
+            : 0;
+
+        const result = {
+            value: averageProgress,
+            lastUpdated: new Date().toISOString()
+        };
+
+        // Cache for 24 hours (86400 seconds)
+        await setCache(cacheKey, result, 86400);
+
+        return result;
+    } catch (error) {
+        console.error("[getAverageProgressCached Error]", error);
+        return { value: 0, lastUpdated: new Date().toISOString() };
     }
 }
 

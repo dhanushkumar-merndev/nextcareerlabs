@@ -37,8 +37,30 @@ export async function getAllCourses(
 
   let allCourses: PublicCourseType[];
 
-  // 🔹 Redis → DB fallback
-  if (cached?.data) {
+  // 🔹 If searching, bypass Redis list and query DB directly for efficiency
+  if (searchQuery) {
+    allCourses = await prisma.course.findMany({
+      where: {
+        status: "Published",
+        OR: [
+          { title: { contains: searchQuery, mode: 'insensitive' } },
+          { smallDescription: { contains: searchQuery, mode: 'insensitive' } }
+        ]
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        smallDescription: true,
+        duration: true,
+        level: true,
+        fileKey: true,
+        category: true,
+        slug: true,
+      },
+    });
+  } else if (cached?.data) {
+    // Use Redis → DB fallback for normal list
     allCourses = cached.data;
   } else {
     allCourses = await prisma.course.findMany({
@@ -61,12 +83,6 @@ export async function getAllCourses(
       { data: allCourses, version: currentVersion },
       6 * 60 * 60 // 6 hours
     );
-  }
-
-  // 🔹 Filter by Search (Case Insensitive)
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    allCourses = allCourses.filter((c) => c.title.toLowerCase().includes(q));
   }
 
   // 🔹 Enrollment merge (user-specific)

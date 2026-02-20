@@ -43,6 +43,7 @@ model User {
   quizAttempts QuizAttempt[]
 
   @@unique([email])
+  @@index([role])
   @@map("user")
 }
 
@@ -140,6 +141,9 @@ model Chapter {
   courseId String
 
   lesson Lesson[]
+
+  @@index([courseId])
+  @@index([courseId, position])
 }
 
 model Lesson {
@@ -185,6 +189,7 @@ model Enrollment {
   userId     String
 
   @@unique([userId, courseId])
+  @@index([status, userId])
 }
 
 enum EnrollmentStatus {
@@ -209,6 +214,7 @@ model LessonProgress {
   lessonId String
 
   @@unique([userId, lessonId])
+  @@index([completed, userId])
 }
 
 model Notification {
