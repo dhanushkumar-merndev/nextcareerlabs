@@ -60,7 +60,7 @@ export async function getEnrolledCourses(clientVersion?: string) {
   });
 
   // Cache in Redis for 6 hours
-  await setCache(cacheKey, data, 21600);
+  await setCache(cacheKey, data, 2592000); // 30 days
   
   return { enrollments: data, version: currentVersion };
 }

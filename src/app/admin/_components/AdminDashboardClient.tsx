@@ -14,9 +14,11 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
+
 
 export function AdminDashboardClient() {
     const [mounted, setMounted] = useState(false);
@@ -64,7 +66,7 @@ export function AdminDashboardClient() {
             if (result && (result as any).data) {
                 console.log(`[${getTime()}] [Dashboard] Result received. Updating cache.`);
                 // Store serialized versions in the single 'version' slot
-                chatCache.set("admin_dashboard_all", result.data, undefined, JSON.stringify(result.versions), 2592000000); 
+                chatCache.set("admin_dashboard_all", result.data, undefined, JSON.stringify(result.versions), PERMANENT_TTL); 
                 return result.data;
             }
             return cached?.data || null;
@@ -80,9 +82,13 @@ export function AdminDashboardClient() {
     });
 
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const { checkRateLimit } = useRefreshRateLimit(5, 60000);
+
 
     const handleManualRefresh = async () => {
+        if (!checkRateLimit()) return;
         setIsRefreshing(true);
+
         try {
             await Promise.all([
                 refetch(),
@@ -94,9 +100,13 @@ export function AdminDashboardClient() {
         }
     };
 
-    const statsData = dashboardData?.stats;
-    const enrollmentsData = dashboardData?.enrollments;
-    const coursesData = dashboardData?.recentCourses;
+    const statsData = mounted ? dashboardData?.stats : undefined;
+    const enrollmentsData = mounted ? dashboardData?.enrollments : undefined;
+    const coursesData = mounted ? dashboardData?.recentCourses : undefined;
+
+    const showStatsSkeleton = !mounted || (isLoading && !statsData);
+    const isInteractionDisabled = !mounted || isRefreshing || isLoading;
+
 
     return (
         <div className="lg:py-5 md:py-6">
@@ -107,23 +117,25 @@ export function AdminDashboardClient() {
                     size="sm" 
                     className="gap-2 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all font-bold uppercase tracking-widest text-[10px] h-9"
                     onClick={handleManualRefresh}
-                    disabled={isRefreshing || isLoading}
+                    disabled={isInteractionDisabled}
                 >
-                    <RefreshCw className={cn("size-3", (isRefreshing || isLoading) && "animate-spin text-primary")} />
-                    {isRefreshing ? "Checking Versions..." : "Check for Updates"}
+                    <RefreshCw className={cn("size-3", (mounted && (isRefreshing || isLoading)) && "animate-spin text-primary")} />
+                    {mounted ? (isRefreshing ? "Checking Versions..." : "Check for Updates") : "Checking Updates..."}
                 </Button>
+
             </div>
 
-            {(isLoading && !statsData) ? (
+            {showStatsSkeleton ? (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 ">
                     {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
                 </div>
             ) : (
+
                 <SectionCards stats={statsData} />
             )}
 
             <div className="px-4 lg:px-6 py-6">
-                {(isLoading && !enrollmentsData) ? (
+                {(!mounted || (isLoading && !enrollmentsData)) ? (
                     <Skeleton className="h-[400px] w-full rounded-xl mb-6" />
                 ) : (
                     <ChartAreaInteractive data={enrollmentsData || []} />
@@ -140,7 +152,7 @@ export function AdminDashboardClient() {
                         </Link>
                     </div>
 
-                    {(isLoading && !coursesData) ? (
+                    {(!mounted || (isLoading && !coursesData)) ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                            {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video w-full rounded-xl" />)}
                         </div>

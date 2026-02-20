@@ -22,7 +22,7 @@ import {
 import { IconFileText } from "@tabler/icons-react";
 import { env } from "@/lib/env";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
 import CryptoJS from "crypto-js";
 import { getLessonMCQs } from "@/app/admin/lessons/mcqs/actions";
@@ -541,7 +541,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         // Sync if version differs or doesn't exist
         if (!cached || cached.version !== initialVersion) {
             console.log(`[Hydration] Syncing server data to local cache for ${lessonId}`);
-            chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, 21600000); // 6 hours
+            chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, PERMANENT_TTL);
         }
     }
   }, [lessonId, userId, initialLesson, initialVersion]);
@@ -561,7 +561,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       }
 
       if (result && !(result as any).status) {
-        chatCache.set(cacheKey, result, userId, (result as any).version, 21600000); // 6 hours
+        chatCache.set(cacheKey, result, userId, (result as any).version, PERMANENT_TTL);
         return (result as any).lesson;
       }
       return (result as any)?.lesson;
@@ -611,7 +611,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         if (res.success && res.questions) {
           setQuestions(res.questions);
           // Cache for 6 hours
-          chatCache.set(cacheKey, res.questions, userId, undefined, 21600000);
+          chatCache.set(cacheKey, res.questions, userId, undefined, PERMANENT_TTL);
         } else {
           setQuestions([]);
         }

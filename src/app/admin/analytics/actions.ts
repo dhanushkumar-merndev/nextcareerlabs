@@ -3,7 +3,6 @@
 import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
-
 import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion, invalidateCache } from "@/lib/redis";
 
 export async function getAdminAnalytics(startDate?: Date, endDate?: Date, clientVersion?: string) {
@@ -244,9 +243,22 @@ async function getAverageProgressCached() {
 
 import { getUserDashboardData } from "@/app/dashboard/actions";
 
-export async function getUserAnalyticsAdmin(userId: string) {
+export async function getUserAnalyticsAdmin(userId: string, clientVersion?: string) {
     await requireAdmin();
     try {
+        const [userVersion, globalCoursesVersion] = await Promise.all([
+            getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
+            getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+        ]);
+        
+        const currentVersion = `${userVersion}:${globalCoursesVersion}`;
+
+        // Smart Sync
+        if (clientVersion && clientVersion === currentVersion) {
+            console.log(`[getUserAnalyticsAdmin] Version match for ${userId}. Returning NOT_MODIFIED.`);
+            return { status: "not-modified", version: currentVersion };
+        }
+
         const startTime = Date.now();
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -264,7 +276,8 @@ export async function getUserAnalyticsAdmin(userId: string) {
 
         return {
             user,
-            ...dashboardData
+            ...dashboardData,
+            version: currentVersion
         };
 
     } catch (error) {

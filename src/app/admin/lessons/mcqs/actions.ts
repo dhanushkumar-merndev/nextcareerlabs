@@ -142,7 +142,7 @@ export async function getLessonMCQs(lessonId: string): Promise<{
 
     // 3. Store in cache (if exists)
     if (questions.length > 0) {
-      await setCache(cacheKey, questions, 21600); // Cache for 6 hours
+      await setCache(cacheKey, questions, 2592000); // Cache for 30 days
     }
 
     return {

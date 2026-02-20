@@ -31,7 +31,7 @@ export const auth = betterAuth({
       set: async (key: string, value: string, ttl?: number) => {
         if (!redis) return;
         // Better Auth uses seconds for TTL
-        await redis.set(key, value, "EX", ttl || 21600); // Default 6 hours
+        await redis.set(key, value, "EX", ttl || 2592000); // Default 30 days
       },
       delete: async (key: string) => {
         if (!redis) return;

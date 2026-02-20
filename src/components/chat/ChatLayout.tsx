@@ -9,30 +9,41 @@ import { SupportTicketDialog } from "@/app/(users)/_components/SupportTicketDial
 import { getThreadsAction } from "@/app/data/notifications/actions";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { chatCache, getSidebarKey, getSidebarLocalKey } from "@/lib/chat-cache";
+import { chatCache, getSidebarKey, getSidebarLocalKey, PERMANENT_TTL } from "@/lib/chat-cache";
+
+import { useSmartSession } from "@/hooks/use-smart-session";
+
 
 interface ChatLayoutProps {
-   isAdmin: boolean;
-   currentUserId: string;
+   isAdmin?: boolean;
+   currentUserId?: string;
 }
 
-export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
-   const queryClient = useQueryClient();
-   const [selectedThread, setSelectedThread] = useState<{ id: string; name: string; image?: string; type?: string } | null>(null);
-   const [removedThreadIds, setRemovedThreadIds] = useState<string[]>([]);
-   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
-   const lastVersionRef = useRef<number | null>(null);
-   const [mounted, setMounted] = useState(false);
+export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUserId }: ChatLayoutProps) {
+    const { user, isLoading: isAuthLoading } = useSmartSession();
+    const queryClient = useQueryClient();
 
-   useEffect(() => {
-       setMounted(true);
+    // Derive from session if not provided via props
+    const isAdmin = propIsAdmin ?? (user?.role === "admin");
+    const currentUserId = propCurrentUserId ?? user?.id;
 
-       // 🟢 Robust LOCAL HIT Logging for Console
-       const localKey = getSidebarLocalKey(isAdmin);
-       const cached = chatCache.get<any>(localKey, isAdmin ? undefined : currentUserId);
-       if (cached) {
-           console.log(`[ChatLayout] LOCAL HIT (v${cached.version}). Rendering from device storage.`);
-       }
+    const [selectedThread, setSelectedThread] = useState<{ id: string; name: string; image?: string; type?: string } | null>(null);
+    const [removedThreadIds, setRemovedThreadIds] = useState<string[]>([]);
+    const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
+    const lastVersionRef = useRef<number | null>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+
+        if (!currentUserId || isAuthLoading) return;
+
+        // 🟢 Robust LOCAL HIT Logging for Console
+        const localKey = getSidebarLocalKey(isAdmin);
+        const cached = chatCache.get<any>(localKey, isAdmin ? undefined : currentUserId);
+        if (cached) {
+            console.log(`[ChatLayout] LOCAL HIT (v${cached.version}). Rendering from device storage.`);
+        }
 
        // Cross-Tab Sync: Listen for storage changes from other tabs
        const handleStorageChange = (e: StorageEvent) => {
@@ -84,7 +95,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
         result,
         isAdmin ? undefined : currentUserId,
         result.version,
-        2592000000 // 30 Days
+        PERMANENT_TTL
       );
 
       return result;

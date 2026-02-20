@@ -98,7 +98,7 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
   const result = { lesson };
 
   // Cache in Redis for 6 hours
-  await setCache(cacheKey, result, 21600);
+  await setCache(cacheKey, result, 2592000); // 30 days
 
   return { ...result, version: currentVersion };
 }

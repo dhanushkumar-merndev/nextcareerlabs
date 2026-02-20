@@ -21,6 +21,8 @@ import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
 import { toast } from "sonner";
 import { useDebounce } from "use-debounce";
+import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
+
 
 export function UserList({
   search: initialSearch,
@@ -38,6 +40,8 @@ export function UserList({
   const [version, setVersion] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const { checkRateLimit } = useRefreshRateLimit(5, 60000);
+
 
   useEffect(() => {
     setIsMounted(true);
@@ -284,16 +288,16 @@ export function UserList({
   };
 
   const handleManualRefresh = async () => {
+    if (!checkRateLimit()) return;
     console.log(`[UserList] MANUAL SYNC: Bypassing all local thresholds. Force fetching from server...`);
+
     setIsRefreshing(true);
     try {
-      // Nuclear clear for manual refresh
+      // Nuclear clear for manual refresh - Keep LAST_CHECK_KEY removal to bypass 30m skip
+      // but keep VERSION_KEY so we can still benefit from NOT_MODIFIED (Smart Sync)
       localStorage.removeItem(LAST_CHECK_KEY); 
-      localStorage.removeItem(VERSION_KEY);
-      setVersion(null);
       
       await refetch();
-      toast.success("Users list updated");
     } finally {
       setIsRefreshing(false);
     }

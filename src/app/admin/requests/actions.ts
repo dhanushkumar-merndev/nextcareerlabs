@@ -52,6 +52,7 @@ export async function updateEnrollmentStatusAction(
       await Promise.all([
           invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId)),
           courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
+          invalidateCache(`user:dashboard:${enrollment.userId}`),
           invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
           invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(enrollment.userId)),
           invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),

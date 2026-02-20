@@ -154,8 +154,17 @@ export async function incrementChatVersion(userId: string) {
 
 export async function getGlobalVersion(key: string): Promise<string> {
     if (!redis) return "0";
-    const version = await getCache<string>(key);
-    console.log(`[Redis] getGlobalVersion key="${key}" value="${JSON.stringify(version)}"`);
+    let version = await getCache<string>(key);
+    
+    // Auto-initialize if null to prevent "Server: 0" vs "Client: null" mismatches
+    if (version === null) {
+        version = Date.now().toString();
+        await setCache(key, version, 86400 * 30); // Store for 30 days
+        console.log(`[Redis] Initialized missing version key="${key}" value="${version}"`);
+    } else {
+        console.log(`[Redis] getGlobalVersion key="${key}" value="${JSON.stringify(version)}"`);
+    }
+    
     return version || "0";
 }
 

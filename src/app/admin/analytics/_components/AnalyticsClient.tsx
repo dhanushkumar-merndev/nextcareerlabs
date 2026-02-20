@@ -25,7 +25,7 @@ import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
 import Loader from "@/components/ui/Loader";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 
 // Analytics Client Component
 export function AnalyticsClient() {
@@ -72,7 +72,7 @@ export function AnalyticsClient() {
 
       if (result && !(result as any).status && (result as any).data) {
           console.log(`[${getTime()}] [Analytics] Result: NEW_DATA. Updating cache.`);
-          chatCache.set("admin_analytics", result.data, undefined, (result as any).version, 2592000000); // 30 Days
+          chatCache.set("admin_analytics", result.data, undefined, (result as any).version, PERMANENT_TTL);
           return result.data;
       }
       return (result as any)?.data || cached?.data || null;

@@ -60,7 +60,7 @@ export async function getIndividualCourse(slug: string, clientVersion?: string) 
   }
 
   // Cache in Redis for 6 hours
-  await setCache(cacheKey, course, 21600);
+  await setCache(cacheKey, course, 2592000); // 30 days
   
   return { course, version: currentVersion };
 }

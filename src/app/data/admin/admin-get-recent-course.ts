@@ -57,7 +57,7 @@ export async function adminGetRecentCourses(clientVersion?: string) {
   console.log(`[adminGetRecentCourses] DB Fetch took ${duration}ms.`);
 
   // Cache for 6 hours
-  await setCache(cacheKey, data, 21600);
+  await setCache(cacheKey, data, 2592000); // 30 days
 
   return {
     data: data,

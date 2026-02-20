@@ -93,7 +93,7 @@ export async function getCourseSidebarData(slug: string, clientVersion?: string)
   const result = { course };
   
   // Cache in Redis for 6 hours
-  await setCache(cacheKey, result, 21600);
+  await setCache(cacheKey, result, 2592000); // 30 days
 
   return { ...result, version: currentVersion };
 }

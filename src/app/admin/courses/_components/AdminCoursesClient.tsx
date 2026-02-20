@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 import { useInView } from "react-intersection-observer";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 
 type AdminCoursesPage = {
   courses: any[];
@@ -200,7 +200,7 @@ export function AdminCoursesClient() {
           version: (result as any).version,
           nextCursor: (result as any).data?.nextCursor,
           total: (result as any).data?.total
-        }, undefined, (result as any).version, 21600000); // 6 hours
+        }, undefined, (result as any).version, PERMANENT_TTL);
       }
 
       return {

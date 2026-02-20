@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
 import { clearOtherSessionsOnce } from "@/lib/session-cleanup";
 
-const SESSION_CACHE_TTL = 21600; // 6 hours in seconds
+const SESSION_CACHE_TTL = 2592000; // 30 days in seconds
 
 export async function getAuthSessionAction(clientVersion?: string) {
     // 1. Version Check

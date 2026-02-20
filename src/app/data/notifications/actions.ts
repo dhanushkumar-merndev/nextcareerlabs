@@ -541,7 +541,7 @@ export async function getThreadsAction(clientVersion?: string) {
       presence: null 
   };
 
-  await setCache(cacheKey, result, 21600); // 6 hours
+  await setCache(cacheKey, result, 2592000); // 30 days
   return result;
 }
 
@@ -1046,7 +1046,7 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
     }
 
     if (result.length > 0) {
-        await setCache(cacheKey, result, 21600); // 6 hours
+        await setCache(cacheKey, result, 2592000); // 30 days
     }
 
     return result;

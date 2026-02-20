@@ -40,7 +40,7 @@ interface ChatWindowProps {
 export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, currentUserId, onRemoveThread, onBack, externalPresence }: ChatWindowProps) {
     const queryClient = useQueryClient();
     const SIDEBAR_KEY = getSidebarKey(currentUserId, isAdmin);
-    const { data: session } = useSmartSession();
+    const { session, user } = useSmartSession();
     const [inputText, setInputText] = useState("");
     const [imageUrl, setImageUrl] = useState("");
     const [fileUrl, setFileUrl] = useState("");
@@ -103,7 +103,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         },
         getNextPageParam: (lastPage: any) => lastPage.nextCursor,
         staleTime: 1800000, // 30 mins
-        gcTime: 21600000, // 6 hours
+        gcTime: 100 * 365 * 24 * 60 * 60 * 1000, // Permanent
     });
 
     const messages = useMemo(() => data?.pages.flatMap((page: any) => page.messages) || [], [data?.pages]);
@@ -200,8 +200,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             status: "sending",
             sender: {
                 id: currentUserId,
-                name: session?.user.name || "You",
-                image: session?.user.image || ""
+                name: user?.name || "You",
+                image: user?.image || ""
             },
             type: isGroup ? "GROUP_CHAT" : "SUPPORT_TICKET"
         };
@@ -311,8 +311,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                     status: "sent",
                                     sender: {
                                         id: currentUserId,
-                                        name: session?.user.name || "You",
-                                        image: session?.user.image || ""
+                                        name: user?.name || "You",
+                                        image: user?.image || ""
                                     }
                                 } : m
                             )

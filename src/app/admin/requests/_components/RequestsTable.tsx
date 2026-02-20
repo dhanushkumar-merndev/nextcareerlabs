@@ -48,7 +48,9 @@ import {
   deleteEnrollmentAction
 } from "../actions";
 import { useState, useTransition, useCallback, useEffect, useRef } from "react";
+import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
 import { cn } from "@/lib/utils";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
 import { EnrollmentStatus } from "@/generated/prisma";
@@ -124,6 +126,8 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
   const [editPhone, setEditPhone] = useState("");
   const isInitialized = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
+  const { checkRateLimit } = useRefreshRateLimit(5, 60000);
+
 
   const clearLocalCache = useCallback(() => {
     localStorage.removeItem("admin_enrollment_requests");
@@ -257,10 +261,11 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
   }, [BATCH_SIZE]);
 
   const manualRefresh = async () => {
+    if (!checkRateLimit()) return;
     setRefreshing(true);
+
     await syncWithServer(null);
     setRefreshing(false);
-    toast.success("Requests synced with server");
   };
 
   // --- SMART SYNC: MOUNT & PERSISTENCE ---
