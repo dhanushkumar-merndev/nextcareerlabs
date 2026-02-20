@@ -14,13 +14,16 @@ import { Loader2, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { deleteChapter } from "../actions";
 import { toast } from "sonner";
+import { chatCache } from "@/lib/chat-cache";
 
 export function DeleteChapter({
   chapterId,
   courseId,
+  onSuccess,
 }: {
   chapterId: string;
   courseId: string;
+  onSuccess?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -36,7 +39,7 @@ export function DeleteChapter({
       }
       if (result.status === "success") {
         toast.success(result.message);
-
+        onSuccess?.();
         setOpen(false);
       } else if (result.status === "error") {
         toast.error(result.message);

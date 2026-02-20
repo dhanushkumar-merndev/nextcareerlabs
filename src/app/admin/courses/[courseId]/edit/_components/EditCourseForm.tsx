@@ -33,14 +33,13 @@ import { RichTextEditor } from "@/components/rich-text-editor/Editor";
 import { Uploader } from "@/components/file-uploader/Uploader";
 import { useEffect, useTransition } from "react";
 import { tryCatch } from "@/hooks/try-catch";
-
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { editCourse } from "../actions";
+import { chatCache } from "@/lib/chat-cache";
 import { AdminCourseSingularType } from "@/app/data/admin/admin-get-course";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { chatCache } from "@/lib/chat-cache";
 
 interface iAppProps {
   data: AdminCourseSingularType;
@@ -81,14 +80,8 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
       }
       if (result.status === "success") {
         toast.success(result.message);
-        chatCache.invalidate("admin_chat_sidebar");
-        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidateAdminData();
         chatCache.invalidate("all_courses");
-        chatCache.invalidate("admin_dashboard_stats");
-        chatCache.invalidate("admin_dashboard_enrollments");
-        chatCache.invalidate("admin_dashboard_recent_courses");
-        chatCache.invalidate("admin_analytics");
-
         queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });

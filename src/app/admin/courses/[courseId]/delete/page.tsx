@@ -2,7 +2,7 @@
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useTransition } from "react";
 import { deleteCourse } from "./actions";
 import { tryCatch } from "@/hooks/try-catch";
@@ -19,7 +19,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
 
 export default function DeleteCourseRoute() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { courseId } = useParams<{ courseId: string }>();
@@ -40,7 +39,7 @@ export default function DeleteCourseRoute() {
         chatCache.invalidate("admin_dashboard_enrollments");
         chatCache.invalidate("admin_dashboard_recent_courses");
         chatCache.invalidate("admin_analytics");
-        
+        chatCache.invalidate("admin_dashboard_all")
         // Invalidate React Query memory cache
         queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
@@ -49,8 +48,7 @@ export default function DeleteCourseRoute() {
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_enrollments"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
         queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
-
-        router.push("/admin/courses");
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
       } else if (result.status === "error") {
         toast.error(result.message);
       }

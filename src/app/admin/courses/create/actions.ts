@@ -10,7 +10,6 @@ import { courseSchema, CourseSchemaType } from "@/lib/zodSchemas";
 import { fixedWindow, request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
 import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
-import { invalidateAdminsCache } from "@/app/data/notifications/actions";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
@@ -104,7 +103,6 @@ export async function CreateCourse(
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-        invalidateAdminsCache()
     ]);
 
     revalidatePath("/admin/resources");

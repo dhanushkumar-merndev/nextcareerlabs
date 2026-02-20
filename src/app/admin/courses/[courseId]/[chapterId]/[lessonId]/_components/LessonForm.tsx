@@ -33,6 +33,7 @@ import { TranscriptionWorkflow } from "./TranscriptionWorkflow";
 import { env } from "@/lib/env";
 import { useEffect, useState } from "react";
 import { getTranscription } from "@/app/admin/lessons/transcription/actions";
+import { chatCache } from "@/lib/chat-cache";
 
 interface iAppProps {
   data: AdminLessonType;
@@ -90,6 +91,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
         return;
       }
       if (result.status === "success") {
+        chatCache.invalidateAdminData();
         if (!skipRedirect) {
           toast.success(result.message);
           router.push(`/admin/courses/${courseId}/edit?tab=course-structure`);

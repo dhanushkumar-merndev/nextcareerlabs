@@ -21,10 +21,12 @@ export function EditChapter({
   chapterId,
   initialName,
   courseId,
+  onSuccess,
 }: {
   chapterId: string;
   initialName: string;
   courseId: string;
+  onSuccess?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(initialName);
@@ -48,6 +50,7 @@ export function EditChapter({
 
       if (result.status === "success") {
         toast.success(result.message);
+        onSuccess?.();
         setOpen(false);
       } else {
         toast.error(result.message);

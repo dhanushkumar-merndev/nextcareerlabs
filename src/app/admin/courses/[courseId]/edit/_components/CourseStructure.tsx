@@ -43,6 +43,11 @@ import { NewLessonModel } from "./NewLessonModel";
 import { DeleteLesson } from "./DeleteLesson";
 import { DeleteChapter } from "./DeleteChapter";
 import { EditChapter } from "./EditChapter";
+import { useQueryClient } from "@tanstack/react-query";
+import { chatCache } from "@/lib/chat-cache";
+
+
+
 
 interface iAppProps {
   data: AdminCourseSingularType;
@@ -60,6 +65,7 @@ interface SortableItemProps {
 }
 
 export function CourseStructure({ data, setDirty }: iAppProps) {
+  const queryClient = useQueryClient();
   const [isMounted, setIsMounted] = useState(false);
   const initialItems = useMemo(() => {
     return data.chapter.map((chapter) => ({
@@ -74,7 +80,20 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       })),
     }));
   }, [data]);
+ const invalidateAdminCaches = () => {
+  const keys = [
+    "admin_dashboard_stats",
+    "admin_dashboard_enrollments",
+    "admin_dashboard_recent_courses",
+    "admin_analytics",
+    "admin_dashboard_all"
+  ];
 
+  keys.forEach((key) => {
+    chatCache.invalidate(key); // localStorage
+    queryClient.invalidateQueries({ queryKey: [key] });
+  });
+};
   const [items, setItems] = useState(initialItems);
 
   useEffect(() => {
@@ -247,7 +266,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       <Card className="p-0">
         <CardHeader className="flex items-center justify-between border-b px-3 py-3 sm:px-4">
           <CardTitle>Chapters</CardTitle>
-          <NewChapterModel courseId={data.id} />
+          <NewChapterModel courseId={data.id} onSuccess={invalidateAdminCaches} />
         </CardHeader>
 
         <CardContent className="p-2 sm:p-4">
@@ -301,10 +320,12 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                             chapterId={item.id}
                             courseId={data.id}
                             initialName={item.title}
+                            onSuccess={invalidateAdminCaches}
                           />
                           <DeleteChapter
                             chapterId={item.id}
                             courseId={data.id}
+                            onSuccess={invalidateAdminCaches}
                           />
                         </div>
                       </div>
@@ -347,6 +368,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                                       chapterId={item.id}
                                       courseId={data.id}
                                       lessonId={lesson.id}
+                                      onSuccess={invalidateAdminCaches}
                                     />
                                   </div>
                                 )}
@@ -355,10 +377,11 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                           </SortableContext>
 
                           <div className="pt-2">
-                            <NewLessonModel
-                              courseId={data.id}
-                              chapterId={item.id}
-                            />
+                             <NewLessonModel
+                               courseId={data.id}
+                               chapterId={item.id}
+                               onSuccess={invalidateAdminCaches}
+                             />
                           </div>
                         </div>
                       </CollapsibleContent>

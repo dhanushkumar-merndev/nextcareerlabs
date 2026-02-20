@@ -94,7 +94,7 @@ export default function CourseCreationPage() {
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
         triggerConfetti();
         form.reset();
-        router.push("/admin/courses");
+        window.location.href = "/admin/courses";
       } else if (result.status === "error") {
         toast.error(result.message);
       }

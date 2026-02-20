@@ -25,13 +25,16 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { createLesson } from "../actions";
 import { toast } from "sonner";
+import { chatCache } from "@/lib/chat-cache";
 
 export function NewLessonModel({
   courseId,
   chapterId,
+  onSuccess,
 }: {
   courseId: string;
   chapterId: string;
+  onSuccess?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -55,6 +58,7 @@ export function NewLessonModel({
       }
       if (result.status === "success") {
         toast.success(result.message);
+        onSuccess?.();
         form.reset();
         setIsOpen(false);
       } else if (result.status === "error") {

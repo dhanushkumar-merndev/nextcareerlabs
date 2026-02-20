@@ -25,8 +25,15 @@ import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { createChapter } from "../actions";
 import { toast } from "sonner";
+import { chatCache } from "@/lib/chat-cache";
 
-export function NewChapterModel({ courseId }: { courseId: string }) {
+export function NewChapterModel({
+  courseId,
+  onSuccess,
+}: {
+  courseId: string;
+  onSuccess?: () => void;
+}) {
   const [isOpen, setIsOpen] = useState(false);
 
   const [isPending, startTransition] = useTransition();
@@ -48,6 +55,7 @@ export function NewChapterModel({ courseId }: { courseId: string }) {
       }
       if (result.status === "success") {
         toast.success(result.message);
+        onSuccess?.();
         form.reset();
         setIsOpen(false);
       } else if (result.status === "error") {
