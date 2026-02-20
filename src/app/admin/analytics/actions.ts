@@ -8,28 +8,19 @@ import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGloba
 export async function getAdminAnalytics(startDate?: Date, endDate?: Date, clientVersion?: string) {
     await requireAdmin();
 
-    // Smart Sync: Only compute if version changed (unless custom range is selected)
-    // For now, if startDate/endDate is passed, we bypass cache for accurate custom ranges
     const isCustomRange = !!startDate || !!endDate;
-
     let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
 
     if (!currentVersion || currentVersion === "null") {
         await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
         currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
-        }
+    }
 
+    if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
+        console.log(`[getAdminAnalytics] Version Match (${clientVersion}). Returning NOT_MODIFIED.`);
+        return { status: "not-modified", version: currentVersion };
+    }
 
-  if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
-    console.log(`[getAdminAnalytics] Version Match (${clientVersion}). Returning NOT_MODIFIED (Skipping Redis Data Fetch).`);
-    return { status: "not-modified", version: currentVersion };
-  }
-
-  if (!isCustomRange) {
-    console.log(`[getAdminAnalytics] Version Mismatch (Client: ${clientVersion || 'None'}, Server: ${currentVersion}). Checking Redis...`);
-  }
-
-    // Check Redis cache for default range
     const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS;
     if (!isCustomRange) {
         const cached = await getCache<any>(cacheKey);
@@ -37,115 +28,126 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             console.log(`[getAdminAnalytics] Redis Cache HIT. Returning data.`);
             return { data: cached, version: currentVersion };
         }
-        console.log(`[getAdminAnalytics] Redis Cache MISS. Fetching from Prisma DB...`);
     }
 
     try {
-        const end = endDate ? new Date(endDate) : new Date();
-        const start = startDate ? new Date(startDate) : new Date();
+        const IST_TZ = 'Asia/Kolkata';
+        const now = new Date();
+        
+        // Target dates from parameters or default
+        const startRaw = startDate ? new Date(startDate) : new Date(new Date().setDate(now.getDate() - 7));
+        const endRaw = endDate ? new Date(endDate) : now;
 
-        if (!startDate) {
-            start.setDate(end.getDate() - 7);
-        }
-        // Normalize start to beginning of day and end to end of day
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
+        // Helper to get exact UTC moment for IST day boundaries
+        const getISTDayBoundary = (date: Date, type: 'start' | 'end') => {
+            const dateString = new Intl.DateTimeFormat("en-CA", { timeZone: IST_TZ }).format(date);
+            const timeString = type === 'start' ? '00:00:00.000' : '23:59:59.999';
+            // IST is UTC+5:30, so YYYY-MM-DDTHH:mm:ss.sss+05:30 correctly identifies the moment
+            return new Date(`${dateString}T${timeString}+05:30`);
+        };
+
+        const normalizedStart = getISTDayBoundary(startRaw, 'start');
+        const normalizedEnd = getISTDayBoundary(endRaw, 'end');
+
+        console.log(`[getAdminAnalytics] Range (IST): ${normalizedStart.toLocaleString('en-IN', { timeZone: IST_TZ })} to ${normalizedEnd.toLocaleString('en-IN', { timeZone: IST_TZ })}`);
+        console.log(`[getAdminAnalytics] Range (UTC): ${normalizedStart.toISOString()} to ${normalizedEnd.toISOString()}`);
 
         const startTime = Date.now();
         const [
+            userGrowth,
             totalUsers,
             totalEnrollments,
             totalCourses,
             totalLessons,
-            totalResources,
             recentUsers,
-            joinedUsersInRange,
-            enrollmentCounts,
-            popularCourses,
+            enrollmentStats,
+            courseEnrollment,
+            lessonCompletionData,
+            totalResources,
             averageProgressData
         ] = await Promise.all([
-            prisma.user.count(),
-            prisma.enrollment.count({ where: { status: "Granted" } }),
-            prisma.course.count({ where: { status: "Published" } }),
-            prisma.lesson.count(),
-            prisma.notification.count({ where: { fileUrl: { not: null } } }),
-            prisma.user.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
-            // Check users created in range for chart
             prisma.user.findMany({
-                where: { createdAt: { gte: start, lte: end } },
+                where: { createdAt: { gte: normalizedStart, lte: normalizedEnd } },
                 select: { createdAt: true },
             }),
-            // Enrollment status counts
-            prisma.enrollment.groupBy({
-                by: ['status'],
-                _count: { status: true }
+            prisma.user.count(),
+            prisma.enrollment.count(),
+            prisma.course.count(),
+            prisma.lesson.count(),
+            prisma.user.findMany({
+                orderBy: { createdAt: "desc" },
+                take: 5,
+                select: { id: true, name: true, email: true, image: true, createdAt: true },
             }),
-            // Popular courses (raw)
             prisma.enrollment.groupBy({
-                by: ['courseId'],
-                _count: { courseId: true },
-                orderBy: { _count: { courseId: 'desc' } },
-                take: 5
+                by: ["status"],
+                _count: { _all: true },
+            }),
+            prisma.enrollment.groupBy({
+                by: ["courseId"],
+                _count: { _all: true },
+                orderBy: { _count: { courseId: "desc" } },
+                take: 5,
+            }),
+            prisma.lessonProgress.aggregate({
+                where: { completed: true },
+                _count: { completed: true },
+            }),
+            prisma.notification.count({
+                where: { fileUrl: { not: null } }
             }),
             getAverageProgressCached()
         ]);
+
         const mainDuration = Date.now() - startTime;
         console.log(`[getAdminAnalytics] Main DB Queries took ${mainDuration}ms`);
 
         const enrollRatio = totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
 
-        // --- Chart Data Processing ---
-        const diffTime = end.getTime() - start.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        // Helper to get local YYYY-MM-DD key
-        const getLocalDateKey = (date: Date) => {
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            return `${year}-${month}-${day}`;
+        // 6. Process Chart Data (Registrations by Day - IST Grouped)
+        const getISTDateKey = (date: Date) => {
+            return new Intl.DateTimeFormat("en-CA", { timeZone: IST_TZ }).format(date); // YYYY-MM-DD
         };
 
-        const dateCountMap: Record<string, number> = {};
-
-        joinedUsersInRange.forEach((u) => {
-            const key = getLocalDateKey(new Date(u.createdAt));
-            dateCountMap[key] = (dateCountMap[key] || 0) + 1;
+        const growthMap = new Map<string, number>();
+        userGrowth.forEach((u) => {
+            const key = getISTDateKey(u.createdAt);
+            growthMap.set(key, (growthMap.get(key) || 0) + 1);
         });
 
-        const chartData = Array.from({ length: diffDays + 1 }, (_, i) => {
-            const d = new Date(start);
-            d.setDate(d.getDate() + i);
+        const diffTime = Math.abs(normalizedEnd.getTime() - normalizedStart.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        const chartData = [];
+        for (let i = 0; i <= diffDays; i++) {
+            const d = new Date(normalizedStart);
+            d.setDate(normalizedStart.getDate() + i);
+            const key = getISTDateKey(d);
+            
+            if (key <= getISTDateKey(normalizedEnd)) {
+                chartData.push({
+                    name: key,
+                    value: growthMap.get(key) || 0,
+                });
+            }
+        }
 
-            const key = getLocalDateKey(d);
-
-            return {
-                name: key,
-                value: dateCountMap[key] || 0
-            };
-        });
-
-        // 2. Enrollment Status Chart
-        const enrollmentChartData = enrollmentCounts.map((item) => ({
+        const enrollmentChartData = enrollmentStats.map((item) => ({
             name: item.status,
-            value: item._count.status
+            value: item._count._all
         }));
 
-        // 3. Popular Courses Chart
-        const courseIds = popularCourses.map(p => p.courseId);
-        const detailStartTime = Date.now();
+        const courseIds = courseEnrollment.map(p => p.courseId);
         const coursesDetails = await prisma.course.findMany({
             where: { id: { in: courseIds } },
             select: { id: true, title: true }
         });
-        const detailDuration = Date.now() - detailStartTime;
-        console.log(`[getAdminAnalytics] Course Details Fetch took ${detailDuration}ms`);
 
-        const popularCoursesChartData = popularCourses.map((p) => {
+        const popularCoursesChartData = courseEnrollment.map((p) => {
             const course = coursesDetails.find((c) => c.id === p.courseId);
             return {
                 name: course?.title || 'Unknown',
-                value: p._count.courseId
+                value: p._count._all
             };
         });
 
@@ -164,7 +166,6 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             popularCoursesChartData
         };
 
-        // Cache in Redis for 6 hours
         if (!isCustomRange) {
             await setCache(cacheKey, result, 2592000);
         }

@@ -40,8 +40,8 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
 
         startTransition(async () => {
             const result = await getAdminAnalytics(tempDate?.from, tempDate?.to);
-            if (result) {
-                setData(result.chartData);
+            if (result && (result as any).data) {
+                setData((result as any).data.chartData);
             }
         });
     };
@@ -51,8 +51,8 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
         setTempDate(undefined);
         startTransition(async () => {
             const result = await getAdminAnalytics();
-            if (result) {
-                setData(result.chartData);
+            if (result && (result as any).data) {
+                setData((result as any).data.chartData);
             }
         });
     };
