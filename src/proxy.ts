@@ -47,56 +47,52 @@ if (path === "/api/auth/error") {
   return NextResponse.redirect(new URL("/", request.url));
 }
 
-  
+  // 1. Skip middleware for simple assets
+  if (path.startsWith("/_next") || path === "/favicon.ico") {
+    return NextResponse.next();
+  }
+
+  // 2. Auth routes pass through
   if (path.startsWith("/api/auth")) {
     return NextResponse.next();
   }
 
- 
-  if (
-    path.startsWith("/_next") ||
-    path === "/favicon.ico"
-  ) {
+  // 3. Determine if we NEED a session check in middleware
+  const isProtectedRoute = path.startsWith("/dashboard") || path.startsWith("/admin");
+  const isSpecialRoute = path === "/api/auth/error" || path === "/banned";
+  
+  // 🔥 SMART SYNC optimization: Skip DB lookup for public pages (Homepage, Courses, etc.)
+  // The client-side useSmartSession will handle the UI state without blocking the server response here.
+  if (!isProtectedRoute && !isSpecialRoute) {
     return NextResponse.next();
   }
 
-
+  // 4. Perform session lookup ONLY for protected/special routes
   const session = await auth.api.getSession({
     headers: request.headers,
   }) as AuthSession | null;
 
-  if (path === "/banned") {
-    return NextResponse.next();
-  }
-
-  if (session?.user.banned) {
+  if (session?.user.banned && path !== "/banned") {
     return NextResponse.redirect(new URL("/banned", request.url));
   }
 
   if (session) {
-    // We'll run this but not block the main response if possible
-    // In Edge middleware, we should be careful with async tasks
     try {
-      await clearOtherSessionsOnce(
-        session.user.id,
-        session.session.id
-      );
+      await clearOtherSessionsOnce(session.user.id, session.session.id);
     } catch (e) {
       console.error("Session cleanup failed:", e);
     }
   }
 
- 
+  // 5. Protected route enforcement
   if (path.startsWith("/dashboard") && !session) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  
   if (path.startsWith("/admin")) {
     if (!session) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-
     if (session.user.role !== "admin") {
       return NextResponse.redirect(new URL("/not-admin", request.url));
     }
@@ -106,7 +102,7 @@ if (path === "/api/auth/error") {
 }
 
 export const config = {
-  matcher: ["/((?!_next|favicon.ico).*)"],
+  matcher: ["/((?!_next|favicon.ico|api/auth).*)"],
 };
 
 export default createMiddleware(aj, mainMiddleware);

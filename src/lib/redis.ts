@@ -71,6 +71,8 @@ export const GLOBAL_CACHE_KEYS = {
   ADMIN_CHAT_SIDEBAR: "global:admin:chat_sidebar",
   USER_ENROLLMENTS: (userId: string) => `user:enrollments:${userId}`,
   USER_VERSION: (userId: string) => `user:version:${userId}`,
+  ADMIN_TASK_STATUS: "global:admin:task_status",
+  AUTH_SESSION_VERSION: "global:version:auth_session",
 };
 
 const OPERATION_TIMEOUT = 1500;

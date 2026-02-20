@@ -33,6 +33,22 @@ export function AnalyticsClient() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
+
+    // 🟢 Robust LOCAL HIT Logging for Console
+    const cached = chatCache.get<any>("admin_analytics");
+    if (cached) {
+        console.log(`[Analytics] LOCAL HIT (v${cached.version}). Rendering from device storage.`);
+    }
+
+    // Cross-Tab Sync
+    const handleStorageChange = (e: StorageEvent) => {
+        if (e.key?.includes("admin_analytics")) {
+            console.log(`[Analytics] Cross-Tab Sync: Updating dashboard...`);
+            window.location.reload();
+        }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const getTime = () => new Date().toLocaleTimeString();
@@ -44,22 +60,19 @@ export function AnalyticsClient() {
       const cached = chatCache.get<any>("admin_analytics");
       const clientVersion = cached?.version;
 
-      if (cached) {
-          console.log(`[${getTime()}] [Analytics] LOCAL HIT (v${clientVersion}). Validating...`);
-      } else {
+      if (!cached) {
           console.log(`[${getTime()}] [Analytics] Cache MISS. Fetching...`);
       }
 
       const result = await getAdminAnalytics(undefined, undefined, clientVersion);
 
       if ((result as any).status === "not-modified" && cached) {
-          console.log(`[${getTime()}] [Analytics] Result: NOT_MODIFIED. Using local cache.`);
           return cached.data || null;
       }
 
       if (result && !(result as any).status && (result as any).data) {
           console.log(`[${getTime()}] [Analytics] Result: NEW_DATA. Updating cache.`);
-          chatCache.set("admin_analytics", result.data, undefined, (result as any).version, 21600000); // 6 hours
+          chatCache.set("admin_analytics", result.data, undefined, (result as any).version, 2592000000); // 30 Days
           return result.data;
       }
       return (result as any)?.data || cached?.data || null;
@@ -68,7 +81,6 @@ export function AnalyticsClient() {
       if (typeof window === "undefined") return undefined;
       const cached = chatCache.get<any>("admin_analytics");
       if (cached) {
-          console.log(`[${getTime()}] [Analytics] LOCAL HIT (initialData). Displaying cached analytics immediately.`);
           return cached.data;
       }
       return undefined;
@@ -122,7 +134,7 @@ export function AnalyticsClient() {
           title="Success Rate"
           value={`${data.averageProgress}%`}
           icon="play"
-          description="Average lesson completion rate"
+          description="Average lesson completion rate (24h Sync)"
           lastUpdated={data.averageProgressLastUpdated}
         />
         <AnalyticsCard

@@ -22,6 +22,29 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
    const [removedThreadIds, setRemovedThreadIds] = useState<string[]>([]);
    const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
    const lastVersionRef = useRef<number | null>(null);
+   const [mounted, setMounted] = useState(false);
+
+   useEffect(() => {
+       setMounted(true);
+
+       // 🟢 Robust LOCAL HIT Logging for Console
+       const localKey = getSidebarLocalKey(isAdmin);
+       const cached = chatCache.get<any>(localKey, isAdmin ? undefined : currentUserId);
+       if (cached) {
+           console.log(`[ChatLayout] LOCAL HIT (v${cached.version}). Rendering from device storage.`);
+       }
+
+       // Cross-Tab Sync: Listen for storage changes from other tabs
+       const handleStorageChange = (e: StorageEvent) => {
+           const localKey = getSidebarLocalKey(isAdmin);
+           if (e.key?.includes(localKey)) {
+               console.log(`[Chat] Cross-Tab Sync: Storage updated. Refetching...`);
+               queryClient.invalidateQueries({ queryKey: getSidebarKey(currentUserId, isAdmin) });
+           }
+       };
+       window.addEventListener('storage', handleStorageChange);
+       return () => window.removeEventListener('storage', handleStorageChange);
+   }, [currentUserId, isAdmin, queryClient]);
 
    const getTime = () => new Date().toLocaleTimeString();
 
@@ -39,11 +62,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
 
     const clientVersion = cached?.version;
 
-    if (cached) {
-      console.log(
-        `[${getTime()}] [Chat] LOCAL HIT (v${clientVersion}). Validating...`
-      );
-    } else {
+    if (!cached) {
       console.log(`[${getTime()}] [Chat] Cache MISS. Fetching...`);
     }
 
@@ -51,9 +70,6 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
 
     // If server says no change → use cache
     if ((result as any)?.status === "not-modified" && cached) {
-      console.log(
-        `[${getTime()}] [Chat] NOT_MODIFIED → Using local cache`
-      );
       return cached.data;
     }
 
@@ -68,7 +84,7 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
         result,
         isAdmin ? undefined : currentUserId,
         result.version,
-        21600000 // 6 hours
+        2592000000 // 30 Days
       );
 
       return result;
@@ -88,17 +104,15 @@ export function ChatLayout({ isAdmin, currentUserId }: ChatLayoutProps) {
     );
 
     if (cached) {
-      console.log(
-        `[${getTime()}] [Chat] LOCAL HIT (initialData)`
-      );
       return cached.data;
     }
 
     return undefined;
   },
 
-  // 🔥 Optimization (better than staleTime: 0)
-  staleTime: 21600000, // 6 hours
+  // 30-minute version check (Heartbeat)
+  staleTime: 1800000, 
+  refetchInterval: 1800000,
   refetchOnWindowFocus: true,
 });
 

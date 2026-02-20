@@ -21,6 +21,28 @@ export function AdminDashboardClient() {
     const [mounted, setMounted] = useState(false);
     useEffect(() => {
         setMounted(true);
+
+        // 🟢 Robust LOCAL HIT Logging for Console
+        const statsCached = chatCache.get<any>("admin_dashboard_stats");
+        const enrollCached = chatCache.get<any>("admin_dashboard_enrollments");
+        const coursesCached = chatCache.get<any>("admin_dashboard_recent_courses");
+
+        if (statsCached) console.log(`[AdminDashboard] LOCAL HIT (v${statsCached.version}). Rendering from device storage.`);
+        if (enrollCached) console.log(`[AdminDashboard] [Enrollments] LOCAL HIT (v${enrollCached.version}). Rendering from device storage.`);
+        if (coursesCached) console.log(`[AdminDashboard] [RecentCourses] LOCAL HIT (v${coursesCached.version}). Rendering from device storage.`);
+
+        // Cross-Tab Sync: Listen for storage changes from other tabs
+        const handleStorageChange = (e: StorageEvent) => {
+            if (e.key?.includes("admin_dashboard_stats") || 
+                e.key?.includes("admin_dashboard_enrollments") || 
+                e.key?.includes("admin_dashboard_recent_courses")) {
+                console.log(`[Dashboard] Cross-Tab Sync: LocalStorage updated from another tab. Fetching...`);
+                // Trigger React Query refetch
+                window.location.reload(); // Simple approach for dashboard to stay perfectly aligned
+            }
+        };
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
     }, []);
 
     const getTime = () => new Date().toLocaleTimeString();
@@ -32,22 +54,19 @@ export function AdminDashboardClient() {
             const cached = chatCache.get<any>("admin_dashboard_stats");
             const clientVersion = cached?.version;
 
-            if (cached) {
-                 console.log(`[${getTime()}] [Dashboard] LOCAL HIT (v${clientVersion}). Validating...`);
-            } else {
-                 console.log(`[${getTime()}] [Dashboard] Cache MISS. Fetching...`);
+            if (!cached) {
+                 console.log(`[Dashboard] Cache MISS. Fetching...`);
             }
 
             const result = await adminGetDashboardStatsAction(clientVersion);
 
             if ((result as any).status === "not-modified" && cached) {
-                console.log(`[${getTime()}] [Dashboard] Result: NOT_MODIFIED. Using local cache.`);
                 return cached.data || null;
             }
 
             if (result && !(result as any).status && (result as any).data) {
                 console.log(`[${getTime()}] [Dashboard] Result: NEW_DATA. Updating cache.`);
-                chatCache.set("admin_dashboard_stats", result.data, undefined, result.version, 21600000);
+                chatCache.set("admin_dashboard_stats", result.data, undefined, result.version, 2592000000); // 30 Days
                 return result.data;
             }
             return (result as any)?.data || cached?.data || null;
@@ -56,7 +75,6 @@ export function AdminDashboardClient() {
             if (typeof window === "undefined") return undefined;
             const cached = chatCache.get<any>("admin_dashboard_stats");
             if (cached) {
-                console.log(`[${getTime()}] [Dashboard] LOCAL HIT (initialData). Displaying cached data immediately.`);
                 return cached.data;
             }
             return undefined;
@@ -73,22 +91,19 @@ export function AdminDashboardClient() {
             const cached = chatCache.get<any>("admin_dashboard_enrollments");
             const clientVersion = cached?.version;
 
-            if (cached) {
-                console.log(`[${getTime()}] [Enrollments] LOCAL HIT (v${clientVersion}). Validating...`);
-            } else {
+            if (!cached) {
                 console.log(`[${getTime()}] [Enrollments] Cache MISS. Fetching...`);
             }
 
             const result = await adminGetEnrollmentsStatsAction(clientVersion);
 
             if ((result as any).status === "not-modified" && cached) {
-                console.log(`[${getTime()}] [Enrollments] Result: NOT_MODIFIED. Using local cache.`);
                 return cached.data || null;
             }
 
             if (result && !(result as any).status && (result as any).data) {
                 console.log(`[${getTime()}] [Enrollments] Result: NEW_DATA. Updating cache.`);
-                chatCache.set("admin_dashboard_enrollments", result.data, undefined, result.version, 21600000);
+                chatCache.set("admin_dashboard_enrollments", result.data, undefined, result.version, 2592000000); // 30 Days
                 return result.data;
             }
             return (result as any)?.data || cached?.data || null;
@@ -97,7 +112,6 @@ export function AdminDashboardClient() {
              if (typeof window === "undefined") return undefined;
              const cached = chatCache.get<any>("admin_dashboard_enrollments");
              if (cached) {
-                 console.log(`[${getTime()}] [Enrollments] LOCAL HIT (initialData). Displaying cached chart immediately.`);
                  return cached.data;
              }
              return undefined;
@@ -114,22 +128,19 @@ export function AdminDashboardClient() {
             const cached = chatCache.get<any>("admin_dashboard_recent_courses");
             const clientVersion = cached?.version;
 
-            if (cached) {
-                console.log(`[${getTime()}] [RecentCourses] LOCAL HIT (v${clientVersion}). Validating...`);
-            } else {
+            if (!cached) {
                 console.log(`[${getTime()}] [RecentCourses] Cache MISS. Fetching...`);
             }
 
             const result = await adminGetRecentCoursesAction(clientVersion);
 
             if ((result as any).status === "not-modified" && cached) {
-                console.log(`[${getTime()}] [RecentCourses] Result: NOT_MODIFIED. Using local cache.`);
                 return cached.data || null;
             }
 
             if (result && !(result as any).status && (result as any).data) {
                 console.log(`[${getTime()}] [RecentCourses] Result: NEW_DATA. Updating cache.`);
-                chatCache.set("admin_dashboard_recent_courses", result.data, undefined, result.version, 21600000);
+                chatCache.set("admin_dashboard_recent_courses", result.data, undefined, result.version, 2592000000); // 30 Days
                 return result.data;
             }
             return (result as any)?.data || cached?.data || null;
@@ -138,7 +149,6 @@ export function AdminDashboardClient() {
              if (typeof window === "undefined") return undefined;
              const cached = chatCache.get<any>("admin_dashboard_recent_courses");
              if (cached) {
-                 console.log(`[${getTime()}] [RecentCourses] LOCAL HIT (initialData). Displaying recent courses immediately.`);
                  return cached.data;
              }
              return undefined;

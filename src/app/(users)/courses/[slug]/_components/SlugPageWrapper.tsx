@@ -24,7 +24,7 @@ import { EnrollmentButton } from "./EnrollmentButton";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { useQuery } from "@tanstack/react-query";
 import { getSlugPageDataAction } from "../actions";
-import { authClient } from "@/lib/auth-client";
+import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache } from "@/lib/chat-cache";
 import { useState, useEffect } from "react";
 import Loader from "@/components/ui/Loader";
@@ -35,7 +35,7 @@ export function SlugPageWrapper({
 }: {
   slug: string;
 }) {
-  const { data: session } = authClient.useSession();
+  const { session } = useSmartSession();
   const currentUserId = session?.user?.id;
 
   // State to track component mount

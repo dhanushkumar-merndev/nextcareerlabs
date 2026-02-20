@@ -1,7 +1,7 @@
 "use client";
 
 const STORAGE_PREFIX = "chat_cache_";
-const DEFAULT_TTL = 7 * 24 * 60 * 60 * 1000; // 7 Days (Soft Expiry)
+const DEFAULT_TTL = 30 * 24 * 60 * 60 * 1000; // 30 Days (Practical Forever)
 
 interface CacheEntry<T> {
   data: T;

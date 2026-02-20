@@ -6,7 +6,7 @@
 */
 
 "use client";
-import { authClient } from "@/lib/auth-client";
+import { useSmartSession } from "@/hooks/use-smart-session";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { getAllCoursesAction } from "../actions";
 import { chatCache } from "@/lib/chat-cache";
@@ -25,7 +25,7 @@ type CoursesPage = {
 
 // CoursesClient Component
 export function CoursesClient({ initialData }: { initialData?: any }) {
-  const { data: session, isPending: isSessionPending } = authClient.useSession();
+  const { session, isLoading: isSessionPending } = useSmartSession();
   const currentUserId = session?.user?.id;
 
   // Read search param (?title=...)

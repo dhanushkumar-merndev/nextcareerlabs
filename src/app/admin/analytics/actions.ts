@@ -158,7 +158,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
 
         // Cache in Redis for 6 hours
         if (!isCustomRange) {
-            await setCache(cacheKey, result, 21600);
+            await setCache(cacheKey, result, 2592000);
         }
 
         return { data: result, version: currentVersion };

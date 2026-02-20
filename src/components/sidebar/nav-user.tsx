@@ -55,7 +55,7 @@ export function NavUser() {
     setMounted(true);
   }, []);
 
-  const { data: session, isPending } = useSmartSession();
+  const { session, isLoading: isPending } = useSmartSession();
   
   if (!mounted || isPending) {
     return (

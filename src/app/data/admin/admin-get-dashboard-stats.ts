@@ -58,8 +58,8 @@ export async function adminGetDashboardStats(clientVersion?: string) {
     totalLessons,
   };
 
-  // Cache for 6 hours
-  await setCache(cacheKey, stats, 21600);
+  // Cache for 30 days (effective forever)
+  await setCache(cacheKey, stats, 2592000);
 
   return {
     data: stats,

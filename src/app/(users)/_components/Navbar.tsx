@@ -18,7 +18,7 @@ import { Logo } from "@/components/Logo";
 export function Navbar() {
   const pathname = usePathname();
   const isHomePage = pathname === "/";
-  const { data: session, isPending } = useSmartSession();
+  const { session, isLoading: isPending } = useSmartSession();
   const handleSignOut = useSignOut();
   const [isOpen, setIsOpen] = useState(false);
   const [isCompact, setIsCompact] = useState(false);

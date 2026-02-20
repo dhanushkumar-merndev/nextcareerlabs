@@ -640,7 +640,7 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
   };
 
   if (cacheKey) {
-    await setCache(cacheKey, result, 21600); // 6 hours
+    await setCache(cacheKey, result, 2592000); // 30 Days
   }
 
   return result;

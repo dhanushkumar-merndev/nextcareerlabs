@@ -85,8 +85,8 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
     enrollments: counts[item.date] ?? 0,
   }));
 
-  // Cache for 6 hours
-  await setCache(cacheKey, finalData, 21600);
+  // Cache for 30 days (effective forever)
+  await setCache(cacheKey, finalData, 2592000);
 
   return {
     data: finalData,

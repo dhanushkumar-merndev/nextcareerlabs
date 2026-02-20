@@ -152,6 +152,22 @@ export const auth = betterAuth({
                 console.log("[Auth Hook] New user joined. Invalidated analytics cache.");
             }
         }
+    },
+    session: {
+        create: {
+            after: async () => {
+                const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } = await import("./redis");
+                await incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
+                console.log("[Auth Hook] Session created. Syncing all clients...");
+            }
+        },
+        delete: {
+            after: async () => {
+                const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } = await import("./redis");
+                await incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
+                console.log("[Auth Hook] Session deleted. Syncing all clients...");
+            }
+        }
     }
   }
 });

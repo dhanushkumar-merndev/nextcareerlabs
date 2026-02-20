@@ -114,8 +114,8 @@ export async function adminGetCourses(
     const duration = Date.now() - startTime;
     console.log(`[adminGetCourses] DB Fetch took ${duration}ms.`);
 
-    // Cache in Redis for 6 hours
-    await setCache(cacheKey, allCourses, 21600);
+    // Cache in Redis for 30 days (effective forever)
+    await setCache(cacheKey, allCourses, 2592000);
   }
 
 

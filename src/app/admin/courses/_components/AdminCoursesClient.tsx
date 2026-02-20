@@ -30,6 +30,12 @@ export function AdminCoursesClient() {
   
   useEffect(() => {
     setMounted(true);
+
+    // 🟢 Robust LOCAL HIT Logging for Console
+    const cached = chatCache.get<any>("admin_courses_list");
+    if (cached) {
+        console.log(`[AdminCourses] LOCAL HIT (v${cached.version}). Rendering from device storage.`);
+    }
   }, []);
 
   const getTime = () => new Date().toLocaleTimeString();
@@ -114,7 +120,6 @@ export function AdminCoursesClient() {
         if (typeof window === "undefined" || searchTitle) return undefined;
         const cached = chatCache.get<any>("admin_courses_list");
         if (cached) {
-            console.log(`[${getTime()}] [Courses] LOCAL HIT (initialData). Displaying cached courses immediately.`);
             const courses = cached.data?.data ?? cached.data?.courses ?? cached.data ?? [];
             return {
                 pages: [{
@@ -154,12 +159,8 @@ export function AdminCoursesClient() {
         ? undefined 
         : cached?.version;
 
-      if (!pageParam) {
-          if (cached) {
-              console.log(`[${getTime()}] [Courses] LOCAL HIT (v${clientVersion}). Validating...`);
-          } else {
-              console.log(`[${getTime()}] [Courses] Cache MISS. Fetching...`);
-          }
+      if (!pageParam && !cached) {
+          console.log(`[${getTime()}] [Courses] Cache MISS. Fetching...`);
       }
 
       const result = await adminGetCoursesAction(
@@ -169,7 +170,6 @@ export function AdminCoursesClient() {
 
       // Server says cache is still valid
       if ((result as any).status === "not-modified") {
-        console.log(`[${getTime()}] [Courses] Result: NOT_MODIFIED. Using local cache.`);
         return {
           courses: cached?.data.data ?? [],
           nextCursor: cached?.data.nextCursor ?? null,
