@@ -289,6 +289,7 @@ export function Navbar() {
               (session ? (
                 <UserDropdown
                   email={session.user.email}
+                  role={session.user.role || ""}
                   name={
                     (session.user.name?.trim() || session.user.email)?.split(
                       "@"

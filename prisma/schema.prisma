@@ -257,6 +257,7 @@ model Notification {
   @@index([recipientId])
   @@index([threadId])
   @@index([chatGroupId])
+  @@index([threadId, createdAt(sort: Desc)])
 }
 
 model ChatGroup {

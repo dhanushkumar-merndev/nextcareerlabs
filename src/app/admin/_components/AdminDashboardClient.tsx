@@ -2,9 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { 
-    adminGetDashboardStatsAction, 
-    adminGetEnrollmentsStatsAction, 
-    adminGetRecentCoursesAction 
+    adminGetDashboardDataAction
 } from "../actions";
 
 import { SectionCards } from "@/components/sidebar/section-cards";
@@ -22,23 +20,17 @@ export function AdminDashboardClient() {
     useEffect(() => {
         setMounted(true);
 
-        // 🟢 Robust LOCAL HIT Logging for Console
-        const statsCached = chatCache.get<any>("admin_dashboard_stats");
-        const enrollCached = chatCache.get<any>("admin_dashboard_enrollments");
-        const coursesCached = chatCache.get<any>("admin_dashboard_recent_courses");
+        const cached = chatCache.get<any>("admin_dashboard_all");
+        let statsV = "0";
+        if (cached?.version) {
+            try { statsV = JSON.parse(cached.version).stats; } catch(e) {}
+        }
+        if (cached) console.log(`[AdminDashboard] LOCAL HIT (vStats:${statsV}). Rendering consolidated data.`);
 
-        if (statsCached) console.log(`[AdminDashboard] LOCAL HIT (v${statsCached.version}). Rendering from device storage.`);
-        if (enrollCached) console.log(`[AdminDashboard] [Enrollments] LOCAL HIT (v${enrollCached.version}). Rendering from device storage.`);
-        if (coursesCached) console.log(`[AdminDashboard] [RecentCourses] LOCAL HIT (v${coursesCached.version}). Rendering from device storage.`);
-
-        // Cross-Tab Sync: Listen for storage changes from other tabs
         const handleStorageChange = (e: StorageEvent) => {
-            if (e.key?.includes("admin_dashboard_stats") || 
-                e.key?.includes("admin_dashboard_enrollments") || 
-                e.key?.includes("admin_dashboard_recent_courses")) {
-                console.log(`[Dashboard] Cross-Tab Sync: LocalStorage updated from another tab. Fetching...`);
-                // Trigger React Query refetch
-                window.location.reload(); // Simple approach for dashboard to stay perfectly aligned
+            if (e.key?.includes("admin_dashboard_all")) {
+                console.log(`[Dashboard] Cross-Tab Sync: LocalStorage updated. Refreshing...`);
+                window.location.reload();
             }
         };
         window.addEventListener('storage', handleStorageChange);
@@ -47,116 +39,41 @@ export function AdminDashboardClient() {
 
     const getTime = () => new Date().toLocaleTimeString();
 
-    // 1. Stats Query
-    const { data: statsData, isLoading: statsLoading } = useQuery({
-        queryKey: ["admin_dashboard_stats"],
+    // Consolidated Data Query
+    const { data: dashboardData, isLoading } = useQuery({
+        queryKey: ["admin_dashboard_all"],
         queryFn: async () => {
-            const cached = chatCache.get<any>("admin_dashboard_stats");
-            const clientVersion = cached?.version;
-
-            if (!cached) {
-                 console.log(`[Dashboard] Cache MISS. Fetching...`);
+            const cached = chatCache.get<any>("admin_dashboard_all");
+            let clientVersions: any;
+            if (cached?.version) {
+                try { clientVersions = JSON.parse(cached.version); } catch(e) {}
             }
 
-            const result = await adminGetDashboardStatsAction(clientVersion);
+            if (!cached) console.log(`[${getTime()}] [Dashboard] Cache MISS. Fetching all...`);
 
-            if ((result as any).status === "not-modified" && cached) {
-                return cached.data || null;
-            }
+            const result = await adminGetDashboardDataAction(clientVersions);
 
-            if (result && !(result as any).status && (result as any).data) {
-                console.log(`[${getTime()}] [Dashboard] Result: NEW_DATA. Updating cache.`);
-                chatCache.set("admin_dashboard_stats", result.data, undefined, result.version, 2592000000); // 30 Days
+            if (result && (result as any).data) {
+                console.log(`[${getTime()}] [Dashboard] Result received. Updating cache.`);
+                // Store serialized versions in the single 'version' slot
+                chatCache.set("admin_dashboard_all", result.data, undefined, JSON.stringify(result.versions), 2592000000); 
                 return result.data;
             }
-            return (result as any)?.data || cached?.data || null;
+            return cached?.data || null;
         },
         initialData: () => {
             if (typeof window === "undefined") return undefined;
-            const cached = chatCache.get<any>("admin_dashboard_stats");
-            if (cached) {
-                return cached.data;
-            }
-            return undefined;
+            const cached = chatCache.get<any>("admin_dashboard_all");
+            return cached?.data;
         },
         staleTime: 1800000, 
         refetchInterval: 1800000, 
         refetchOnWindowFocus: true,
     });
 
-    // 2. Enrollments Query
-    const { data: enrollmentsData, isLoading: enrollmentsLoading } = useQuery({
-        queryKey: ["admin_dashboard_enrollments"],
-        queryFn: async () => {
-            const cached = chatCache.get<any>("admin_dashboard_enrollments");
-            const clientVersion = cached?.version;
-
-            if (!cached) {
-                console.log(`[${getTime()}] [Enrollments] Cache MISS. Fetching...`);
-            }
-
-            const result = await adminGetEnrollmentsStatsAction(clientVersion);
-
-            if ((result as any).status === "not-modified" && cached) {
-                return cached.data || null;
-            }
-
-            if (result && !(result as any).status && (result as any).data) {
-                console.log(`[${getTime()}] [Enrollments] Result: NEW_DATA. Updating cache.`);
-                chatCache.set("admin_dashboard_enrollments", result.data, undefined, result.version, 2592000000); // 30 Days
-                return result.data;
-            }
-            return (result as any)?.data || cached?.data || null;
-        },
-        initialData: () => {
-             if (typeof window === "undefined") return undefined;
-             const cached = chatCache.get<any>("admin_dashboard_enrollments");
-             if (cached) {
-                 return cached.data;
-             }
-             return undefined;
-        },
-        staleTime: 1800000,
-        refetchInterval: 1800000,
-        refetchOnWindowFocus: true,
-    });
-
-    // 3. Recent Courses Query
-    const { data: coursesData, isLoading: coursesLoading } = useQuery({
-        queryKey: ["admin_dashboard_recent_courses"],
-        queryFn: async () => {
-            const cached = chatCache.get<any>("admin_dashboard_recent_courses");
-            const clientVersion = cached?.version;
-
-            if (!cached) {
-                console.log(`[${getTime()}] [RecentCourses] Cache MISS. Fetching...`);
-            }
-
-            const result = await adminGetRecentCoursesAction(clientVersion);
-
-            if ((result as any).status === "not-modified" && cached) {
-                return cached.data || null;
-            }
-
-            if (result && !(result as any).status && (result as any).data) {
-                console.log(`[${getTime()}] [RecentCourses] Result: NEW_DATA. Updating cache.`);
-                chatCache.set("admin_dashboard_recent_courses", result.data, undefined, result.version, 2592000000); // 30 Days
-                return result.data;
-            }
-            return (result as any)?.data || cached?.data || null;
-        },
-        initialData: () => {
-             if (typeof window === "undefined") return undefined;
-             const cached = chatCache.get<any>("admin_dashboard_recent_courses");
-             if (cached) {
-                 return cached.data;
-             }
-             return undefined;
-        },
-        staleTime: 1800000,
-        refetchInterval: 1800000,
-        refetchOnWindowFocus: true,
-    });
+    const statsData = dashboardData?.stats;
+    const enrollmentsData = dashboardData?.enrollments;
+    const coursesData = dashboardData?.recentCourses;
 
     // Hydration guard: ensures server and client render the same skeletons initially
     if (!mounted) {
@@ -177,7 +94,7 @@ export function AdminDashboardClient() {
 
     return (
         <div className="lg:py-5 md:py-6">
-            {(statsLoading && !statsData) ? (
+            {(isLoading && !statsData) ? (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 ">
                     {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
                 </div>
@@ -186,7 +103,7 @@ export function AdminDashboardClient() {
             )}
 
             <div className="px-4 lg:px-6 py-6">
-                {(enrollmentsLoading && !enrollmentsData) ? (
+                {(isLoading && !enrollmentsData) ? (
                     <Skeleton className="h-[400px] w-full rounded-xl mb-6" />
                 ) : (
                     <ChartAreaInteractive data={enrollmentsData || []} />
@@ -203,7 +120,7 @@ export function AdminDashboardClient() {
                         </Link>
                     </div>
 
-                    {(coursesLoading && !coursesData) ? (
+                    {(isLoading && !coursesData) ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                            {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video w-full rounded-xl" />)}
                         </div>

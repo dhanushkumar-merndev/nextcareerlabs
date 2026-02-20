@@ -109,13 +109,15 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
         invalidateAdminsCache()
     ];
 

@@ -23,4 +23,5 @@ export interface UserDropdownProps {
   name: string;
   email: string;
   image: string;
+  role?: string;
 }

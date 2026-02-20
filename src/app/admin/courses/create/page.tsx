@@ -83,7 +83,7 @@ export default function CourseCreationPage() {
         chatCache.invalidate("admin_dashboard_enrollments");
         chatCache.invalidate("admin_dashboard_recent_courses");
         chatCache.invalidate("admin_analytics");
-
+        chatCache.invalidate("admin_dashboard_all")
         queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
@@ -91,6 +91,7 @@ export default function CourseCreationPage() {
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_enrollments"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
         queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
         triggerConfetti();
         form.reset();
         router.push("/admin/courses");

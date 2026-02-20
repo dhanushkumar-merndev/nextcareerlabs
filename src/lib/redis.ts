@@ -72,6 +72,8 @@ export const GLOBAL_CACHE_KEYS = {
   USER_ENROLLMENTS: (userId: string) => `user:enrollments:${userId}`,
   USER_VERSION: (userId: string) => `user:version:${userId}`,
   ADMIN_TASK_STATUS: "global:admin:task_status",
+  ADMIN_DASHBOARD_ALL: "global:admin:dashboard:all",
+  ADMIN_DASHBOARD_VERSION: "global:version:admin:dashboard:all",
   AUTH_SESSION_VERSION: "global:version:auth_session",
 };
 

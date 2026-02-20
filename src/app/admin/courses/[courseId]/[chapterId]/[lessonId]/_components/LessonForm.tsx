@@ -225,15 +225,17 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                   </FormItem>
                 )}
               />
-              <TranscriptionWorkflow 
-                lessonId={data.id}
-                lessonTitle={data.title}
-                videoUrl={watchedVideoKey ? `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${watchedVideoKey}` : undefined}
-                videoKey={watchedVideoKey ?? undefined}
-                onComplete={() => router.refresh()}
-                onTranscriptionUpload={(url) => setCaptionUrl(url)}
-                onCaptionDelete={() => setCaptionUrl(null)}
-              />
+              {watchedVideoKey && (
+                <TranscriptionWorkflow 
+                  lessonId={data.id}
+                  lessonTitle={data.title}
+                  videoUrl={`https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${watchedVideoKey}`}
+                  videoKey={watchedVideoKey}
+                  onComplete={() => router.refresh()}
+                  onTranscriptionUpload={(url) => setCaptionUrl(url)}
+                  onCaptionDelete={() => setCaptionUrl(null)}
+                />
+              )}
               <Button
                 type="submit"
                 disabled={isPending}

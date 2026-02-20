@@ -13,6 +13,7 @@ import { BookTextIcon } from "@/components/ui/book-text";
 import { LayersIcon } from "@/components/ui/layers";
 import { ChartColumnIncreasingIcon } from "@/components/ui/chart-column-increasing";
 import { UsersIcon } from "@/components/ui/users";
+import HeroButtons from "./_components/HeroButtons";
 
 const features = [
   {
@@ -56,24 +57,7 @@ export default function Home() {
             Discover a new way to learn with our modern, interactive platform.
           </p>
 
-          <div className="flex flex-col gap-4 justify-center max-w-40 mx-auto pt-4 md:flex-row sm:justify-center">
-            <Link
-              href="/courses"
-              className={buttonVariants({ size: "lg" })}
-            >
-              Explore Courses
-            </Link>
-
-            <Link
-              href="/dashboard"
-              className={buttonVariants({
-                size: "lg",
-                variant: "outline",
-              })}
-            >
-              Go to Dashboard
-            </Link>
-          </div>
+          <HeroButtons />
         </div>
       </main>
 

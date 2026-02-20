@@ -4,7 +4,7 @@ import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
-import { getCache, setCache, invalidateCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
 
 export async function getAdminAnalytics(startDate?: Date, endDate?: Date, clientVersion?: string) {
     await requireAdmin();
@@ -15,11 +15,10 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
 
     let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
 
-    if (currentVersion === "0") {
-      console.log(`[getAdminAnalytics] Version key missing. Initializing...`);
-      await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
-      currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
-    }
+    if (!currentVersion || currentVersion === "null") {
+        await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+        currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+        }
 
 
   if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
@@ -100,21 +99,31 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
         const diffTime = end.getTime() - start.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
+        // Helper to get local YYYY-MM-DD key
+        const getLocalDateKey = (date: Date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const dateCountMap: Record<string, number> = {};
+
+        joinedUsersInRange.forEach((u) => {
+            const key = getLocalDateKey(new Date(u.createdAt));
+            dateCountMap[key] = (dateCountMap[key] || 0) + 1;
+        });
+
         const chartData = Array.from({ length: diffDays + 1 }, (_, i) => {
             const d = new Date(start);
             d.setDate(d.getDate() + i);
 
-            const count = joinedUsersInRange.filter((u) => {
-                const userDate = new Date(u.createdAt);
-                return userDate.getDate() === d.getDate() &&
-                    userDate.getMonth() === d.getMonth() &&
-                    userDate.getFullYear() === d.getFullYear();
-            }).length;
+            const key = getLocalDateKey(d);
 
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return { name: `${year}-${month}-${day}`, value: count };
+            return {
+                name: key,
+                value: dateCountMap[key] || 0
+            };
         });
 
         // 2. Enrollment Status Chart
@@ -172,76 +181,65 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
  * Isolate CPU-intensive Average Progress calculation with 24h caching
  */
 async function getAverageProgressCached() {
-    const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS;
-    const cached = await getCache<{ value: number; lastUpdated: string }>(cacheKey);
+  const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS;
 
-    if (cached) {
-        return cached;
-    }
+  // 1️⃣ Check cache first
+  const cached = await getCache<{ value: number; lastUpdated: string }>(cacheKey);
+  if (cached) {
+    return cached;
+  }
 
-    console.log("[getAverageProgressCached] Cache MISS. Computing heavy metrics (24h isolation)...");
+  const startTime = Date.now();
 
-    try {
-        // --- Optimized Average Progress Calculation (Set-Based) ---
-        // We use relation filters to avoid fetching massive ID arrays into memory
-        
-        const startTime = Date.now();
-        // 1. Total Completed Lessons for users with Granted enrollments
-        const totalCompleted = await prisma.lessonProgress.count({
-            where: {
-                completed: true,
-                User: {
-                    enrollment: {
-                        some: { status: "Granted" }
-                    }
-                }
+  try {
+    // 2️⃣ Run all counts in parallel (faster)
+    const [totalCompleted, totalGrantedEnrollments, totalLessons] =
+      await Promise.all([
+        prisma.lessonProgress.count({
+          where: {
+            completed: true,
+            User: {
+              enrollment: {
+                some: { status: "Granted" }
+              }
             }
-        });
+          }
+        }),
+        prisma.enrollment.count({
+          where: { status: "Granted" }
+        }),
+        prisma.lesson.count()
+      ]);
 
-        // 2. Total Potential Lessons (Sum of lessons across all granted enrollments)
-        // Optimized: Instead of manual JS sum, we fetch course lesson counts and enrollment counts
-        const coursesWithStats = await prisma.course.findMany({
-            select: {
-                _count: {
-                    select: {
-                        enrollment: { where: { status: "Granted" } }
-                    }
-                },
-                chapter: {
-                    select: {
-                        _count: { select: { lesson: true } }
-                    }
-                }
-            }
-        });
-        const duration = Date.now() - startTime;
-        console.log(`[getAverageProgressCached] Heavy computation took ${duration}ms`);
-        
+    const totalPotential = totalLessons * totalGrantedEnrollments;
 
-        let totalPotential = 0;
-        coursesWithStats.forEach(course => {
-            const lessonsInCourse = course.chapter.reduce((sum, chap) => sum + chap._count.lesson, 0);
-            const grantedEnrollments = course._count.enrollment;
-            totalPotential += (lessonsInCourse * grantedEnrollments);
-        });
+    const averageProgress =
+      totalPotential > 0
+        ? Math.round((totalCompleted / totalPotential) * 100)
+        : 0;
 
-        const averageProgress = totalPotential > 0
-            ? Math.round((totalCompleted / totalPotential) * 100)
-            : 0;
+    const result = {
+      value: averageProgress,
+      lastUpdated: new Date().toISOString()
+    };
 
-        const result = {
-            value: averageProgress,
-            lastUpdated: new Date().toISOString()
-        };
+    // 3️⃣ Cache for 24 hours (86400 seconds)
+    await setCache(cacheKey, result, 86400);
 
-        // Cache for 24 hours (86400 seconds)
-        await setCache(cacheKey, result, 86400);
+    console.log(
+      `[AverageProgress OPTIMIZED] Computed + Cached in ${
+        Date.now() - startTime
+      }ms`
+    );
 
-        return result;
-    } catch (error) {
-        console.error("[getAverageProgressCached Error]", error);
-        return { value: 0, lastUpdated: new Date().toISOString() };
-    }
+    return result;
+  } catch (error) {
+    console.error("[getAverageProgressCached Error]", error);
+    return {
+      value: 0,
+      lastUpdated: new Date().toISOString()
+    };
+  }
 }
 
 import { getUserDashboardData } from "@/app/dashboard/actions";

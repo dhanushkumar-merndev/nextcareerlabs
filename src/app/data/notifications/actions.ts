@@ -571,59 +571,48 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
     console.log(`[getThreadMessagesAction] Redis Cache MISS for thread ${threadId}. Fetching from Prisma DB...`);
   }
 
-  let referenceDate = before ? new Date(before) : new Date();
-
-  // If initial load (no cursor), find the latest message to start the window from there
-  if (!before) {
-    const dbFetchStart = Date.now();
-    const latest = await prisma.notification.findFirst({
-        where: { threadId },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true }
-    });
-    console.log(`[getThreadMessagesAction] Latest Msg Fetch took ${Date.now() - dbFetchStart}ms`);
-    
-    if (latest) {
-        // Set reference date to slightly after the latest message to ensure it's included
-        referenceDate = new Date(latest.createdAt.getTime() + 1000);
-    }
-  }
-
-  const sevenDaysAgo = new Date(referenceDate);
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // Optimization: If initial load, we don't need a separate "latest" fetch anymore.
+  // We'll fetch the window and the oldest date in parallel.
+  const referenceDate = before ? new Date(before) : new Date();
+  const searchWindow = 7 * 24 * 60 * 60 * 1000; // 7 Days
+  const windowEnd = new Date(referenceDate.getTime() - searchWindow);
 
   const mainDbStart = Date.now();
   const [messages, state, oldestEver] = await Promise.all([
     prisma.notification.findMany({
       where: { 
-          threadId,
+          threadId: threadId as string,
           createdAt: {
               lt: referenceDate,
-              gte: sevenDaysAgo
+              // If it's an initial load, we don't strictly enforce a 7-day floor 
+              // UNLESS we want to keep the "one-week segment" logic.
+              // To ensure we get data even if it's old, we'll take the top 50
+              // but still use the window as a hint if preferred.
           }
       },
       include: {
         sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true } }
       },
-      orderBy: { createdAt: "desc" }
+      orderBy: { createdAt: "desc" },
+      take: 50 // Performance safety: limit to 50 messages per segment
     }),
     prisma.userThreadState.findUnique({
       where: {
         userId_threadId: {
           userId: session.user.id,
-          threadId
+          threadId: threadId as string
         }
       }
     }),
     prisma.notification.findFirst({
-        where: { threadId },
+        where: { threadId: threadId as string },
         orderBy: { createdAt: "asc" },
         select: { createdAt: true }
     })
   ]);
   console.log(`[getThreadMessagesAction] DB Fetch (Msgs + State + Oldest) took ${Date.now() - mainDbStart}ms (Count: ${messages.length})`);
 
-  const nextCursor = (oldestEver && oldestEver.createdAt < sevenDaysAgo) ? sevenDaysAgo.toISOString() : null;
+  const nextCursor = (oldestEver && oldestEver.createdAt < windowEnd) ? windowEnd.toISOString() : null;
   const dbDuration = Date.now() - mainDbStart;
   console.log(`[getThreadMessagesAction] DB Operations total took ${dbDuration}ms.`);
 

@@ -3,6 +3,7 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
+import { clearOtherSessionsOnce } from "@/lib/session-cleanup";
 
 const SESSION_CACHE_TTL = 21600; // 6 hours in seconds
 
@@ -26,18 +27,21 @@ export async function getAuthSessionAction(clientVersion?: string) {
 
     // 3. Fetch Fresh Session
     const headersList = await headers();
-    const cookieHeader = headersList.get("cookie");
-    console.log(`[AuthAction] Fetching session. Cookie present: ${!!cookieHeader}`);
+    const cookieHeader = headersList.get("cookie") || "";
+    const hasSessionCookie = cookieHeader.includes("better-auth.session_token") || cookieHeader.includes("next-auth.session-token");
+    console.log(`[AuthAction] Fetching session. Session Cookie present: ${hasSessionCookie}`);
 
     const session = await auth.api.getSession({
         headers: headersList,
     });
 
-    if (!session) {
-        return { data: null, version: currentVersion };
+    // 4. Cleanup side-effect (Non-blocking)
+    if (session) {
+        clearOtherSessionsOnce(session.user.id, session.session.id)
+            .catch(e => console.error("[AuthAction] Cleanup failed:", e));
     }
 
-    // 4. Return Data and Server Version
+    // 5. Return Data and Server Version
     return {
         data: session,
         version: currentVersion

@@ -13,13 +13,14 @@ export async function clearOtherSessionsOnce(
   const alreadyDone = await redis?.get(key);
   if (alreadyDone) return;
 
-  await prisma.session.deleteMany({
+  // mark cleanup as done for THIS session
+  await redis?.set(key, "1", "EX", 86400); // 24h
+
+  // RUN DELETION FLOATING (Don't await it to speed up middleware)
+  prisma.session.deleteMany({
     where: {
       userId,
       id: { not: sessionId },
     },
-  });
-
-  // mark cleanup as done for THIS session
-  await redis?.set(key, "1", "EX", 86400); // 24h
+  }).catch(e => console.error("[SessionCleanup] Deletion failed:", e));
 }

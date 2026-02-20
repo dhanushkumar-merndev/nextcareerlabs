@@ -57,47 +57,25 @@ if (path === "/api/auth/error") {
     return NextResponse.next();
   }
 
-  // 3. Determine if we NEED a session check in middleware
+  // 3. Simple Cookie Check for Protected Routes (Lightweight Middleware)
   const isProtectedRoute = path.startsWith("/dashboard") || path.startsWith("/admin");
-  const isSpecialRoute = path === "/api/auth/error" || path === "/banned";
   
-  // 🔥 SMART SYNC optimization: Skip DB lookup for public pages (Homepage, Courses, etc.)
-  // The client-side useSmartSession will handle the UI state without blocking the server response here.
-  if (!isProtectedRoute && !isSpecialRoute) {
-    return NextResponse.next();
-  }
+  if (isProtectedRoute) {
+    const cookieHeader = request.headers.get("cookie") || "";
+    const hasSessionCookie = 
+      cookieHeader.includes("better-auth.session_token") || 
+      cookieHeader.includes("next-auth.session-token");
 
-  // 4. Perform session lookup ONLY for protected/special routes
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  }) as AuthSession | null;
-
-  if (session?.user.banned && path !== "/banned") {
-    return NextResponse.redirect(new URL("/banned", request.url));
-  }
-
-  if (session) {
-    try {
-      await clearOtherSessionsOnce(session.user.id, session.session.id);
-    } catch (e) {
-      console.error("Session cleanup failed:", e);
+    // Fast-path redirect if clearly not logged in
+    if (!hasSessionCookie) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", path);
+      return NextResponse.redirect(loginUrl);
     }
   }
 
-  // 5. Protected route enforcement
-  if (path.startsWith("/dashboard") && !session) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
-
-  if (path.startsWith("/admin")) {
-    if (!session) {
-      return NextResponse.redirect(new URL("/login", request.url));
-    }
-    if (session.user.role !== "admin") {
-      return NextResponse.redirect(new URL("/not-admin", request.url));
-    }
-  }
-
+  // NOTE: Full session validation (Banned check, Role check) 
+  // now happens inside Server Actions via `requireAdmin()` or `requireUser()`.
   return NextResponse.next();
 }
 

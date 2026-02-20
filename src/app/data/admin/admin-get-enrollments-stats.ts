@@ -39,51 +39,38 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   startDate.setDate(today.getDate() - 29); // include today
 
   const startTime = Date.now();
-  // Fetch all enrollments within last 30 days
-  const enrollments = await prisma.enrollment.findMany({
-    where: {
-      createdAt: {
-        gte: startDate,
-      },
-    },
-    select: {
-      createdAt: true,
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-  });
+  // Fetch counts grouped by date (YYYY-MM-DD format in DB or transform here)
+  // For PostgreSQL, we can use a raw query or groupBy if we have a date-only field.
+  // Since createdAt is DateTime, we'll use findMany with select but only get count if possible, 
+  // or a more optimized approach.
+  
+  // High performance: Aggregate in DB
+  const rawEnrollments = await prisma.$queryRaw`
+    SELECT DATE_TRUNC('day', "createdAt") as date, count(*)::int as count
+    FROM "Enrollment"
+    WHERE "createdAt" >= ${startDate}
+    GROUP BY DATE_TRUNC('day', "createdAt")
+    ORDER BY date ASC
+  `;
   const duration = Date.now() - startTime;
-  console.log(`[adminGetEnrollmentsStats] DB Fetch took ${duration}ms (Rows: ${enrollments.length}).`);
+  console.log(`[adminGetEnrollmentsStats] DB Aggregation took ${duration}ms.`);
+
+  const statsMap = new Map((rawEnrollments as any[]).map(e => [
+      new Date(e.date).toLocaleDateString("en-CA"), 
+      e.count
+  ]));
 
   // Build fixed 30-day data structure
-  const last30Days: { date: string; enrollments: number }[] = [];
-  const counts: Record<string, number> = {};
-
+  const finalData = [];
   for (let i = 29; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
-
-    // timezone-safe yyyy-mm-dd
     const key = d.toLocaleDateString("en-CA");
-
-    last30Days.push({ date: key, enrollments: 0 });
-    counts[key] = 0;
+    finalData.push({ 
+        date: key, 
+        enrollments: statsMap.get(key) || 0 
+    });
   }
-
-  // Count enrollments per day
-  for (const en of enrollments) {
-    const key = en.createdAt.toLocaleDateString("en-CA");
-    if (counts[key] !== undefined) {
-      counts[key]++;
-    }
-  }
-
-  // Merge final values
-  const finalData = last30Days.map((item) => ({
-    date: item.date,
-    enrollments: counts[item.date] ?? 0,
-  }));
 
   // Cache for 30 days (effective forever)
   await setCache(cacheKey, finalData, 2592000);

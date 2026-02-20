@@ -134,7 +134,7 @@ export function AnalyticsClient() {
           title="Success Rate"
           value={`${data.averageProgress}%`}
           icon="play"
-          description="Average lesson completion rate (24h Sync)"
+          description="Average lesson completion rate"
           lastUpdated={data.averageProgressLastUpdated}
         />
         <AnalyticsCard

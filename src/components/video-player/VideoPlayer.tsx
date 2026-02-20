@@ -846,8 +846,10 @@ export function VideoPlayer({
     <div 
       ref={containerRef}
       className={cn(
-        "relative group w-full h-full bg-black shadow-2xl overflow-hidden",
-        isFullscreen ? "fixed inset-0 z-9999 rounded-none" : "md:rounded-lg md:border md:border-white/10 rounded-none border-none",
+        "relative group w-full h-full bg-black shadow-2xl overflow-hidden touch-manipulation select-none",
+        isFullscreen
+          ? "fixed inset-0 z-9999 rounded-none"
+          : "md:rounded-lg md:border md:border-white/10 rounded-none border-none",
         className
       )}
       onMouseMove={handleMouseMove}
@@ -864,7 +866,10 @@ export function VideoPlayer({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onClick={handleContainerClick}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("[data-seekbar]")) return;
+        handleContainerClick(e);
+      }}
     >
       <style dangerouslySetInnerHTML={{ __html: `
         .video-js .vjs-tech {
@@ -1077,7 +1082,6 @@ export function VideoPlayer({
         >
           <div 
             className="relative group/seekbar touch-none cursor-pointer"
-            style={{ padding: "10px 0", margin: "-10px 0" }}
             onMouseMove={(e) => {
               e.stopPropagation();
               handleSeekbarMouseMove(e);
@@ -1177,14 +1181,38 @@ export function VideoPlayer({
                   </div>
                 );
             })()}
-            
-            <Slider
-              value={[currentTime]}
-              max={duration || 100}
-              step={0.01}
-              onValueChange={handleSeek}
-              className="cursor-pointer h-1.5 flex items-center "
-            />
+<div
+  data-seekbar
+  className="relative group/seekbar touch-none cursor-pointer py-6 -my-6"
+  ref={seekbarRef}
+  onMouseMove={(e) => {
+    e.stopPropagation();
+    handleSeekbarMouseMove(e);
+  }}
+  onMouseLeave={(e) => {
+    e.stopPropagation();
+    setHoverPosition(null);
+  }}
+  onPointerDown={(e) => {
+    e.stopPropagation();
+    const pos = calculatePosition(e.clientX);
+    if (pos) {
+      const spritePos = spriteMetadata ? getSpritePosition(pos.time) : null;
+      const snapTime = spritePos?.startTime ?? pos.time;
+      handleSeek([snapTime]);
+    }
+  }}
+  onTouchMove={handleSeekbarTouchMove}
+  onTouchEnd={handleSeekbarTouchEnd}
+>
+  <Slider
+    value={[currentTime]}
+    max={duration || 100}
+    step={0.01}
+    onValueChange={handleSeek}
+    className="cursor-pointer h-1.5"
+  />
+</div>
           </div>
 
           <div className="flex items-center justify-between mt-1 sm:mt-2">

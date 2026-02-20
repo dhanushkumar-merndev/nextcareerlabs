@@ -29,7 +29,7 @@ export function TranscriptionWorkflow({
   onTranscriptionUpload,
   onCaptionDelete,
 }: TranscriptionWorkflowProps) {
-  if (!videoKey) return null;
+
 
   const [status, setStatus] = useState<"idle" | "uploading" | "complete" | "error" | "saved">("idle");
   const [vttContent, setVttContent] = useState<string | null>(null);

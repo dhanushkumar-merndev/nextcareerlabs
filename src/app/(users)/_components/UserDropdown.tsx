@@ -9,7 +9,7 @@ import { useSignOut } from "@/hooks/use-signout";
 import { UserDropdownProps } from "@/lib/types/homePage";
 
 // User Dropdown Component
-export function UserDropdown({ email, name, image }: UserDropdownProps) {
+export function UserDropdown({ email, name, image, role }: UserDropdownProps) {
   const handleSignOut = useSignOut();
   return (
     <DropdownMenu>
@@ -53,7 +53,7 @@ export function UserDropdown({ email, name, image }: UserDropdownProps) {
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link href="/dashboard">
+            <Link href={role === "admin" ? "/admin" : "/dashboard"}>
               <LayoutDashboard
                 size={16}
                 className="opacity-60"

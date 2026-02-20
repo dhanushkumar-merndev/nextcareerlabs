@@ -46,7 +46,7 @@ import {
   updateUserDetailsAction,
   deleteEnrollmentAction
 } from "../actions";
-import { useState, useTransition, useCallback, useEffect } from "react";
+import { useState, useTransition, useCallback, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
@@ -121,6 +121,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
   const [editingUser, setEditingUser] = useState<Request["User"] | null>(null);
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const isInitialized = useRef(false);
 
   const handleStatusUpdate = (id: string, status: "Granted" | "Revoked" | "Pending") => {
     startTransition(async () => {
@@ -249,6 +250,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
         });
     };
 
+
     // 1. Initial Load from LocalStorage (if not searching)
     if (debouncedSearch === "") {
         const cached = localStorage.getItem(STORAGE_KEY);
@@ -256,22 +258,30 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
         const lastSync = localStorage.getItem(SYNC_TIMESTAMP_KEY);
 
         if (cached && cachedVersion) {
-            const parsed = JSON.parse(cached);
-            setData(parsed.data);
-            setTotalCount(parsed.totalCount);
-            setVersion(cachedVersion);
-            setHasHydrated(true);
-            console.log(`[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`);
+            if (!hasHydrated) {
+                const parsed = JSON.parse(cached);
+                setData(parsed.data);
+                setTotalCount(parsed.totalCount);
+                setVersion(cachedVersion);
+                setHasHydrated(true);
+                console.log(`[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`);
+            }
 
             // 2. Determine if background revalidation is needed
             const now = Date.now();
             if (!lastSync || (now - parseInt(lastSync)) > SYNC_WINDOW) {
-                console.log(`[RequestsTable] Revalidation Window Open (>30m). Syncing...`);
-                syncWithServer(cachedVersion);
+                if (!isInitialized.current) {
+                    console.log(`[RequestsTable] Revalidation Window Open (>30m). Syncing...`);
+                    isInitialized.current = true;
+                    syncWithServer(cachedVersion);
+                }
             }
         } else {
-            console.log(`[RequestsTable] No Local Cache. Triggering Initial Sync...`);
-            syncWithServer(null);
+            if (!hasHydrated && !isInitialized.current) {
+                 console.log(`[RequestsTable] No Local Cache. Triggering Initial Sync...`);
+                 isInitialized.current = true;
+                 syncWithServer(null);
+            }
         }
     }
 
