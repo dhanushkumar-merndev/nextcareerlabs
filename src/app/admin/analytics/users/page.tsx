@@ -14,8 +14,6 @@ export const dynamic = 'force-dynamic';
 export default async function AdminUsersPage(props: PageProps) {
     const searchParams = await props.searchParams;
     const search = searchParams.search || "";
-    // Fetch initial data (page 1, limit 100, default role 'user')
-    const { users, hasNextPage, totalUsers } = await getAllUsers(search, 1, 100, "user");
 
     return (
         <div className="flex flex-col gap-6 p-6">
@@ -26,12 +24,7 @@ export default async function AdminUsersPage(props: PageProps) {
                 </p>
             </div>
 
-            <UserList
-                initialUsers={users}
-                initialHasNextPage={hasNextPage}
-                initialTotalUsers={totalUsers}
-                search={search}
-            />
+            <UserList search={search} />
         </div>
     );
 }

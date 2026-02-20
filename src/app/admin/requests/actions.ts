@@ -26,45 +26,39 @@ export async function updateEnrollmentStatusAction(
 
   try {
     const updateStartTime = Date.now();
-    await prisma.enrollment.update({
+    const enrollment = await prisma.enrollment.update({
       where: { id: enrollmentId },
       data: { 
         status,
         grantedAt: status === "Granted" ? new Date() : undefined,
       },
+      select: { 
+        userId: true,
+        courseId: true
+      }
     });
 
-    const enrollment = await prisma.enrollment.findUnique({
-      where: { id: enrollmentId },
-      select: { userId: true }
-    });
     const updateDuration = Date.now() - updateStartTime;
     console.log(`[updateEnrollmentStatusAction] DB Update + Fetch took ${updateDuration}ms`);
+    
     if (enrollment) {
-      await invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId));
-      
-      // Invalidate group participants cache if this enrollment is for a course
+      // Find course group for participants invalidation
       const courseGroup = await prisma.chatGroup.findFirst({
-          where: { courseId: (await prisma.enrollment.findUnique({ where: { id: enrollmentId }, select: { courseId: true }}))?.courseId },
+          where: { courseId: enrollment.courseId },
           select: { id: true }
       });
-      if (courseGroup) {
-          await invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id));
-      }
 
-      // Invalidate analytics
+      // Collective invalidation
       await Promise.all([
+          invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId)),
+          courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
           invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
           invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(enrollment.userId)),
+          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId))
-      ]);
-
-      // Smart Sync Invalidation for enrollment list and dashboard stats
-      await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
       ]);
     }
 
@@ -154,6 +148,12 @@ export async function updateUserDetailsAction(
       data,
     });
     console.log(`[updateUserDetailsAction] DB Update took ${Date.now() - startTime}ms`);
+    
+    // Invalidate enrollment list since user details changed
+    await Promise.all([
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION)
+    ]);
 
     revalidatePath("/admin/requests");
     return {

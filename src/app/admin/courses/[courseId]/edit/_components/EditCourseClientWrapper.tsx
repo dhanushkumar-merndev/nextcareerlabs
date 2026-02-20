@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -25,6 +25,12 @@ export function EditCourseClientWrapper({
 }: EditCourseClientWrapperProps) {
   const [basicDirty, setBasicDirty] = useState(false);
   const [structureDirty, setStructureDirty] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const currentTab = searchParams.get("tab") || "basic-info";
@@ -52,44 +58,53 @@ export function EditCourseClientWrapper({
         </span>
       </h1>
 
-      <Tabs 
-        value={currentTab} 
-        onValueChange={handleTabChange} 
-        className="w-full"
-      >
-        <TabsList className="grid grid-cols-2 w-full ">
-          <TabsTrigger value="basic-info">Basic Information</TabsTrigger>
-          <TabsTrigger value="course-structure">Course Structure</TabsTrigger>
-        </TabsList>
+      {!mounted ? (
+        <div className="w-full h-[400px] flex items-center justify-center border-2 border-dashed rounded-lg animate-pulse bg-muted/20">
+           <div className="flex flex-col items-center gap-2">
+             <div className="h-4 w-32 bg-muted rounded"></div>
+             <div className="h-3 w-48 bg-muted rounded"></div>
+           </div>
+        </div>
+      ) : (
+        <Tabs 
+          value={currentTab} 
+          onValueChange={handleTabChange} 
+          className="w-full"
+        >
+          <TabsList className="grid grid-cols-2 w-full ">
+            <TabsTrigger value="basic-info">Basic Information</TabsTrigger>
+            <TabsTrigger value="course-structure">Course Structure</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="basic-info">
-          <Card>
-            <CardHeader>
-              <CardTitle>Basic Information</CardTitle>
-              <CardDescription>
-                Provide basic information about the course.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EditCourseForm data={data} setDirty={setBasicDirty} />
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <TabsContent value="basic-info">
+            <Card>
+              <CardHeader>
+                <CardTitle>Basic Information</CardTitle>
+                <CardDescription>
+                  Provide basic information about the course.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <EditCourseForm data={data} setDirty={setBasicDirty} />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="course-structure">
-          <Card>
-            <CardHeader>
-              <CardTitle>Course Structure</CardTitle>
-              <CardDescription>
-                Here you can update your course structure.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-1 md:p-4">
-              <CourseStructure data={data} setDirty={setStructureDirty} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          <TabsContent value="course-structure">
+            <Card>
+              <CardHeader>
+                <CardTitle>Course Structure</CardTitle>
+                <CardDescription>
+                  Here you can update your course structure.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-1 md:p-4">
+                <CourseStructure data={data} setDirty={setStructureDirty} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }

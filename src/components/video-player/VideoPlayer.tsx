@@ -15,7 +15,9 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Captions
+  Captions,
+  RotateCcw,
+  RotateCw
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -489,7 +491,7 @@ export function VideoPlayer({
     const isDoubleTap = now - lastTapTimeRef.current < 300;
     lastTapTimeRef.current = now;
 
-    if (isDoubleTap && window.innerWidth < 768) {
+    if (isDoubleTap) {
       if (!containerRef.current || !playerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
@@ -866,10 +868,6 @@ export function VideoPlayer({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onClick={(e) => {
-        if ((e.target as HTMLElement).closest("[data-seekbar]")) return;
-        handleContainerClick(e);
-      }}
     >
       <style dangerouslySetInnerHTML={{ __html: `
         .video-js .vjs-tech {
@@ -902,7 +900,16 @@ export function VideoPlayer({
         ` : ''}
       `}} />
 
-      <div data-vjs-player ref={videoRef} className="absolute inset-0 w-full h-full bg-black" />
+      <div data-vjs-player ref={videoRef} className="absolute inset-0 w-full h-full bg-black z-0" />
+
+      {/* Playback Toggle Layer (z-5)
+          Captures background clicks for play/pause and mobile double-tap to seek.
+          Positioned above video but below controls/animations. */}
+      <div 
+        className="absolute inset-0 z-5 cursor-pointer" 
+        onClick={handleContainerClick}
+        aria-hidden="true"
+      />
 
     <style
   dangerouslySetInnerHTML={{
@@ -1071,13 +1078,12 @@ export function VideoPlayer({
 
       <div 
         className={cn(
-          "absolute inset-0 z-10 flex flex-col justify-end transition-opacity duration-300 bg-linear-to-t from-black/90 via-transparent to-transparent",
-          showControls && !error ? "opacity-100" : "opacity-0 pointer-events-none"
+          "absolute inset-0 z-10 flex flex-col justify-end transition-opacity duration-300 bg-linear-to-t from-black/90 via-transparent to-transparent pointer-events-none",
+          showControls && !error ? "opacity-100" : "opacity-0"
         )}
       >
         <div 
-          className="space-y-2 sm:space-y-3 pb-3 sm:pb-4 px-2 sm:px-4"
-          onClick={(e) => e.stopPropagation()}
+          className="space-y-2 sm:space-y-3 pb-3 sm:pb-4 px-2 sm:px-4 pointer-events-auto"
           onMouseLeave={() => setHoverPosition(null)}
         >
           <div 
@@ -1304,8 +1310,32 @@ export function VideoPlayer({
         </div>
       </div>
 
-      {(!isPlaying && !isBuffering && !seekAnimation && !volumeAnimation.visible) && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none group/playbtn">
+      {(showControls && !isBuffering && !seekAnimation && !volumeAnimation.visible) && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-8 sm:gap-26">
+          {/* Backward 10s */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!playerRef.current) return;
+              const newTime = Math.max(0, playerRef.current.currentTime() - 10);
+              playerRef.current.currentTime(newTime);
+              triggerSeekAnimation("backward", 10);
+            }}
+            className="
+              flex flex-col items-center gap-1
+              text-primary/70  duration-100 hover:scale-105
+              pointer-events-auto cursor-pointer
+              animate-in fade-in slide-in-from-right-4
+            "
+          >
+            <div className="relative">
+              <RotateCcw className="size-8 sm:size-10" />
+              <span className="absolute inset-0 flex items-center justify-center text-primary text-[10px] font-bold ">10</span>
+            </div>
+          </button>
+
+          {/* Centered Play/Pause */}
           <div 
             onClick={togglePlay}
             className="
@@ -1321,10 +1351,38 @@ export function VideoPlayer({
               hover:scale-110 hover:bg-primary/20 hover:border-primary
               pointer-events-auto
               cursor-pointer
+              animate-in fade-in zoom-in
             "
           >
-            <Play className="w-6 h-6 sm:w-8 sm:h-8 fill-white ml-0.5" />
+            {isPlaying ? (
+              <Pause className="w-6 h-6 sm:w-8 sm:h-8 fill-white" />
+            ) : (
+              <Play className="w-6 h-6 sm:w-8 sm:h-8 fill-white ml-0.5" />
+            )}
           </div>
+
+          {/* Forward 10s */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!playerRef.current) return;
+              const newTime = Math.min(playerRef.current.duration(), playerRef.current.currentTime() + 10);
+              playerRef.current.currentTime(newTime);
+              triggerSeekAnimation("forward", 10);
+            }}
+            className="
+              flex flex-col items-center gap-1
+              text-primary/70  duration-100 hover:scale-105
+              pointer-events-auto cursor-pointer
+              animate-in fade-in slide-in-from-left-4
+            "
+          >
+            <div className="relative">
+              <RotateCw className="size-8 sm:size-10" />
+              <span className="absolute inset-0 flex items-center justify-center text-primary text-[10px] font-bold ">10</span>
+            </div>
+          </button>
         </div>
       )}
     </div>

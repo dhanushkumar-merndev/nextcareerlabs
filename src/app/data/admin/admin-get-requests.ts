@@ -87,6 +87,7 @@ export async function adminGetEnrollmentRequests(
         User: { select: { id: true, name: true, email: true, phoneNumber: true, image: true, createdAt: true, banned: true } },
       },
       orderBy: { createdAt: "desc" },
+      take: take,
     });
 
     enrollments = [...pending];

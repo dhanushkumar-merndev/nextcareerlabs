@@ -39,7 +39,7 @@ export async function uploadTranscriptionToS3(
   await s3Client.send(command);
 
   // Construct public URL for Tigris Data (using the same format as Uploader.tsx)
-  const url = key; // Store the key, we'll sign it on access
+  const url = `https://${env.S3_BUCKET_NAME}.t3.storage.dev/${key}`;
 
   return { key, url };
 }

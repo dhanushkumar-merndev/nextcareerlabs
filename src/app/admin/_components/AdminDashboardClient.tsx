@@ -12,8 +12,11 @@ import { EmptyState } from "@/components/general/EmptyState";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { chatCache } from "@/lib/chat-cache";
+import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function AdminDashboardClient() {
     const [mounted, setMounted] = useState(false);
@@ -40,7 +43,7 @@ export function AdminDashboardClient() {
     const getTime = () => new Date().toLocaleTimeString();
 
     // Consolidated Data Query
-    const { data: dashboardData, isLoading } = useQuery({
+    const { data: dashboardData, isLoading, refetch } = useQuery({
         queryKey: ["admin_dashboard_all"],
         queryFn: async () => {
             const cached = chatCache.get<any>("admin_dashboard_all");
@@ -52,6 +55,11 @@ export function AdminDashboardClient() {
             if (!cached) console.log(`[${getTime()}] [Dashboard] Cache MISS. Fetching all...`);
 
             const result = await adminGetDashboardDataAction(clientVersions);
+
+            if (result && (result as any).status === "not-modified") {
+                console.log(`[${getTime()}] [Dashboard] Server: Not Modified. Using local cache.`);
+                return cached?.data;
+            }
 
             if (result && (result as any).data) {
                 console.log(`[${getTime()}] [Dashboard] Result received. Updating cache.`);
@@ -71,29 +79,41 @@ export function AdminDashboardClient() {
         refetchOnWindowFocus: true,
     });
 
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleManualRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await Promise.all([
+                refetch(),
+                // Add a small delay for visual feedback if query is too fast
+                new Promise(resolve => setTimeout(resolve, 800))
+            ]);
+        } finally {
+            setIsRefreshing(false);
+        }
+    };
+
     const statsData = dashboardData?.stats;
     const enrollmentsData = dashboardData?.enrollments;
     const coursesData = dashboardData?.recentCourses;
 
-    // Hydration guard: ensures server and client render the same skeletons initially
-    if (!mounted) {
-        return (
-            <div className="lg:py-5 md:py-6">
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 ">
-                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}
-                </div>
-                <div className="px-4 lg:px-6 py-6">
-                    <Skeleton className="h-[400px] w-full rounded-xl mb-6" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-10">
-                        {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video w-full rounded-xl" />)}
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="lg:py-5 md:py-6">
+            <div className="flex items-center justify-between px-4 lg:px-6 mb-4 md:mb-6">
+                <h2 className="text-xl font-semibold">Dashboard Overview</h2>
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-2 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all font-bold uppercase tracking-widest text-[10px] h-9"
+                    onClick={handleManualRefresh}
+                    disabled={isRefreshing || isLoading}
+                >
+                    <RefreshCw className={cn("size-3", (isRefreshing || isLoading) && "animate-spin text-primary")} />
+                    {isRefreshing ? "Checking Versions..." : "Check for Updates"}
+                </Button>
+            </div>
+
             {(isLoading && !statsData) ? (
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 px-4 lg:px-6 ">
                     {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-40 w-full rounded-xl" />)}

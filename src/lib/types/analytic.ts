@@ -12,10 +12,11 @@ export interface User {
 }
 
 export interface UserListProps {
-  initialUsers: User[];
-  initialHasNextPage: boolean;
-  initialTotalUsers: number;
+  initialUsers?: User[];
+  initialHasNextPage?: boolean;
+  initialTotalUsers?: number;
   search: string;
+  version?: string;
 }
 
 export interface ChapterExpansionProps {

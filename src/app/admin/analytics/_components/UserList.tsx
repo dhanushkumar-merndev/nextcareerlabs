@@ -11,10 +11,10 @@ import {DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuLabel,Drop
 import { Input } from "@/components/ui/input";
 import { Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserListProps } from "@/lib/types/analytic";
+import { User, UserListProps } from "@/lib/types/analytic";
 import { cn, formatIST } from "@/lib/utils";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy,Loader2,Mail,Phone,Search,ShieldCheck,User as UserIcon,} from "lucide-react";
+import { InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { Check, Copy,Loader2,Mail,Phone,Search,ShieldCheck,User as UserIcon, RefreshCw} from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -22,12 +22,12 @@ import { useInView } from "react-intersection-observer";
 import { toast } from "sonner";
 import { useDebounce } from "use-debounce";
 
-// Props
 export function UserList({
   initialUsers,
   initialHasNextPage,
   initialTotalUsers,
   search: initialSearch,
+  version: initialVersion,
 }: UserListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -38,8 +38,18 @@ export function UserList({
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [debouncedSearch] = useDebounce(searchTerm, 500);
 
-  // Tab State (Role Filter)
   const [activeTab, setActiveTab] = useState("users"); // "users" | "admins"
+  const [version, setVersion] = useState<string | null>(initialVersion || null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const STORAGE_KEY = "admin_users_list_data";
+  const VERSION_KEY = "admin_users_list_version";
+  const LAST_CHECK_KEY = "admin_users_list_last_check";
 
   // Update URL when search changes
   useEffect(() => {
@@ -56,35 +66,118 @@ export function UserList({
     }
   }, [debouncedSearch, router, searchParams]);
 
+  // Smart Sync: Sync server-passed data to local storage on mount
+  useEffect(() => {
+    if (activeTab !== "users" || debouncedSearch) return;
+
+    const storedVersion = localStorage.getItem(VERSION_KEY);
+
+    if (storedVersion && storedVersion === version) {
+      console.log(`[UserList] LOCAL HIT: Cache matches server version (${version})`);
+    } else if (version) {
+      console.log(`[UserList] SYNC: New version from server (${version}). Hydrating local storage.`);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
+        users: initialUsers, 
+        totalUsers: initialTotalUsers, 
+        hasNextPage: initialHasNextPage 
+      }));
+      localStorage.setItem(VERSION_KEY, version);
+    }
+  }, [version, initialUsers, initialTotalUsers, initialHasNextPage, activeTab, debouncedSearch]);
+
+  // Initial Sync from localStorage to state
+  useEffect(() => {
+    if (activeTab === "users" && !debouncedSearch && !version) {
+      const storedVersion = localStorage.getItem(VERSION_KEY);
+      if (storedVersion) {
+        setVersion(storedVersion);
+      }
+    }
+  }, [activeTab, debouncedSearch, version]);
+
+  const queryKey = ["users", debouncedSearch, activeTab];
+
+  type UsersPage = {
+    users: User[];
+    hasNextPage: boolean;
+    totalUsers: number;
+    version?: string;
+    status?: string;
+  };
+
+
+
   const {
     data,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
     isLoading
-  } = useInfiniteQuery({
-    queryKey: ["users", debouncedSearch, activeTab],
+  } = useInfiniteQuery<UsersPage, Error, InfiniteData<UsersPage>>({
+    queryKey,
     queryFn: async ({ pageParam = 1 }) => {
       // Map tab to role filter expected by action
       const roleFilter = activeTab === "admins" ? "admin" : "user";
-      const result = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter);
-      return result;
+      
+      // Pass client version only for page 1 default fetch
+      const isFirstPageDefault = pageParam === 1 && !debouncedSearch && activeTab === "users";
+
+      // 1. OPTIMIZATION: Check 30-min threshold BEFORE network trip
+      if (isFirstPageDefault && typeof window !== 'undefined') {
+        const lastCheck = localStorage.getItem(LAST_CHECK_KEY);
+        const storedData = localStorage.getItem(STORAGE_KEY);
+        if (lastCheck && storedData) {
+          const now = Date.now();
+          if (now - parseInt(lastCheck) < 1000 * 60 * 30) {
+            console.log(`[UserList] CLIENT SKIP: Data is fresh. Skipping network.`);
+            const parsed = JSON.parse(storedData);
+            return { 
+                users: parsed.users, 
+                hasNextPage: parsed.hasNextPage, 
+                totalUsers: parsed.totalUsers, 
+                version: localStorage.getItem(VERSION_KEY) || version 
+            } as UsersPage;
+          }
+        }
+      }
+
+      const clientV = isFirstPageDefault ? (localStorage.getItem(VERSION_KEY) || version) : undefined;
+
+      const result = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, clientV || undefined);
+      
+      if ("status" in result && result.status === "not-modified") {
+        console.log(`[UserList] Smart Sync: Server version matches. Cache is fresh.`);
+        localStorage.setItem(LAST_CHECK_KEY, Date.now().toString()); // Reset expiration timer
+        
+        // Try to get from react-query cache first
+        const existingData = queryClient.getQueryData<InfiniteData<UsersPage>>(queryKey);
+        if (existingData?.pages[0]) return existingData.pages[0];
+
+        // Fallback to localStorage if not in react-query cache
+        const storedData = localStorage.getItem(STORAGE_KEY);
+        if (storedData) {
+            const parsed = JSON.parse(storedData);
+            return { users: parsed.users, hasNextPage: parsed.hasNextPage, totalUsers: parsed.totalUsers } as UsersPage;
+        }
+
+        // Final fallback to props (if any)
+        return { users: initialUsers || [], hasNextPage: initialHasNextPage || false, totalUsers: initialTotalUsers || 0 } as UsersPage;
+      }
+
+      if (isFirstPageDefault && result.users) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ users: result.users, totalUsers: result.totalUsers, hasNextPage: result.hasNextPage }));
+        localStorage.setItem(VERSION_KEY, result.version!);
+        localStorage.setItem(LAST_CHECK_KEY, Date.now().toString()); // Update last check time
+        setVersion(result.version!);
+      }
+
+      return result as UsersPage;
     },
     getNextPageParam: (lastPage, allPages) => {
       return lastPage.hasNextPage ? allPages.length + 1 : undefined;
     },
     initialPageParam: 1,
-    initialData: activeTab === "users" ? {
-      pages: [
-        {
-          users: initialUsers,
-          hasNextPage: initialHasNextPage,
-          totalUsers: initialTotalUsers,
-        },
-      ],
-      pageParams: [1],
-    } : undefined, // Only use initial data for default "users" tab. Admin tab will fetch fresh.
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 30, // 30 minutes
   });
 
   useEffect(() => {
@@ -116,6 +209,29 @@ export function UserList({
     }
   };
 
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      localStorage.removeItem(VERSION_KEY); // Force fresh fetch
+      localStorage.removeItem(LAST_CHECK_KEY); // Force refresh check timer
+      await queryClient.fetchInfiniteQuery({ 
+        queryKey: ["users", debouncedSearch, activeTab],
+        initialPageParam: 1
+      });
+      toast.success("Users list updated");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  if (!isMounted) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -126,7 +242,8 @@ export function UserList({
           </TabsList>
 
           {/* Search Input */}
-          <div className="relative w-full sm:w-[300px]">
+          <div className="flex gap-2">
+              <div className="relative w-full sm:w-[300px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/60" />
             <Input
               placeholder="Search..."
@@ -135,8 +252,21 @@ export function UserList({
               className="pl-10 h-10 bg-muted/30 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium text-[13px]"
             />
           </div>
+
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={handleManualRefresh}
+            disabled={isRefreshing || isLoading}
+            className="h-10 w-10 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all shadow-sm"
+            title="Sync with Server"
+          >
+            <RefreshCw className={cn("size-4", (isRefreshing || isLoading) && "animate-spin text-primary")} />
+          </Button>
         </div>
 
+          </div>
+        
         {/* --- DESKTOP VIEW --- */}
         <div className="hidden lg:block rounded-2xl border bg-card/40 backdrop-blur-md overflow-hidden border-border/40 shadow-xl">
           <Table>

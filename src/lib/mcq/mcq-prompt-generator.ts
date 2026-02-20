@@ -13,19 +13,19 @@ TRANSCRIPTION:
 ${plainText}
 
 REQUIREMENTS:
-- Create 20 questions that test comprehensive understanding
+- Create 20 questions that test comprehensive understanding of what was taught
+- STRICT SOURCING: Questions must be answerable ONLY using the information provided in the TRANSCRIPTION. 
+- AVOID EXTERNAL KNOWLEDGE: Do not include facts, definitions, or context from outside this specific video recording.
 - Each question must have exactly 4 options (A, B, C, D)
 - Only ONE correct answer per question
 - Include brief explanations for correct answers
 - Cover key concepts, definitions, and important details from the transcription
 - Difficulty distribution: 10 simple, 5 medium, 5 tough
-- Randomize the position of the correct answer (do not always place it at index 0 or 1)
-- Ensure an even distribution of correct indices (0, 1, 2, 3) across the 20 questions
-- Questions should be in logical order following the lesson content
+- STRICT INDEX RANDOMIZATION: The \`correctIdx\` must be varied. AVOID repeating the same correct index for consecutive questions (e.g., if Q1 is 0, Q2 should be 1, 2, or 3).
+- Ensure an even distribution of correct indices (0, 1, 2, 3) across the 20 questions (e.g., roughly 5 questions for each index position).
+- Questions should be in logical order following the lesson flow
 - Focus strictly on the educational topic and core concepts being taught
 - AVOID questions about the company, trainer's background, or administrative details
-- Ensure EVERY question is answerable ONLY by using the information provided in the TRANSCRIPTION
-- DO NOT use external knowledge or facts not mentioned in the lesson text
 - Avoid overly trivial questions
 
 OUTPUT FORMAT (Valid JSON array):

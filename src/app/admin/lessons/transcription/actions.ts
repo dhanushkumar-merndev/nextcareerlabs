@@ -5,6 +5,7 @@ import { uploadTranscriptionToS3 } from '@/lib/s3-transcription-upload';
 import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from '@/lib/redis';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
+import { env } from '@/lib/env';
 
 /**
  * Save transcription to S3 and database
@@ -100,6 +101,7 @@ export async function getTranscription(lessonId: string): Promise<{
         select: {
           id: true,
           vttUrl: true,
+          vttKey: true,
           status: true,
         },
       }),
@@ -117,6 +119,9 @@ export async function getTranscription(lessonId: string): Promise<{
       success: true,
       transcription: {
         ...transcription,
+        vttUrl: transcription.vttUrl.startsWith('http') 
+            ? transcription.vttUrl 
+            : `https://${env.S3_BUCKET_NAME}.t3.storage.dev/${transcription.vttUrl}`,
         hasMCQs: questionCount > 0,
       },
     };

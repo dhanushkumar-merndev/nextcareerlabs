@@ -35,6 +35,15 @@ export async function adminGetDashboardData(clientVersions?: AdminDashboardVersi
     recentCourses: await vCheck(serverRecentV, GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
   };
 
+  // 2.5 Early Exit if everything matches
+  if (clientVersions && 
+      clientVersions.stats === finalV.stats && 
+      clientVersions.enrollments === finalV.enrollments && 
+      clientVersions.recentCourses === finalV.recentCourses) {
+    console.log(`[adminGetDashboardData] ALL Versions Match. Returning NOT_MODIFIED.`);
+    return { status: "not-modified", versions: finalV };
+  }
+
   // 3. Granular Cache Check & DB Fetching logic
   const results: any = {
     stats: null,

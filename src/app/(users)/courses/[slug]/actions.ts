@@ -13,7 +13,7 @@ import { getIndividualCourse } from "@/app/data/course/get-course";
 import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { GLOBAL_CACHE_KEYS, incrementGlobalVersion } from "@/lib/redis";
+import { GLOBAL_CACHE_KEYS, incrementGlobalVersion, invalidateCache } from "@/lib/redis";
 
 // Get Individual Course Action
 export async function getIndividualCourseAction(slug: string, clientVersion?: string) {
@@ -151,8 +151,15 @@ export async function enrollInCourseAction(
       });
     }
 
-    // Invalidate caches to show updated status immediately
-    await incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
+    // Invalidate caches to show updated status immediately (Admin & User side)
+    await Promise.all([
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+    ]);
     revalidatePath(`/courses/${course.slug}`);
     revalidatePath("/admin/requests");
 

@@ -69,6 +69,8 @@ export const GLOBAL_CACHE_KEYS = {
   ADMIN_CHAT_THREADS_VERSION: "global:version:admin:chat_threads",
   ADMIN_CHAT_MESSAGES_VERSION: "global:version:admin:chat_messages",
   ADMIN_CHAT_SIDEBAR: "global:admin:chat_sidebar",
+  ADMIN_USERS_LIST: "admin:users:list",
+  ADMIN_USERS_VERSION: "global:version:admin:users",
   USER_ENROLLMENTS: (userId: string) => `user:enrollments:${userId}`,
   USER_VERSION: (userId: string) => `user:version:${userId}`,
   ADMIN_TASK_STATUS: "global:admin:task_status",

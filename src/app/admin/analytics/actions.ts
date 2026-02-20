@@ -4,7 +4,7 @@ import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
+import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion, invalidateCache } from "@/lib/redis";
 
 export async function getAdminAnalytics(startDate?: Date, endDate?: Date, clientVersion?: string) {
     await requireAdmin();
@@ -311,9 +311,33 @@ export async function getUserCourseDetailedProgress(userId: string, courseId: st
     }
 }
 
-export async function getAllUsers(search?: string, page: number = 1, limit: number = 100, roleFilter?: string) {
+export async function getAllUsers(search?: string, page: number = 1, limit: number = 100, roleFilter?: string, clientVersion?: string) {
     await requireAdmin();
     try {
+        const isDefaultFetch = page === 1 && limit === 100 && !search && roleFilter === 'user';
+        let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION);
+
+        if (currentVersion === "0") {
+            await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION);
+            currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION);
+        }
+
+        // 1. Version Match check
+        if (isDefaultFetch && clientVersion && clientVersion === currentVersion) {
+            console.log(`[getAllUsers] Version Match (${clientVersion}). Returning NOT_MODIFIED.`);
+            return { status: "not-modified", version: currentVersion };
+        }
+
+        // 2. Global List Cache
+        if (isDefaultFetch) {
+            const cached = await getCache<any>(GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST);
+            if (cached) {
+                console.log(`[getAllUsers] Redis List Cache HIT. Returning data.`);
+                return { ...cached, version: currentVersion };
+            }
+            console.log(`[getAllUsers] Redis List Cache MISS. Fetching from DB...`);
+        }
+
         const skip = (page - 1) * limit;
 
         const whereClause: any = {
@@ -372,11 +396,19 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
 
         const hasNextPage = skip + users.length < totalUsers;
 
-        return {
+        const result = {
             users,
             hasNextPage,
-            totalUsers
+            totalUsers,
+            version: currentVersion
         };
+
+        // Cache default list
+        if (isDefaultFetch) {
+            await setCache(GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST, { users, hasNextPage, totalUsers }, 2592000);
+        }
+
+        return result;
     } catch (error) {
         return {
             users: [],
@@ -393,6 +425,12 @@ export async function updateUserRole(userId: string, newRole: string) {
             where: { id: userId },
             data: { role: newRole },
         });
+
+        // Invalidate cache
+        await Promise.all([
+            invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST),
+            incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION)
+        ]);
 
         revalidatePath("/admin/analytics/users");
         return { success: true };

@@ -35,7 +35,8 @@ import {
   Filter,
   Fingerprint,
   Trash2,
-  Search
+  Search,
+  RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
@@ -122,12 +123,21 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
   const [editEmail, setEditEmail] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const isInitialized = useRef(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const clearLocalCache = useCallback(() => {
+    localStorage.removeItem("admin_enrollment_requests");
+    localStorage.removeItem("admin_enrollment_version");
+    localStorage.removeItem("admin_enrollment_last_sync");
+    console.log("[RequestsTable] Local cache cleared after admin action.");
+  }, []);
 
   const handleStatusUpdate = (id: string, status: "Granted" | "Revoked" | "Pending") => {
     startTransition(async () => {
       const result = await updateEnrollmentStatusAction(id, status);
       if (result.status === "success") {
         toast.success(result.message);
+        clearLocalCache();
         setData(prev => prev.map(item => item.id === id ? { ...item, status } : item));
       } else {
         toast.error(result.message);
@@ -151,6 +161,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
             : await banUserAction(userId);
           if (result.status === "success") {
             toast.success(result.message);
+            clearLocalCache();
             setData(prev => prev.map(item => item.User.id === userId ? { ...item, User: { ...item.User, banned: !isBanned } } : item));
           } else {
             toast.error(result.message);
@@ -172,6 +183,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
       
       if (result.status === "success") {
         toast.success(result.message);
+        clearLocalCache();
         setData(prev => prev.map(item => 
           item.User.id === editingUser.id 
             ? { ...item, User: { ...item.User, email: editEmail, phoneNumber: editPhone } } 
@@ -196,6 +208,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
           const result = await deleteEnrollmentAction(id);
           if (result.status === "success") {
             toast.success(result.message);
+            clearLocalCache();
             setData(prev => prev.filter(item => item.id !== id));
           } else {
             toast.error(result.message);
@@ -222,33 +235,40 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
 
   const [hasHydrated, setHasHydrated] = useState(false);
 
+  const syncWithServer = useCallback(async (currentV: string | null) => {
+    startTransition(async () => {
+         const result = await getRequestsAction(0, BATCH_SIZE, "All", undefined, currentV || undefined);
+         
+         if (result.status === "not-modified") {
+             console.log(`[RequestsTable] Smart Sync: Server version matches (${currentV}). Cache is fresh.`);
+         } else {
+             console.log(`[RequestsTable] Smart Sync: Server version mismatch or Cache Miss. Syncing ${result.data.length} items.`);
+             setData(result.data as Request[]);
+             setTotalCount(result.totalCount);
+             setVersion(result.version);
+             
+             // Persist to LocalStorage
+             localStorage.setItem("admin_enrollment_requests", JSON.stringify({ data: result.data, totalCount: result.totalCount }));
+             localStorage.setItem("admin_enrollment_version", result.version);
+         }
+         localStorage.setItem("admin_enrollment_last_sync", Date.now().toString());
+         setHasHydrated(true);
+    });
+  }, [BATCH_SIZE]);
+
+  const manualRefresh = async () => {
+    setRefreshing(true);
+    await syncWithServer(null);
+    setRefreshing(false);
+    toast.success("Requests synced with server");
+  };
+
   // --- SMART SYNC: MOUNT & PERSISTENCE ---
   useEffect(() => {
     const STORAGE_KEY = "admin_enrollment_requests";
     const VERSION_KEY = "admin_enrollment_version";
     const SYNC_TIMESTAMP_KEY = "admin_enrollment_last_sync";
     const SYNC_WINDOW = 30 * 60 * 1000; // 30 Minutes
-
-    const syncWithServer = async (currentV: string | null) => {
-        startTransition(async () => {
-             const result = await getRequestsAction(0, BATCH_SIZE, "All", undefined, currentV || undefined);
-             
-             if (result.status === "not-modified") {
-                 console.log(`[RequestsTable] Smart Sync: Server version matches (${currentV}). Cache is fresh.`);
-             } else {
-                 console.log(`[RequestsTable] Smart Sync: Server version mismatch or Cache Miss. Syncing ${result.data.length} items.`);
-                 setData(result.data as Request[]);
-                 setTotalCount(result.totalCount);
-                 setVersion(result.version);
-                 
-                 // Persist to LocalStorage
-                 localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: result.data, totalCount: result.totalCount }));
-                 localStorage.setItem(VERSION_KEY, result.version);
-             }
-             localStorage.setItem(SYNC_TIMESTAMP_KEY, Date.now().toString());
-             setHasHydrated(true);
-        });
-    };
 
 
     // 1. Initial Load from LocalStorage (if not searching)
@@ -303,7 +323,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
 
-  }, [debouncedSearch]);
+  }, [debouncedSearch, hasHydrated]);
 
   // Handle search logic
   useEffect(() => {
@@ -360,11 +380,23 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
            </div>
         </div>
 
-        {/* Info Badge */}
-        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted/30 px-5 h-11 w-full sm:w-auto rounded-xl border border-border/40 shadow-sm shrink-0 justify-center">
-             <Filter className="size-3 text-primary/60" />
-             <span>Showing {data.length} of {totalCount} Records</span>
-        </div>
+         {/* Info Badge & Refresh - Responsive */}
+         <div className="flex items-center gap-2 w-full sm:w-auto">
+             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted/30 px-5 h-11 flex-1 sm:flex-initial rounded-xl border border-border/40 shadow-sm shrink-0 justify-center">
+                  <Filter className="size-3 text-primary/60" />
+                  <span>Showing {data.length} of {totalCount} Records</span>
+             </div>
+             <Button
+               variant="outline"
+               size="icon"
+               className="h-11 w-11 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all shadow-sm"
+               onClick={manualRefresh}
+               disabled={refreshing || isPending}
+               title="Sync with Server"
+             >
+                <RefreshCw className={cn("size-4", (refreshing || isPending) && "animate-spin text-primary")} />
+             </Button>
+         </div>
       </div>
 
       {/* --- DESKTOP VIEW --- */}
@@ -383,16 +415,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
             </TableRow>
           </TableHeader>
           <TableBody>
-            {!hasHydrated ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-48 text-center text-muted-foreground/60 italic">
-                  <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="size-10 animate-spin opacity-20" />
-                    <p className="text-sm font-medium">Hydrating from cache...</p>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : data.length === 0 ? (
+            {data.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-48 text-center text-muted-foreground/60 italic">
                   <div className="flex flex-col items-center gap-2">
