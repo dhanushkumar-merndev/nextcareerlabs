@@ -64,7 +64,9 @@ export async function markLessonComplete(
         invalidateCache(`user:dashboard:${session.id}`),
         invalidateCache(`user:sidebar:${session.id}:${slug}`),
         invalidateCache(`user:lesson:${session.id}:${lessonId}`),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
     ]);
 
     // Revalidate the entire course dashboard to ensure everything is fresh
@@ -227,7 +229,9 @@ export async function submitQuizAttempt(
       invalidateCache(`user:dashboard:${session.id}`),
       invalidateCache(`user:sidebar:${session.id}:${slug}`),
       invalidateCache(`user:lesson:${session.id}:${lessonId}`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
     ]);
 
     revalidatePath(`/dashboard/${slug}`, "layout");
