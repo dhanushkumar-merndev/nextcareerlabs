@@ -94,10 +94,11 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
         // 🔹 NORMAL MODE → Show cached first page
         if (!searchTitle && cached) {
+            console.log(`[Courses] HYDRATION HIT (v${cached.version || cached.data?.version})`);
             return {
                 pages: [{
-                    courses: cached.data.data,
-                    nextCursor: cached.data.nextCursor
+                    courses: cached.data.data || cached.data,
+                    nextCursor: cached.data.nextCursor || null
                 }],
                 pageParams: [null]
             };
@@ -107,13 +108,31 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     },
 
     // 🔹 USES SERVER DATA FOR FIRST PAINT (if guest or no cache)
-    initialData: (!searchTitle && initialData && initialData.status === "data") ? {
-        pages: [{
-            courses: initialData.courses,
-            nextCursor: initialData.nextCursor,
-        }],
-        pageParams: [null]
-    } : undefined,
+    initialData: () => {
+        if (!searchTitle && initialData && initialData.status === "data") {
+            console.log(`[Courses] SERVER HIT (First Load)`);
+            return {
+                pages: [{
+                    courses: initialData.courses,
+                    nextCursor: initialData.nextCursor,
+                }],
+                pageParams: [null]
+            };
+        }
+        
+        // Fallback to cache even in initialData to prevent flickering
+        if (!searchTitle && typeof window !== "undefined" && cached) {
+            console.log(`[Courses] INITIAL DATA HIT (v${cached.version || cached.data?.version}) from storage`);
+            return {
+                pages: [{
+                    courses: cached.data.data || cached.data,
+                    nextCursor: cached.data.nextCursor || null
+                }],
+                pageParams: [null]
+            };
+        }
+        return undefined;
+    },
 
     // Fetch function (handles search + pagination)
     queryFn: async ({ pageParam }) => {
@@ -138,14 +157,19 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       }
 
       // NORMAL MODE → cache + cursor support
-      const cached = chatCache.get<CoursesCacheWithCursor>(
+      const cached = chatCache.get<any>(
         "all_courses",
         safeUserId
       );
 
       // Send version only for first page
-      const clientVersion = pageParam ? undefined : cached?.data.version;
+      // chatCache.get returns { data, version, timestamp }
+      const clientVersion = pageParam ? undefined : (cached?.version);
 
+      console.info(`%c[Courses] SYNC CHECK: %cVersion ${clientVersion || 'NONE'}`, "color: cyan; font-weight: bold", "color: white");
+
+      console.log(`[Courses] DEBUG: Starting Sync attempt. Version detected in storage: ${clientVersion || 'NULL'}`);
+      
       const result = await getAllCoursesAction(
         clientVersion,
         safeUserId,
@@ -154,11 +178,14 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
       // Server says cache is still valid
       if (result.status === "not-modified") {
+        console.log(`[Courses] Server: NOT_MODIFIED (v${clientVersion})`);
         return {
           courses: cached?.data.data ?? [],
           nextCursor: cached?.data.nextCursor ?? null,
         };
       }
+
+      console.log(`[Courses] Server: NEW_DATA -> Updating cache`);
 
       // Persist merged courses + cursor
       if (!searchTitle) {
@@ -185,7 +212,8 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
             version: result.version,
             nextCursor: result.nextCursor,
           },
-          safeUserId
+          safeUserId,
+          result.version
         );
       }
 
@@ -204,6 +232,9 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     // Cache freshness
     staleTime: 30 * 60 * 1000,
     refetchOnWindowFocus: true,
+    // 🔹 OPTIMIZATION: Wait for session to be stable before starting background sync
+    // This prevents the "Double Fetch" (Guest then User) on refresh
+    enabled: mounted && !isSessionPending,
   });
 
   // Flatten all pages into a single array

@@ -126,6 +126,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
   const [editPhone, setEditPhone] = useState("");
   const isInitialized = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
+  const hasLogged = useRef(false);
   const { checkRateLimit } = useRefreshRateLimit(5, 60000);
 
 
@@ -283,13 +284,17 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
         const lastSync = localStorage.getItem(SYNC_TIMESTAMP_KEY);
 
         if (cached && cachedVersion) {
+            if (!hasLogged.current) {
+                console.log(`%c[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`, "color: #eab308; font-weight: bold");
+                hasLogged.current = true;
+            }
+            
             if (!hasHydrated) {
                 const parsed = JSON.parse(cached);
                 setData(parsed.data);
                 setTotalCount(parsed.totalCount);
                 setVersion(cachedVersion);
                 setHasHydrated(true);
-                console.log(`[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`);
             }
 
             // 2. Determine if background revalidation is needed

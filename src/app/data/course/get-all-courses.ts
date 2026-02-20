@@ -27,8 +27,8 @@ export async function getAllCourses(
   );
 
   // 🔹 Version short-circuit ONLY for first page
-  // WE MUST SKIP this optimization if searching, because cached version does not know about search filter
   if (!searchQuery && !cursor && clientVersion && clientVersion === currentVersion) {
+    console.log(`[getAllCourses] Version Match (${clientVersion}). Returning NOT_MODIFIED.`);
     return { status: "not-modified", version: currentVersion };
   }
 
@@ -36,9 +36,11 @@ export async function getAllCourses(
   const cached = await getCache<RedisCoursesCache>(cacheKey);
 
   let allCourses: PublicCourseType[];
+  const startTime = Date.now();
 
   // 🔹 If searching, bypass Redis list and query DB directly for efficiency
   if (searchQuery) {
+    console.log(`[getAllCourses] SEARCH: "${searchQuery}" -> DB Query`);
     allCourses = await prisma.course.findMany({
       where: {
         status: "Published",
@@ -59,10 +61,12 @@ export async function getAllCourses(
         slug: true,
       },
     });
+    console.log(`[getAllCourses] DB Search took ${Date.now() - startTime}ms`);
   } else if (cached?.data) {
-    // Use Redis → DB fallback for normal list
+    console.log(`[getAllCourses] REDIS HIT (v${cached.version})`);
     allCourses = cached.data;
   } else {
+    console.log(`[getAllCourses] REDIS MISS -> DB Computation`);
     allCourses = await prisma.course.findMany({
       where: { status: "Published" },
       orderBy: { createdAt: "desc" },
@@ -81,12 +85,14 @@ export async function getAllCourses(
     await setCache(
       cacheKey,
       { data: allCourses, version: currentVersion },
-      6 * 60 * 60 // 6 hours
+      2592000 // 30 days
     );
+    console.log(`[getAllCourses] DB Computation took ${Date.now() - startTime}ms`);
   }
 
   // 🔹 Enrollment merge (user-specific)
   if (userId) {
+    const mergeStart = Date.now();
     const enrollments = await prisma.enrollment.findMany({
       where: { userId },
       select: { courseId: true, status: true },
@@ -102,6 +108,7 @@ export async function getAllCourses(
     if (onlyAvailable) {
       allCourses = allCourses.filter((c) => !map.has(c.id));
     }
+    console.log(`[getAllCourses] Enrollment Merge took ${Date.now() - mergeStart}ms`);
   }
 
   // 🔹 Cursor pagination (9+9)

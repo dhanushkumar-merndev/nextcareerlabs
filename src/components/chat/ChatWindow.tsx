@@ -72,6 +72,17 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     const scrollRef = useRef<HTMLDivElement>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const lastThreadId = useRef(threadId);
+    const hasLoggedMessages = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (threadId && hasLoggedMessages.current !== threadId) {
+            const cached = chatCache.get<any>(`messages_${threadId}`, currentUserId);
+            if (cached) {
+                console.log(`%c[ChatWindow] LOCAL HIT (Messages: ${threadId}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+            }
+            hasLoggedMessages.current = threadId;
+        }
+    }, [threadId, currentUserId]);
 
     const {
         data,

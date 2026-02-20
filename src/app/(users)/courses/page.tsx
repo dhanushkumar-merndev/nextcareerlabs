@@ -34,8 +34,6 @@ export default async function PublicCoursesRoute() {
     headers: await headers(),
   });
 
-  const initialData = await getAllCoursesAction(undefined, session?.user.id);
-
   return (
     <div className="mt-5 px-4 lg:px-6 md:mb-40">
       {/* Header + Search */}
@@ -56,7 +54,7 @@ export default async function PublicCoursesRoute() {
 
       {/* Courses list - Rendered inside Suspense to avoid blocking the shell */}
       <Suspense fallback={<CoursesSkeleton />}>
-        <CoursesClient initialData={initialData} />
+        <CoursesClient initialData={undefined} />
       </Suspense>
     </div>
   );

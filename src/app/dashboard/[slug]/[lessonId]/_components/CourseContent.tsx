@@ -532,17 +532,14 @@ function VideoPlayer({
 }
 
 export function CourseContent({ lessonId, userId, initialLesson, initialVersion }: iAppProps) {
-  // Sync initialData to local storage on mount to keep local cache fresh
+  const [mounted, setMounted] = useState(false);
+
+  // Sync initialData to local storage on mount (Legacy/SSR support)
   useEffect(() => {
+    setMounted(true);
     if (initialLesson && initialVersion) {
         const cacheKey = `lesson_content_${lessonId}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        
-        // Sync if version differs or doesn't exist
-        if (!cached || cached.version !== initialVersion) {
-            console.log(`[Hydration] Syncing server data to local cache for ${lessonId}`);
-            chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, PERMANENT_TTL);
-        }
+        chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, PERMANENT_TTL);
     }
   }, [lessonId, userId, initialLesson, initialVersion]);
 
@@ -557,28 +554,32 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       const result = await getLessonContent(lessonId, clientVersion);
 
       if (result && (result as any).status === "not-modified" && cached) {
+        console.log(`[Lesson] LOCAL HIT (v${clientVersion}) - Server: NOT_MODIFIED`);
         return cached.data.lesson;
       }
 
       if (result && !(result as any).status) {
+        console.log(`[Lesson] NEW_DATA -> Updating cache for ${lessonId}`);
         chatCache.set(cacheKey, result, userId, (result as any).version, PERMANENT_TTL);
         return (result as any).lesson;
       }
-      return (result as any)?.lesson;
+      return (result as any)?.lesson || cached?.data?.lesson;
     },
     initialData: () => {
-        // ⭐ PRIORITY 1: Server-provided data (Source of Truth for fresh refresh)
-        if (initialLesson) return initialLesson;
-
-        // ⭐ PRIORITY 2: Local Cache (For fast navigation/stale state)
+        // ⭐ PRIORITY 1: Local Cache (For instant render)
         const cacheKey = `lesson_content_${lessonId}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        if (typeof window !== "undefined" && cached) {
+        const cached = typeof window !== "undefined" ? chatCache.get<any>(cacheKey, userId) : null;
+        if (cached) {
+            console.log(`[Lesson] HYDRATION HIT (v${cached.version}) for ${lessonId}`);
             return cached.data.lesson;
         }
-        return undefined;
+
+        // ⭐ PRIORITY 2: Server-provided data (if any)
+        return initialLesson;
     },
-    staleTime: 10800000, // 3 hours (Version check interval)
+    staleTime: 1800000, // 30 minutes (Smart Sync interval)
+    refetchInterval: 1800000,
+    refetchOnWindowFocus: true,
   });
 
   const queryClient = useQueryClient();
@@ -630,16 +631,17 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
     setIsMobileDescriptionOpen(false);
   }, [lessonId]);
 
-  if (isLoading && !lesson) {
-    return <LessonContentSkeleton />;
+  if (!mounted || (isLoading && !lesson)) {
+      return <LessonContentSkeleton />;
   }
 
   if (!lesson) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
-        <h2 className="text-xl font-bold mb-2">Lesson not found</h2>
-        <p className="text-muted-foreground">The lesson you are looking for might have been moved or deleted.</p>
-      </div>
+        <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
+            <BookIcon size={64} className="mb-4" />
+            <h2 className="text-xl font-black uppercase tracking-widest">Lesson Not Available</h2>
+            <p className="text-sm">Please check your internet connection or contact support.</p>
+        </div>
     );
   }
 

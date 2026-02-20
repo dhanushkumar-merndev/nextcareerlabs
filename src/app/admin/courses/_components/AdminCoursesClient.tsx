@@ -5,7 +5,7 @@ import { adminGetCoursesAction } from "../actions";
 
 import { AdminCourseCard, AdminCourseCardSkeleton } from "./AdminCourseCard";
 import { EmptyState } from "@/components/general/EmptyState";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useInView } from "react-intersection-observer";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
@@ -22,6 +22,7 @@ export function AdminCoursesClient() {
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
   const [mounted, setMounted] = useState(false);
+  const hasLogged = useRef(false);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.5,
@@ -30,11 +31,13 @@ export function AdminCoursesClient() {
   
   useEffect(() => {
     setMounted(true);
-
-    // 🟢 Robust LOCAL HIT Logging for Console
-    const cached = chatCache.get<any>("admin_courses_list");
-    if (cached) {
-        console.log(`[AdminCourses] LOCAL HIT (v${cached.version}). Rendering from device storage.`);
+    
+    if (!hasLogged.current) {
+        const cached = chatCache.get<any>("admin_courses_list");
+        if (cached) {
+            console.log(`%c[AdminCourses] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+        }
+        hasLogged.current = true;
     }
   }, []);
 

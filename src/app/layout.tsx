@@ -79,8 +79,8 @@ export default function RootLayout({
             {children}
             <SmoothScroll />
             <Toaster />
-            <Analytics />
-            <SpeedInsights />
+            {/* <Analytics />
+            <SpeedInsights /> */}
           </ThemeProvider>
         </Providers>
       </body>

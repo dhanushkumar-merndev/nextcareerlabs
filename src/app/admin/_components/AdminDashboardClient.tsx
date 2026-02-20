@@ -11,7 +11,7 @@ import { AdminCourseCard } from "../courses/_components/AdminCourseCard";
 import { EmptyState } from "@/components/general/EmptyState";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
@@ -22,15 +22,22 @@ import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
 
 export function AdminDashboardClient() {
     const [mounted, setMounted] = useState(false);
+    const hasLogged = useRef(false);
+    
     useEffect(() => {
         setMounted(true);
-
-        const cached = chatCache.get<any>("admin_dashboard_all");
-        let statsV = "0";
-        if (cached?.version) {
-            try { statsV = JSON.parse(cached.version).stats; } catch(e) {}
+        
+        if (!hasLogged.current) {
+            const cached = chatCache.get<any>("admin_dashboard_all");
+            if (cached) {
+                let statsV = "0";
+                if (cached?.version) {
+                    try { statsV = JSON.parse(cached.version).stats; } catch(e) {}
+                }
+                console.log(`%c[AdminDashboard] LOCAL HIT (vStats:${statsV}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+            }
+            hasLogged.current = true;
         }
-        if (cached) console.log(`[AdminDashboard] LOCAL HIT (vStats:${statsV}). Rendering consolidated data.`);
 
         const handleStorageChange = (e: StorageEvent) => {
             if (e.key?.includes("admin_dashboard_all")) {

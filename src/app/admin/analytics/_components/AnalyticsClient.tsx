@@ -11,7 +11,7 @@
  */
 
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getAdminAnalytics } from "@/app/admin/analytics/actions";
 
@@ -31,13 +31,17 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 export function AnalyticsClient() {
 
   const [mounted, setMounted] = useState(false);
+  const hasLogged = useRef(false);
+
   useEffect(() => {
     setMounted(true);
-
-    // 🟢 Robust LOCAL HIT Logging for Console
-    const cached = chatCache.get<any>("admin_analytics");
-    if (cached) {
-        console.log(`[Analytics] LOCAL HIT (v${cached.version}). Rendering from device storage.`);
+    
+    if (!hasLogged.current) {
+        const cached = chatCache.get<any>("admin_analytics");
+        if (cached) {
+            console.log(`%c[Analytics] LOCAL HIT (v${cached.version}). Rendering from device storage.`, "color: #eab308; font-weight: bold");
+        }
+        hasLogged.current = true;
     }
 
     // Cross-Tab Sync
@@ -80,10 +84,7 @@ export function AnalyticsClient() {
     initialData: () => {
       if (typeof window === "undefined") return undefined;
       const cached = chatCache.get<any>("admin_analytics");
-      if (cached) {
-          return cached.data;
-      }
-      return undefined;
+      return cached?.data;
     },
 
     // Version check every 30 min or on window focus

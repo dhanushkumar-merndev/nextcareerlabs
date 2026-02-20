@@ -32,18 +32,27 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
     const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
     const lastVersionRef = useRef<number | null>(null);
     const [mounted, setMounted] = useState(false);
+    const hasLogged = useRef(false);
 
     useEffect(() => {
         setMounted(true);
 
-        if (!currentUserId || isAuthLoading) return;
-
-        // 🟢 Robust LOCAL HIT Logging for Console
-        const localKey = getSidebarLocalKey(isAdmin);
-        const cached = chatCache.get<any>(localKey, isAdmin ? undefined : currentUserId);
-        if (cached) {
-            console.log(`[ChatLayout] LOCAL HIT (v${cached.version}). Rendering from device storage.`);
+        if (!hasLogged.current) {
+            // Admin cache is generic (admin_chat_sidebar), so we don't need currentUserId to check it
+            const localKey = getSidebarLocalKey(isAdmin);
+            const needsUserId = !isAdmin;
+            
+            // For users, wait for currentUserId. For admins, proceed.
+            if (!needsUserId || (currentUserId && !isAuthLoading)) {
+                const cached = chatCache.get<any>(localKey, isAdmin ? undefined : currentUserId);
+                if (cached) {
+                    console.log(`%c[ChatLayout] LOCAL HIT (v${cached.version}). Rendering from device storage.`, "color: #eab308; font-weight: bold");
+                }
+                hasLogged.current = true;
+            }
         }
+
+        if (!currentUserId || isAuthLoading) return;
 
        // Cross-Tab Sync: Listen for storage changes from other tabs
        const handleStorageChange = (e: StorageEvent) => {
@@ -60,7 +69,7 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
    const getTime = () => new Date().toLocaleTimeString();
 
    // Centralized Data Fetch (Threads + Courses + Version)
-   const { data: sidebarData, isLoading } = useQuery({
+    const { data: sidebarData, isLoading } = useQuery({
   queryKey: getSidebarKey(currentUserId, isAdmin),
 
   queryFn: async () => {
@@ -73,22 +82,19 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
 
     const clientVersion = cached?.version;
 
-    if (!cached) {
-      console.log(`[${getTime()}] [Chat] Cache MISS. Fetching...`);
-    }
+    console.log(`[Chat] Smart Sync: checking version ${clientVersion || 'NULL'}...`);
 
     const result = await getThreadsAction(clientVersion);
 
     // If server says no change → use cache
     if ((result as any)?.status === "not-modified" && cached) {
+      console.log(`[Chat] Server: NOT_MODIFIED (v${clientVersion})`);
       return cached.data;
     }
 
     // If new data received → update cache
     if (result && !(result as any)?.status) {
-      console.log(
-        `[${getTime()}] [Chat] NEW_DATA → Updating cache`
-      );
+      console.log(`[Chat] Server: NEW_DATA -> Updating Local Cache (v${result.version})`);
 
       chatCache.set(
         localKey,

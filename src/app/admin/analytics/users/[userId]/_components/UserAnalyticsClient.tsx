@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { BookOpen, Calendar, CheckCircle2, Clock, Mail, User } from "lucide-react";
 import Link from "next/link";
 import { formatIST } from "@/lib/utils";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -23,10 +23,20 @@ interface UserAnalyticsClientProps {
 
 export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClientProps) {
     const [mounted, setMounted] = useState(false);
+    const hasLogged = useRef(false);
     const cacheKey = `admin_user_analytics_${userId}`;
 
     useEffect(() => {
         setMounted(true);
+        
+        if (!hasLogged.current) {
+            const cached = chatCache.get<any>(cacheKey);
+            if (cached) {
+                console.log(`%c[UserAnalytics] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+            }
+            hasLogged.current = true;
+        }
+
         // Sync initial server data if provided
         if (initialData && !initialData.status) {
              chatCache.set(cacheKey, initialData, undefined, initialData.version, PERMANENT_TTL);
@@ -60,11 +70,7 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
         initialData: () => {
             if (typeof window === "undefined") return initialData;
             const cached = chatCache.get<any>(cacheKey);
-            if (cached) {
-                console.log(`[UserAnalytics] LOCAL HIT (v${cached.version}). Rendering from storage.`);
-                return cached.data;
-            }
-            return initialData;
+            return cached?.data || initialData;
         },
         staleTime: 1800000, // 30 mins
         refetchInterval: 1800000,

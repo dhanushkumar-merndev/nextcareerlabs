@@ -17,7 +17,7 @@ import { InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-
 import { Check, Copy,Loader2,Mail,Phone,Search,ShieldCheck,User as UserIcon, RefreshCw} from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useInView } from "react-intersection-observer";
 import { toast } from "sonner";
 import { useDebounce } from "use-debounce";
@@ -40,16 +40,26 @@ export function UserList({
   const [version, setVersion] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const hasLogged = useRef(false);
   const { checkRateLimit } = useRefreshRateLimit(5, 60000);
 
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const STORAGE_KEY = activeTab === "admins" ? "admin_admins_list_data" : "admin_users_list_data";
   const VERSION_KEY = "admin_users_list_version";
   const LAST_CHECK_KEY = activeTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check";
+
+  useEffect(() => {
+    setIsMounted(true);
+    
+    if (!hasLogged.current) {
+        const storedData = localStorage.getItem(STORAGE_KEY);
+        const storedVersion = localStorage.getItem(VERSION_KEY);
+        if (storedData) {
+            console.log(`%c[UserList] LOCAL HIT (${storedVersion || 'v0'}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+        }
+        hasLogged.current = true;
+    }
+  }, [STORAGE_KEY, VERSION_KEY]);
 
   // Update URL when search changes
   useEffect(() => {
@@ -175,6 +185,28 @@ export function UserList({
       }
 
       return finalResult as UsersPage;
+    },
+    initialData: () => {
+      if (typeof window === "undefined" || !!debouncedSearch) return undefined;
+      const storedData = localStorage.getItem(STORAGE_KEY);
+      const storedVersion = localStorage.getItem(VERSION_KEY);
+      if (storedData) {
+        try {
+          const parsed = JSON.parse(storedData);
+          if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+            return {
+              pages: [{
+                users: parsed.users,
+                hasNextPage: parsed.hasNextPage,
+                totalUsers: parsed.totalUsers,
+                version: storedVersion || undefined
+              }],
+              pageParams: [1]
+            } as InfiniteData<UsersPage>;
+          }
+        } catch (e) {}
+      }
+      return undefined;
     },
     getNextPageParam: (lastPage, allPages) => {
       return lastPage.hasNextPage ? allPages.length + 1 : undefined;
