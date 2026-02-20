@@ -63,6 +63,7 @@ export const GLOBAL_CACHE_KEYS = {
   ADMIN_ANALYTICS_VERSION: "global:version:analytics",
   ADMIN_DASHBOARD_STATS_VERSION: "global:version:admin:dashboard:stats",
   ADMIN_COURSES_VERSION: "global:version:admin:courses",
+  ADMIN_ENROLLMENTS_LIST: "admin:enrollments:list",
   ADMIN_ENROLLMENTS_VERSION: "global:version:admin:enrollments",
   ADMIN_RECENT_COURSES_VERSION: "global:version:admin:recent_courses",
   ADMIN_CHAT_THREADS_VERSION: "global:version:admin:chat_threads",

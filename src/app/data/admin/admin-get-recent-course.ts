@@ -35,6 +35,7 @@ export async function adminGetRecentCourses(clientVersion?: string) {
   }
 
   console.log(`[adminGetRecentCourses] Redis Cache MISS. Fetching from Prisma DB...`);
+  const startTime = Date.now();
   const data = await prisma.course.findMany({
     orderBy: {
       createdAt: "desc",
@@ -52,6 +53,8 @@ export async function adminGetRecentCourses(clientVersion?: string) {
       category: true,
     },
   });
+  const duration = Date.now() - startTime;
+  console.log(`[adminGetRecentCourses] DB Fetch took ${duration}ms.`);
 
   // Cache for 6 hours
   await setCache(cacheKey, data, 21600);

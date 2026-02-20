@@ -53,6 +53,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
         start.setHours(0, 0, 0, 0);
         end.setHours(23, 59, 59, 999);
 
+        const startTime = Date.now();
         const [
             totalUsers,
             totalEnrollments,
@@ -90,6 +91,8 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             }),
             getAverageProgressCached()
         ]);
+        const mainDuration = Date.now() - startTime;
+        console.log(`[getAdminAnalytics] Main DB Queries took ${mainDuration}ms`);
 
         const enrollRatio = totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
 
@@ -122,10 +125,13 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
 
         // 3. Popular Courses Chart
         const courseIds = popularCourses.map(p => p.courseId);
+        const detailStartTime = Date.now();
         const coursesDetails = await prisma.course.findMany({
             where: { id: { in: courseIds } },
             select: { id: true, title: true }
         });
+        const detailDuration = Date.now() - detailStartTime;
+        console.log(`[getAdminAnalytics] Course Details Fetch took ${detailDuration}ms`);
 
         const popularCoursesChartData = popularCourses.map((p) => {
             const course = coursesDetails.find((c) => c.id === p.courseId);
@@ -179,6 +185,7 @@ async function getAverageProgressCached() {
         // --- Optimized Average Progress Calculation (Set-Based) ---
         // We use relation filters to avoid fetching massive ID arrays into memory
         
+        const startTime = Date.now();
         // 1. Total Completed Lessons for users with Granted enrollments
         const totalCompleted = await prisma.lessonProgress.count({
             where: {
@@ -207,6 +214,9 @@ async function getAverageProgressCached() {
                 }
             }
         });
+        const duration = Date.now() - startTime;
+        console.log(`[getAverageProgressCached] Heavy computation took ${duration}ms`);
+        
 
         let totalPotential = 0;
         coursesWithStats.forEach(course => {
@@ -239,10 +249,13 @@ import { getUserDashboardData } from "@/app/dashboard/actions";
 export async function getUserAnalyticsAdmin(userId: string) {
     await requireAdmin();
     try {
+        const startTime = Date.now();
         const user = await prisma.user.findUnique({
             where: { id: userId },
             select: { id: true, name: true, email: true, role: true, createdAt: true, image: true }
         });
+        const duration = Date.now() - startTime;
+        console.log(`[getUserAnalyticsAdmin] DB Fetch took ${duration}ms for User ID: ${userId}`);
 
         if (!user) return null;
 
@@ -264,6 +277,7 @@ export async function getUserAnalyticsAdmin(userId: string) {
 export async function getUserCourseDetailedProgress(userId: string, courseId: string) {
     await requireAdmin();
     try {
+        const startTime = Date.now();
         const [user, course] = await Promise.all([
             prisma.user.findUnique({
                 where: { id: userId },
@@ -288,6 +302,8 @@ export async function getUserCourseDetailedProgress(userId: string, courseId: st
                 }
             })
         ]);
+        const duration = Date.now() - startTime;
+        console.log(`[getUserCourseDetailedProgress] DB Fetch took ${duration}ms for User ID: ${userId}, Course ID: ${courseId}`);
 
         if (!user || !course) return null;
 
@@ -330,6 +346,7 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
             });
         }
 
+        const startTime = Date.now();
         const users = await prisma.user.findMany({
             where: whereClause,
             orderBy: { createdAt: 'desc' },
@@ -352,6 +369,8 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
         const totalUsers = await prisma.user.count({
             where: whereClause
         });
+        const duration = Date.now() - startTime;
+        console.log(`[getAllUsers] DB Fetch (List + Count) took ${duration}ms. Filters: ${JSON.stringify(whereClause)}`);
 
         const hasNextPage = skip + users.length < totalUsers;
 

@@ -55,11 +55,14 @@ export async function saveMCQs(
       }
     }
 
+    const deleteStartTime = Date.now();
     // Delete existing questions for this lesson
     await db.question.deleteMany({
       where: { lessonId },
     });
+    console.log(`[saveMCQs] DB Delete took ${Date.now() - deleteStartTime}ms`);
 
+    const createStartTime = Date.now();
     // Create new questions
     await db.question.createMany({
       data: questions.map((q, index) => ({
@@ -71,6 +74,7 @@ export async function saveMCQs(
         order: index + 1,
       })),
     });
+    console.log(`[saveMCQs] DB Create took ${Date.now() - createStartTime}ms`);
 
     // Invalidate caches
     await Promise.all([
@@ -120,6 +124,7 @@ export async function getLessonMCQs(lessonId: string): Promise<{
       };
     }
 
+    const startTime = Date.now();
     // 2. Fallback to Database
     const questions = await db.question.findMany({
       where: { lessonId },
@@ -133,6 +138,7 @@ export async function getLessonMCQs(lessonId: string): Promise<{
         order: true,
       },
     });
+    console.log(`[getLessonMCQs] DB Fetch took ${Date.now() - startTime}ms`);
 
     // 3. Store in cache (if exists)
     if (questions.length > 0) {
@@ -168,9 +174,11 @@ export async function deleteLessonMCQs(lessonId: string): Promise<{
       return { success: false, error: 'Unauthorized' };
     }
 
+    const startTime = Date.now();
     await db.question.deleteMany({
       where: { lessonId },
     });
+    console.log(`[deleteLessonMCQs] DB Delete took ${Date.now() - startTime}ms`);
 
     await Promise.all([
       invalidateCache(`lesson:${lessonId}`),

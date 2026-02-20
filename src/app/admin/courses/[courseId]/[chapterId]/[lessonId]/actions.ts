@@ -21,13 +21,16 @@ export async function updateLesson(
       };
     }
 
+    const fetchStartTime = Date.now();
     const existingLesson = await prisma.lesson.findUnique({
       where: { id: lessonId },
       select: { videoKey: true },
     });
+    console.log(`[updateLesson] Existing Fetch took ${Date.now() - fetchStartTime}ms`);
 
     const isVideoChanged = existingLesson?.videoKey !== result.data.videoKey;
 
+    const updateStartTime = Date.now();
     await prisma.$transaction(async (tx) => {
       await tx.lesson.update({
         where: {
@@ -69,6 +72,7 @@ export async function updateLesson(
         }
       }
     });
+    console.log(`[updateLesson] Transaction took ${Date.now() - updateStartTime}ms`);
     
     // Invalidate caches
     await Promise.all([

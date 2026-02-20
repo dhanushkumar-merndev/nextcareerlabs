@@ -35,6 +35,7 @@ export async function adminGetDashboardStats(clientVersion?: string) {
   }
 
   console.log(`[adminGetDashboardStats] Redis Cache MISS. Fetching from Prisma DB...`);
+  const startTime = Date.now();
   const [totalUsers, enrolledUsers, totalCourses, totalLessons] =
     await Promise.all([
       prisma.user.count(),
@@ -47,6 +48,8 @@ export async function adminGetDashboardStats(clientVersion?: string) {
       prisma.course.count(),
       prisma.lesson.count(),
     ]);
+  const duration = Date.now() - startTime;
+  console.log(`[adminGetDashboardStats] DB Fetch took ${duration}ms.`);
 
   const stats = {
     totalUsers,

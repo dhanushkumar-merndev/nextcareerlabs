@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 export async function adminGetLesson(id: string) {
   await requireAdmin();
 
+  const startTime = Date.now();
   const data = await prisma.lesson.findUnique({
     where: {
       id: id,
@@ -27,6 +28,8 @@ export async function adminGetLesson(id: string) {
       lowResKey: true,
     },
   });
+  const duration = Date.now() - startTime;
+  console.log(`[adminGetLesson] DB Fetch took ${duration}ms for ID: ${id}`);
 
   if (!data) {
     return notFound();

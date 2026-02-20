@@ -93,9 +93,10 @@ interface Request {
 
 const BATCH_SIZE = 10;
 
-export function RequestsTable({ initialData, totalCount: initialTotalCount }: { initialData: Request[], totalCount: number }) {
+export function RequestsTable({ initialData, totalCount: initialTotalCount, version: initialVersion }: { initialData: Request[], totalCount: number, version?: string }) {
   const [data, setData] = useState<Request[]>(initialData);
   const [totalCount, setTotalCount] = useState(initialTotalCount);
+  const [version, setVersion] = useState<string | null>(initialVersion || null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -206,28 +207,106 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount }: { 
 
   // Debounce search effect
   useEffect(() => {
+    // Skip if search matches current debounced value (prevents request storms)
+    if (search === debouncedSearch) return;
+
+    // Constraint: Only trigger if cleared (length 0) or meaningful (length >= 3)
+    if (search.length > 0 && search.length < 3) return;
+
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
-    }, 500);
+    }, 1000);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, debouncedSearch]);
+
+  const [hasHydrated, setHasHydrated] = useState(false);
+
+  // --- SMART SYNC: MOUNT & PERSISTENCE ---
+  useEffect(() => {
+    const STORAGE_KEY = "admin_enrollment_requests";
+    const VERSION_KEY = "admin_enrollment_version";
+    const SYNC_TIMESTAMP_KEY = "admin_enrollment_last_sync";
+    const SYNC_WINDOW = 30 * 60 * 1000; // 30 Minutes
+
+    const syncWithServer = async (currentV: string | null) => {
+        startTransition(async () => {
+             const result = await getRequestsAction(0, BATCH_SIZE, "All", undefined, currentV || undefined);
+             
+             if (result.status === "not-modified") {
+                 console.log(`[RequestsTable] Smart Sync: Server version matches (${currentV}). Cache is fresh.`);
+             } else {
+                 console.log(`[RequestsTable] Smart Sync: Server version mismatch or Cache Miss. Syncing ${result.data.length} items.`);
+                 setData(result.data as Request[]);
+                 setTotalCount(result.totalCount);
+                 setVersion(result.version);
+                 
+                 // Persist to LocalStorage
+                 localStorage.setItem(STORAGE_KEY, JSON.stringify({ data: result.data, totalCount: result.totalCount }));
+                 localStorage.setItem(VERSION_KEY, result.version);
+             }
+             localStorage.setItem(SYNC_TIMESTAMP_KEY, Date.now().toString());
+             setHasHydrated(true);
+        });
+    };
+
+    // 1. Initial Load from LocalStorage (if not searching)
+    if (debouncedSearch === "") {
+        const cached = localStorage.getItem(STORAGE_KEY);
+        const cachedVersion = localStorage.getItem(VERSION_KEY);
+        const lastSync = localStorage.getItem(SYNC_TIMESTAMP_KEY);
+
+        if (cached && cachedVersion) {
+            const parsed = JSON.parse(cached);
+            setData(parsed.data);
+            setTotalCount(parsed.totalCount);
+            setVersion(cachedVersion);
+            setHasHydrated(true);
+            console.log(`[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`);
+
+            // 2. Determine if background revalidation is needed
+            const now = Date.now();
+            if (!lastSync || (now - parseInt(lastSync)) > SYNC_WINDOW) {
+                console.log(`[RequestsTable] Revalidation Window Open (>30m). Syncing...`);
+                syncWithServer(cachedVersion);
+            }
+        } else {
+            console.log(`[RequestsTable] No Local Cache. Triggering Initial Sync...`);
+            syncWithServer(null);
+        }
+    }
+
+    // 3. Cross-Tab Sync: Listen for storage changes from other tabs
+    const handleStorageChange = (e: StorageEvent) => {
+        if (debouncedSearch !== "") return; // Don't sync while searching
+        
+        if (e.key === STORAGE_KEY && e.newValue) {
+            const parsed = JSON.parse(e.newValue);
+            setData(parsed.data);
+            setTotalCount(parsed.totalCount);
+            console.log(`[RequestsTable] Cross-Tab Sync: Data updated from another tab.`);
+        }
+        if (e.key === VERSION_KEY && e.newValue) {
+            setVersion(e.newValue);
+        }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+
+  }, [debouncedSearch]);
 
   // Handle search logic
   useEffect(() => {
-    if (debouncedSearch === "") {
-        setData(initialData);
-        setTotalCount(initialTotalCount);
-        setHasMore(initialData.length < initialTotalCount);
-        return;
-    }
+    if (debouncedSearch === "") return; // Handled by Smart Sync effect
 
     startTransition(async () => {
       const result = await getRequestsAction(0, BATCH_SIZE, "All", debouncedSearch);
       setData(result.data as Request[]);
       setTotalCount(result.totalCount);
       setHasMore(result.data.length < result.totalCount);
+      console.log(`[RequestsTable] Search synced with server for "${debouncedSearch}".`);
     });
-  }, [debouncedSearch, initialData, initialTotalCount]);
+  }, [debouncedSearch]);
 
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
@@ -250,14 +329,25 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount }: { 
     <div className="space-y-4 sm:space-y-6 px-4 sm:px-0">
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         {/* Search Bar - Responsive */}
-        <div className="relative w-full sm:max-w-md">
-           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground opacity-50" />
+        <div className="relative w-full sm:max-w-md group">
+           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
            <Input 
              placeholder="Search by name, ID or email..." 
-             className="pl-10 h-11 bg-muted/30 border-2 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium"
+             className="pl-10 pr-10 h-11 bg-muted/30 border-2 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium py-2"
              value={search}
              onChange={(e) => setSearch(e.target.value)}
            />
+           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+             {isPending && <Loader2 className="size-4 animate-spin text-muted-foreground/60" />}
+             {search && !isPending && (
+               <button 
+                onClick={() => setSearch("")}
+                className="hover:bg-muted/60 p-1 rounded-full text-muted-foreground/60 hover:text-foreground transition-colors"
+               >
+                 <XCircle className="size-4" />
+               </button>
+             )}
+           </div>
         </div>
 
         {/* Info Badge */}
@@ -283,7 +373,16 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount }: { 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length === 0 ? (
+            {!hasHydrated ? (
+              <TableRow>
+                <TableCell colSpan={8} className="h-48 text-center text-muted-foreground/60 italic">
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="size-10 animate-spin opacity-20" />
+                    <p className="text-sm font-medium">Hydrating from cache...</p>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : data.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="h-48 text-center text-muted-foreground/60 italic">
                   <div className="flex flex-col items-center gap-2">

@@ -32,6 +32,7 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
       }
     }
     // 1. Fetch course details to get file keys and ChatGroup
+    const fetchStartTime = Date.now();
     const course = await prisma.course.findUnique({
       where: { id: courseId },
       include: {
@@ -48,6 +49,8 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
         },
       },
     });
+    const fetchDuration = Date.now() - fetchStartTime;
+    console.log(`[deleteCourse] Course Fetch took ${fetchDuration}ms`);
 
     if (!course) {
       return {
@@ -76,17 +79,21 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
 
     // 4. Delete ChatGroup if exists
     if (course.chatGroups.length > 0) {
+      const chatStartTime = Date.now();
       await prisma.chatGroup.deleteMany({
         where: { courseId: courseId },
       });
+      console.log(`[deleteCourse] ChatGroup delete took ${Date.now() - chatStartTime}ms`);
     }
 
     // 5. Delete the course (cascades to Chapter, Lesson, etc. thanks to schema)
+    const deleteStartTime = Date.now();
     await prisma.course.delete({
       where: {
         id: courseId,
       },
     });
+    console.log(`[deleteCourse] DB Delete took ${Date.now() - deleteStartTime}ms`);
 
     revalidatePath("/admin/courses");
     revalidatePath("/admin/resources"); // Revalidate Resources page since ChatGroup is gone

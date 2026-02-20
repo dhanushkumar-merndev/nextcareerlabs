@@ -308,6 +308,7 @@ export async function getThreadsAction(clientVersion?: string) {
         ]
       };
 
+  const dbStartTime = Date.now();
   // 1. Get unique threads and their latest message timestamp
   const threadMaxDates = await prisma.notification.groupBy({
     by: ['threadId'],
@@ -317,6 +318,7 @@ export async function getThreadsAction(clientVersion?: string) {
     },
     _max: { createdAt: true }
   });
+  console.log(`[getThreadsAction] GroupBy Threads took ${Date.now() - dbStartTime}ms`);
 
   const threadIds = threadMaxDates.map(t => t.threadId!).filter(Boolean);
   
@@ -412,6 +414,7 @@ export async function getThreadsAction(clientVersion?: string) {
         select: { createdAt: true }
     })
   ]);
+  console.log(`[getThreadsAction] Big Parallel Fetch took ${Date.now() - dbStartTime}ms (Threads: ${threadIds.length})`);
 
   // Transform Maps
   const unresolvedMap: Record<string, number> = {};
@@ -572,11 +575,13 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
 
   // If initial load (no cursor), find the latest message to start the window from there
   if (!before) {
+    const dbFetchStart = Date.now();
     const latest = await prisma.notification.findFirst({
         where: { threadId },
         orderBy: { createdAt: "desc" },
         select: { createdAt: true }
     });
+    console.log(`[getThreadMessagesAction] Latest Msg Fetch took ${Date.now() - dbFetchStart}ms`);
     
     if (latest) {
         // Set reference date to slightly after the latest message to ensure it's included
@@ -587,38 +592,40 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
   const sevenDaysAgo = new Date(referenceDate);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const messages = await prisma.notification.findMany({
-    where: { 
-        threadId,
-        createdAt: {
-            lt: referenceDate,
-            gte: sevenDaysAgo
+  const mainDbStart = Date.now();
+  const [messages, state, oldestEver] = await Promise.all([
+    prisma.notification.findMany({
+      where: { 
+          threadId,
+          createdAt: {
+              lt: referenceDate,
+              gte: sevenDaysAgo
+          }
+      },
+      include: {
+        sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    }),
+    prisma.userThreadState.findUnique({
+      where: {
+        userId_threadId: {
+          userId: session.user.id,
+          threadId
         }
-    },
-    include: {
-      sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true } }
-    },
-    orderBy: { createdAt: "desc" }
-  });
-
-  const state = await prisma.userThreadState.findUnique({
-    where: {
-      userId_threadId: {
-        userId: session.user.id,
-        threadId
       }
-    }
-  });
-  
-  // Read status is now handled separately and throttled via markThreadAsReadAction
-
-  const oldestEver = await prisma.notification.findFirst({
-      where: { threadId },
-      orderBy: { createdAt: "asc" },
-      select: { createdAt: true }
-  });
+    }),
+    prisma.notification.findFirst({
+        where: { threadId },
+        orderBy: { createdAt: "asc" },
+        select: { createdAt: true }
+    })
+  ]);
+  console.log(`[getThreadMessagesAction] DB Fetch (Msgs + State + Oldest) took ${Date.now() - mainDbStart}ms (Count: ${messages.length})`);
 
   const nextCursor = (oldestEver && oldestEver.createdAt < sevenDaysAgo) ? sevenDaysAgo.toISOString() : null;
+  const dbDuration = Date.now() - mainDbStart;
+  console.log(`[getThreadMessagesAction] DB Operations total took ${dbDuration}ms.`);
 
   const signedMessages = await Promise.all(messages.map(m => signMessageAttachments(m)));
 

@@ -52,9 +52,30 @@ export function AdminCoursesClient() {
     queryKey: ["admin_courses_list", searchTitle],
     
     placeholderData: (previousData) => {
+        // 🔹 1. If we have previousData, try to filter it locally for an instant feel
+        if (previousData && searchTitle) {
+            const q = searchTitle.toLowerCase();
+            const filteredPages = previousData.pages.map(page => ({
+                ...page,
+                courses: page.courses.filter((c: any) => 
+                    c.title.toLowerCase().includes(q) || 
+                    (c.smallDescription?.toLowerCase().includes(q))
+                )
+            }));
+            
+            // If we found matches in the previous set, show them immediately
+            const hasMatches = filteredPages.some(p => p.courses.length > 0);
+            if (hasMatches) {
+                return {
+                    ...previousData,
+                    pages: filteredPages
+                } as InfiniteData<AdminCoursesPage, string | null>;
+            }
+        }
+
         if (previousData) return previousData;
         if (typeof window === "undefined") return undefined;
-        // 🔹 SEARCH MODE → Try to show whatever we have in cache first
+        // 🔹 2. Fallback to global cache if no previous data
         if (searchTitle && cached) {
             const q = searchTitle.toLowerCase();
             const filtered = (cached.data?.data ?? cached.data?.courses ?? cached.data ?? []).filter((c: any) => 
@@ -73,7 +94,7 @@ export function AdminCoursesClient() {
             }
         }
 
-        // 🔹 NORMAL MODE → Show cached first page
+        // 🔹 3. NORMAL MODE → Show cached first page
         if (!searchTitle && cached) {
             return {
                 pages: [{
@@ -93,7 +114,7 @@ export function AdminCoursesClient() {
         if (typeof window === "undefined" || searchTitle) return undefined;
         const cached = chatCache.get<any>("admin_courses_list");
         if (cached) {
-            console.log(`[${getTime()}] [Courses] LOCAL HIT (initialData).`);
+            console.log(`[${getTime()}] [Courses] LOCAL HIT (initialData). Displaying cached courses immediately.`);
             const courses = cached.data?.data ?? cached.data?.courses ?? cached.data ?? [];
             return {
                 pages: [{

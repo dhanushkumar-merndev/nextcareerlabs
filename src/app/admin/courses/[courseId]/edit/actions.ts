@@ -52,6 +52,7 @@ export async function editCourse(
       };
     }
 
+    const updateStartTime = Date.now();
     await prisma.course.update({
       where: {
         id: courseId,
@@ -61,6 +62,7 @@ export async function editCourse(
         ...result.data,
       },
     });
+    console.log(`[editCourse] DB Update took ${Date.now() - updateStartTime}ms`);
 
     // Auto-create Broadcast Group if Published
     if (result.data.status === "Published") {
@@ -130,7 +132,9 @@ export async function reorderLessons(
         },
       });
     });
+    const startTime = Date.now();
     await prisma.$transaction(updates);
+    console.log(`[reorderLessons] Transaction took ${Date.now() - startTime}ms`);
     
     // Invalidate caches
     await Promise.all([
@@ -176,7 +180,9 @@ export async function reorderChapters(
         },
       });
     });
+    const startTime = Date.now();
     await prisma.$transaction(updates);
+    console.log(`[reorderChapters] Transaction took ${Date.now() - startTime}ms`);
     
     // Invalidate caches
     await Promise.all([
@@ -210,6 +216,7 @@ export async function createChapter(
         message: "Invaild data",
       };
     }
+    const startTime = Date.now();
     await prisma.$transaction(async (tx) => {
       const maxPosition = await tx.chapter.findFirst({
         where: {
@@ -230,6 +237,7 @@ export async function createChapter(
         },
       });
     });
+    console.log(`[createChapter] Transaction took ${Date.now() - startTime}ms`);
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
@@ -264,6 +272,7 @@ export async function createLesson(
         message: "Invaild data",
       };
     }
+    const startTime = Date.now();
     await prisma.$transaction(async (tx) => {
       const maxPosition = await tx.lesson.findFirst({
         where: {
@@ -287,6 +296,7 @@ export async function createLesson(
         },
       });
     });
+    console.log(`[createLesson] Transaction took ${Date.now() - startTime}ms`);
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
@@ -320,6 +330,7 @@ export async function deleteLesson({
 }): Promise<ApiResponse> {
   await requireAdmin();
   try {
+    const startTime = Date.now();
     const chapterWithLessons = await prisma.chapter.findUnique({
       where: {
         id: chapterId,
@@ -336,6 +347,7 @@ export async function deleteLesson({
         },
       },
     });
+    console.log(`[deleteLesson] Chapter Fetch took ${Date.now() - startTime}ms`);
 
     if (!chapterWithLessons) {
       return {
@@ -345,10 +357,12 @@ export async function deleteLesson({
     }
 
     const lessons = chapterWithLessons.lesson;
+    const lessonFetchStart = Date.now();
     const lessonToDelete = await prisma.lesson.findUnique({
       where: { id: lessonId },
       select: { id: true, videoKey: true, thumbnailKey: true },
     });
+    console.log(`[deleteLesson] Lesson Fetch took ${Date.now() - lessonFetchStart}ms`);
 
     if (!lessonToDelete) {
       return {
@@ -375,10 +389,12 @@ export async function deleteLesson({
       });
     });
 
+    const transStartTime = Date.now();
     await prisma.$transaction([
       ...updates,
       prisma.lesson.delete({ where: { id: lessonId, chapterId: chapterId } }),
     ]);
+    console.log(`[deleteLesson] Transaction took ${Date.now() - transStartTime}ms`);
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
@@ -414,6 +430,7 @@ export async function deleteChapter({
   await requireAdmin();
 
   try {
+    const startTime = Date.now();
     const courseWithChapters = await prisma.course.findUnique({
       where: { id: courseId },
       select: {
@@ -423,11 +440,13 @@ export async function deleteChapter({
         },
       },
     });
+    console.log(`[deleteChapter] Course Fetch took ${Date.now() - startTime}ms`);
 
     if (!courseWithChapters) {
       return { status: "error", message: "Course not found" };
     }
 
+    const chapStartTime = Date.now();
     const chapterToDelete = await prisma.chapter.findUnique({
       where: { id: chapterId },
       include: {
@@ -436,6 +455,7 @@ export async function deleteChapter({
         },
       },
     });
+    console.log(`[deleteChapter] Chapter Fetch took ${Date.now() - chapStartTime}ms`);
 
     if (!chapterToDelete) {
       return { status: "error", message: "Chapter not found" };
@@ -462,12 +482,14 @@ export async function deleteChapter({
       })
     );
 
+    const transStartTime = Date.now();
     await prisma.$transaction([
       ...updates,
       prisma.chapter.delete({
         where: { id: chapterId },
       }),
     ]);
+    console.log(`[deleteChapter] Transaction took ${Date.now() - transStartTime}ms`);
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
@@ -511,6 +533,7 @@ export async function editChapter({
       };
     }
 
+    const updateStartTime = Date.now();
     await prisma.chapter.update({
       where: {
         id: chapterId,
@@ -520,6 +543,7 @@ export async function editChapter({
         title: name.trim(),
       },
     });
+    console.log(`[editChapter] DB Update took ${Date.now() - updateStartTime}ms`);
 
     // Invalidate analytics and dashboard caches
     await Promise.all([

@@ -12,9 +12,10 @@ export async function getRequestsAction(
   skip: number,
   take: number,
   status?: EnrollmentStatus | "All",
-  search?: string
+  search?: string,
+  clientVersion?: string
 ) {
-  return await adminGetEnrollmentRequests(skip, take, status, search);
+  return await adminGetEnrollmentRequests(skip, take, status, search, clientVersion);
 }
 
 export async function updateEnrollmentStatusAction(
@@ -24,6 +25,7 @@ export async function updateEnrollmentStatusAction(
   await requireAdmin();
 
   try {
+    const updateStartTime = Date.now();
     await prisma.enrollment.update({
       where: { id: enrollmentId },
       data: { 
@@ -36,6 +38,8 @@ export async function updateEnrollmentStatusAction(
       where: { id: enrollmentId },
       select: { userId: true }
     });
+    const updateDuration = Date.now() - updateStartTime;
+    console.log(`[updateEnrollmentStatusAction] DB Update + Fetch took ${updateDuration}ms`);
     if (enrollment) {
       await invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId));
       
@@ -54,6 +58,13 @@ export async function updateEnrollmentStatusAction(
           invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(enrollment.userId)),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId))
+      ]);
+
+      // Smart Sync Invalidation for enrollment list and dashboard stats
+      await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
       ]);
     }
 
@@ -74,10 +85,18 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
   await requireAdmin();
 
   try {
+    const startTime = Date.now();
     await prisma.user.update({
       where: { id: userId },
       data: { banned: true },
     });
+    console.log(`[banUserAction] DB Update took ${Date.now() - startTime}ms`);
+
+    // Invalidate enrollment list since ban status changed
+    await Promise.all([
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION)
+    ]);
 
     revalidatePath("/admin/requests");
     return {
@@ -96,10 +115,18 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
   await requireAdmin();
 
   try {
+    const startTime = Date.now();
     await prisma.user.update({
       where: { id: userId },
       data: { banned: false },
     });
+    console.log(`[unbanUserAction] DB Update took ${Date.now() - startTime}ms`);
+
+    // Invalidate enrollment list since ban status changed
+    await Promise.all([
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION)
+    ]);
 
     revalidatePath("/admin/requests");
     return {
@@ -121,10 +148,12 @@ export async function updateUserDetailsAction(
   await requireAdmin();
 
   try {
+    const startTime = Date.now();
     await prisma.user.update({
       where: { id: userId },
       data,
     });
+    console.log(`[updateUserDetailsAction] DB Update took ${Date.now() - startTime}ms`);
 
     revalidatePath("/admin/requests");
     return {
@@ -145,9 +174,18 @@ export async function deleteEnrollmentAction(
   await requireAdmin();
 
   try {
+    const startTime = Date.now();
     await prisma.enrollment.delete({
       where: { id: enrollmentId },
     });
+    console.log(`[deleteEnrollmentAction] DB Delete took ${Date.now() - startTime}ms`);
+
+    // Smart Sync Invalidation
+    await Promise.all([
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
+    ]);
 
     revalidatePath("/admin/requests");
     return {

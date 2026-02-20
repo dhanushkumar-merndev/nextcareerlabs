@@ -1,44 +1,76 @@
-"use client"
+"use client";
+
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { Search, Loader2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export function AdminCourseSearch() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   const [value, setValue] = useState(searchParams.get("title") || "");
 
   useEffect(() => {
+    // 🔹 1. Update internal state if URL changes externally (e.g. back button)
+    const urlValue = searchParams.get("title") || "";
+    if (urlValue !== value && !isPending) {
+        setValue(urlValue);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    // 🔹 2. Debounced URL sync
     const timer = setTimeout(() => {
-      if (searchParams.get("title") === value) return;
+      // Check if value is already in URL
+      if (value === (searchParams.get("title") || "")) return;
 
-      const params = new URLSearchParams(searchParams);
+      // 🔹 Constraint: Only search if length is 0 (cleared) or >= 3
+      if (value && value.length < 3) return;
 
+      const params = new URLSearchParams(searchParams.toString());
       if (value) {
         params.set("title", value);
       } else {
         params.delete("title");
       }
 
-      router.replace(`${pathname}?${params.toString()}`);
-    }, 800);
+      startTransition(() => {
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      });
+    }, 1000);
 
     return () => clearTimeout(timer);
-  }, [value, router, pathname, searchParams]);
+  }, [value]);
+
+  const onClear = () => {
+    setValue("");
+  };
 
   return (
-    <div className="relative w-full md:w-[300px]">
-      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+    <div className="relative w-full md:w-[320px] group">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
       <Input
-        type="search"
+        type="text"
         placeholder="Search courses..."
-        className="w-full pl-8 bg-background rounded-xl"
+        className="w-full pl-9 pr-9 bg-background/50 border-muted-foreground/20 rounded-xl focus:bg-background transition-all"
         value={value}
         onChange={(e) => setValue(e.target.value)}
       />
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+        {isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : value ? (
+          <button
+            onClick={onClear}
+            className="p-1 hover:bg-muted-foreground/10 rounded-full transition-colors"
+          >
+            <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

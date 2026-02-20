@@ -39,6 +39,7 @@ export async function storeTranscription(
 
     const { key, url } = await uploadTranscriptionToS3(lessonId, vttContent, customKey);
 
+    const startTime = Date.now();
     // Save to database (upsert)
     const transcription = await db.transcription.upsert({
       where: { lessonId },
@@ -55,6 +56,7 @@ export async function storeTranscription(
         updatedAt: new Date(),
       },
     });
+    console.log(`[storeTranscription] DB Upsert took ${Date.now() - startTime}ms`);
 
     // Invalidate caches
     await Promise.all([
@@ -91,6 +93,7 @@ export async function getTranscription(lessonId: string): Promise<{
   error?: string;
 }> {
   try {
+    const startTime = Date.now();
     const [transcription, questionCount] = await Promise.all([
       db.transcription.findUnique({
         where: { lessonId },
@@ -104,6 +107,7 @@ export async function getTranscription(lessonId: string): Promise<{
         where: { lessonId },
       }),
     ]);
+    console.log(`[getTranscription] DB Fetch (Unique + Count) took ${Date.now() - startTime}ms`);
 
     if (!transcription) {
       return { success: false, error: 'Transcription not found' };
@@ -141,9 +145,11 @@ export async function deleteTranscription(lessonId: string): Promise<{
       return { success: false, error: 'Unauthorized' };
     }
 
+    const startTime = Date.now();
     await db.transcription.delete({
       where: { lessonId },
     });
+    console.log(`[deleteTranscription] DB Delete took ${Date.now() - startTime}ms`);
 
     // Invalidate caches
     await Promise.all([

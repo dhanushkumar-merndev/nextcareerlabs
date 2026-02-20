@@ -11,7 +11,8 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function AdminRequestsPage() {
-  const { data, totalCount } = await adminGetEnrollmentRequests(0, 10);
+  // Client Shell: No server-side data fetch to avoid redundant Redis/DB hits.
+  // The RequestsTable component will hydrate from LocalStorage or fetch on mount.
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
@@ -30,7 +31,7 @@ export default async function AdminRequestsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0 sm:px-6">
-          <RequestsTable initialData={data as any} totalCount={totalCount} />
+          <RequestsTable initialData={[]} totalCount={0} />
         </CardContent>
       </Card>
     </div>

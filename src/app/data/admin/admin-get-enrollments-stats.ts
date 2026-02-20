@@ -38,6 +38,7 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   const startDate = new Date();
   startDate.setDate(today.getDate() - 29); // include today
 
+  const startTime = Date.now();
   // Fetch all enrollments within last 30 days
   const enrollments = await prisma.enrollment.findMany({
     where: {
@@ -52,6 +53,8 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
       createdAt: "asc",
     },
   });
+  const duration = Date.now() - startTime;
+  console.log(`[adminGetEnrollmentsStats] DB Fetch took ${duration}ms (Rows: ${enrollments.length}).`);
 
   // Build fixed 30-day data structure
   const last30Days: { date: string; enrollments: number }[] = [];

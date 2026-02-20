@@ -46,6 +46,7 @@ export async function CreateCourse(
       };
     }
 
+    const existingStartTime = Date.now();
     const existingCourse = await prisma.course.findUnique({
       where: {
         slug: validation.data.slug,
@@ -54,6 +55,8 @@ export async function CreateCourse(
         id: true,
       },
     });
+    const existingDuration = Date.now() - existingStartTime;
+    console.log(`[CreateCourse] Slug check took ${existingDuration}ms`);
 
     if (existingCourse) {
       return {
@@ -62,12 +65,15 @@ export async function CreateCourse(
       };
     }
 
+    const createStartTime = Date.now();
     const createdCourse = await prisma.course.create({
       data: {
         ...validation.data,
         userId: session.user.id,
       },
     });
+    const createDuration = Date.now() - createStartTime;
+    console.log(`[CreateCourse] DB Create took ${createDuration}ms`);
 
     // Auto-create Broadcast Group if Published on creation
     if (validation.data.status === "Published") {

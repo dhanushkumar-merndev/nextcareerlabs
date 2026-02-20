@@ -35,11 +35,49 @@ export async function adminGetCourses(
   
   let allCourses: any[];
 
-  if (cached) {
+  if (searchQuery) {
+    if (cached) {
+      console.log(`[adminGetCourses] Redis Cache filter for "${searchQuery}"...`);
+      const q = searchQuery.toLowerCase();
+      allCourses = cached.filter(c => 
+        c.title.toLowerCase().includes(q) || 
+        (c.smallDescription?.toLowerCase().includes(q)) ||
+        c.slug.toLowerCase().includes(q)
+      );
+    } else {
+      console.log(`[adminGetCourses] Searching DB for "${searchQuery}"...`);
+      const startTime = Date.now();
+      allCourses = await prisma.course.findMany({
+        where: {
+          OR: [
+            { title: { contains: searchQuery, mode: 'insensitive' } },
+            { smallDescription: { contains: searchQuery, mode: 'insensitive' } },
+            { slug: { contains: searchQuery, mode: 'insensitive' } }
+          ]
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          id: true,
+          title: true,
+          smallDescription: true,
+          duration: true,
+          level: true,
+          status: true,
+          fileKey: true,
+          category: true,
+          slug: true,
+        },
+      });
+      const duration = Date.now() - startTime;
+      console.log(`[adminGetCourses] DB Search took ${duration}ms.`);
+    }
+  } else if (cached) {
     console.log(`[adminGetCourses] Redis Cache HIT. Preparing page...`);
     
     // Smart Sync: If no search/cursor, return first page immediately from Redis
-    if (!searchQuery && !cursor) {
+    if (!cursor) {
         const firstPage = cached.slice(0, PAGE_SIZE);
         const nextCursor = cached.length > PAGE_SIZE ? firstPage[firstPage.length - 1].id : null;
         
@@ -56,6 +94,7 @@ export async function adminGetCourses(
     allCourses = cached;
   } else {
     console.log(`[adminGetCourses] Redis Cache MISS. Fetching from Prisma DB...`);
+    const startTime = Date.now();
     allCourses = await prisma.course.findMany({
       orderBy: {
         createdAt: "desc",
@@ -72,16 +111,13 @@ export async function adminGetCourses(
         slug: true,
       },
     });
+    const duration = Date.now() - startTime;
+    console.log(`[adminGetCourses] DB Fetch took ${duration}ms.`);
 
     // Cache in Redis for 6 hours
     await setCache(cacheKey, allCourses, 21600);
   }
 
-  // Filter by Search
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    allCourses = allCourses.filter(c => c.title.toLowerCase().includes(q));
-  }
 
   // Cursor Pagination
   const startIndex = cursor

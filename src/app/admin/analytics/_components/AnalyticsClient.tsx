@@ -68,7 +68,7 @@ export function AnalyticsClient() {
       if (typeof window === "undefined") return undefined;
       const cached = chatCache.get<any>("admin_analytics");
       if (cached) {
-          console.log(`[${getTime()}] [Analytics] LOCAL HIT (initialData).`);
+          console.log(`[${getTime()}] [Analytics] LOCAL HIT (initialData). Displaying cached analytics immediately.`);
           return cached.data;
       }
       return undefined;

@@ -56,7 +56,7 @@ export function AdminDashboardClient() {
             if (typeof window === "undefined") return undefined;
             const cached = chatCache.get<any>("admin_dashboard_stats");
             if (cached) {
-                console.log(`[${getTime()}] [Dashboard] LOCAL HIT (initialData).`);
+                console.log(`[${getTime()}] [Dashboard] LOCAL HIT (initialData). Displaying cached data immediately.`);
                 return cached.data;
             }
             return undefined;
@@ -97,7 +97,7 @@ export function AdminDashboardClient() {
              if (typeof window === "undefined") return undefined;
              const cached = chatCache.get<any>("admin_dashboard_enrollments");
              if (cached) {
-                 console.log(`[${getTime()}] [Enrollments] LOCAL HIT (initialData).`);
+                 console.log(`[${getTime()}] [Enrollments] LOCAL HIT (initialData). Displaying cached chart immediately.`);
                  return cached.data;
              }
              return undefined;
@@ -138,7 +138,7 @@ export function AdminDashboardClient() {
              if (typeof window === "undefined") return undefined;
              const cached = chatCache.get<any>("admin_dashboard_recent_courses");
              if (cached) {
-                 console.log(`[${getTime()}] [RecentCourses] LOCAL HIT (initialData).`);
+                 console.log(`[${getTime()}] [RecentCourses] LOCAL HIT (initialData). Displaying recent courses immediately.`);
                  return cached.data;
              }
              return undefined;

@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 export async function adminGetCourse(id: string) {
   await requireAdmin();
 
+  const startTime = Date.now();
   const data = await prisma.course.findUnique({
     where: {
       id: id,
@@ -40,6 +41,8 @@ export async function adminGetCourse(id: string) {
       },
     },
   });
+  const duration = Date.now() - startTime;
+  console.log(`[adminGetCourse] DB Fetch took ${duration}ms for ID: ${id}`);
   if (!data) {
     return notFound();
   } else {
