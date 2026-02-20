@@ -126,10 +126,10 @@ export function AnalyticsClient() {
           description={`Total registered users (${data.totalEnrollments} enrollments)`}
         />
         <AnalyticsCard
-          title="Courses & Lessons"
-          value={`${data.totalLessons}`}
+          title="Chapters & Lessons"
+          value={`${data.totalChapters}`}
           icon="book-text"
-          description={`${data.totalCourses} Published courses`}
+          description={`Across ${data.totalLessons} total lessons`}
         />
         <AnalyticsCard
           title="Success Rate"

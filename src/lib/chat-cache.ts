@@ -61,6 +61,19 @@ export const chatCache = {
       .filter((key) => key.startsWith(STORAGE_PREFIX))
       .forEach((key) => localStorage.removeItem(key));
   },
+
+  invalidateAdminData: () => {
+    if (typeof window === "undefined") return;
+    const adminKeys = [
+        "admin_analytics", 
+        "admin_dashboard_all", 
+        "admin_recent_courses", 
+        "admin_courses_list", 
+        "admin_chat_sidebar"
+    ];
+    adminKeys.forEach(key => chatCache.invalidate(key));
+    console.log("[chatCache] Admin data invalidated from local storage.");
+  },
 };
 
 export const getSidebarKey = (userId: string, isAdmin: boolean) =>

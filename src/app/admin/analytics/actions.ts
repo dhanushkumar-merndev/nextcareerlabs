@@ -64,6 +64,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             courseEnrollment,
             lessonCompletionData,
             totalResources,
+            totalChapters,
             averageProgressData
         ] = await Promise.all([
             prisma.user.findMany({
@@ -96,6 +97,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             prisma.notification.count({
                 where: { fileUrl: { not: null } }
             }),
+            prisma.chapter.count(),
             getAverageProgressCached()
         ]);
 
@@ -156,6 +158,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             totalCourses,
             totalEnrollments,
             totalLessons,
+            totalChapters,
             totalResources,
             averageProgress: averageProgressData.value,
             averageProgressLastUpdated: averageProgressData.lastUpdated,

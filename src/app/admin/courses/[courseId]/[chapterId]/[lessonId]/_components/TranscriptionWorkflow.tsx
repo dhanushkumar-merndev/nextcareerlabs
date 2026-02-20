@@ -278,10 +278,10 @@ export function TranscriptionWorkflow({
           )}
 
           {status === "complete" && (
-            <div className="flex items-center gap-2 text-green-600">
+            <div className="flex items-center gap-2 text-primary">
               <CheckCircle2 className="size-4" />
               <span className="text-xs font-medium">Transcript Ready</span>
-              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+              <Button type="button" size="sm" variant="outline" className="text-xs hover:text-primary cursor-pointer" onClick={() => {
                 setStatus("idle");
                 setVttContent(null);
                 setPastedJson("");
@@ -294,10 +294,10 @@ export function TranscriptionWorkflow({
                     type="button" 
                     size="sm" 
                     variant="ghost" 
-                    className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                    className="text-xs text-destructive/50 hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                     disabled={isDeleting}
                   >
-                    {isDeleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+                    {isDeleting ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -334,7 +334,7 @@ export function TranscriptionWorkflow({
               type="button"
               size="sm" 
               variant="outline" 
-              className="h-7 text-xs gap-1.5"
+              className="h-7 text-xs gap-1.5 cursor-pointer"
               onClick={handleCopyPrompt}
             >
               <Copy className="size-3" />
@@ -377,8 +377,8 @@ export function TranscriptionWorkflow({
       )}
 
       {status === "saved" && (
-        <div className="pt-4 border-t text-center space-y-3 py-4">
-          <div className="flex flex-col items-center justify-center gap-2 text-green-600">
+        <div className="pt-4 border-t text-center space-y-6 py-4">
+          <div className="flex flex-col items-center justify-center gap-2 text-primary mt-5">
             <CheckCircle2 className="size-8" />
             <p className="text-sm font-semibold">20 MCQs Saved Successfully!</p>
             <p className="text-xs text-muted-foreground">The lesson assessment is now updated.</p>
