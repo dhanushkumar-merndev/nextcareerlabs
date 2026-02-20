@@ -314,7 +314,7 @@ export async function getUserCourseDetailedProgress(userId: string, courseId: st
 export async function getAllUsers(search?: string, page: number = 1, limit: number = 100, roleFilter?: string, clientVersion?: string) {
     await requireAdmin();
     try {
-        const isDefaultFetch = page === 1 && limit === 100 && !search && roleFilter === 'user';
+        const isDefaultFetch = page === 1 && limit === 100 && !search && (roleFilter === 'user' || roleFilter === 'admin');
         let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION);
 
         if (currentVersion === "0") {
@@ -322,20 +322,24 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
             currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION);
         }
 
+        const cacheKey = roleFilter === 'admin' 
+            ? "admin:admins:list" // New key for admins
+            : GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST;
+
         // 1. Version Match check
         if (isDefaultFetch && clientVersion && clientVersion === currentVersion) {
-            console.log(`[getAllUsers] Version Match (${clientVersion}). Returning NOT_MODIFIED.`);
+            console.log(`[getAllUsers] Version Match (${clientVersion}) for ${roleFilter}. Returning NOT_MODIFIED.`);
             return { status: "not-modified", version: currentVersion };
         }
 
         // 2. Global List Cache
         if (isDefaultFetch) {
-            const cached = await getCache<any>(GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST);
+            const cached = await getCache<any>(cacheKey);
             if (cached) {
-                console.log(`[getAllUsers] Redis List Cache HIT. Returning data.`);
+                console.log(`[getAllUsers] Redis ${roleFilter} List Cache HIT. Returning data.`);
                 return { ...cached, version: currentVersion };
             }
-            console.log(`[getAllUsers] Redis List Cache MISS. Fetching from DB...`);
+            console.log(`[getAllUsers] Redis ${roleFilter} List Cache MISS. Fetching from DB...`);
         }
 
         const skip = (page - 1) * limit;
@@ -405,7 +409,7 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
 
         // Cache default list
         if (isDefaultFetch) {
-            await setCache(GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST, { users, hasNextPage, totalUsers }, 2592000);
+            await setCache(cacheKey, { users, hasNextPage, totalUsers }, 2592000);
         }
 
         return result;
@@ -429,10 +433,19 @@ export async function updateUserRole(userId: string, newRole: string) {
         // Invalidate cache
         await Promise.all([
             invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST),
-            incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION)
+            invalidateCache("admin:admins:list"), // Also invalidate admins list
+            incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION),
+            // Invalidate specifically for this user
+            incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
+            invalidateCache(`user:dashboard:${userId}`),
+            // Invalidate global analytics as user counts/roles might affect metrics
+            incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+            incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
         ]);
 
         revalidatePath("/admin/analytics/users");
+        revalidatePath(`/admin/analytics/users/${userId}`);
+        revalidatePath("/admin/analytics");
         return { success: true };
     } catch (error) {
         return { success: false, error: "Failed to update role" };

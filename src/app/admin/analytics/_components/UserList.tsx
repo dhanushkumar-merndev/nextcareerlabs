@@ -23,11 +23,7 @@ import { toast } from "sonner";
 import { useDebounce } from "use-debounce";
 
 export function UserList({
-  initialUsers,
-  initialHasNextPage,
-  initialTotalUsers,
   search: initialSearch,
-  version: initialVersion,
 }: UserListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,7 +35,7 @@ export function UserList({
   const [debouncedSearch] = useDebounce(searchTerm, 500);
 
   const [activeTab, setActiveTab] = useState("users"); // "users" | "admins"
-  const [version, setVersion] = useState<string | null>(initialVersion || null);
+  const [version, setVersion] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -47,9 +43,9 @@ export function UserList({
     setIsMounted(true);
   }, []);
 
-  const STORAGE_KEY = "admin_users_list_data";
+  const STORAGE_KEY = activeTab === "admins" ? "admin_admins_list_data" : "admin_users_list_data";
   const VERSION_KEY = "admin_users_list_version";
-  const LAST_CHECK_KEY = "admin_users_list_last_check";
+  const LAST_CHECK_KEY = activeTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check";
 
   // Update URL when search changes
   useEffect(() => {
@@ -66,34 +62,15 @@ export function UserList({
     }
   }, [debouncedSearch, router, searchParams]);
 
-  // Smart Sync: Sync server-passed data to local storage on mount
-  useEffect(() => {
-    if (activeTab !== "users" || debouncedSearch) return;
-
-    const storedVersion = localStorage.getItem(VERSION_KEY);
-
-    if (storedVersion && storedVersion === version) {
-      console.log(`[UserList] LOCAL HIT: Cache matches server version (${version})`);
-    } else if (version) {
-      console.log(`[UserList] SYNC: New version from server (${version}). Hydrating local storage.`);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
-        users: initialUsers, 
-        totalUsers: initialTotalUsers, 
-        hasNextPage: initialHasNextPage 
-      }));
-      localStorage.setItem(VERSION_KEY, version);
-    }
-  }, [version, initialUsers, initialTotalUsers, initialHasNextPage, activeTab, debouncedSearch]);
-
   // Initial Sync from localStorage to state
   useEffect(() => {
-    if (activeTab === "users" && !debouncedSearch && !version) {
+    if (!debouncedSearch && !version) {
       const storedVersion = localStorage.getItem(VERSION_KEY);
       if (storedVersion) {
         setVersion(storedVersion);
       }
     }
-  }, [activeTab, debouncedSearch, version]);
+  }, [debouncedSearch, version]);
 
   const queryKey = ["users", debouncedSearch, activeTab];
 
@@ -112,7 +89,8 @@ export function UserList({
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    isLoading
+    isLoading,
+    refetch
   } = useInfiniteQuery<UsersPage, Error, InfiniteData<UsersPage>>({
     queryKey,
     queryFn: async ({ pageParam = 1 }) => {
@@ -120,7 +98,7 @@ export function UserList({
       const roleFilter = activeTab === "admins" ? "admin" : "user";
       
       // Pass client version only for page 1 default fetch
-      const isFirstPageDefault = pageParam === 1 && !debouncedSearch && activeTab === "users";
+      const isFirstPageDefault = pageParam === 1 && !debouncedSearch && (activeTab === "users" || activeTab === "admins");
 
       // 1. OPTIMIZATION: Check 30-min threshold BEFORE network trip
       if (isFirstPageDefault && typeof window !== 'undefined') {
@@ -129,49 +107,70 @@ export function UserList({
         if (lastCheck && storedData) {
           const now = Date.now();
           if (now - parseInt(lastCheck) < 1000 * 60 * 30) {
-            console.log(`[UserList] CLIENT SKIP: Data is fresh. Skipping network.`);
-            const parsed = JSON.parse(storedData);
-            return { 
-                users: parsed.users, 
-                hasNextPage: parsed.hasNextPage, 
-                totalUsers: parsed.totalUsers, 
-                version: localStorage.getItem(VERSION_KEY) || version 
-            } as UsersPage;
+            try {
+              const parsed = JSON.parse(storedData);
+              if (parsed && Array.isArray(parsed.users)) {
+                console.log(`[UserList] CLIENT SKIP: Data is fresh (<30m). Bypassing server.`);
+                return { 
+                    users: parsed.users, 
+                    hasNextPage: parsed.hasNextPage, 
+                    totalUsers: parsed.totalUsers, 
+                    version: localStorage.getItem(VERSION_KEY) || version 
+                } as UsersPage;
+              }
+            } catch (e) {
+              console.warn(`[UserList] Corrupted local storage. Forcing fetch.`);
+            }
           }
         }
       }
 
-      const clientV = isFirstPageDefault ? (localStorage.getItem(VERSION_KEY) || version) : undefined;
+      const hasLocalData = typeof window !== 'undefined' && !!localStorage.getItem(STORAGE_KEY);
+      const clientV = isFirstPageDefault && hasLocalData ? (localStorage.getItem(VERSION_KEY) || version) : undefined;
+      console.log(`[UserList] FETCH: Page ${pageParam} (Tab: ${activeTab}). Version Check: ${clientV || 'None (Force Refresh)'}`);
 
       const result = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, clientV || undefined);
       
+      let finalResult = result as any;
+
       if ("status" in result && result.status === "not-modified") {
         console.log(`[UserList] Smart Sync: Server version matches. Cache is fresh.`);
-        localStorage.setItem(LAST_CHECK_KEY, Date.now().toString()); // Reset expiration timer
+        localStorage.setItem(LAST_CHECK_KEY, Date.now().toString()); 
         
-        // Try to get from react-query cache first
         const existingData = queryClient.getQueryData<InfiniteData<UsersPage>>(queryKey);
-        if (existingData?.pages[0]) return existingData.pages[0];
-
-        // Fallback to localStorage if not in react-query cache
-        const storedData = localStorage.getItem(STORAGE_KEY);
-        if (storedData) {
-            const parsed = JSON.parse(storedData);
-            return { users: parsed.users, hasNextPage: parsed.hasNextPage, totalUsers: parsed.totalUsers } as UsersPage;
+        if (existingData?.pages[0]?.users?.length) {
+            return existingData.pages[0];
         }
 
-        // Final fallback to props (if any)
-        return { users: initialUsers || [], hasNextPage: initialHasNextPage || false, totalUsers: initialTotalUsers || 0 } as UsersPage;
+        const storedData = localStorage.getItem(STORAGE_KEY);
+        if (storedData) {
+            try {
+                const parsed = JSON.parse(storedData);
+                if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+                    return { users: parsed.users, hasNextPage: parsed.hasNextPage, totalUsers: parsed.totalUsers } as UsersPage;
+                }
+            } catch (e) {}
+        }
+
+        console.log(`[UserList] NOT_MODIFIED but local data missing. Forcing recovery fetch...`);
+        finalResult = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, undefined);
       }
 
-      if (isFirstPageDefault && result.users) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ users: result.users, totalUsers: result.totalUsers, hasNextPage: result.hasNextPage }));
-        localStorage.setItem(VERSION_KEY, result.version!);
-        localStorage.setItem(LAST_CHECK_KEY, Date.now().toString()); // Update last check time
-        setVersion(result.version!);
+      if (isFirstPageDefault && finalResult && finalResult.users) {
+        console.log(`[UserList] PERSIST: Saving default list to localStorage (${finalResult.users.length} users, v:${finalResult.version})`);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
+            users: finalResult.users, 
+            totalUsers: finalResult.totalUsers, 
+            hasNextPage: finalResult.hasNextPage 
+        }));
+        if (finalResult.version) {
+            localStorage.setItem(VERSION_KEY, finalResult.version);
+            setVersion(finalResult.version);
+        }
+        localStorage.setItem(LAST_CHECK_KEY, Date.now().toString());
       }
 
-      return result as UsersPage;
+      return finalResult as UsersPage;
     },
     getNextPageParam: (lastPage, allPages) => {
       return lastPage.hasNextPage ? allPages.length + 1 : undefined;
@@ -186,9 +185,15 @@ export function UserList({
     }
   }, [inView, hasNextPage, fetchNextPage]);
 
-  // Flatten users and get total count from latest page or initial
-  const users = data?.pages.flatMap((page) => page.users) || [];
+  // Flatten users and get total count from latest page
+  const users = data?.pages.flatMap((page) => page?.users || []) || [];
   const totalUsers = data?.pages[0]?.totalUsers || 0;
+
+  useEffect(() => {
+    if (isMounted && !isLoading) {
+      console.log(`[UserList] UI: Showing ${users.length} ${activeTab} (Server Total: ${totalUsers})`);
+    }
+  }, [users.length, totalUsers, activeTab, isMounted, isLoading]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -197,27 +202,97 @@ export function UserList({
   // Handle role update
   const handleRoleUpdate = async (userId: string, newRole: string) => {
     toast.loading("Updating role...");
+    
+    // Calculate target query key for cross-tab optimistic update
+    const targetTab = activeTab === "users" ? "admins" : "users";
+    const targetQueryKey = ["users", debouncedSearch, targetTab];
+
+    // 1. Snapshot previous data for rollback
+    const previousCurrentData = queryClient.getQueryData<InfiniteData<UsersPage>>(queryKey);
+    const previousTargetData = queryClient.getQueryData<InfiniteData<UsersPage>>(targetQueryKey);
+
+    // Find the user to move
+    let userToMove: User | undefined;
+    previousCurrentData?.pages.forEach(page => {
+      const found = page.users.find(u => u.id === userId);
+      if (found) userToMove = { ...found, role: newRole as any };
+    });
+
+    // 1. NUCLEAR CLEAR: Wipe all local state to force a fresh backend check on sync
+    localStorage.removeItem(VERSION_KEY);
+    localStorage.removeItem("admin_users_list_data");
+    localStorage.removeItem("admin_users_list_last_check");
+    localStorage.removeItem("admin_admins_list_data");
+    localStorage.removeItem("admin_admins_list_last_check");
+    setVersion(null);
+
+    // 2. OPTIMISTIC UPDATE: Move user between tabs immediately
+    if (userToMove) {
+      // Remove from current
+      queryClient.setQueryData<InfiniteData<UsersPage>>(queryKey, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page) => ({
+            ...page,
+            users: page.users.filter((u) => u.id !== userId),
+          })),
+        };
+      });
+
+      // Add to target (Initialize if empty, or prepend if exists)
+      queryClient.setQueryData<InfiniteData<UsersPage>>(targetQueryKey, (old) => {
+        const newUserList = [userToMove!];
+        if (!old) {
+          return {
+            pages: [{ users: newUserList, totalUsers: 1, hasNextPage: false }],
+            pageParams: [1]
+          };
+        }
+        return {
+          ...old,
+          pages: old.pages.map((page, i) => i === 0 ? {
+            ...page,
+            users: [userToMove!, ...page.users],
+            totalUsers: page.totalUsers + 1
+          } : page),
+        };
+      });
+    }
+
     const result = await updateUserRole(userId, newRole);
     toast.dismiss();
 
     if (result.success) {
       toast.success("User role updated");
-      // Invalidate queries to refresh list (user should move tabs)
+      // 3. Clear local storage for both tabs to ensure next fetch brings fresh data
+      localStorage.removeItem(LAST_CHECK_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(targetTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check");
+      localStorage.removeItem(targetTab === "admins" ? "admin_admins_list_data" : "admin_users_list_data");
+      
+      // 4. Invalidate queries to sync with server in background
       queryClient.invalidateQueries({ queryKey: ["users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
     } else {
       toast.error(result.error || "Failed to update role");
+      // ROLLBACK on failure
+      if (previousCurrentData) queryClient.setQueryData(queryKey, previousCurrentData);
+      if (previousTargetData) queryClient.setQueryData(targetQueryKey, previousTargetData);
     }
   };
 
   const handleManualRefresh = async () => {
+    console.log(`[UserList] MANUAL SYNC: Bypassing all local thresholds. Force fetching from server...`);
     setIsRefreshing(true);
     try {
-      localStorage.removeItem(VERSION_KEY); // Force fresh fetch
-      localStorage.removeItem(LAST_CHECK_KEY); // Force refresh check timer
-      await queryClient.fetchInfiniteQuery({ 
-        queryKey: ["users", debouncedSearch, activeTab],
-        initialPageParam: 1
-      });
+      // Nuclear clear for manual refresh
+      localStorage.removeItem(LAST_CHECK_KEY); 
+      localStorage.removeItem(VERSION_KEY);
+      setVersion(null);
+      
+      await refetch();
       toast.success("Users list updated");
     } finally {
       setIsRefreshing(false);
@@ -317,7 +392,7 @@ export function UserList({
                   </TableCell>
                 </TableRow>
               ) : (
-                users.map((user) => (
+                users?.filter(u => u && u.id).map((user) => (
                   <TableRow
                     key={user.id}
                     className="hover:bg-muted/10 transition-colors border-border/20 group"
@@ -437,7 +512,7 @@ export function UserList({
               No users found.
             </div>
           ) : (
-            users.map((user) => (
+            users?.filter(u => u && u.id).map((user) => (
               <div key={user.id} className="bg-card/40 backdrop-blur-md border border-border/40 rounded-3xl p-5 shadow-xl space-y-5 relative overflow-hidden group">
                 {/* Role Ribbon */}
                 <div className="absolute top-0 right-0 p-4">
