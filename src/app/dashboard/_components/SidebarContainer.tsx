@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { CourseSidebar } from "./CourseSidebar";
 
@@ -42,6 +43,13 @@ export function SidebarContainer({
     }
   }, [slug, userId, initialCourseData, initialVersion]);
 
+  // StrictMode guard: ensure LOCAL HIT log fires exactly once per mount
+  const localHitLoggedRef = useRef(false);
+
+  // Pre-calculate initial data from chatCache to ensure number-based initialDataUpdatedAt
+  const cachedSidebar = typeof window !== "undefined" ? chatCache.get<any>(`course_sidebar_${slug}`, userId) : null;
+  const initialUpdatedAt = cachedSidebar?.timestamp ?? 0;
+
   const { data: course, isLoading } = useQuery({
     queryKey: ["course_sidebar", slug],
     queryFn: async () => {
@@ -49,32 +57,39 @@ export function SidebarContainer({
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      console.log(`[Sidebar] Syncing for ${slug}...`);
       const result = await getCourseSidebarData(slug, clientVersion);
 
       if (result && (result as any).status === "not-modified" && cached) {
+        console.log("%c[■ Sidebar] 🟡 LOCAL HIT → version matched, NO server fetch", "color: #eab308; font-weight: bold");
+        chatCache.touch(cacheKey, userId); // Refresh local TTL
         return cached.data.course;
       }
 
       if (result && !(result as any).status) {
+        console.log("%c[■ Sidebar] 💡 NEW DATA → updating local cache", "color: #06b6d4");
         chatCache.set(cacheKey, result, userId, (result as any).version);
         return (result as any).course;
       }
       return (result as any)?.course;
     },
     initialData: () => {
-        // ⭐ PRIORITY 1: Server-provided data (Source of Truth for fresh refresh)
-        if (initialCourseData) return initialCourseData;
-
-        // ⭐ PRIORITY 2: Local Cache (For fast navigation/stale state)
-        const cacheKey = `course_sidebar_${slug}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        if (typeof window !== "undefined" && cached) {
-            return cached.data.course;
+      // ★ PRIORITY 1: Local Cache (instant render, no network)
+      if (cachedSidebar) {
+        if (!localHitLoggedRef.current) {
+          localHitLoggedRef.current = true;
+          console.log(
+            `%c[■ Sidebar] 🟡 LOCAL HIT (v${cachedSidebar.version}) → instant render from localStorage`,
+            "color: #eab308; font-weight: bold"
+          );
         }
-        return undefined;
+        return cachedSidebar.data.course;
+      }
+      // ★ PRIORITY 2: Server-provided SSR data (first-ever load, no local cache yet)
+      if (initialCourseData) return initialCourseData;
+      return undefined;
     },
-    staleTime: 1800000, // 30 mins
+    staleTime: 1800000, // 30 minutes — aligns with Redis TTL
+    initialDataUpdatedAt: initialUpdatedAt,
   });
 
   const [open, setOpen] = useState(false);
@@ -121,8 +136,10 @@ export function SidebarContainer({
     };
   }, [open]);
 
-  // Use initialCourseData if not mounted to ensure hydration matches server
-  const activeCourse = mounted ? course : (initialCourseData || course);
+  // Hydration fix: Always match server's first render (Skeleton if initialData is null)
+  const isHydrated = mounted;
+  const activeCourse = isHydrated ? course : initialCourseData;
+  const showSkeleton = !isHydrated || (isLoading && !activeCourse);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -130,11 +147,30 @@ export function SidebarContainer({
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
         {/* DESKTOP SIDEBAR */}
        <div className="hidden md:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
-          {isLoading && !activeCourse ? (
-            <div className="p-4 space-y-4">
-              <div className="h-8 bg-muted animate-pulse rounded" />
-              <div className="space-y-2">
-                {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-muted animate-pulse rounded" />)}
+          {showSkeleton ? (
+            <div className="p-4 space-y-6">
+              {/* ProgressBar Skeleton */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="size-10 rounded-lg" />
+                    <div className="space-y-2">
+                       <Skeleton className="h-4 w-20" />
+                       <Skeleton className="h-3 w-12" />
+                    </div>
+                  </div>
+                  <Skeleton className="size-9 rounded-full" />
+                </div>
+                <Skeleton className="h-1.5 w-full rounded-full" />
+              </div>
+
+              {/* Chapter/Lesson List Skeleton */}
+              <div className="space-y-3 pt-4">
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className="flex flex-col gap-2">
+                    <Skeleton className="h-12 w-full rounded-xl" />
+                  </div>
+                ))}
               </div>
             </div>
           ) : (
@@ -150,12 +186,18 @@ export function SidebarContainer({
           
           {/* MOBILE PLAYLIST (Visible only on mobile, below content) */}
           <div className="md:hidden border-t border-border pb-12">
-            {!activeCourse ? (
-               <div className="p-4 space-y-2">
-                 {[1,2,3].map(i => <div key={i} className="h-12 bg-muted animate-pulse rounded" />)}
+          {showSkeleton ? (
+               <div className="p-4 space-y-4">
+                 <div className="flex items-center justify-between gap-4">
+                    <Skeleton className="h-8 flex-1 rounded-lg" />
+                    <Skeleton className="h-8 w-24 rounded-lg" />
+                 </div>
+                 <div className="space-y-3">
+                    {[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+                 </div>
                </div>
             ) : (
-              <CourseSidebar course={activeCourse} />
+              activeCourse && <CourseSidebar course={activeCourse} />
             )}
           </div>
         </div>

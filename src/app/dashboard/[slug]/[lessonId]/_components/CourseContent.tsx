@@ -1,25 +1,17 @@
 "use client";
 
 import { getLessonContent } from "@/app/data/course/get-lesson-content";
-import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-import { BookIcon, CheckCircle, ChevronRight, X } from "lucide-react";
+import { BookIcon, CheckCircle } from "lucide-react";
 import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
-import { IconFileText } from "@tabler/icons-react";
 import { env } from "@/lib/env";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
@@ -371,46 +363,68 @@ function VideoPlayer({
   }, [lessonId]);
 
   /* ============================================================
-     HLS URL SETUP
+     HLS + VIDEO + CAPTION URL SETUP (with local 28-min cache)
   ============================================================ */
+  const urlCacheKey = `lesson_video_urls_${lessonId}`;
+  // 28 min TTL — just under the 30-min S3 signed URL expiry
+  const VIDEO_URL_TTL = 28 * 60 * 1000;
+
   useEffect(() => {
     if (!videoKey) return;
 
     const fetchUrls = async () => {
-      // 1. Setup HLS URL (Now signed from private bucket)
-      const baseKey = videoKey.startsWith('hls/') 
-        ? videoKey.split('/')[1] 
-        : videoKey.replace(/\.[^/.]+$/, "");
+      // ── Tier 1: Local Cache (chatCache) ─────────────────────────────
+      const cachedUrls = chatCache.get<{ hls?: string; video?: string; caption?: string }>(urlCacheKey, userId);
+      if (cachedUrls) {
+        console.log("%c[■ Video] 🟡 LOCAL HIT → using cached signed URLs (no S3 call)", "color: #eab308; font-weight: bold");
+        if (cachedUrls.data.hls) setHlsUrl(cachedUrls.data.hls);
+        if (cachedUrls.data.video) setVideoUrl(cachedUrls.data.video);
+        if (cachedUrls.data.caption !== undefined) setCaptionUrl(cachedUrls.data.caption || undefined);
+        return;
+      }
 
+      // ── Tier 2: Fetch new signed URLs from S3 ────────────────────────
+      console.log("%c[■ Video] 🗄️  FETCH NEW signed URLs from S3", "color: #f97316; font-weight: bold");
+      const urlsToCache: { hls?: string; video?: string; caption?: string } = {};
+
+      // 1. HLS URL
+      const baseKey = videoKey.startsWith('hls/')
+        ? videoKey.split('/')[1]
+        : videoKey.replace(/\.[^/.]+$/, "");
       const hlsKey = `hls/${baseKey}/master.m3u8`;
       const hlsResponse = await getSignedVideoUrl(hlsKey) as any;
-      if (hlsResponse && hlsResponse.status === "success" && hlsResponse.url) {
+      if (hlsResponse?.status === "success" && hlsResponse.url) {
         setHlsUrl(hlsResponse.url);
+        urlsToCache.hls = hlsResponse.url;
       }
 
-      // 2. Setup Video URL
+      // 2. MP4 fallback URL
       const response = await getSignedVideoUrl(videoKey) as any;
-      if (response && response.status === "success" && response.url) {
+      if (response?.status === "success" && response.url) {
         setVideoUrl(response.url);
+        urlsToCache.video = response.url;
       }
 
-      // 3. Setup Caption URL (Now signed from private bucket if it's an internal key)
+      // 3. Caption URL
       if (transcriptionUrl) {
-        console.log("[CourseContent] Using DB Transcription URL:", transcriptionUrl);
-        
-        // If it's a relative path/key, sign it. If it's already a full URL (HTTPS), use as is.
         if (transcriptionUrl.startsWith('http')) {
           setCaptionUrl(transcriptionUrl);
+          urlsToCache.caption = transcriptionUrl;
         } else {
           const captionResponse = await getSignedVideoUrl(transcriptionUrl) as any;
-          if (captionResponse && captionResponse.status === "success" && captionResponse.url) {
+          if (captionResponse?.status === "success" && captionResponse.url) {
             setCaptionUrl(captionResponse.url);
+            urlsToCache.caption = captionResponse.url;
           }
         }
       } else {
-        // No transcription available — pass undefined to skip captions
         setCaptionUrl(undefined);
+        urlsToCache.caption = "";
       }
+
+      // ── Store in local cache (28 min TTL) ───────────────────────────
+      chatCache.set(urlCacheKey, urlsToCache, userId, undefined, VIDEO_URL_TTL);
+      console.log("%c[■ Video] 💾 CACHED signed URLs locally (28 min)", "color: #8b5cf6");
     };
 
     fetchUrls();
@@ -517,10 +531,13 @@ function VideoPlayer({
   }
 
   /* ============================================================
-     PLAYER RENDER
+     PLAYER RENDER (with download prevention)
   ============================================================ */
   return (
-    <div className="relative aspect-video rounded-lg border overflow-hidden">
+    <div
+      className="relative aspect-video rounded-lg border overflow-hidden"
+      onContextMenu={(e) => e.preventDefault()}
+    >
       {sources.length > 0 && (
         <CustomPlayer
           key={lessonId}
@@ -535,8 +552,11 @@ function VideoPlayer({
           captionUrl={captionUrl}
           spriteMetadata={spriteMetadata ? { ...spriteMetadata, initialCues: vttCues } : undefined}
           className="w-full h-full"
+          noDownload
         />
       )}
+      {/* Transparent overlay — blocks native browser video context menu on mobile */}
+      <div className="absolute inset-0 z-[1] pointer-events-none select-none" />
     </div>
   );
 }
@@ -553,6 +573,13 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
     }
   }, [lessonId, userId, initialLesson, initialVersion]);
 
+  // StrictMode guard: ensure LOCAL HIT log fires exactly once per mount
+  const localHitLoggedRef = useRef(false);
+
+  // Pre-calculate initial data from chatCache to ensure number-based initialDataUpdatedAt
+  const cachedLesson = typeof window !== "undefined" ? chatCache.get<any>(`lesson_content_${lessonId}`, userId) : null;
+  const initialUpdatedAt = cachedLesson?.timestamp ?? 0;
+
   const { data: lesson, isLoading } = useQuery({
     queryKey: ["lesson_content", lessonId],
     queryFn: async () => {
@@ -560,43 +587,45 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      console.log(`[Lesson] Syncing for ${lessonId}...`);
       const result = await getLessonContent(lessonId, clientVersion);
 
       if (result && (result as any).status === "not-modified" && cached) {
-        console.log(`%c[Lesson] LOCAL HIT (v${clientVersion}) - Server: NOT_MODIFIED`, "color: #eab308; font-weight: bold");
+        console.log("%c[■ Lesson] 🟡 LOCAL HIT → version matched, NO server fetch", "color: #eab308; font-weight: bold");
+        chatCache.touch(cacheKey, userId); // Refresh local TTL
         return cached.data.lesson;
       }
 
       if (result && !(result as any).status) {
-        console.log(`[Lesson] NEW_DATA -> Updating cache for ${lessonId}`);
+        console.log("%c[■ Lesson] 💡 NEW DATA → updating local cache", "color: #06b6d4");
         chatCache.set(cacheKey, result, userId, (result as any).version, PERMANENT_TTL);
         return (result as any).lesson;
       }
       return (result as any)?.lesson || cached?.data?.lesson;
     },
     initialData: () => {
-        // ⭐ PRIORITY 1: Local Cache (For instant render)
-        const cacheKey = `lesson_content_${lessonId}`;
-        const cached = typeof window !== "undefined" ? chatCache.get<any>(cacheKey, userId) : null;
-        if (cached) {
-            console.log(`%c[Lesson] HYDRATION HIT (v${cached.version}) for ${lessonId}`, "color: #eab308; font-weight: bold");
-            return cached.data.lesson;
+      // ★ PRIORITY 1: Local Cache (instant render, no network)
+      if (cachedLesson) {
+        if (!localHitLoggedRef.current) {
+          localHitLoggedRef.current = true;
+          console.log(
+            `%c[■ Lesson] 🟡 LOCAL HIT (v${cachedLesson.version}) → instant render from localStorage`,
+            "color: #eab308; font-weight: bold"
+          );
         }
-
-        // ⭐ PRIORITY 2: Server-provided data (if any)
-        return initialLesson;
+        return cachedLesson.data.lesson;
+      }
+      // ★ PRIORITY 2: Server-provided SSR data
+      return initialLesson;
     },
-    staleTime: 1800000, // 30 minutes (Smart Sync interval)
-    refetchInterval: 1800000,
+    staleTime: 1800000, // 30 minutes — aligns with Redis TTL
+    initialDataUpdatedAt: initialUpdatedAt,
+    refetchInterval: false, // Don't poll — staleTime handles freshness
     refetchOnWindowFocus: true,
   });
 
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
-  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
-  const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
 
   // Assessment State
@@ -612,17 +641,20 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         const cached = chatCache.get<any[]>(cacheKey, userId);
 
         if (cached) {
-          console.log(`[MCQ Cache] Hit for lesson ${lessonId}`);
+          console.log("%c[■ MCQ] 🟡 LOCAL HIT → MCQs from localStorage", "color: #eab308; font-weight: bold");
           setQuestions(cached.data);
           setIsLoadingMCQs(false);
           return;
         }
 
+        // No local cache — fetch from server (Redis or DB)
+        console.log("%c[■ MCQ] 🔄 FETCH → checking Redis/DB", "color: #94a3b8");
         const res = await getLessonMCQs(lessonId);
         if (res.success && res.questions) {
           setQuestions(res.questions);
-          // Cache for 6 hours
+          // Store in local cache permanently (30-day effective TTL)
           chatCache.set(cacheKey, res.questions, userId, undefined, PERMANENT_TTL);
+          console.log("%c[■ MCQ] 💾 CACHED locally (30-day)", "color: #8b5cf6");
         } else {
           setQuestions([]);
         }
@@ -637,8 +669,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
 
 
   useEffect(() => {
-    setIsDescriptionOpen(false);
-    setIsMobileDescriptionOpen(false);
+    // Component reset logic if any
   }, [lessonId]);
 
   if (!mounted || (isLoading && !lesson)) {
@@ -711,8 +742,8 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const hasVideo = Boolean(data.videoKey);
 
   return (
-    <div className="relative flex flex-col md:flex-row bg-background h-full overflow-hidden md:border-l border-border ">
-      <div className="flex-1 flex flex-col md:pl-6 overflow-y-auto ">
+    <div className="relative flex flex-col md:flex-row bg-background md:h-full overflow-hidden md:border-l border-border ">
+      <div className="flex-1 flex flex-col md:pl-6 md:overflow-y-auto ">
         <div className="order-1 md:order-1 w-full relative">
           <VideoPlayer
             thumbnailkey={data.thumbnailKey ?? ""}
@@ -739,7 +770,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
 
         {/* MOBILE ONLY: SIMPLIFIED HEADER (Completion Button Left, Description Arrow Right) */}
         <div className="md:hidden order-2 flex items-center justify-between py-4 bg-background ">
-           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
                <Button 
                   disabled={isPending || isLoadingMCQs || !hasVideo} 
               onClick={onSubmit} 
@@ -760,27 +791,16 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
                     "No Video"
                   )}
                 </Button>
-           </div>
+            </div>
 
-           <Drawer open={isMobileDescriptionOpen} onOpenChange={setIsMobileDescriptionOpen}>
-              <DrawerTrigger asChild>
-                 <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full bg-muted transition-colors">
-                    <ChevronRight className="size-6 ml-0.5" />
-                 </Button>
-              </DrawerTrigger>
-              <DrawerContent className="max-h-[85vh] bg-background">
-                 <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
-                    {/* Accessibility: DrawerTitle is required */}
-                    <DrawerTitle className="sr-only">Lesson Description</DrawerTitle>
-                    <div className="flex-1 overflow-y-auto px-6 pt-8 pb-12 overscroll-contain" data-lenis-prevent>
-                       <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <h3 className="text-xl font-bold mb-4">{data.title}</h3>
-                          {data.description && <RenderDescription json={JSON.parse(data.description)} />}
-                       </div>
-                    </div>
-                 </div>
-              </DrawerContent>
-           </Drawer>
+
+
+
+
+
+
+
+
         </div>
 
         <div className="hidden md:flex order-3 md:order-3 items-center justify-between gap-4 px-4 md:px-0 pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
@@ -806,41 +826,9 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
               )}
             </Button>
           </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant={isDescriptionOpen ? "secondary" : "outline"}
-              className="gap-2 shrink-0 rounded-full"
-              onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
-            >
-              <IconFileText className="size-4" />
-              {isDescriptionOpen ? "Hide Description" : "View Description"}
-            </Button>
-          </div>
         </div>
       </div>
 
-      {data.description && isDescriptionOpen && (
-        <div className="absolute -bottom-1 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col border border-border shadow-2xl bg-background animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
-          <div className="flex items-center justify-between p-5 border-b border-border shrink-0 bg-muted/30">
-            <h2 className="font-bold text-lg flex items-center gap-2">
-              <IconFileText className="size-5 text-primary" />
-              Description
-            </h2>
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setIsDescriptionOpen(false)}>
-              <X className="size-4" />
-            </Button>
-          </div>
-
-          <div
-            className="flex-1 min-h-0 overflow-y-auto p-6 overscroll-contain scrollbar-thin scrollbar-thumb-primary/10"
-            data-lenis-prevent
-          >
-            <h3 className="text-base font-bold mb-4">{data.title}</h3>
-            <RenderDescription json={JSON.parse(data.description!)} />
-          </div>
-        </div>
-      )}
 
       {questions.length > 0 && (
         <AssessmentModal 

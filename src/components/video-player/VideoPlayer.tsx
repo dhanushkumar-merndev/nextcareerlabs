@@ -60,6 +60,8 @@ interface VideoPlayerProps {
   onEnded?: () => void;
   onLoadedMetadata?: (duration: number) => void;
   captionUrl?: string;
+  /** Block browser download button and right-click context menu on the video */
+  noDownload?: boolean;
 }
 
 export function VideoPlayer({
@@ -75,6 +77,7 @@ export function VideoPlayer({
   onEnded,
   onLoadedMetadata,
   captionUrl,
+  noDownload = false,
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -117,7 +120,13 @@ export function VideoPlayer({
       const videoElement = document.createElement("video");
       videoElement.className = "video-js vjs-big-play-centered vjs-fill";
       videoElement.setAttribute("playsinline", "true");
-      videoElement.setAttribute("crossorigin", "anonymous"); 
+      videoElement.setAttribute("crossorigin", "anonymous");
+      if (noDownload) {
+        // Disable browser's native download button and Save-As menu
+        videoElement.setAttribute("controlsList", "nodownload noremoteplayback");
+        videoElement.setAttribute("disablePictureInPicture", "true");
+        videoElement.oncontextmenu = (e) => e.preventDefault();
+      }
       videoRef.current.appendChild(videoElement);
 
       const currentSources = sources || (src ? [{ src, type }] : []);

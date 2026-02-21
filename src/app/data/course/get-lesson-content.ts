@@ -10,20 +10,23 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
   const userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id));
   const currentVersion = `${coursesVersion}_${userVersion}`;
 
-  // Smart Sync
+  // Smart Sync – version match means client local cache is fresh
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(`[getLessonContent] Version match for ${lessonId}. Returning NOT_MODIFIED.`);
+    console.log(`%c[Lesson] ✅ VERSION MATCH → NOT_MODIFIED (v${currentVersion})`, "color: #22c55e; font-weight: bold");
     return { status: "not-modified", version: currentVersion };
   }
 
-  // Check Redis cache
+  // ── Tier 2: Redis ─────────────────────────────────────────────────
   const cacheKey = `user:lesson:${session.id}:${lessonId}`;
   const cached = await getCache<any>(cacheKey);
   if (cached) {
-    console.log(`[Redis] Cache HIT for lesson: ${session.id}:${lessonId}`);
+    console.log(`%c[Lesson] 🔵 REDIS HIT → lesson:${lessonId} (v${currentVersion})`, "color: #3b82f6; font-weight: bold");
     return { ...cached, version: currentVersion };
   }
 
+  // ── Tier 3: Database ──────────────────────────────────────────────
+  console.log(`%c[Lesson] 🗄️  DB COMPUTE → lesson:${lessonId}`, "color: #f97316; font-weight: bold");
+  const dbStart = Date.now();
   // ✅ Optimization: Concurrent fetching of lesson and enrollment
   const [lesson, enrollment] = await Promise.all([
     prisma.lesson.findUnique({
@@ -91,14 +94,17 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
     })
   ]);
 
+  console.log(`%c[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`, "color: #f97316");
+
   if (!lesson || !enrollment || enrollment.status !== "Granted") {
     return notFound();
   }
 
   const result = { lesson };
 
-  // Cache in Redis for 6 hours
-  await setCache(cacheKey, result, 2592000); // 30 days
+  // ── Cache in Redis: 30 min hot TTL (1800s), full data stored ──────
+  await setCache(cacheKey, result, 1800); // 30 minutes Redis TTL
+  console.log(`%c[Lesson] 💾 CACHED in Redis (30 min) → lesson:${lessonId}`, "color: #8b5cf6");
 
   return { ...result, version: currentVersion };
 }

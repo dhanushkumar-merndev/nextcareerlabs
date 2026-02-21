@@ -1,4 +1,5 @@
 import { getCourseSidebarData } from "@/app/data/course/get-course-sidebar-data";
+import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 
 interface iAppProps {
@@ -7,9 +8,22 @@ interface iAppProps {
 }
 export default async function CourseSulgPage({ params }: iAppProps) {
   const { slug } = await params;
-  const course = await getCourseSidebarData(slug);
-  const firstChapter = course.course.chapter[0];
-  const firstLesson = firstChapter?.lesson?.[0];
+  
+  // Targeted query to find the first lesson for redirect, rather than fetching full sidebar data
+  const firstLesson = await prisma.lesson.findFirst({
+    where: {
+      Chapter: {
+        Course: {
+          slug: slug
+        }
+      }
+    },
+    orderBy: [
+      { Chapter: { position: 'asc' } },
+      { position: 'asc' }
+    ],
+    select: { id: true }
+  });
 
   if (firstLesson) {
     redirect(`/dashboard/${slug}/${firstLesson.id}`);

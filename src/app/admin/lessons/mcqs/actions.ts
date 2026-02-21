@@ -114,18 +114,19 @@ export async function getLessonMCQs(lessonId: string): Promise<{
   try {
     const cacheKey = `lesson:questions:${lessonId}`;
     
-    // 1. Try to get from cache
+    // ── Tier 2: Redis ───────────────────────────────────────────────
     const cachedQuestions = await getCache<any[]>(cacheKey);
     if (cachedQuestions) {
-      console.log(`[MCQ Cache] Hit for lesson ${lessonId}`);
+      console.log(`%c[MCQ] 🔵 REDIS HIT → lesson:${lessonId} (${cachedQuestions.length} questions)`, "color: #3b82f6; font-weight: bold");
       return {
         success: true,
         questions: cachedQuestions,
       };
     }
 
+    // ── Tier 3: Database ──────────────────────────────────────────────
+    console.log(`%c[MCQ] 🗄️  DB COMPUTE → lesson:${lessonId}`, "color: #f97316; font-weight: bold");
     const startTime = Date.now();
-    // 2. Fallback to Database
     const questions = await db.question.findMany({
       where: { lessonId },
       orderBy: { order: 'asc' },
@@ -138,11 +139,12 @@ export async function getLessonMCQs(lessonId: string): Promise<{
         order: true,
       },
     });
-    console.log(`[getLessonMCQs] DB Fetch took ${Date.now() - startTime}ms`);
+    console.log(`%c[MCQ] 🗄️  DB COMPUTE done in ${Date.now() - startTime}ms (${questions.length} questions)`, "color: #f97316");
 
-    // 3. Store in cache (if exists)
+    // 3. Store in cache (30 min Redis TTL)
     if (questions.length > 0) {
-      await setCache(cacheKey, questions, 2592000); // Cache for 30 days
+      await setCache(cacheKey, questions, 1800); // 30 minutes
+      console.log(`%c[MCQ] 💾 CACHED in Redis (30 min) → lesson:${lessonId}`, "color: #8b5cf6");
     }
 
     return {

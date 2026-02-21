@@ -52,6 +52,7 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
             src={thumbnail}
             alt={lesson.title}
             fill
+            sizes="(max-width: 768px) 100px, 80px"
             className={cn(
               "object-cover transition-transform duration-500 group-hover:scale-105",
               isActive ? "opacity-40" : "opacity-90"
