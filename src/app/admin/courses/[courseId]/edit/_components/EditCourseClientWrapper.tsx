@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { BackConfirm } from "./BackConfirm";
 import { EditCourseForm } from "./EditCourseForm";
@@ -60,10 +61,10 @@ export function EditCourseClientWrapper({
 
       {!mounted ? (
         <div className="w-full h-[400px] flex items-center justify-center border-2 border-dashed rounded-lg animate-pulse bg-muted/20">
-           <div className="flex flex-col items-center gap-2">
-             <div className="h-4 w-32 bg-muted rounded"></div>
-             <div className="h-3 w-48 bg-muted rounded"></div>
-           </div>
+            <div className="flex flex-col items-center gap-4 w-full px-12">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-44" />
+            </div>
         </div>
       ) : (
         <Tabs 

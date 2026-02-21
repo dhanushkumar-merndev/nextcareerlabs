@@ -18,16 +18,16 @@ export default function HeroButtons() {
     const dashboardLabel = session?.user?.role === "admin" ? "Go to Admin Dashboard" : "Go to Dashboard";
 
     return (
-        <div className="flex flex-col gap-4 justify-center max-w-lg mx-auto pt-4 md:flex-row sm:justify-center">
+        <div className="flex flex-col items-center gap-4 justify-center max-w-lg mx-auto pt-4 md:flex-row sm:justify-center">
             <Link
                 href="/courses"
-                className={buttonVariants({ size: "lg" })}
+                className={buttonVariants({ size: "lg", className: "w-48" })}
             >
                 Explore Courses
             </Link>
 
             {!mounted || isLoading ? (
-                <div className={buttonVariants({ size: "lg", variant: "outline", className: "w-40 animate-pulse text-transparent bg-muted/50 border-none" })}>
+                <div className={buttonVariants({ size: "lg", variant: "outline", className: "w-48 animate-pulse text-transparent bg-muted/20 border-border/10" })}>
                     Loading...
                 </div>
             ) : session ? (
@@ -36,6 +36,7 @@ export default function HeroButtons() {
                     className={buttonVariants({
                         size: "lg",
                         variant: "outline",
+                        className: "w-48"
                     })}
                 >
                     {dashboardLabel}
@@ -46,6 +47,7 @@ export default function HeroButtons() {
                     className={buttonVariants({
                         size: "lg",
                         variant: "outline",
+                        className: "w-48"
                     })}
                 >
                     Get Started

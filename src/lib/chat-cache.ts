@@ -4,6 +4,11 @@ import { secureStorage } from "./secure-storage";
 
 const STORAGE_PREFIX = "chat_cache_";
 export const PERMANENT_TTL = 100 * 365 * 24 * 60 * 60 * 1000;
+
+// Initialize secureStorage (IDs shadowing + integrity check) on client side
+if (typeof window !== "undefined") {
+  secureStorage.init();
+}
 const DEFAULT_TTL = PERMANENT_TTL;
 
 interface CacheEntry<T> {

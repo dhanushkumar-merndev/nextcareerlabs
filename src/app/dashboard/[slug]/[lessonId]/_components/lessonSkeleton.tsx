@@ -13,7 +13,7 @@ export function LessonContentSkeleton() {
 
       {/* Button Skeleton */}
       <div className="py-4 border-b">
-        <Skeleton className="h-10 w-40 rounded-md" />
+        <Skeleton className="h-10 w-32 rounded-lg" />
       </div>
 
       {/* Text Content */}

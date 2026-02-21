@@ -564,7 +564,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       const result = await getLessonContent(lessonId, clientVersion);
 
       if (result && (result as any).status === "not-modified" && cached) {
-        console.log(`[Lesson] LOCAL HIT (v${clientVersion}) - Server: NOT_MODIFIED`);
+        console.log(`%c[Lesson] LOCAL HIT (v${clientVersion}) - Server: NOT_MODIFIED`, "color: #eab308; font-weight: bold");
         return cached.data.lesson;
       }
 
@@ -580,7 +580,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
         const cacheKey = `lesson_content_${lessonId}`;
         const cached = typeof window !== "undefined" ? chatCache.get<any>(cacheKey, userId) : null;
         if (cached) {
-            console.log(`[Lesson] HYDRATION HIT (v${cached.version}) for ${lessonId}`);
+            console.log(`%c[Lesson] HYDRATION HIT (v${cached.version}) for ${lessonId}`, "color: #eab308; font-weight: bold");
             return cached.data.lesson;
         }
 

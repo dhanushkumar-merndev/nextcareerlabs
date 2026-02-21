@@ -44,7 +44,7 @@ export function DashboardClient() {
       // 1. Version Match -> Return cached data
       // Server says cache is still valid
       if (result && (result as any).status === "not-modified") {
-        console.log(`%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
+        console.log(`%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
         chatCache.touch(cacheKey, userId);
         return cached?.data || null; // Ensure we return cached data if available, or null
       }

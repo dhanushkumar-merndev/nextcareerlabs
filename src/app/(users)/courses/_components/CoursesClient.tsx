@@ -11,7 +11,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { getAllCoursesAction } from "../actions";
 import { chatCache } from "@/lib/chat-cache";
 import { PublicCourseCard, PublicCourseCardSkeleton } from "../../_components/PublicCourseCard";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useInView } from "react-intersection-observer";
 import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
@@ -34,20 +34,30 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
   // Used to avoid hydration mismatch
   const [mounted, setMounted] = useState(false);
+  const hasLogged = useRef<string | null>(null);
 
   // Normalize userId
   const safeUserId = currentUserId ?? undefined;
+
+  // Mark component as mounted + Persistent Logging (SPA Compatible)
+  useEffect(() => {
+    setMounted(true);
+
+    const logKey = `all_courses_${safeUserId || 'guest'}`;
+    if (hasLogged.current !== logKey) {
+        const cached = chatCache.get<any>("all_courses", safeUserId);
+        if (cached) {
+            console.log(`%c[Courses] LOCAL HIT (v${cached.version || cached.data?.version}) from storage`, "color: #eab308; font-weight: bold");
+        }
+        hasLogged.current = logKey;
+    }
+  }, [safeUserId]);
 
   // Ref used for infinite scroll observer (strict margin/threshold)
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.5,
     rootMargin: "0px",
   });
-
-  // Mark component as mounted
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const cached = chatCache.get<CoursesCacheWithCursor>(
     "all_courses",
@@ -105,7 +115,6 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
         // 🔹 NORMAL MODE → Show cached first page
         if (!searchTitle && cached) {
-            console.log(`[Courses] HYDRATION HIT (v${cached.version || cached.data?.version})`);
             return {
                 pages: [{
                     courses: cached.data.data || cached.data,
@@ -133,7 +142,6 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
         
         // Fallback to cache even in initialData to prevent flickering
         if (!searchTitle && typeof window !== "undefined" && cached) {
-            console.log(`[Courses] INITIAL DATA HIT (v${cached.version || cached.data?.version}) from storage`);
             return {
                 pages: [{
                     courses: cached.data.data || cached.data,
@@ -181,10 +189,8 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       // chatCache.get returns { data, version, timestamp }
       const clientVersion = pageParam ? undefined : (cached?.version);
 
-      console.info(`%c[Courses] SYNC CHECK: %cVersion ${clientVersion || 'NONE'}`, "color: cyan; font-weight: bold", "color: white");
+      console.info(`%c[Courses] SYNC CHECK: Version ${clientVersion || 'NONE'}`, "color: #eab308; font-weight: bold");
 
-      console.log(`[Courses] DEBUG: Starting Sync attempt. Version detected in storage: ${clientVersion || 'NULL'}`);
-      
       const result = await getAllCoursesAction(
         clientVersion,
         safeUserId,
@@ -193,7 +199,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
       // Server says cache is still valid
       if (result.status === "not-modified") {
-        console.log(`[Courses] Server: NOT_MODIFIED (v${clientVersion})`);
+        console.log(`%c[Courses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
         chatCache.touch("all_courses", safeUserId);
         return {
           courses: cached?.data.data ?? [],
@@ -201,7 +207,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
         };
       }
 
-      console.log(`[Courses] Server: NEW_DATA -> Updating cache`);
+      console.log(`%c[Courses] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
 
       // Persist merged courses + cursor
       if (!searchTitle) {
@@ -285,11 +291,12 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {courses.map((course) => (
+        {courses.map((course, index) => (
           <PublicCourseCard
             key={course.id}
             data={course}
             enrollmentStatus={course.enrollmentStatus ?? null}
+            isPriority={index < 3}
           />
         ))}
       </div>

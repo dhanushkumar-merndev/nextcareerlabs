@@ -12,7 +12,7 @@ import Link from "next/link";
 import { CoursesProps } from "@/lib/types/course";
 
 // PublicCourseCard component
-export function PublicCourseCard({data,enrollmentStatus = null,}: CoursesProps) {
+export function PublicCourseCard({ data, enrollmentStatus = null, isPriority = false }: CoursesProps & { isPriority?: boolean }) {
   const thumbnaiUrl = useConstructUrl(data.fileKey || "");
   return (
     <Card className="group relative py-0 gap-0">
@@ -27,7 +27,8 @@ export function PublicCourseCard({data,enrollmentStatus = null,}: CoursesProps) 
       width={600}
       height={400}
       className="w-full aspect-video h-full object-cover rounded-t-lg"
-      loading="lazy"
+      priority={isPriority}
+      loading={isPriority ? undefined : "lazy"}
     />
 
       <CardContent className="p-4">

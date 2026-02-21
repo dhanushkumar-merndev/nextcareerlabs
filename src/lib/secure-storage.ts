@@ -1,44 +1,41 @@
 /**
  * secure-storage.ts
  *
- * A drop-in encrypted wrapper around localStorage.
- * - Keys   → SHA-256 hashed  (unreadable in DevTools)
- * - Values → AES-256 encrypted with a derived passphrase
+ * A drop-in encrypted wrapper around localStorage with IndexedDB shadowing for tamper detection.
+ * - Keys   → SHA-256 hashed (unreadable in DevTools)
+ * - Values → AES-256 encrypted
+ * - Integrity → IndexedDB source-of-truth + In-memory Integrity Shadow
  *
- * The passphrase is a build-time constant.  Because it lives in the
- * JavaScript bundle it does NOT protect against a determined attacker
- * who can read the source, but it DOES prevent:
- *   • Casual inspection of DevTools → Application → Local Storage
- *   • Browser extensions that scan localStorage for sensitive strings
- *   • Automated bots/scrapers reading user data from localStorage
- *
- * API mirrors localStorage but is synchronous (crypto-js is sync):
- *   secureStorage.setItem(key, value)
+ * API mirrors localStorage but is synchronous for reads (using in-memory shadow):
+ *   secureStorage.setItemTracked(key, value)
  *   secureStorage.getItem(key)  → string | null
- *   secureStorage.removeItem(key)
- *   secureStorage.clear(prefix?) – clears all or only keys matching prefix
- *   secureStorage.keys(prefix?)  – returns decrypted keys with given prefix
+ *   secureStorage.removeItemTracked(key)
+ *   secureStorage.clear(prefix?)
  */
 
 "use client";
 
 import CryptoJS from "crypto-js";
 
-// ─── Passphrase ────────────────────────────────────────────────────────────
-// Change this to any random string.  Rotating it invalidates existing cache
-// (users get a cold-cache experience once, then it re-populates).
+// ─── Constants ────────────────────────────────────────────────────────────
 const PASSPHRASE = "ncl_cache_secret_v1_!xQ9#mP2@kR5";
-
-// ─── Key hashing ──────────────────────────────────────────────────────────
-// We store keys as "ncl_" + SHA256(originalKey) so they're unreadable
-// but deterministic (same key always maps to the same hash).
 const KEY_PREFIX = "ncl_";
+const DB_NAME = "ncl_secure_storage";
+const STORE_NAME = "entries";
+const DB_VERSION = 1;
 
+// ─── State ────────────────────────────────────────────────────────────────
+// Stores the ENCRYPTED values from IndexedDB for synchronous integrity checking and repair.
+// Map<HashedLocalStorageKey, EncryptedValueFromIDB>
+const integrityShadow = new Map<string, string>();
+let isInitialized = false;
+let initPromise: Promise<void> | null = null;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
 function hashKey(key: string): string {
   return KEY_PREFIX + CryptoJS.SHA256(key).toString(CryptoJS.enc.Hex).slice(0, 32);
 }
 
-// ─── Value encryption / decryption ────────────────────────────────────────
 function encrypt(plaintext: string): string {
   return CryptoJS.AES.encrypt(plaintext, PASSPHRASE).toString();
 }
@@ -53,100 +50,192 @@ function decrypt(ciphertext: string): string | null {
   }
 }
 
+// ─── IndexedDB Core ───────────────────────────────────────────────────────
+async function getDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(STORE_NAME);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function idbGet(key: string): Promise<string | null> {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get(key);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function idbSet(key: string, value: string): Promise<void> {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      store.put(value, key);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch {}
+}
+
+async function idbRemove(key: string): Promise<void> {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      store.delete(key);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch {}
+}
+
+async function idbClear(): Promise<void> {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const store = transaction.objectStore(STORE_NAME);
+      store.clear();
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } catch {}
+}
+
+async function idbGetAll(): Promise<Record<string, string>> {
+  try {
+    const db = await getDB();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readonly");
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.getAll();
+      const keysRequest = store.getAllKeys();
+      
+      request.onsuccess = () => {
+        const values = request.result;
+        keysRequest.onsuccess = () => {
+          const keys = keysRequest.result as string[];
+          const result: Record<string, string> = {};
+          keys.forEach((key, i) => { result[key] = values[i]; });
+          resolve(result);
+        };
+      };
+      keysRequest.onerror = () => reject(keysRequest.error);
+      request.onerror = () => reject(request.error);
+    });
+  } catch {
+    return {};
+  }
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────
 export const secureStorage = {
-  setItem(key: string, value: string): void {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.setItem(hashKey(key), encrypt(value));
-    } catch (e) {
-      console.warn("[secureStorage] setItem failed:", e);
-    }
+  /**
+   * Initializes the integrity map from IndexedDB.
+   * Called automatically by chatCache.
+   */
+  async init(): Promise<void> {
+    if (typeof window === "undefined" || isInitialized) return;
+    if (initPromise) return initPromise;
+
+    initPromise = (async () => {
+      const idbData = await idbGetAll();
+      
+      // Populate integrity map and repair localStorage if needed
+      Object.entries(idbData).forEach(([hashedKey, encryptedValue]) => {
+        integrityShadow.set(hashedKey, encryptedValue);
+        
+        // 🔄 REPAIR: If LS is missing or different, restore from IDB
+        const lsValue = localStorage.getItem(hashedKey);
+        if (lsValue !== encryptedValue) {
+          localStorage.setItem(hashedKey, encryptedValue);
+        }
+      });
+
+      // 🛡️ STRICT INTEGRITY: If LS has keys that aren't in IDB shadow, wipe them
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k?.startsWith(KEY_PREFIX) && k !== secureStorage._registryKey && !integrityShadow.has(k)) {
+          localStorage.removeItem(k);
+        }
+      }
+
+      isInitialized = true;
+    })();
+
+    return initPromise;
   },
 
   getItem(key: string): string | null {
     if (typeof window === "undefined") return null;
-    try {
-      const encrypted = localStorage.getItem(hashKey(key));
-      if (!encrypted) return null;
-      return decrypt(encrypted);
-    } catch {
-      return null;
-    }
-  },
+    const hashed = hashKey(key);
+    let encrypted = localStorage.getItem(hashed);
+    
+    // 🛡️ MULTI-STAGE INTEGRITY CHECK
+    if (isInitialized) {
+      const idbShadowValue = integrityShadow.get(hashed);
 
-  removeItem(key: string): void {
-    if (typeof window === "undefined") return;
-    try {
-      localStorage.removeItem(hashKey(key));
-    } catch {}
-  },
-
-  /**
-   * Returns all original (plaintext) keys that are stored under the ncl_ prefix.
-   * Because keys are hashed we cannot reverse them — instead we maintain a
-   * separate key-map entry that stores the mapping.
-   *
-   * For our use-case (cache invalidation by prefix) we use a stored key registry.
-   */
-  clear(prefix?: string): void {
-    if (typeof window === "undefined") return;
-    if (!prefix) {
-      // Remove only our own keys (ncl_ prefix) — don't nuke unrelated storage
-      const toRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k?.startsWith(KEY_PREFIX)) toRemove.push(k);
+      // Scenario A: LS value doesn't match IDB shadow
+      if (encrypted !== idbShadowValue) {
+          if (idbShadowValue) {
+            // Restore from IDB (Local Tamper Recovery)
+            localStorage.setItem(hashed, idbShadowValue);
+            encrypted = idbShadowValue;
+          } else {
+            // No IDB copy (IDB Tamper / Deletion)
+            if (encrypted) localStorage.removeItem(hashed);
+            return null;
+          }
       }
-      toRemove.forEach((k) => localStorage.removeItem(k));
-    } else {
-      // We can't reverse the hash, so we track hashed keys by prefix in a registry
-      const registry = secureStorage._getRegistry();
-      const toRemove = Object.keys(registry).filter((origKey) =>
-        origKey.startsWith(prefix)
-      );
-      toRemove.forEach((origKey) => {
-        localStorage.removeItem(registry[origKey]);
-        delete registry[origKey];
-      });
-      secureStorage._saveRegistry(registry);
     }
-  },
 
-  // ── Key Registry ──────────────────────────────────────────────────────
-  // Maps originalKey → hashedKey so we can support prefix-based clearing
-  // and Object.keys() iteration over our own namespace.
-  _registryKey: KEY_PREFIX + "registry",
+    if (!encrypted) return null;
+    const decrypted = decrypt(encrypted);
 
-  _getRegistry(): Record<string, string> {
-    try {
-      const raw = localStorage.getItem(secureStorage._registryKey);
-      if (!raw) return {};
-      // Registry is stored as plain (but encrypted) JSON
-      const dec = decrypt(raw);
-      if (!dec) return {};
-      return JSON.parse(dec);
-    } catch {
-      return {};
+    // Scenario B: Decryption failure (IDB tampered with bad crypto data)
+    if (decrypted === null) {
+        localStorage.removeItem(hashed);
+        idbRemove(hashed);
+        integrityShadow.delete(hashed);
+        return null;
     }
-  },
 
-  _saveRegistry(registry: Record<string, string>): void {
-    try {
-      localStorage.setItem(
-        secureStorage._registryKey,
-        encrypt(JSON.stringify(registry))
-      );
-    } catch {}
+    return decrypted;
   },
 
   /**
-   * Like localStorage.setItem but also registers the key for prefix-based ops.
+   * Encrypts and stores in both LocalStorage and IndexedDB (Tamper Protected).
    */
   setItemTracked(key: string, value: string): void {
+    if (typeof window === "undefined") return;
     const hashed = hashKey(key);
+    const encrypted = encrypt(value);
+    
     try {
-      localStorage.setItem(hashed, encrypt(value));
+      // 1. LocalStorage (Synchronous)
+      localStorage.setItem(hashed, encrypted);
+      
+      // 2. In-Memory Shadow (Synchronous)
+      integrityShadow.set(hashed, encrypted);
+      
+      // 3. IndexedDB Shadow (Asynchronous)
+      idbSet(hashed, encrypted);
+
+      // 4. Registry Update
       const registry = secureStorage._getRegistry();
       registry[key] = hashed;
       secureStorage._saveRegistry(registry);
@@ -155,20 +244,74 @@ export const secureStorage = {
     }
   },
 
-  /**
-   * Remove a tracked key (updates registry too).
-   */
   removeItemTracked(key: string): void {
+    if (typeof window === "undefined") return;
     const hashed = hashKey(key);
+    
     localStorage.removeItem(hashed);
+    integrityShadow.delete(hashed);
+    idbRemove(hashed);
+
     const registry = secureStorage._getRegistry();
     delete registry[key];
     secureStorage._saveRegistry(registry);
   },
 
-  /**
-   * Returns stored hashed keys that begin with the given prefix (by registry lookup).
-   */
+  clear(prefix?: string): void {
+    if (typeof window === "undefined") return;
+    
+    if (!prefix) {
+      // Full clear
+      const toRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k?.startsWith(KEY_PREFIX)) toRemove.push(k);
+      }
+      toRemove.forEach((k) => {
+        localStorage.removeItem(k);
+        integrityShadow.delete(k);
+        idbRemove(k);
+      });
+      idbClear();
+    } else {
+      // Prefix clear
+      const registry = secureStorage._getRegistry();
+      const toRemove = Object.keys(registry).filter((origKey) => origKey.startsWith(prefix));
+      
+      toRemove.forEach((origKey) => {
+        const hashed = registry[origKey];
+        localStorage.removeItem(hashed);
+        idbRemove(hashed);
+        integrityShadow.delete(hashed);
+        delete registry[origKey];
+      });
+      secureStorage._saveRegistry(registry);
+    }
+  },
+
+  // ── Registry Helpers ───────────────────────────────────────────────────
+  _registryKey: KEY_PREFIX + "registry",
+
+  _getRegistry(): Record<string, string> {
+    try {
+      const raw = localStorage.getItem(secureStorage._registryKey);
+      if (!raw) return {};
+      const dec = decrypt(raw);
+      return dec ? JSON.parse(dec) : {};
+    } catch {
+      return {};
+    }
+  },
+
+  _saveRegistry(registry: Record<string, string>): void {
+    const json = JSON.stringify(registry);
+    const encrypted = encrypt(json);
+    localStorage.setItem(secureStorage._registryKey, encrypted);
+    // Registry is also shadowed
+    integrityShadow.set(secureStorage._registryKey, encrypted);
+    idbSet(secureStorage._registryKey, encrypted);
+  },
+
   keysByPrefix(prefix: string): string[] {
     const registry = secureStorage._getRegistry();
     return Object.keys(registry).filter((k) => k.startsWith(prefix));

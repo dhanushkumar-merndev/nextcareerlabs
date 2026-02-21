@@ -26,7 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getSlugPageDataAction } from "../actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache } from "@/lib/chat-cache";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Loader from "@/components/ui/Loader";
 import { useRouter } from "next/navigation";
 
@@ -38,11 +38,27 @@ export function SlugPageWrapper({
   const { session } = useSmartSession();
   const currentUserId = session?.user?.id;
   const router = useRouter();
-  // State to track component mount
+  // Used to avoid hydration mismatch
   const [mounted, setMounted] = useState(false);
+  const hasLogged = useRef<string | null>(null);
+
+  // Mark component as mounted + Persistent Logging
   useEffect(() => {
     setMounted(true);
-  }, []);
+
+    // 🔹 PERSISTENT LOGGING (SPA COMPATIBLE)
+    const logKey = `${slug}_${currentUserId || 'guest'}`;
+    if (hasLogged.current !== logKey) {
+        const cacheKey = `course_${slug}`;
+        let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+        if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+
+        if (cached) {
+            console.log(`%c[SlugPage] LOCAL HIT (v${cached.version}) detected for ${slug}`, "color: #eab308; font-weight: bold");
+        }
+        hasLogged.current = logKey;
+    }
+  }, [slug, currentUserId]);
 
   // UseQuery to fetch course data
   const { data, isLoading } = useQuery({
@@ -59,6 +75,7 @@ export function SlugPageWrapper({
       const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
 
       if (result && (result as any).status === "not-modified" && cached) {
+        console.log(`%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
         chatCache.touch(cacheKey, currentUserId);
         return cached.data;
       }
@@ -104,7 +121,6 @@ export function SlugPageWrapper({
             if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
 
             if (cached) {
-                console.log(`[SlugPage] Local Hit detected for ${slug}`);
                 return cached.data;
             }
         }
@@ -282,7 +298,7 @@ export function SlugPageWrapper({
         </div>
         {/* Course Sidebar */}
         <div className="order-2 lg:col-span-1">
-          <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))] overflow-y-auto pb-6 px-2 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
+          <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))] overflow-y-auto  pb-4 md:pb-0 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
             <div className="relative">
               <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
                 <CardContent className="p-6 space-y-8">

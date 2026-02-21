@@ -4,7 +4,13 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu, X } from "lucide-react";
+import { ChevronDown, Menu, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { usePathname } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/themeToggle";
@@ -143,132 +149,43 @@ export function Navbar() {
           <Logo className="h-10 w-10" />
           <span className="font-medium">Skill Force Cloud</span>
         </Link>
-          {/* ================= DESKTOP NAV CENTERED ================= */}
-          <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 gap-8">
+          {/* ================= DESKTOP NAV ================= */}
+          <nav className="hidden md:flex flex-1 justify-center items-center gap-6 lg:gap-8 px-4">
             {isHomePage ? (
               <>
                 <button
-                      onClick={() => scrollToSection("home")}
-                      className={`
-                        ${navLinkBase}
-                        ${
-                          activeSection === "home"
-                            ? "text-primary"
-                            : "text-muted-foreground hover:text-primary"
-                        }
-                      `}
-                    >
-                      Home
-                    </button>
-               <Link
-                    href="/courses"
-                    className={`
-                      ${navLinkBase}
-                      ${
-                        isRouteActive("/courses")
-                          ? "text-primary pointer-events-none "
-                          : "text-muted-foreground hover:text-primary"
-                      }
-                    `}
-                  >
-                    Courses
-                  </Link>
-                <Link
-                    href={dashboardLink}
-                    className={`
-                      ${navLinkBase}
-                      ${
-                        isRouteActive(dashboardLink)
-                          ? "text-primary pointer-events-none"
-                          : "text-muted-foreground hover:text-primary"
-                      }
-                    `}
-                  >
-                    Dashboard
-                  </Link>
-                {isCompact &&
-                  (["programs", "testimonials"] as Section[]).map(
-                    (id, index) => (
-                     <button
-                      key={id}
-                      onClick={() => scrollToSection(id)}
-                      className={`
-                        ${navLinkBase}
-                        animate-in fade-in slide-in-from-top-2
-                        ${
-                          activeSection === id
-                            ? "text-primary"
-                            : "text-muted-foreground hover:text-primary"
-                        }
-                      `}
-                      style={{
-                        animationDelay: `${(index + 3) * 100}ms`,
-                        animationFillMode: "both",
-                      }}
-                    >
-                      {id[0].toUpperCase() + id.slice(1)}
-                    </button>
-                    )
-                  )}
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/"
+                  onClick={() => scrollToSection("home")}
                   className={`
-                    relative font-medium transition-colors duration-300
+                    ${navLinkBase}
                     ${
-                      pathname === "/"
+                      activeSection === "home"
                         ? "text-primary"
                         : "text-muted-foreground hover:text-primary"
                     }
-                    before:content-['']
-                    before:absolute
-                    before:-bottom-1
-                    before:left-1/2
-                    before:-translate-x-1/2
-                    before:h-0.5
-                    before:w-0
-                    before:bg-primary
-                    before:transition-all
-                    before:duration-300
-                    before:origin-center
-                    hover:before:w-full
-                    ${pathname === "/" ? "before:w-full" : ""}
                   `}
                 >
                   Home
+                </button>
+                <Link
+                  href="/courses"
+                  className={`
+                    ${navLinkBase}
+                    ${
+                      isRouteActive("/courses")
+                        ? "text-primary "
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                  `}
+                >
+                  Courses
                 </Link>
 
-                <Link
-                    href="/courses"
-                    className={`
-                      relative font-medium transition-colors duration-300
-                      ${
-                        isRouteActive("/courses")
-                          ? "text-primary"
-                          : "text-muted-foreground hover:text-primary"
-                      }
-                      before:content-['']
-                      before:absolute
-                      before:-bottom-1
-                      before:left-1/2
-                      before:-translate-x-1/2
-                      before:h-0.5
-                      before:w-0
-                      before:bg-primary
-                      before:transition-all
-                      before:duration-300
-                      before:origin-center
-                      hover:before:w-full
-                    `}
-                  >
-                    Courses
-                  </Link>
+                {/* Priority Plus: Reveal links one by one */}
                 <Link
                   href={dashboardLink}
                   className={`
-                    font-medium transition-colors duration-300
+                    ${navLinkBase}
+                    hidden lg:flex
                     ${
                       isRouteActive(dashboardLink)
                         ? "text-primary"
@@ -278,6 +195,137 @@ export function Navbar() {
                 >
                   Dashboard
                 </Link>
+
+                {isCompact && (
+                  <>
+                    <button
+                      onClick={() => scrollToSection("programs")}
+                      className={`
+                        ${navLinkBase}
+                        hidden xl:flex
+                        ${
+                          activeSection === "programs"
+                            ? "text-primary"
+                            : "text-muted-foreground hover:text-primary"
+                        }
+                      `}
+                    >
+                      Programs
+                    </button>
+                    <button
+                      onClick={() => scrollToSection("testimonials")}
+                      className={`
+                        ${navLinkBase}
+                        hidden 2xl:flex
+                        ${
+                          activeSection === "testimonials"
+                            ? "text-primary"
+                            : "text-muted-foreground hover:text-primary"
+                        }
+                      `}
+                    >
+                      Testimonials
+                    </button>
+                  </>
+                )}
+
+                {/* More Dropdown - Dynamically hidden as links pop out */}
+                <div className={isCompact ? "2xl:hidden" : "lg:hidden"}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      className={`flex items-center gap-1 mt-1 outline-none ${navLinkBase} text-muted-foreground hover:text-primary`}
+                    >
+                       <ChevronDown className="w-4 h-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="center" className="min-w-40 mt-2">
+                      <DropdownMenuItem asChild className="lg:hidden">
+                        <Link href={dashboardLink} className="cursor-pointer">
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                      {isCompact && (
+                        <>
+                          <DropdownMenuItem
+                            onClick={() => scrollToSection("programs")}
+                            className="cursor-pointer xl:hidden"
+                          >
+                            Programs
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => scrollToSection("testimonials")}
+                            className="cursor-pointer 2xl:hidden"
+                          >
+                            Testimonials
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/"
+                  className={`
+                    ${navLinkBase}
+                    ${
+                      pathname === "/"
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                    ${pathname === "/" ? "before:w-full" : ""}
+                  `}
+                >
+                  Home
+                </Link>
+
+                <Link
+                  href="/courses"
+                  className={`
+                    ${navLinkBase}
+                    ${
+                      isRouteActive("/courses")
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                  `}
+                >
+                  Courses
+                </Link>
+
+                <Link
+                  href={dashboardLink}
+                  className={`
+                    ${navLinkBase}
+                    hidden lg:flex
+                    ${
+                      isRouteActive(dashboardLink)
+                        ? "text-primary"
+                        : "text-muted-foreground hover:text-primary"
+                    }
+                  `}
+                >
+                  Dashboard
+                </Link>
+
+                {/* More Dropdown - Hidden as Dashboard pops out */}
+                <div className="lg:hidden">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      className={`flex items-center gap-1 outline-none ${navLinkBase} text-muted-foreground hover:text-primary`}
+                    >
+                      More <ChevronDown className="w-4 h-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="center" className="min-w-40 mt-2">
+                      <DropdownMenuItem asChild>
+                        <Link href={dashboardLink} className="cursor-pointer">
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </>
             )}
           </nav>
