@@ -556,7 +556,7 @@ function VideoPlayer({
         />
       )}
       {/* Transparent overlay — blocks native browser video context menu on mobile */}
-      <div className="absolute inset-0 z-[1] pointer-events-none select-none" />
+      <div className="absolute inset-0 z-1 pointer-events-none select-none" />
     </div>
   );
 }

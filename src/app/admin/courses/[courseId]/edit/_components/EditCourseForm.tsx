@@ -37,12 +37,12 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { editCourse } from "../actions";
 import { chatCache } from "@/lib/chat-cache";
-import { AdminCourseSingularType } from "@/app/data/admin/admin-get-course";
+import { AdminCourseSingularData } from "@/app/data/admin/admin-get-course";
 
 import { useQueryClient } from "@tanstack/react-query";
 
 interface iAppProps {
-  data: AdminCourseSingularType;
+  data: AdminCourseSingularData;
   setDirty: (dirty: boolean) => void;
 }
 
@@ -54,14 +54,14 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
     resolver: zodResolver(courseSchema),
     defaultValues: {
       title: data.title,
-      description: data.description,
-      fileKey: data.fileKey,
-      duration: data.duration,
-      level: data.level,
+      description: data.description ?? undefined,
+      fileKey: data.fileKey ?? undefined,
+      duration: data.duration ?? undefined,
+      level: (data.level as CourseSchemaType["level"]) ?? undefined,
       category: data.category as CourseSchemaType["category"],
-      smallDescription: data.smallDescription,
+      smallDescription: data.smallDescription ?? undefined,
       slug: data.slug,
-      status: data.status,
+      status: data.status as CourseSchemaType["status"],
     },
   });
 
@@ -69,7 +69,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
     setDirty(form.formState.isDirty);
   }, [form.formState.isDirty, setDirty]);
 
-  function onSubmit(values: CourseSchemaType) {
+  function onSubmit(values: CourseSchemaType, skipRedirect = false) {
     startTransition(async () => {
       const { data: result, error } = await tryCatch(
         editCourse(values, data.id)
@@ -89,8 +89,14 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_enrollments"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
         queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+        queryClient.invalidateQueries({ queryKey: [`admin_course_${data.id}`] });
+        chatCache.invalidate(`admin_course_${data.id}`);
         form.reset();
-        router.push("/admin/courses");
+        if (!skipRedirect) {
+          router.push("/admin/courses");
+        } else {
+          router.refresh();
+        }
       } else if (result.status === "error") {
         toast.error(result.message);
       }
@@ -99,7 +105,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
   return (
     <div>
       <Form {...form}>
-        <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+        <form className="space-y-6" onSubmit={form.handleSubmit((values) => onSubmit(values))}>
           <FormField
             control={form.control}
             name="title"
@@ -180,7 +186,14 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                 <FormLabel>Thumbnail image</FormLabel>
                 <FormControl>
                   <Uploader
-                    onChange={field.onChange}
+                    onChange={(val: string | null) => {
+                      field.onChange(val);
+                      // Auto-save to DB and invalidate caches
+                      onSubmit({
+                        ...form.getValues(),
+                        fileKey: val as string,
+                      }, true);
+                    }}
                     value={field.value}
                     fileTypeAccepted="image"
                   />

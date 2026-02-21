@@ -28,7 +28,7 @@ export const courseSchema = z.object({
     .string()
     .min(3, { message: "Description must be at least 3 characters" }),
 
-  fileKey: z.string().min(1, { message: "File must be selected" }),
+  fileKey: z.string().min(1, { message: "File must be selected" }).nullable().optional(),
 
   duration: z
     .number()

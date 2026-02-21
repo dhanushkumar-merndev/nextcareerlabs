@@ -16,6 +16,7 @@ import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
 import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
 import { invalidateAdminsCache } from "@/app/data/notifications/actions";
+import { adminGetCourse } from "@/app/data/admin/admin-get-course";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
@@ -60,6 +61,7 @@ export async function editCourse(
       },
       data: {
         ...result.data,
+        fileKey: result.data.fileKey ?? "",
       },
     });
     console.log(`[editCourse] DB Update took ${Date.now() - updateStartTime}ms`);
@@ -92,6 +94,7 @@ export async function editCourse(
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
@@ -149,6 +152,7 @@ export async function reorderLessons(
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
@@ -262,6 +266,7 @@ export async function createChapter(
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
@@ -326,6 +331,7 @@ export async function createLesson(
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
@@ -433,6 +439,7 @@ export async function deleteLesson({
         invalidateCache(`lesson:questions:${lessonId}`),
         invalidateCache(`lesson:content:${lessonId}`),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
@@ -608,4 +615,9 @@ export async function editChapter({
       message: "Failed to update chapter",
     };
   }
+}
+
+export async function adminGetCourseAction(id: string, clientVersion?: string) {
+    await requireAdmin();
+    return await adminGetCourse(id, clientVersion);
 }

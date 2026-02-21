@@ -92,6 +92,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       }
       if (result.status === "success") {
         chatCache.invalidateAdminData();
+        chatCache.invalidate(`admin_course_${courseId}`);
         if (!skipRedirect) {
           toast.success(result.message);
           router.push(`/admin/courses/${courseId}/edit?tab=course-structure`);
@@ -158,13 +159,11 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                       <Uploader
                         onChange={(val: string | null) => {
                           field.onChange(val);
-                          // Auto-save to DB so the key isn't lost on refresh
-                          if (val) {
-                            onSubmit({
-                              ...form.getValues(),
-                              thumbnailKey: val,
-                            }, true);
-                          }
+                          // Auto-save to DB so the key isn't lost on refresh or deletion
+                          onSubmit({
+                            ...form.getValues(),
+                            thumbnailKey: val,
+                          }, true);
                         }}
                         value={field.value}
                         fileTypeAccepted="image"

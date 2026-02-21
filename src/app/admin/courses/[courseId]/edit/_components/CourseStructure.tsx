@@ -19,7 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { CSS } from "@dnd-kit/utilities";
-import { AdminCourseSingularType } from "@/app/data/admin/admin-get-course";
+import { AdminCourseSingularData } from "@/app/data/admin/admin-get-course";
 import { cn } from "@/lib/utils";
 import {
   Collapsible,
@@ -50,7 +50,7 @@ import { chatCache } from "@/lib/chat-cache";
 
 
 interface iAppProps {
-  data: AdminCourseSingularType;
+  data: AdminCourseSingularData;
   setDirty: (dirty: boolean) => void;
 }
 
@@ -68,17 +68,17 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
   const queryClient = useQueryClient();
   const [isMounted, setIsMounted] = useState(false);
   const initialItems = useMemo(() => {
-    return data.chapter.map((chapter) => ({
+    return data?.chapter?.map((chapter: any) => ({
       id: chapter.id,
       title: chapter.title,
       order: chapter.position,
       isOpen: true,
-      lessons: chapter.lesson.map((lesson) => ({
+      lessons: chapter.lesson.map((lesson: any) => ({
         id: lesson.id,
         title: lesson.title,
         order: lesson.position,
       })),
-    }));
+    })) || [];
   }, [data]);
  const invalidateAdminCaches = () => {
   const keys = [
@@ -93,6 +93,13 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     chatCache.invalidate(key); // localStorage
     queryClient.invalidateQueries({ queryKey: [key] });
   });
+
+  // Specifically invalidate the current course detail
+  if (data?.id) {
+    const courseKey = `admin_course_${data.id}`;
+    chatCache.invalidate(courseKey);
+    queryClient.invalidateQueries({ queryKey: [courseKey] });
+  }
 };
   const [items, setItems] = useState(initialItems);
 
@@ -103,19 +110,19 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
   useEffect(() => {
     setItems((prevItems) => {
       const updated =
-        data.chapter
-          .map((chapter) => ({
+        data?.chapter
+          ?.map((chapter: any) => ({
             id: chapter.id,
             title: chapter.title,
             order: chapter.position,
-            isOpen: prevItems.find((i) => i.id === chapter.id)?.isOpen ?? true,
-            lessons: chapter.lesson
-              .map((l) => ({
+            isOpen: prevItems?.find((i) => i.id === chapter.id)?.isOpen ?? true,
+            lessons: (chapter.lesson || [])
+              .map((l: any) => ({
                 id: l.id,
                 title: l.title,
                 order: l.position,
               }))
-              .sort((a, b) => a.order - b.order),
+              .sort((a: any, b: any) => a.order - b.order),
           }))
           .sort((a, b) => a.order - b.order) || [];
 
@@ -164,7 +171,9 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
 
     const activeType = active.data.current?.type;
     const overType = over.data.current?.type;
-    const courseId = data.id;
+    const courseId = data?.id;
+
+    if (!courseId) return;
 
     // =====================
     // REORDER CHAPTERS
@@ -188,7 +197,10 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
         reorderChapters(
           courseId,
           updated.map((c) => ({ id: c.id, position: c.order }))
-        ),
+        ).then((res) => {
+          if (res.status === "success") invalidateAdminCaches();
+          return res;
+        }),
         {
           loading: "Reordering...",
           success: "Chapters reordered",
@@ -212,13 +224,13 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       const chapterIndex = items.findIndex((c) => c.id === chapterId);
       const chapter = items[chapterIndex];
 
-      const oldIndex = chapter.lessons.findIndex((l) => l.id === active.id);
-      const newIndex = chapter.lessons.findIndex((l) => l.id === over.id);
+      const oldIndex = chapter.lessons.findIndex((l: any) => l.id === active.id);
+      const newIndex = chapter.lessons.findIndex((l: any) => l.id === over.id);
 
       const prev = [...items];
 
       const reordered = arrayMove(chapter.lessons, oldIndex, newIndex);
-      const updatedLessons = reordered.map((l, i) => ({
+      const updatedLessons = reordered.map((l: any, i: number) => ({
         ...l,
         order: i + 1,
       }));
@@ -233,7 +245,10 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
           chapterId,
           updatedLessons.map((l) => ({ id: l.id, position: l.order })),
           courseId
-        ),
+        ).then((res) => {
+          if (res.status === "success") invalidateAdminCaches();
+          return res;
+        }),
         {
           loading: "Reordering lessons...",
           success: "Lessons reordered",
@@ -266,7 +281,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       <Card className="p-0">
         <CardHeader className="flex items-center justify-between border-b px-3 py-3 sm:px-4">
           <CardTitle>Chapters</CardTitle>
-          <NewChapterModel courseId={data.id} onSuccess={invalidateAdminCaches} />
+          <NewChapterModel courseId={data?.id} onSuccess={invalidateAdminCaches} />
         </CardHeader>
 
         <CardContent className="p-2 sm:p-4">
@@ -336,7 +351,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                             items={item.lessons}
                             strategy={verticalListSortingStrategy}
                           >
-                            {item.lessons.map((lesson) => (
+                            {item.lessons.map((lesson: any) => (
                               <SortableItem
                                 key={lesson.id}
                                 id={lesson.id}
