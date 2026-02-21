@@ -984,52 +984,48 @@ export function VideoPlayer({
           : "bg-linear-to-r from-primary/10 to-transparent rounded-r-[100%]"
       )}
     />
+ <div className="relative flex flex-col items-center justify-center gap-2 sm:gap-3 md:gap-4 animate-in fade-in zoom-in-95 duration-200">
 
-    <div className="relative flex flex-col items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+  {/* Direction Chevrons */}
+  <div className="flex items-center justify-center -space-x-3 sm:-space-x-4 md:-space-x-6">
+    {[0, 1, 2].map((i) => {
+      const isForward = seekAnimation.type === "forward";
+      const Icon = isForward ? ChevronRight : ChevronLeft;
+      const visualIndex = isForward ? i : 2 - i;
 
-      {/* Direction Chevrons */}
-<div className="flex items-center -space-x-3">
-  {[0, 1, 2].map((i) => {
-    const isForward = seekAnimation.type === "forward";
-    const Icon = isForward ? ChevronRight : ChevronLeft;
+      return (
+        <Icon
+          key={i}
+          className={cn(
+            "size-8 sm:size-10 md:size-13 lg:size-15 text-primary animate-in fade-in duration-300",
+            isForward
+              ? "slide-in-from-left-2"
+              : "slide-in-from-right-2"
+          )}
+          style={{
+            animationDelay: `${visualIndex * 60}ms`,
+            opacity: 0.3 + visualIndex * 0.35,
+            filter: `blur(${
+              visualIndex === 2
+                ? 0
+                : visualIndex === 1
+                ? 0.4
+                : 0.8
+            }px)`
+          }}
+        />
+      );
+    })}
+  </div>
 
-    // Reverse index for backward
-    const visualIndex = isForward ? i : 2 - i;
+  {/* Time Label */}
+  <span className="text-primary font-black text-base sm:text-lg md:text-2xl tracking-tight tabular-nums animate-in fade-in duration-300 delay-150 -mt-1">
+    {seekAnimation.type === "forward" ? "+" : "-"}
+    {seekAnimation.amount}s
+  </span>
 
-    return (
-      <Icon
-        key={i}
-        className={cn(
-          "size-10 text-primary animate-in fade-in duration-300",
-          isForward
-            ? "slide-in-from-left-2"
-            : "slide-in-from-right-2"
-        )}
-        style={{
-          animationDelay: `${visualIndex * 80}ms`,
-          opacity: 0.4 + visualIndex * 0.3,
-          filter: `blur(${
-            visualIndex === 2
-              ? 0
-              : visualIndex === 1
-              ? 0.3
-              : 0.6
-          }px)`
-        }}
-      />
-    );
-  })}
 </div>
-
-
-
-      {/* Time Label */}
-      <span className="text-primary font-bold text-sm tracking-wide tabular-nums animate-in fade-in duration-300 delay-200">
-        {seekAnimation.type === "forward" ? "+" : "-"}
-        {seekAnimation.amount}s
-      </span>
-
-    </div>
+   
   </div>
 )}
 
@@ -1319,8 +1315,8 @@ export function VideoPlayer({
         </div>
       </div>
 
-      {(showControls && !isBuffering && !seekAnimation && !volumeAnimation.visible) && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-8 sm:gap-26">
+      {(showControls && !isBuffering && !seekAnimation && !volumeAnimation.visible && !hoverPosition) && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-[10%]">
           {/* Backward 10s */}
           <button
             type="button"
@@ -1332,15 +1328,15 @@ export function VideoPlayer({
               triggerSeekAnimation("backward", 10);
             }}
             className="
-              flex flex-col items-center gap-1
-              text-primary/70  duration-100 hover:scale-105
+              flex flex-col items-center justify-center gap-1
+              text-primary/70 duration-100 hover:scale-105
               pointer-events-auto cursor-pointer
               animate-in fade-in slide-in-from-right-4
             "
           >
-            <div className="relative">
-              <RotateCcw className="size-8 sm:size-10" />
-              <span className="absolute inset-0 flex items-center justify-center text-primary text-[10px] font-bold ">10</span>
+            <div className="relative flex items-center justify-center overflow-visible">
+              <RotateCcw className="size-[clamp(32px,8cqw,64px)]" />
+              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-primary text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
             </div>
           </button>
 
@@ -1348,7 +1344,7 @@ export function VideoPlayer({
           <div 
             onClick={togglePlay}
             className="
-              w-12 h-12 sm:w-16 sm:h-16
+              size-[clamp(48px,12cqw,86px)]
               flex items-center justify-center
               rounded-full 
               backdrop-blur-md 
@@ -1364,9 +1360,9 @@ export function VideoPlayer({
             "
           >
             {isPlaying ? (
-              <Pause className="w-6 h-6 sm:w-8 sm:h-8 fill-white" />
+              <Pause className="size-[45%] fill-white" />
             ) : (
-              <Play className="w-6 h-6 sm:w-8 sm:h-8 fill-white ml-0.5" />
+              <Play className="size-[45%] fill-white ml-[5%]" />
             )}
           </div>
 
@@ -1381,15 +1377,15 @@ export function VideoPlayer({
               triggerSeekAnimation("forward", 10);
             }}
             className="
-              flex flex-col items-center gap-1
-              text-primary/70  duration-100 hover:scale-105
+              flex flex-col items-center justify-center gap-1
+              text-primary/70 duration-100 hover:scale-105
               pointer-events-auto cursor-pointer
               animate-in fade-in slide-in-from-left-4
             "
           >
-            <div className="relative">
-              <RotateCw className="size-8 sm:size-10" />
-              <span className="absolute inset-0 flex items-center justify-center text-primary text-[10px] font-bold ">10</span>
+            <div className="relative flex items-center justify-center overflow-visible">
+              <RotateCw className="size-[clamp(32px,8cqw,64px)]" />
+              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-primary text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
             </div>
           </button>
         </div>

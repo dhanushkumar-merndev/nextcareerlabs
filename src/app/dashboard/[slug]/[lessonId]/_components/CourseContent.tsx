@@ -1,11 +1,12 @@
 "use client";
 
 import { getLessonContent } from "@/app/data/course/get-lesson-content";
+import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-import { BookIcon, CheckCircle } from "lucide-react";
+import { BookIcon, CheckCircle, ChevronRight, X, ChevronDown } from "lucide-react";
 import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,15 @@ import { AssessmentModal } from "./AssessmentModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import Loader from "@/components/ui/Loader";
 import { LessonContentSkeleton } from "./lessonSkeleton";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { IconFileText } from "@tabler/icons-react";
 
 interface iAppProps {
   lessonId: string;
@@ -626,6 +636,8 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
+  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
+  const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
 
   // Assessment State
@@ -791,16 +803,27 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
                     "No Video"
                   )}
                 </Button>
-            </div>
+           </div>
 
-
-
-
-
-
-
-
-
+           <Drawer open={isMobileDescriptionOpen} onOpenChange={setIsMobileDescriptionOpen}>
+              <DrawerTrigger asChild>
+                 <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full bg-muted transition-colors">
+                    <ChevronRight className="size-6 ml-0.5" />
+                 </Button>
+              </DrawerTrigger>
+              <DrawerContent className="max-h-[85vh] bg-background">
+                 <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
+                    {/* Accessibility: DrawerTitle is required */}
+                    <DrawerTitle className="sr-only">Lesson Description</DrawerTitle>
+                    <div className="flex-1 overflow-y-auto px-6 pt-8 pb-12 overscroll-contain" data-lenis-prevent>
+                       <div className="prose prose-sm dark:prose-invert max-w-none">
+                          <h3 className="text-xl font-bold mb-4">{data.title}</h3>
+                          {data.description && <RenderDescription json={JSON.parse(data.description)} />}
+                       </div>
+                    </div>
+                 </div>
+              </DrawerContent>
+           </Drawer>
         </div>
 
         <div className="hidden md:flex order-3 md:order-3 items-center justify-between gap-4 px-4 md:px-0 pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
@@ -826,8 +849,41 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
               )}
             </Button>
           </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant={isDescriptionOpen ? "secondary" : "outline"}
+              className="gap-2 shrink-0 rounded-full"
+              onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
+            >
+              <IconFileText className="size-4" />
+              {isDescriptionOpen ? "Hide Description" : "View Description"}
+            </Button>
+          </div>
         </div>
       </div>
+
+      {data.description && isDescriptionOpen && (
+        <div className="absolute -bottom-1 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col border border-border shadow-2xl bg-background animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
+          <div className="flex items-center justify-between p-5 border-b border-border shrink-0 bg-muted/30">
+            <h2 className="font-bold text-lg flex items-center gap-2">
+              <IconFileText className="size-5 text-primary" />
+              Description
+            </h2>
+            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setIsDescriptionOpen(false)}>
+              <X className="size-4" />
+            </Button>
+          </div>
+
+          <div
+            className="flex-1 min-h-0 overflow-y-auto p-6 overscroll-contain scrollbar-thin scrollbar-thumb-primary/10"
+            data-lenis-prevent
+          >
+            <h3 className="text-base font-bold mb-4">{data.title}</h3>
+            <RenderDescription json={JSON.parse(data.description!)} />
+          </div>
+        </div>
+      )}
 
 
       {questions.length > 0 && (
