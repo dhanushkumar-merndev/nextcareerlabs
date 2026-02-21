@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { updateProfileAction } from "@/app/data/user/user-actions";
 import { useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
+import { secureStorage } from "@/lib/secure-storage";
 import { AlertTriangle, Loader2, Phone, Sparkles, User } from "lucide-react";
 import { formSchema } from "@/lib/zodSchemas";
 import { PhoneNumberDialogProps } from "@/lib/types/homePage";
@@ -53,12 +54,7 @@ export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDi
             chatCache.invalidate("auth_session");
             
             // Clear all dashboard caches since their profile changed
-            const keys = Object.keys(localStorage);
-            keys.forEach(key => {
-                if (key.includes("user_dashboard")) {
-                    localStorage.removeItem(key);
-                }
-            });
+            secureStorage.clear("chat_cache_");
 
             queryClient.invalidateQueries({ queryKey: ["auth_session"] });
             

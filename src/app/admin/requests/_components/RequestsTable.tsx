@@ -50,6 +50,7 @@ import {
 import { useState, useTransition, useCallback, useEffect, useRef } from "react";
 import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
 import { cn } from "@/lib/utils";
+import { secureStorage } from "@/lib/secure-storage";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
@@ -131,9 +132,9 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
 
 
   const clearLocalCache = useCallback(() => {
-    localStorage.removeItem("admin_enrollment_requests");
-    localStorage.removeItem("admin_enrollment_version");
-    localStorage.removeItem("admin_enrollment_last_sync");
+    secureStorage.removeItemTracked("admin_enrollment_requests");
+    secureStorage.removeItemTracked("admin_enrollment_version");
+    secureStorage.removeItemTracked("admin_enrollment_last_sync");
     console.log("[RequestsTable] Local cache cleared after admin action.");
   }, []);
 
@@ -252,11 +253,11 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
              setTotalCount(result.totalCount);
              setVersion(result.version);
              
-             // Persist to LocalStorage
-             localStorage.setItem("admin_enrollment_requests", JSON.stringify({ data: result.data, totalCount: result.totalCount }));
-             localStorage.setItem("admin_enrollment_version", result.version);
+             // Persist to secureStorage
+             secureStorage.setItemTracked("admin_enrollment_requests", JSON.stringify({ data: result.data, totalCount: result.totalCount }));
+             secureStorage.setItemTracked("admin_enrollment_version", result.version);
          }
-         localStorage.setItem("admin_enrollment_last_sync", Date.now().toString());
+         secureStorage.setItemTracked("admin_enrollment_last_sync", Date.now().toString());
          setHasHydrated(true);
     });
   }, [BATCH_SIZE]);
@@ -279,9 +280,9 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
 
     // 1. Initial Load from LocalStorage (if not searching)
     if (debouncedSearch === "") {
-        const cached = localStorage.getItem(STORAGE_KEY);
-        const cachedVersion = localStorage.getItem(VERSION_KEY);
-        const lastSync = localStorage.getItem(SYNC_TIMESTAMP_KEY);
+        const cached = secureStorage.getItem(STORAGE_KEY);
+        const cachedVersion = secureStorage.getItem(VERSION_KEY);
+        const lastSync = secureStorage.getItem(SYNC_TIMESTAMP_KEY);
 
         if (cached && cachedVersion) {
             if (!hasLogged.current) {

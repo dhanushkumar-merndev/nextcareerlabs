@@ -1,5 +1,7 @@
 "use client";
 
+import { secureStorage } from "./secure-storage";
+
 const STORAGE_PREFIX = "chat_cache_";
 export const PERMANENT_TTL = 100 * 365 * 24 * 60 * 60 * 1000;
 const DEFAULT_TTL = PERMANENT_TTL;
@@ -22,29 +24,28 @@ export const chatCache = {
       expiry: Date.now() + ttl,
     };
     try {
-        localStorage.setItem(storageKey, JSON.stringify(entry));
+      secureStorage.setItemTracked(storageKey, JSON.stringify(entry));
     } catch (e) {
-        console.error("[chatCache] Failed to set", e);
+      console.error("[chatCache] Failed to set", e);
     }
   },
 
   get: <T>(key: string, userId?: string): { data: T; version?: string; timestamp?: number } | null => {
     if (typeof window === "undefined" || !key) return null;
     const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
-    const item = localStorage.getItem(storageKey);
+    const item = secureStorage.getItem(storageKey);
     if (!item) return null;
 
     try {
       const entry: CacheEntry<T> = JSON.parse(item);
 
-
       if (Date.now() > entry.expiry) {
-        localStorage.removeItem(storageKey);
+        secureStorage.removeItemTracked(storageKey);
         return null;
       }
       return { data: entry.data, version: entry.version, timestamp: entry.timestamp };
     } catch (e) {
-      localStorage.removeItem(storageKey);
+      secureStorage.removeItemTracked(storageKey);
       return null;
     }
   },
@@ -52,26 +53,24 @@ export const chatCache = {
   invalidate: (key: string, userId?: string) => {
     if (typeof window === "undefined") return;
     const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
-    localStorage.removeItem(storageKey);
+    secureStorage.removeItemTracked(storageKey);
   },
 
   clear: () => {
     if (typeof window === "undefined") return;
-    Object.keys(localStorage)
-      .filter((key) => key.startsWith(STORAGE_PREFIX))
-      .forEach((key) => localStorage.removeItem(key));
+    secureStorage.clear(STORAGE_PREFIX);
   },
 
   invalidateAdminData: () => {
     if (typeof window === "undefined") return;
     const adminKeys = [
-        "admin_analytics", 
-        "admin_dashboard_all", 
-        "admin_recent_courses", 
-        "admin_courses_list", 
-        "admin_chat_sidebar"
+      "admin_analytics",
+      "admin_dashboard_all",
+      "admin_recent_courses",
+      "admin_courses_list",
+      "admin_chat_sidebar",
     ];
-    adminKeys.forEach(key => chatCache.invalidate(key));
+    adminKeys.forEach((key) => chatCache.invalidate(key));
     console.log("[chatCache] Admin data invalidated from local storage.");
   },
 
@@ -82,13 +81,13 @@ export const chatCache = {
   touch: (key: string, userId?: string) => {
     if (typeof window === "undefined" || !key) return;
     const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
-    const item = localStorage.getItem(storageKey);
+    const item = secureStorage.getItem(storageKey);
     if (!item) return;
 
     try {
       const entry: CacheEntry<any> = JSON.parse(item);
       entry.timestamp = Date.now();
-      localStorage.setItem(storageKey, JSON.stringify(entry));
+      secureStorage.setItemTracked(storageKey, JSON.stringify(entry));
     } catch (e) {
       // Ignore errors
     }

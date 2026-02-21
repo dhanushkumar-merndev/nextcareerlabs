@@ -23,6 +23,7 @@ import {
 import { MessageContent } from "./MessageContent";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { chatCache, getSidebarKey, getSidebarLocalKey } from "@/lib/chat-cache";
+import { secureStorage } from "@/lib/secure-storage";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
 interface ChatWindowProps {
@@ -1006,7 +1007,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             setGroupParticipants(cached.data);
             setShowGroupInfo(true);
             
-            const lastSyncStr = localStorage.getItem(`chat_cache_${currentUserId}_participants_${threadId}_sync`);
+            const lastSyncStr = secureStorage.getItem(`chat_cache_${currentUserId}_participants_${threadId}_sync`);
             const lastSync = lastSyncStr ? parseInt(lastSyncStr) : 0;
             
             if (now - lastSync < STALE_TIME) {
@@ -1030,7 +1031,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 // but we can wrap our data or just rely on the fact that it's updated.
                 // Let's actually just save it inside the metadata if we want to be clean, 
                 // but custom 'set' with syncTime is easier.
-                localStorage.setItem(`chat_cache_${currentUserId}_${cacheKey}_sync`, now.toString());
+                secureStorage.setItemTracked(`chat_cache_${currentUserId}_${cacheKey}_sync`, now.toString());
 
                 if (!cached) setShowGroupInfo(true);
             } catch (e) {

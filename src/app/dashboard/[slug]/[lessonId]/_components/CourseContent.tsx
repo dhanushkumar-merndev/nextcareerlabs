@@ -23,6 +23,7 @@ import { IconFileText } from "@tabler/icons-react";
 import { env } from "@/lib/env";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
+import { secureStorage } from "@/lib/secure-storage";
 import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
 import CryptoJS from "crypto-js";
 import { getLessonMCQs } from "@/app/admin/lessons/mcqs/actions";
@@ -216,13 +217,13 @@ function VideoPlayer({
       getEncryptionKey(userId)
     ).toString();
     
-    localStorage.setItem(`unsynced-delta-${lessonId}`, encrypted);
+    secureStorage.setItemTracked(`unsynced-delta-${lessonId}`, encrypted);
     setCookie(`unsynced-delta-${lessonId}`, encrypted);
   };
 
   const loadUnsyncedDelta = (): number => {
     // Check localStorage first, then cookie
-    const localData = localStorage.getItem(`unsynced-delta-${lessonId}`);
+    const localData = secureStorage.getItem(`unsynced-delta-${lessonId}`);
     const encryptedData = localData || getCookie(`unsynced-delta-${lessonId}`);
     
     if (!encryptedData) return 0;
@@ -244,7 +245,7 @@ function VideoPlayer({
 
   const clearLocalDelta = () => {
     sessionDeltaRef.current = 0;
-    localStorage.removeItem(`unsynced-delta-${lessonId}`);
+    secureStorage.removeItemTracked(`unsynced-delta-${lessonId}`);
     deleteCookie(`unsynced-delta-${lessonId}`);
   };
 
@@ -276,7 +277,7 @@ function VideoPlayer({
       sessionDeltaRef.current = 0;
     } else if (response.status === "success" && specificLessonId) {
         // Clear specific lesson delta
-        localStorage.removeItem(`unsynced-delta-${specificLessonId}`);
+        secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}`);
         const expires = new Date(0).toUTCString();
         document.cookie = `unsynced-delta-${specificLessonId}=; expires=${expires}; path=/; SameSite=Lax`;
     }
@@ -294,7 +295,7 @@ function VideoPlayer({
       const previousDelta = loadUnsyncedDelta();
       sessionDeltaRef.current = previousDelta; // load into active ref
       
-      const savedTime = localStorage.getItem(`video-progress-${lessonId}`);
+      const savedTime = secureStorage.getItem(`video-progress-${lessonId}`);
       const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
       
       if (previousDelta > 0 || (savedTime && parseFloat(savedTime) > initialTime)) {
@@ -303,12 +304,21 @@ function VideoPlayer({
 
       // 2. Global Sync: Find other unsynced deltas in localStorage
       try {
-        const keys = Object.keys(localStorage);
+        const keys = secureStorage.keysByPrefix("unsynced-delta-");
         for (const key of keys) {
-          if (key.startsWith("unsynced-delta-") && !key.includes(lessonId)) {
+          if (!key.includes(lessonId)) {
             const otherLessonId = key.replace("unsynced-delta-", "");
-            const otherDelta = parseFloat(localStorage.getItem(key) || "0");
-            const otherPosition = parseFloat(localStorage.getItem(`video-progress-${otherLessonId}`) || "0");
+            const rawDelta = secureStorage.getItem(key);
+            const rawPos = secureStorage.getItem(`video-progress-${otherLessonId}`);
+            // Decrypt the delta (it was double-encrypted)
+            let otherDelta = 0;
+            try {
+              if (rawDelta) {
+                const decrypted = CryptoJS.AES.decrypt(rawDelta, getEncryptionKey(userId)).toString(CryptoJS.enc.Utf8);
+                otherDelta = parseFloat(decrypted) || 0;
+              }
+            } catch {}
+            const otherPosition = rawPos ? parseFloat(rawPos) : 0;
             
             if (otherDelta > 0) {
               console.log(`[Global Sync] Found leftover for ${otherLessonId}`);
@@ -445,7 +455,7 @@ function VideoPlayer({
      VIDEO POSITION TRACKING (localStorage for resume)
   ============================================================ */
   const saveProgress = (time: number) => {
-    localStorage.setItem(`video-progress-${lessonId}`, time.toString());
+    secureStorage.setItemTracked(`video-progress-${lessonId}`, time.toString());
   };
 
   const onLoadedMetadata = (duration: number) => {
@@ -458,7 +468,7 @@ function VideoPlayer({
 
     // Save position for resume (every 5 seconds)
     const lastSavedTime = parseFloat(
-      localStorage.getItem(`video-progress-${lessonId}`) || "0"
+      secureStorage.getItem(`video-progress-${lessonId}`) || "0"
     );
 
     if (Math.abs(currentTime - lastSavedTime) > 5) {

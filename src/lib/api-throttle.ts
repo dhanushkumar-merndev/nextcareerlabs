@@ -1,6 +1,8 @@
 /**
- * Utility to throttle API calls using localStorage to persist state across reloads.
+ * Utility to throttle API calls using secureStorage (encrypted) to persist state across reloads.
  */
+
+import { secureStorage } from "./secure-storage";
 
 export interface ThrottleConfig {
   limit: number;      // Maximum calls
@@ -21,7 +23,7 @@ class ApiThrottle {
 
   private getTimestamps(key: string): number[] {
     if (typeof window === 'undefined') return [];
-    const stored = localStorage.getItem(this.getStorageKey(key));
+    const stored = secureStorage.getItem(this.getStorageKey(key));
     if (!stored) return [];
     try {
       return JSON.parse(stored);
@@ -32,7 +34,7 @@ class ApiThrottle {
 
   private saveTimestamps(key: string, timestamps: number[]): void {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(this.getStorageKey(key), JSON.stringify(timestamps));
+    secureStorage.setItemTracked(this.getStorageKey(key), JSON.stringify(timestamps));
   }
 
   /**
