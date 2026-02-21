@@ -30,6 +30,13 @@ interface TranscriptionWorkflowProps {
   onComplete?: () => void;
   onTranscriptionUpload?: (url: string) => void;
   onCaptionDelete?: () => void;
+  initialTranscription?: {
+    id: string;
+    vttUrl: string;
+    status: string;
+    hasMCQs: boolean;
+  };
+  initialHasMCQs?: boolean;
 }
 
 export function TranscriptionWorkflow({
@@ -39,6 +46,8 @@ export function TranscriptionWorkflow({
   onComplete,
   onTranscriptionUpload,
   onCaptionDelete,
+  initialTranscription,
+  initialHasMCQs,
 }: TranscriptionWorkflowProps) {
 
 
@@ -59,6 +68,33 @@ export function TranscriptionWorkflow({
   // Load existing transcription on mount or when videoKey changes
   useEffect(() => {
     const loadExisting = async () => {
+      // If we have initial data, use it and skip the fetch
+      if (initialTranscription) {
+        setIsInitialLoading(true);
+        setVttContent(null);
+        setPastedJson("");
+
+        try {
+          const vttRes = await fetch(initialTranscription.vttUrl);
+          if (vttRes.ok) {
+            const content = await vttRes.text();
+            setVttContent(content);
+            if (initialHasMCQs) {
+              setHasMCQs(true);
+              setStatus("saved");
+            } else {
+              setHasMCQs(false);
+              setStatus("complete");
+            }
+          }
+        } catch (err) {
+          console.warn("[TranscriptionWorkflow] Initial load failed:", err);
+        } finally {
+          setIsInitialLoading(false);
+        }
+        return;
+      }
+
       setIsInitialLoading(true);
       // Reset local states for fresh check
       setStatus("idle");

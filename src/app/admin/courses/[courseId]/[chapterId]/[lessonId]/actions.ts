@@ -76,13 +76,11 @@ export async function updateLesson(
     
     // Invalidate caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
         invalidateCache(`lesson:${lessonId}`),
         invalidateCache(`lesson:questions:${lessonId}`),
         invalidateCache(`lesson:content:${lessonId}`),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
     ]);
 
     return {

@@ -26,6 +26,18 @@ export async function adminGetLesson(id: string) {
       spriteWidth: true,
       spriteHeight: true,
       lowResKey: true,
+      transcription: {
+        select: {
+          id: true,
+          vttUrl: true,
+          status: true,
+        },
+      },
+      _count: {
+        select: {
+          questions: true,
+        },
+      },
     },
   });
   const duration = Date.now() - startTime;
@@ -35,7 +47,21 @@ export async function adminGetLesson(id: string) {
     return notFound();
   }
 
-  return data;
+  // Format the transcription URL if it exists
+  const formattedData = {
+    ...data,
+    transcription: data.transcription
+      ? {
+          ...data.transcription,
+          vttUrl: data.transcription.vttUrl.startsWith("http")
+            ? data.transcription.vttUrl
+            : `https://${process.env.S3_BUCKET_NAME}.t3.storage.dev/${data.transcription.vttUrl}`,
+          hasMCQs: data._count.questions > 0,
+        }
+      : null,
+  };
+
+  return formattedData;
 }
 
 export type AdminLessonType = Awaited<ReturnType<typeof adminGetLesson>>;

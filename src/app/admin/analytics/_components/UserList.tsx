@@ -27,6 +27,7 @@ import { secureStorage } from "@/lib/secure-storage";
 
 export function UserList({
   search: initialSearch,
+  enrolledOnly = false,
 }: UserListProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,9 +46,9 @@ export function UserList({
   const { checkRateLimit } = useRefreshRateLimit(5, 60000);
 
 
-  const STORAGE_KEY = activeTab === "admins" ? "admin_admins_list_data" : "admin_users_list_data";
+  const STORAGE_KEY = `${activeTab === "admins" ? "admin_admins_list_data" : "admin_users_list_data"}${enrolledOnly ? ":enrolled" : ""}`;
   const VERSION_KEY = "admin_users_list_version";
-  const LAST_CHECK_KEY = activeTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check";
+  const LAST_CHECK_KEY = `${activeTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check"}${enrolledOnly ? ":enrolled" : ""}`;
 
   useEffect(() => {
     setIsMounted(true);
@@ -87,7 +88,7 @@ export function UserList({
     }
   }, [debouncedSearch, version]);
 
-  const queryKey = ["users", debouncedSearch, activeTab];
+  const queryKey = ["users", debouncedSearch, activeTab, enrolledOnly];
 
   type UsersPage = {
     users: User[];
@@ -144,7 +145,7 @@ export function UserList({
       const clientV = isFirstPageDefault && hasLocalData ? (secureStorage.getItem(VERSION_KEY) || version) : undefined;
       console.log(`[UserList] FETCH: Page ${pageParam} (Tab: ${activeTab}). Version Check: ${clientV || 'None (Force Refresh)'}`);
 
-      const result = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, clientV || undefined);
+      const result = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, clientV || undefined, enrolledOnly);
       
       let finalResult = result as any;
 
@@ -168,7 +169,7 @@ export function UserList({
         }
 
         console.log(`[UserList] NOT_MODIFIED but local data missing. Forcing recovery fetch...`);
-        finalResult = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, undefined);
+        finalResult = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, undefined, enrolledOnly);
       }
 
       if (isFirstPageDefault && finalResult && finalResult.users) {
@@ -242,7 +243,7 @@ export function UserList({
     
     // Calculate target query key for cross-tab optimistic update
     const targetTab = activeTab === "users" ? "admins" : "users";
-    const targetQueryKey = ["users", debouncedSearch, targetTab];
+    const targetQueryKey = ["users", debouncedSearch, targetTab, enrolledOnly];
 
     // 1. Snapshot previous data for rollback
     const previousCurrentData = queryClient.getQueryData<InfiniteData<UsersPage>>(queryKey);
@@ -258,9 +259,13 @@ export function UserList({
     // 1. NUCLEAR CLEAR: Wipe all local state to force a fresh backend check on sync
     secureStorage.removeItemTracked(VERSION_KEY);
     secureStorage.removeItemTracked("admin_users_list_data");
+    secureStorage.removeItemTracked("admin_users_list_data:enrolled");
     secureStorage.removeItemTracked("admin_users_list_last_check");
+    secureStorage.removeItemTracked("admin_users_list_last_check:enrolled");
     secureStorage.removeItemTracked("admin_admins_list_data");
+    secureStorage.removeItemTracked("admin_admins_list_data:enrolled");
     secureStorage.removeItemTracked("admin_admins_list_last_check");
+    secureStorage.removeItemTracked("admin_admins_list_last_check:enrolled");
     setVersion(null);
 
     // 2. OPTIMISTIC UPDATE: Move user between tabs immediately
@@ -305,8 +310,14 @@ export function UserList({
       // 3. Clear secure storage for both tabs to ensure next fetch brings fresh data
       secureStorage.removeItemTracked(LAST_CHECK_KEY);
       secureStorage.removeItemTracked(STORAGE_KEY);
-      secureStorage.removeItemTracked(targetTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check");
-      secureStorage.removeItemTracked(targetTab === "admins" ? "admin_admins_list_data" : "admin_users_list_data");
+      
+      const targetPrefixData = targetTab === "admins" ? "admin_admins_list_data" : "admin_users_list_data";
+      const targetPrefixCheck = targetTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check";
+      
+      secureStorage.removeItemTracked(`${targetPrefixData}${enrolledOnly ? ":enrolled" : ""}`);
+      secureStorage.removeItemTracked(`${targetPrefixCheck}${enrolledOnly ? ":enrolled" : ""}`);
+      secureStorage.removeItemTracked(`${targetPrefixData}${!enrolledOnly ? ":enrolled" : ""}`);
+      secureStorage.removeItemTracked(`${targetPrefixCheck}${!enrolledOnly ? ":enrolled" : ""}`);
       
       // 4. Invalidate queries to sync with server in background
       queryClient.invalidateQueries({ queryKey: ["users"] });

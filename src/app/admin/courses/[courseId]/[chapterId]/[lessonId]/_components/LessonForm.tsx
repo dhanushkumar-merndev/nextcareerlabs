@@ -31,9 +31,9 @@ import { updateLesson } from "../actions";
 import { useRouter } from "next/navigation";
 import { TranscriptionWorkflow } from "./TranscriptionWorkflow";
 import { env } from "@/lib/env";
-import { useEffect, useState } from "react";
-import { getTranscription } from "@/app/admin/lessons/transcription/actions";
+import { useState } from "react";
 import { chatCache } from "@/lib/chat-cache";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface iAppProps {
   data: AdminLessonType;
@@ -44,21 +44,8 @@ interface iAppProps {
 export function LessonForm({ data, chapterId, courseId }: iAppProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-  const [captionUrl, setCaptionUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchTranscription = async () => {
-      try {
-        const res = await getTranscription(data.id);
-        if (res.success && res.transcription) {
-          setCaptionUrl(res.transcription.vttUrl);
-        }
-      } catch (err) {
-        console.error("Failed to fetch transcription in LessonForm", err);
-      }
-    };
-    fetchTranscription();
-  }, [data.id]);
+  const queryClient = useQueryClient();
+  const [captionUrl, setCaptionUrl] = useState<string | null>(data.transcription?.vttUrl ?? null);
   const form = useForm<LessonSchemaType>({
     resolver: zodResolver(lessonSchema),
     defaultValues: {
@@ -91,8 +78,9 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
         return;
       }
       if (result.status === "success") {
-        chatCache.invalidateAdminData();
         chatCache.invalidate(`admin_course_${courseId}`);
+        queryClient.invalidateQueries({ queryKey: [`admin_course_${courseId}`] });
+        form.reset(values);
         if (!skipRedirect) {
           toast.success(result.message);
           router.push(`/admin/courses/${courseId}/edit?tab=course-structure`);
@@ -235,6 +223,8 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                   onComplete={() => router.refresh()}
                   onTranscriptionUpload={(url) => setCaptionUrl(url)}
                   onCaptionDelete={() => setCaptionUrl(null)}
+                  initialTranscription={data.transcription ?? undefined}
+                  initialHasMCQs={data.transcription?.hasMCQs}
                 />
               )}
               <Button

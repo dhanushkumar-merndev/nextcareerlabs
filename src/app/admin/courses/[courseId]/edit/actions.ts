@@ -66,21 +66,27 @@ export async function editCourse(
     });
     console.log(`[editCourse] DB Update took ${Date.now() - updateStartTime}ms`);
 
-    // Auto-create Broadcast Group if Published
-    if (result.data.status === "Published") {
-        const existingGroup = await prisma.chatGroup.findFirst({
-            where: { courseId: courseId }
-        });
+    // Sync or Auto-create Chat Group
+    const existingGroup = await prisma.chatGroup.findFirst({
+        where: { courseId: courseId }
+    });
 
-        if (!existingGroup) {
-            await prisma.chatGroup.create({
-                data: {
-                    name: `${result.data.title} Group`,
-                    courseId: courseId,
-                    imageUrl: result.data.fileKey 
-                }
-            });
-        }
+    if (existingGroup) {
+        await prisma.chatGroup.update({
+            where: { id: existingGroup.id },
+            data: {
+                name: `${result.data.title} Group`,
+                imageUrl: result.data.fileKey 
+            }
+        });
+    } else if (result.data.status === "Published") {
+        await prisma.chatGroup.create({
+            data: {
+                name: `${result.data.title} Group`,
+                courseId: courseId,
+                imageUrl: result.data.fileKey 
+            }
+        });
     }
 
     // Invalidate global courses and analytics cache
@@ -327,16 +333,20 @@ export async function createLesson(
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+        // 1. Invalidate Actual Data
         invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS), // Crucial for progress bars
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+
+        // 2. Increment Versions (This triggers the yellow "UPDATE FOUND" on the client)
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
     ]);
 
     revalidatePath(`/admin/courses/${result.data.courseId}/edit`);

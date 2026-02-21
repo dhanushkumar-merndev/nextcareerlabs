@@ -17,6 +17,7 @@ export interface UserListProps {
   initialTotalUsers?: number;
   search: string;
   version?: string;
+  enrolledOnly?: boolean;
 }
 
 export interface ChapterExpansionProps {

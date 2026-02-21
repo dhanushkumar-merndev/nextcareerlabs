@@ -65,12 +65,12 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
                 return result;
             }
 
-            return result || cached?.data || initialData;
+            return result || cached?.data || initialData || null;
         },
         initialData: () => {
-            if (typeof window === "undefined") return initialData;
+            if (typeof window === "undefined") return initialData || null;
             const cached = chatCache.get<any>(cacheKey);
-            return cached?.data || initialData;
+            return cached?.data || initialData || null;
         },
         staleTime: 1800000, // 30 mins
         refetchInterval: 1800000,
@@ -99,7 +99,13 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
 
     if (!data) return <div className="p-10 text-center font-bold uppercase tracking-widest text-muted-foreground">User Not Found or Access Denied</div>;
 
-    const { user, enrolledCoursesCount, completedCoursesCount, completedChaptersCount, coursesProgress, totalLessonsCompleted, totalTimeSpent } = data;
+    const user = data?.user;
+    const enrolledCoursesCount = data?.enrolledCoursesCount ?? 0;
+    const completedCoursesCount = data?.completedCoursesCount ?? 0;
+    const completedChaptersCount = data?.completedChaptersCount ?? 0;
+    const coursesProgress = data?.coursesProgress || [];
+    const totalLessonsCompleted = data?.totalLessonsCompleted ?? 0;
+    const totalTimeSpent = data?.totalTimeSpent ?? 0;
 
     return (
         <div className="flex flex-col gap-8 p-4 lg:p-6 w-full mx-auto">
@@ -110,30 +116,30 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
                     <span className="opacity-40">/</span>
                     <Link href="/admin/analytics/users" className="hover:text-primary transition-colors">Users</Link>
                     <span className="opacity-40">/</span>
-                    <span className="text-foreground tracking-widest">{user.name}</span>
+                    <span className="text-foreground tracking-widest">{user?.name}</span>
                 </div>
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex items-center gap-5">
                         <Avatar className="size-20 border-4 border-primary/10 shadow-xl">
-                            <AvatarImage src={user.image || ""} />
+                            <AvatarImage src={user?.image || ""} />
                             <AvatarFallback className="bg-primary/5 text-primary text-2xl font-black uppercase">
-                                {user.name?.charAt(0) || "U"}
+                                {user?.name?.charAt(0) || "U"}
                             </AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col gap-1">
-                            <h1 className="text-3xl font-black tracking-tight uppercase">{user.name}</h1>
+                            <h1 className="text-3xl font-black tracking-tight uppercase">{user?.name}</h1>
                             <div className="flex flex-wrap items-center gap-3 mt-1">
                                 <Badge variant="outline" className="rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-widest bg-primary/5 text-primary border-primary/20">
-                                    {user.role || "User"}
+                                    {user?.role || "User"}
                                 </Badge>
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                                     <Mail className="size-3.5" />
-                                    {user.email}
+                                    {user?.email}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                                     <Calendar className="size-3.5" />
-                                    Joined {formatIST(user.createdAt)}
+                                    Joined {user?.createdAt ? formatIST(user.createdAt) : "N/A"}
                                 </div>
                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                                     <Clock className="size-3.5" />

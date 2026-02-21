@@ -273,18 +273,30 @@ export async function getUserAnalyticsAdmin(userId: string, clientVersion?: stri
 
         if (!user) return null;
 
-        // Reuse the logic from getUserDashboardData but maybe add more details if needed
+        // Reuse logic from getUserDashboardData and normalize for client
         const dashboardData = await getUserDashboardData(userId);
 
-        if (!dashboardData) return null;
+        if (!dashboardData) {
+            console.error(`[getUserAnalyticsAdmin] Failed: getUserDashboardData returned null for ${userId}`);
+            return null;
+        }
 
+        if (!dashboardData.data) {
+             console.error(`[getUserAnalyticsAdmin] Failed: dashboardData.data is missing for ${userId}`, dashboardData);
+             return null;
+        }
+
+        console.log(`[getUserAnalyticsAdmin] Success: Returning data for ${userId}`);
         return {
             user,
-            ...dashboardData,
+            ...dashboardData.data,
+            totalLessonsCompleted: dashboardData.data.totalCompletedLessons,
+            totalTimeSpent: dashboardData.data.totalPlatformActualWatchTime,
             version: currentVersion
         };
 
     } catch (error) {
+        console.error(`[getUserAnalyticsAdmin] Critical Error:`, error);
         return null;
     }
 }
@@ -328,7 +340,7 @@ export async function getUserCourseDetailedProgress(userId: string, courseId: st
     }
 }
 
-export async function getAllUsers(search?: string, page: number = 1, limit: number = 100, roleFilter?: string, clientVersion?: string) {
+export async function getAllUsers(search?: string, page: number = 1, limit: number = 100, roleFilter?: string, clientVersion?: string, enrolledOnly?: boolean) {
     await requireAdmin();
     try {
         const isDefaultFetch = page === 1 && limit === 100 && !search && (roleFilter === 'user' || roleFilter === 'admin');
@@ -339,9 +351,13 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
             currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION);
         }
 
-        const cacheKey = roleFilter === 'admin' 
+        let cacheKey = roleFilter === 'admin' 
             ? "admin:admins:list" // New key for admins
             : GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST;
+
+        if (enrolledOnly) {
+            cacheKey = `${cacheKey}:enrolled`;
+        }
 
         // 1. Version Match check
         if (isDefaultFetch && clientVersion && clientVersion === currentVersion) {
@@ -386,6 +402,16 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
                     { role: null },
                     { NOT: { role: { equals: 'admin', mode: 'insensitive' } } }
                 ]
+            });
+        }
+
+        if (enrolledOnly) {
+            whereClause.AND.push({
+                enrollment: {
+                    some: {
+                        status: "Granted"
+                    }
+                }
             });
         }
 
@@ -450,7 +476,9 @@ export async function updateUserRole(userId: string, newRole: string) {
         // Invalidate cache
         await Promise.all([
             invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST),
+            invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST}:enrolled`),
             invalidateCache("admin:admins:list"), // Also invalidate admins list
+            invalidateCache("admin:admins:list:enrolled"),
             incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION),
             // Invalidate specifically for this user
             incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),

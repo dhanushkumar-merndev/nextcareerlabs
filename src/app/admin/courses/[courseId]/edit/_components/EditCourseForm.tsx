@@ -79,19 +79,28 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
         return;
       }
       if (result.status === "success") {
-        toast.success(result.message);
+        if (!skipRedirect) {
+          toast.success(result.message);
+        }
         chatCache.invalidateAdminData();
         chatCache.invalidate("all_courses");
         queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
-        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_stats"] });
-        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_enrollments"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
-        queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] }); 
         queryClient.invalidateQueries({ queryKey: [`admin_course_${data.id}`] });
+        queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_chat_sidebar"] });
+        chatCache.invalidate("admin_dashboard_all")
         chatCache.invalidate(`admin_course_${data.id}`);
-        form.reset();
+        chatCache.invalidate("all_courses");
+        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidate("admin_dashboard_recent_courses");
+        chatCache.invalidate("admin_analytics");
+        chatCache.invalidate("admin_chat_sidebar");
+
+        form.reset(values);
         if (!skipRedirect) {
           router.push("/admin/courses");
         } else {

@@ -85,7 +85,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
   // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
   const extractedBaseKey = value ? (() => {
     if (value.startsWith('hls/')) return value.split('/')[1];
-    return value.split('.')[0];
+    return value.replace(/\.[^/.]+$/, "");
   })() : null;
 
   // ── Cancel Infrastructure ──
@@ -167,7 +167,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
       setFileState(prev => ({
         ...prev,
         key: value,
-        baseKey: value ? (value.startsWith('hls/') ? value.split('/')[1] : value.split('.')[0]) : null
+        baseKey: value ? (value.startsWith('hls/') ? value.split('/')[1] : value.replace(/\.[^/.]+$/, "")) : null
       }));
     }
   }, [value]);
@@ -481,11 +481,6 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           toast.success("Video processed and uploaded successfully");
           // UNLOCK: Finished Memory-Intensive Phase
           (window as any).__PROCESSING_VIDEO__ = false;
-
-          // Force GC-friendly cleanup: revoke the preview blob URL
-          if (fileState.objectUrl && fileState.objectUrl.startsWith('blob:')) {
-            URL.revokeObjectURL(fileState.objectUrl);
-          }
 
           // Cleanup HLS blobs from memory
           segments.length = 0; 
