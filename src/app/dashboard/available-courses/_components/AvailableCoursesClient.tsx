@@ -5,7 +5,7 @@ import { getAllCoursesAction } from "@/app/(users)/courses/actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { PublicCourseCard, PublicCourseCardSkeleton } from "../../../(users)/_components/PublicCourseCard";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useInView } from "react-intersection-observer";
 import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
@@ -14,6 +14,7 @@ import type { InfiniteData } from "@tanstack/react-query";
 type CoursesPage = {
   courses: PublicCourseType[];
   nextCursor: string | null;
+  total?: number;
 };
 
 export function AvailableCoursesClient() {
@@ -23,6 +24,7 @@ export function AvailableCoursesClient() {
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
   const [mounted, setMounted] = useState(false);
+  const hasLogged = useRef(false);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.5,
@@ -31,7 +33,16 @@ export function AvailableCoursesClient() {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+
+    if (!hasLogged.current && safeUserId) {
+      const cacheKey = `available_courses_${safeUserId || 'guest'}`;
+      const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
+      if (cached) {
+        console.log(`%c[AvailableCourses] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+      }
+      hasLogged.current = true;
+    }
+  }, [safeUserId]);
 
   const cacheKey = `available_courses_${safeUserId || 'guest'}`;
   const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
@@ -53,32 +64,55 @@ export function AvailableCoursesClient() {
     queryKey: [cacheKey, searchTitle],
     
     placeholderData: (previousData) => {
+        // 🔹 1. Local filtering of previous search results for instant feel
+        if (previousData && searchTitle) {
+            const q = searchTitle.toLowerCase();
+            const filteredPages = previousData.pages.map(page => ({
+                ...page,
+                courses: page.courses.filter((c: any) => 
+                    c.title.toLowerCase().includes(q) || 
+                    (c.smallDescription?.toLowerCase().includes(q))
+                )
+            }));
+            
+            const hasMatches = filteredPages.some(p => p.courses.length > 0);
+            if (hasMatches) {
+                return {
+                    ...previousData,
+                    pages: filteredPages
+                } as InfiniteData<CoursesPage, string | null>;
+            }
+        }
+
         if (previousData) return previousData;
         if (!mounted || sessionLoading) return undefined;
 
-        // 🔹 SEARCH MODE → Try to show whatever we have in cache first
+        // 🔹 2. Local filtering of global cache for first paint search
         if (searchTitle && cached) {
             const q = searchTitle.toLowerCase();
             const filtered = cached.data.data.filter((c: any) => 
                 c.title.toLowerCase().includes(q)
-            ).slice(0, 9);
+            );
             
-            return {
-                pages: [{
-                    courses: filtered,
-                    nextCursor: null
-                }],
-                pageParams: [null]
-            };
+            if (filtered.length > 0) {
+                return {
+                    pages: [{
+                        courses: filtered.slice(0, 9),
+                        nextCursor: null,
+                        total: filtered.length
+                    }],
+                    pageParams: [null]
+                } as InfiniteData<CoursesPage, string | null>;
+            }
         }
 
-        // 🔹 NORMAL MODE → Show cached first page
+        // 🔹 3. NORMAL MODE → Show cached first page
         if (!searchTitle && cached) {
-            console.log(`%c[AvailableCourses] HYDRATION HIT (v${cached.version}). Instant Preview.`, "color: #eab308; font-weight: bold");
             return {
                 pages: [{
-                    courses: cached.data.data,
-                    nextCursor: cached.data.nextCursor
+                    courses: cached.data.data.slice(0, 9),
+                    nextCursor: cached.data.nextCursor,
+                    total: cached.data.data.length
                 }],
                 pageParams: [null]
             };
@@ -87,19 +121,26 @@ export function AvailableCoursesClient() {
         return undefined;
     },
 
-    queryFn: async ({ pageParam }) => {
-      // 🛑 SYNC GUARD: If we synced within the last 60s, skip network hit entirely (ONLY for first page)
-      if (!pageParam && !searchTitle) {
-        const isRecent = chatCache.isRecentSync(cacheKey, safeUserId, 60000);
-        if (isRecent && cached) {
-           console.log(`%c[AvailableCourses] Sync Guard: Recently synced. Skipping server check.`, "color: #a855f7; font-weight: bold");
-           return {
-             courses: cached.data.data.slice(0, 10),
-             nextCursor: cached.data.nextCursor
-           };
+    initialData: () => {
+        if (typeof window === "undefined" || searchTitle || !mounted || sessionLoading) return undefined;
+        if (cached) {
+            return {
+                pages: [{
+                    courses: cached.data.data.slice(0, 9),
+                    nextCursor: cached.data.nextCursor,
+                    total: cached.data.data.length
+                }],
+                pageParams: [null]
+            };
         }
-      }
+        return undefined;
+    },
 
+    initialDataUpdatedAt: typeof window !== "undefined" && mounted && !sessionLoading 
+      ? cached?.timestamp 
+      : undefined,
+
+    queryFn: async ({ pageParam }) => {
       // SEARCH MODE → no cache optimization
       if (searchTitle) {
         const result = await getAllCoursesAction(
@@ -142,6 +183,7 @@ export function AvailableCoursesClient() {
         return {
           courses: currentCache?.data.data ?? [],
           nextCursor: currentCache?.data.nextCursor ?? null,
+          total: currentCache?.data.data.length ?? 0
         };
       }
 
@@ -178,6 +220,7 @@ export function AvailableCoursesClient() {
       return {
         courses: result.courses,
         nextCursor: result.nextCursor,
+        total: result.courses.length // This is just the page total for now, but matches structure
       };
     },
     initialPageParam: null,

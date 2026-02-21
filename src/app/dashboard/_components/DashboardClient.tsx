@@ -8,16 +8,27 @@ import { HorizontalCourseCard } from "../_components/HorizontalCourseCard";
 
 import { useSmartSession } from "@/hooks/use-smart-session";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export function DashboardClient() {
   const { session, isLoading: sessionLoading } = useSmartSession();
   const userId = session?.user.id;
 
   const [mounted, setMounted] = useState(false);
+  const hasLogged = useRef(false);
+
   useEffect(() => {
     setMounted(true);
-  }, []);
+    
+    if (!hasLogged.current && userId) {
+        const cacheKey = `user_dashboard_${userId}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        if (cached) {
+            console.log(`%c[Dashboard] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+        }
+        hasLogged.current = true;
+    }
+  }, [userId]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["user_dashboard", userId],
@@ -27,13 +38,6 @@ export function DashboardClient() {
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      // 🛑 SYNC GUARD: If we synced within the last 60s, skip network hit entirely
-      const isRecent = chatCache.isRecentSync(cacheKey, userId, 60000);
-      if (isRecent && cached?.data) {
-        console.log(`%c[Dashboard] Sync Guard: Recently synced. Skipping server check.`, "color: #a855f7; font-weight: bold");
-        return cached.data;
-      }
-
       console.log(`[Dashboard] Smart Sync: Checking version (v${clientVersion || 'None'})...`);
       const result = await getUserDashboardData(userId, clientVersion);
 
@@ -41,7 +45,7 @@ export function DashboardClient() {
       // Server says cache is still valid
       if (result && (result as any).status === "not-modified") {
         console.log(`%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
-        chatCache.touch(cacheKey, userId); // Refresh sync guard timer
+        chatCache.touch(cacheKey, userId);
         return cached?.data || null; // Ensure we return cached data if available, or null
       }
 
@@ -59,12 +63,11 @@ export function DashboardClient() {
 
       const cacheKey = `user_dashboard_${userId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
-      if (cached?.data) {
-          console.log(`%c[Dashboard] LOCAL HIT (v${cached.version}). Instant Hydration.`, "color: #eab308; font-weight: bold");
-          return cached.data;
-      }
-      return undefined;
+      return cached?.data;
     },
+    initialDataUpdatedAt: typeof window !== "undefined" && userId 
+      ? chatCache.get<any>(`user_dashboard_${userId}`, userId)?.timestamp 
+      : undefined,
     staleTime: 1800000, // 30 mins (Heartbeat)
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,

@@ -42,7 +42,7 @@ export const chatCache = {
         localStorage.removeItem(storageKey);
         return null;
       }
-      return { data: entry.data, version: entry.version };
+      return { data: entry.data, version: entry.version, timestamp: entry.timestamp };
     } catch (e) {
       localStorage.removeItem(storageKey);
       return null;
@@ -73,22 +73,6 @@ export const chatCache = {
     ];
     adminKeys.forEach(key => chatCache.invalidate(key));
     console.log("[chatCache] Admin data invalidated from local storage.");
-  },
-
-  isRecentSync: (key: string, userId?: string, maxAgeMs: number = 60000) => {
-    if (typeof window === "undefined" || !key) return false;
-    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
-    const item = localStorage.getItem(storageKey);
-    if (!item) return false;
-
-    try {
-      const entry: CacheEntry<any> = JSON.parse(item);
-      const timestamp = entry.timestamp || 0;
-      const age = Date.now() - timestamp;
-      return age < maxAgeMs;
-    } catch (e) {
-      return false;
-    }
   },
 
   /**

@@ -6,7 +6,7 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { CourseProgressCard } from "../../_components/CourseProgressCard";
 import { EmptyState } from "@/components/general/EmptyState";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function MyCoursesClient() {
@@ -14,9 +14,20 @@ export function MyCoursesClient() {
   const userId = session?.user.id;
 
   const [mounted, setMounted] = useState(false);
+  const hasLogged = useRef(false);
+
   useEffect(() => {
     setMounted(true);
-  }, []);
+
+    if (!hasLogged.current && userId) {
+      const cacheKey = `user_enrolled_courses_${userId}`;
+      const cached = chatCache.get<any>(cacheKey, userId);
+      if (cached) {
+        console.log(`%c[MyCourses] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+      }
+      hasLogged.current = true;
+    }
+  }, [userId]);
 
   const { data: enrolledCourses, isLoading } = useQuery({
     queryKey: ["enrolled_courses", userId],
@@ -26,20 +37,13 @@ export function MyCoursesClient() {
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      // 🛑 SYNC GUARD: If we synced within the last 60s, skip network hit entirely
-      const isRecent = chatCache.isRecentSync(cacheKey, userId, 60000);
-      if (isRecent && cached?.data) {
-        console.log(`%c[MyCourses] Sync Guard: Recently synced. Skipping server check.`, "color: #a855f7; font-weight: bold");
-        return cached.data.enrollments;
-      }
-
       console.log(`[MyCourses] Smart Sync: Checking version (v${clientVersion || 'None'})...`);
       const result = await getEnrolledCourses(clientVersion);
 
       // 1. Version Match -> Return cached data
       if (result && (result as any).status === "not-modified" && cached?.data) {
         console.log(`%c[MyCourses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
-        chatCache.touch(cacheKey, userId);
+        chatCache.touch(cacheKey, userId); // Refresh timestamp on not-modified
         return cached.data.enrollments;
       }
 
@@ -57,12 +61,11 @@ export function MyCoursesClient() {
 
         const cacheKey = `user_enrolled_courses_${userId}`;
         const cached = chatCache.get<any>(cacheKey, userId);
-        if (cached?.data?.enrollments) {
-            console.log(`%c[MyCourses] LOCAL HIT (v${cached.version}). Instant Hydration.`, "color: #eab308; font-weight: bold");
-            return cached.data.enrollments;
-        }
-        return undefined;
+        return cached?.data?.enrollments;
     },
+    initialDataUpdatedAt: typeof window !== "undefined" && userId
+      ? chatCache.get<any>(`user_enrolled_courses_${userId}`, userId)?.timestamp
+      : undefined,
     staleTime: 1800000, // 30 mins (Heartbeat)
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
