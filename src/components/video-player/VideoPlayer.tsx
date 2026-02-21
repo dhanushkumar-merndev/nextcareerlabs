@@ -98,6 +98,7 @@ export function VideoPlayer({
   const seekAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [volumeAnimation, setVolumeAnimation] = useState<{ level: number, visible: boolean }>({ level: 1, visible: false });
   const volumeAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [bufferedRanges, setBufferedRanges] = useState<{ start: number, end: number }[]>([]);
   const seekbarRef = useRef<HTMLDivElement>(null);
   const pendingPlayRef = useRef<Promise<void> | null>(null);
 
@@ -188,6 +189,17 @@ export function VideoPlayer({
       player.on("canplay", () => setIsBuffering(false));
       player.on("seeking", () => setIsBuffering(true));
       player.on("seeked", () => setIsBuffering(false));
+
+      // Buffered Progress listener
+      player.on("progress", () => {
+        const buffered = player.buffered();
+        if (!buffered) return;
+        const ranges = [];
+        for (let i = 0; i < buffered.length; i++) {
+          ranges.push({ start: buffered.start(i), end: buffered.end(i) });
+        }
+        setBufferedRanges(ranges);
+      });
 
       // (Removed in-initializer caption logic to move to reactive effect)
 
@@ -857,10 +869,8 @@ export function VideoPlayer({
     <div 
       ref={containerRef}
       className={cn(
-        "relative group w-full h-full bg-black shadow-2xl overflow-hidden touch-manipulation select-none",
-        isFullscreen
-          ? "fixed inset-0 z-9999 rounded-none"
-          : "md:rounded-lg md:border md:border-white/10 rounded-none border-none",
+        "relative group bg-black aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/5 isolate select-none touch-manipulation @container",
+        isFullscreen ? "w-screen h-screen rounded-none" : "w-full",
         className
       )}
       onMouseMove={handleMouseMove}
@@ -1192,38 +1202,55 @@ export function VideoPlayer({
                   </div>
                 );
             })()}
-<div
-  data-seekbar
-  className="relative group/seekbar touch-none cursor-pointer py-6 -my-6"
-  ref={seekbarRef}
-  onMouseMove={(e) => {
-    e.stopPropagation();
-    handleSeekbarMouseMove(e);
-  }}
-  onMouseLeave={(e) => {
-    e.stopPropagation();
-    setHoverPosition(null);
-  }}
-  onPointerDown={(e) => {
-    e.stopPropagation();
-    const pos = calculatePosition(e.clientX);
-    if (pos) {
-      const spritePos = spriteMetadata ? getSpritePosition(pos.time) : null;
-      const snapTime = spritePos?.startTime ?? pos.time;
-      handleSeek([snapTime]);
-    }
-  }}
-  onTouchMove={handleSeekbarTouchMove}
-  onTouchEnd={handleSeekbarTouchEnd}
->
-  <Slider
-    value={[currentTime]}
-    max={duration || 100}
-    step={0.01}
-    onValueChange={handleSeek}
-    className="cursor-pointer h-1.5"
-  />
-</div>
+              <div
+                data-seekbar
+                className="relative group/seekbar touch-none cursor-pointer py-4 -my-4"
+                ref={seekbarRef}
+                onMouseMove={(e) => {
+                  e.stopPropagation();
+                  handleSeekbarMouseMove(e);
+                }}
+                onMouseLeave={(e) => {
+                  e.stopPropagation();
+                  setHoverPosition(null);
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  const pos = calculatePosition(e.clientX);
+                  if (pos) {
+                    const spritePos = spriteMetadata ? getSpritePosition(pos.time) : null;
+                    const snapTime = spritePos?.startTime ?? pos.time;
+                    handleSeek([snapTime]);
+                  }
+                }}
+                onTouchMove={handleSeekbarTouchMove}
+                onTouchEnd={handleSeekbarTouchEnd}
+              >
+                {/* Base Track (since we'll make Slider track transparent) */}
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 bg-white/10 rounded-full pointer-events-none" />
+
+                {/* Buffer Overlay Bar */}
+                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 pointer-events-none px-px">
+                   {bufferedRanges.map((range, idx) => (
+                    <div 
+                      key={idx}
+                      className="absolute h-full bg-white/20 rounded-full transition-all duration-300"
+                      style={{
+                        left: `${(range.start / (duration || 1)) * 100}%`,
+                        width: `${((range.end - range.start) / (duration || 1)) * 100}%`
+                      }}
+                    />
+                   ))}
+                </div>
+
+                <Slider
+                  value={[currentTime]}
+                  max={duration || 100}
+                  step={0.01}
+                  onValueChange={handleSeek}
+                  className="cursor-pointer h-1.5 relative z-10"
+                />
+              </div>
           </div>
 
           <div className="flex items-center justify-between mt-1 sm:mt-2">
@@ -1278,14 +1305,19 @@ export function VideoPlayer({
                     {playbackRate}x
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent 
+               <DropdownMenuContent 
                   side="top"
                   align="end"
-                  sideOffset={12}
-                  avoidCollisions
-                  container={containerRef.current}
-                  className="bg-black/95 border-white/20 text-white w-28 sm:w-32 backdrop-blur-2xl p-1 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 z-10001"
-                >
+                  sideOffset={26}
+                  container={isFullscreen ? containerRef.current ?? undefined : undefined}
+                  avoidCollisions={false}
+                  className={`bg-black/95 border-white/20 text-white
+                             w-[clamp(100px,12cqw,120px)]
+                             backdrop-blur-3xl p-1.5
+                             shadow-2xl animate-in fade-in
+                             duration-200
+                             z-[9999]
+                             rounded-xl border`}>
                   <div className="px-2 py-1 text-[9px] font-bold text-white/40 uppercase tracking-widest border-b border-white/5 mb-1">
                     Speed
                   </div>
