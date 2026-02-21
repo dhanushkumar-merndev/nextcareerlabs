@@ -115,7 +115,7 @@ export async function getAllCourses(
     }));
 
     if (onlyAvailable) {
-      allCourses = allCourses.filter((c) => !map.has(c.id));
+      allCourses = allCourses.filter((c) => map.get(c.id) !== "Granted");
     }
     console.log(`[getAllCourses] Enrollment Merge took ${Date.now() - mergeStart}ms`);
   }

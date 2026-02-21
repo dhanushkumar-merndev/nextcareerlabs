@@ -172,7 +172,14 @@ export async function enrollInCourseAction(
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+      invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(user.id)),
     ]);
+    
+    // Invalidate Local Storage Keys (Next.js server-side can't directly manipulate localStorage, 
+    // but we can increment the COURSE_VERSION which forces a re-fetch, and use revalidatePath)
+    
+    revalidatePath(`/courses`);
+    revalidatePath(`/dashboard`);
     revalidatePath(`/courses/${course.slug}`);
     revalidatePath("/admin/requests");
 

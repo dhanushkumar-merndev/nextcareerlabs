@@ -1,12 +1,18 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
 export default function HeroButtons() {
     const { session, isLoading } = useSmartSession();
+    const [mounted, setMounted] = useState(false);
     
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     // Determine the dashboard link based on role
     const dashboardLink = session?.user?.role === "admin" ? "/admin" : "/dashboard";
     const dashboardLabel = session?.user?.role === "admin" ? "Go to Admin Dashboard" : "Go to Dashboard";
@@ -20,7 +26,7 @@ export default function HeroButtons() {
                 Explore Courses
             </Link>
 
-            {isLoading ? (
+            {!mounted || isLoading ? (
                 <div className={buttonVariants({ size: "lg", variant: "outline", className: "w-40 animate-pulse text-transparent bg-muted/50 border-none" })}>
                     Loading...
                 </div>

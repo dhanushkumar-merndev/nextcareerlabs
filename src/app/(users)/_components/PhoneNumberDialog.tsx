@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { updateProfileAction } from "@/app/data/user/user-actions";
+import { useQueryClient } from "@tanstack/react-query";
+import { chatCache } from "@/lib/chat-cache";
 import { AlertTriangle, Loader2, Phone, Sparkles, User } from "lucide-react";
 import { formSchema } from "@/lib/zodSchemas";
 import { PhoneNumberDialogProps } from "@/lib/types/homePage";
@@ -19,6 +21,7 @@ import { PhoneNumberDialogProps } from "@/lib/types/homePage";
 // PhoneNumberDialog component 
 export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDialogProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(
@@ -43,7 +46,24 @@ export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDi
       });
       if (result.status === "success") {
         toast.success(result.message);
-        router.refresh();
+        
+        // 🔹 FORCE CACHE INVALIDATION
+        // Wrap in timeout so React finishes the submit transition before nuking cache
+        setTimeout(() => {
+            chatCache.invalidate("auth_session");
+            
+            // Clear all dashboard caches since their profile changed
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+                if (key.includes("user_dashboard")) {
+                    localStorage.removeItem(key);
+                }
+            });
+
+            queryClient.invalidateQueries({ queryKey: ["auth_session"] });
+            
+            router.refresh();
+        }, 50);
       } else {
         toast.error(result.message);
       }

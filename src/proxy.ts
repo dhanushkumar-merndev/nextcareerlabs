@@ -1,9 +1,7 @@
 import { env } from "@/lib/env";
 import arcjet, { createMiddleware, detectBot } from "@arcjet/next";
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { AuthSession } from "./lib/types/auth";
-import { clearOtherSessionsOnce } from "./lib/session-cleanup";
+
 
 const aj = arcjet({
   key: env.ARCJET_KEY!,

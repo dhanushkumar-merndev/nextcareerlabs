@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {Collapsible, CollapsibleContent, CollapsibleTrigger} from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {IconBook, IconCategory, IconChartBar, IconChevronDown, IconClock, IconPlayerPlay} from "@tabler/icons-react";
 import { CheckIcon, TimerIcon } from "lucide-react";
 import Image from "next/image";
@@ -28,6 +28,7 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache } from "@/lib/chat-cache";
 import { useState, useEffect } from "react";
 import Loader from "@/components/ui/Loader";
+import { useRouter } from "next/navigation";
 
 export function SlugPageWrapper({
   slug,
@@ -36,7 +37,7 @@ export function SlugPageWrapper({
 }) {
   const { session } = useSmartSession();
   const currentUserId = session?.user?.id;
-
+  const router = useRouter();
   // State to track component mount
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -58,6 +59,7 @@ export function SlugPageWrapper({
       const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
 
       if (result && (result as any).status === "not-modified" && cached) {
+        chatCache.touch(cacheKey, currentUserId);
         return cached.data;
       }
 
@@ -67,6 +69,18 @@ export function SlugPageWrapper({
       }
       return result;
     },
+    initialData: () => {
+        if (typeof window === "undefined") return undefined;
+        const cacheKey = `course_${slug}`;
+        let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+        if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+        return cached?.data;
+    },
+    initialDataUpdatedAt: typeof window !== "undefined"
+      ? (currentUserId 
+          ? chatCache.get<any>(`course_${slug}`, currentUserId)?.timestamp 
+          : chatCache.get<any>(`course_${slug}`, undefined)?.timestamp)
+      : undefined,
     // Dynamic stale time: 0 for enrolled users, 30m for others
     staleTime: ((): number => {
         const cacheKey = `course_${slug}`;
@@ -352,15 +366,13 @@ export function SlugPageWrapper({
                         status={enrollmentStatus}
                       />
                     )}
-                    <Link
-                      href="/courses"
-                      className={buttonVariants({
-                        variant: "outline",
-                        className: "w-full mt-4",
-                      })}
+                     <Button
+                      onClick={() => router.back()}
+                      variant="outline"
+                      className="w-full mt-4"
                     >
                       Go Back
-                    </Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>

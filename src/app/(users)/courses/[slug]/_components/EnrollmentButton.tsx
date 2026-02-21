@@ -51,14 +51,30 @@ export function EnrollmentButton({
         setCurrentStatus("Pending");
         
         // Invalidate both local storage and React Query memory cache
+        chatCache.invalidate(`all_courses_${session?.user?.id}`);
+        chatCache.invalidate(`available_courses_${session?.user?.id}`);
+        
+        // Also invalidate the base keys just in case
         chatCache.invalidate("all_courses", session?.user?.id);
-        queryClient.invalidateQueries({ queryKey: ["all_courses", session?.user?.id] });
+        chatCache.invalidate("available_courses", session?.user?.id);
 
-        // If slug provided, invalidate specific course detail
-        if (slug) {
-            chatCache.invalidate(`course_${slug}`, session?.user?.id);
-            queryClient.invalidateQueries({ queryKey: ["course_detail", slug, session?.user?.id] });
-        }
+        // We wrap queryClient in setTimeout to let React finish rendering the current transition
+        setTimeout(() => {
+            queryClient.invalidateQueries({
+                predicate: (query) => {
+                    const key = query.queryKey[0] as string;
+                    return key === "all_courses" || 
+                           key === `available_courses_${session?.user?.id}` ||
+                           key === "available_courses";
+                }
+            });
+
+            // If slug provided, invalidate specific course detail
+            if (slug) {
+                chatCache.invalidate(`course_${slug}`, session?.user?.id);
+                queryClient.invalidateQueries({ queryKey: ["course_detail", slug, session?.user?.id] });
+            }
+        }, 50);
       } else if (result.status === "error") {
         toast.error(result.message);
       }

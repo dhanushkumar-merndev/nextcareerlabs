@@ -19,15 +19,20 @@ export function useSignOut() {
         onSuccess: () => {
           // 1. Clear LocalStorage
           chatCache.invalidate("auth_session");
-          chatCache.invalidate("chat_sidebar");
 
           // 2. Clear React Query Cache
           queryClient.setQueryData(["auth_session"], null);
           queryClient.invalidateQueries({ queryKey: ["auth_session"] });
           
-          // 3. Navigate and Hard Refresh
-          router.push("/");
+          // 3. Refresh the page
           router.refresh();
+          
+          // Use window.location.reload to force a full hard page reload 
+          // to completely clear memory states and hydration mismatches
+          setTimeout(() => {
+              window.location.reload();
+          }, 100);
+          
           toast.success("Signed out successfully");
         },
       },

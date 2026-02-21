@@ -122,7 +122,7 @@ export function AvailableCoursesClient() {
     },
 
     initialData: () => {
-        if (typeof window === "undefined" || searchTitle || !mounted || sessionLoading) return undefined;
+        if (typeof window === "undefined" || searchTitle || sessionLoading) return undefined;
         if (cached) {
             return {
                 pages: [{
@@ -136,7 +136,7 @@ export function AvailableCoursesClient() {
         return undefined;
     },
 
-    initialDataUpdatedAt: typeof window !== "undefined" && mounted && !sessionLoading 
+    initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle && !sessionLoading 
       ? cached?.timestamp 
       : undefined,
 
@@ -259,7 +259,7 @@ export function AvailableCoursesClient() {
           <PublicCourseCard
             key={course.id}
             data={course}
-            enrollmentStatus={null}
+            enrollmentStatus={course.enrollmentStatus ?? null}
           />
         ))}
       </div>

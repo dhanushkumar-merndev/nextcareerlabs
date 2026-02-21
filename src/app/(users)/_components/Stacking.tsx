@@ -160,12 +160,13 @@ export default function Stacking() {
                   <div className="w-full h-1/2 md:h-full md:w-[45%] p-6 md:p-10 flex flex-col">
                     {/* TITLE + LOGO */}
                     <div className="flex items-center gap-4 mb-4">
-                      <div className="p-2 rounded-xl bg-background border shadow-sm">
+                      <div className="p-2 rounded-xl bg-background border shadow-sm flex items-center justify-center">
                         <Image
                           src={program.logo}
                           alt={`${program.title} logo`}
                           width={48}
                           height={48}
+                          style={{ width: "auto", height: "auto" }}
                           className="h-8 w-8 md:h-12 md:w-12 object-contain"
                           loading="lazy"
                         />

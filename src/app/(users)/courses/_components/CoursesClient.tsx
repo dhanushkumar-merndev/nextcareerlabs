@@ -145,6 +145,10 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
         return undefined;
     },
 
+    initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle
+        ? cached?.timestamp
+        : undefined,
+
     // Fetch function (handles search + pagination)
     queryFn: async ({ pageParam }) => {
 
@@ -190,6 +194,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       // Server says cache is still valid
       if (result.status === "not-modified") {
         console.log(`[Courses] Server: NOT_MODIFIED (v${clientVersion})`);
+        chatCache.touch("all_courses", safeUserId);
         return {
           courses: cached?.data.data ?? [],
           nextCursor: cached?.data.nextCursor ?? null,
