@@ -55,7 +55,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
     defaultValues: {
       title: data.title,
       description: data.description ?? undefined,
-      fileKey: data.fileKey ?? undefined,
+      fileKey: data.fileKey ?? "",
       duration: data.duration ?? undefined,
       level: (data.level as CourseSchemaType["level"]) ?? undefined,
       category: data.category as CourseSchemaType["category"],
@@ -70,6 +70,12 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
   }, [form.formState.isDirty, setDirty]);
 
   function onSubmit(values: CourseSchemaType, skipRedirect = false) {
+    if (!skipRedirect) {
+       if (!values.fileKey) {
+        form.setError("fileKey", { message: "File must be selected" });
+        return;
+      }
+    }
     startTransition(async () => {
       const { data: result, error } = await tryCatch(
         editCourse(values, data.id)
@@ -196,7 +202,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                 <FormControl>
                   <Uploader
                     onChange={(val: string | null) => {
-                      field.onChange(val);
+                      field.onChange(val ?? "");
                       // Auto-save to DB and invalidate caches
                       onSubmit({
                         ...form.getValues(),

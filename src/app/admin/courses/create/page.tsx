@@ -68,6 +68,10 @@ export default function CourseCreationPage() {
     },
   });
   function onSubmit(values: CourseSchemaType) {
+    if (!values.fileKey) {
+      form.setError("fileKey", { message: "File must be selected" });
+      return;
+    }
     startTransition(async () => {
       const { data: result, error } = await tryCatch(CreateCourse(values));
       if (error) {
@@ -202,7 +206,7 @@ export default function CourseCreationPage() {
                     <FormLabel>Thumbnail image</FormLabel>
                     <FormControl>
                       <Uploader
-                        onChange={field.onChange}
+                        onChange={(val) => field.onChange(val ?? "")}
                         value={field.value}
                         fileTypeAccepted="image"
                       />

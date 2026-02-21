@@ -53,8 +53,8 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       chapterId: chapterId,
       courseId: courseId,
       description: data.description ?? undefined,
-      videoKey: data.videoKey ?? undefined,
-      thumbnailKey: data.thumbnailKey ?? undefined,
+      videoKey: data.videoKey ?? "",
+      thumbnailKey: data.thumbnailKey ?? "",
       duration: data.duration ?? undefined,
       spriteKey: data.spriteKey ?? undefined,
       spriteCols: data.spriteCols ?? undefined,
@@ -69,6 +69,18 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
   const watchedVideoKey = form.watch("videoKey");
 
   async function onSubmit(values: LessonSchemaType, skipRedirect = false) {
+    // Manually enforce mandatory fields for non-auto-save updates
+    if (!skipRedirect) {
+      if (!values.videoKey) {
+        form.setError("videoKey", { message: "Video must be selected" });
+        return;
+      }
+      if (!values.thumbnailKey) {
+        form.setError("thumbnailKey", { message: "Thumbnail must be selected" });
+        return;
+      }
+    }
+
     startTransition(async () => {
       const { data: result, error } = await tryCatch(
         updateLesson(values, data.id)
@@ -146,11 +158,11 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                     <FormControl>
                       <Uploader
                         onChange={(val: string | null) => {
-                          field.onChange(val);
+                          field.onChange(val ?? "");
                           // Auto-save to DB so the key isn't lost on refresh or deletion
                           onSubmit({
                             ...form.getValues(),
-                            thumbnailKey: val,
+                            thumbnailKey: val ?? "",
                           }, true);
                         }}
                         value={field.value}
@@ -170,7 +182,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                     <FormControl>
                       <Uploader
                         onChange={(val: string | null) => {
-                          field.onChange(val);
+                          field.onChange(val ?? "");
                           // Auto-save to DB only on successful upload (when val is truthy)
                           // This prevents losing the key if the user refreshes during transcoding.
                           if (val) {
