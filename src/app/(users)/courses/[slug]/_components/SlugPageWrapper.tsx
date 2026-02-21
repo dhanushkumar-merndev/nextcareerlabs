@@ -29,7 +29,6 @@ import { chatCache } from "@/lib/chat-cache";
 import { useState, useEffect } from "react";
 import Loader from "@/components/ui/Loader";
 
-// SlugPageWrapper Component
 export function SlugPageWrapper({
   slug,
 }: {
@@ -62,11 +61,21 @@ export function SlugPageWrapper({
         return cached.data;
       }
 
-      if (result && !(result as any).status) {
+      const isData = result && !(result as any).status;
+      if (isData) {
         chatCache.set(cacheKey, result, currentUserId, (result as any).version);
       }
       return result;
     },
+    // Dynamic stale time: 0 for enrolled users, 30m for others
+    staleTime: (() => {
+        const cacheKey = `course_${slug}`;
+        let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+        if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+        
+        const isPending = cached?.data?.enrollmentStatus === "Pending";
+        return isPending ? 0 : 1800000;
+    })(),
     // Use cached data for instant initial paint
     placeholderData: (previousData) => {
         if (previousData) return previousData;
@@ -75,17 +84,31 @@ export function SlugPageWrapper({
 
         // 🔹 DURING HYDRATION / SESSION LOADING:
         // Try to find ANY cache for this slug (User or Guest)
-        let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
-        if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+        // ONLY if mounted to prevent hydration mismatch
+        if (typeof window !== "undefined") {
+            let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+            if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
 
-        if (cached) {
-            return cached.data;
+            if (cached) {
+                console.log(`[SlugPage] Local Hit detected for ${slug}`);
+                return cached.data;
+            }
         }
         return undefined;
     },
-
-    staleTime: 1800000, // 30 mins
   });
+
+  // 🔹 SSR HYDRATION GUARD: 
+  // Renders a loader on both server and client (before mount)
+  // This matches the server output exactly, avoiding hydration mismatch.
+  // After mount, placeholderData (cached) or fetched data will take over.
+  if (!mounted) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4 min-h-[400px]">
+        <Loader size={40} />
+      </div>
+    );
+  }
 
   if (!data && isLoading) {
     return (

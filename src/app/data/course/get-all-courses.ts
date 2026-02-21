@@ -22,9 +22,16 @@ export async function getAllCourses(
   searchQuery?: string,
   onlyAvailable?: boolean
 ): Promise<CoursesServerResult> {
-  const currentVersion = await getGlobalVersion(
+  let currentVersion = await getGlobalVersion(
     GLOBAL_CACHE_KEYS.COURSES_VERSION
   );
+
+  // 🔹 If user is logged in, combine global version with user-specific version
+  // This ensures enrollment status changes (like deletion or role change) trigger a sync
+  if (userId) {
+    const userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
+    currentVersion = `${currentVersion}:${userVersion}`;
+  }
 
   // 🔹 Version short-circuit ONLY for first page
   if (!searchQuery && !cursor && clientVersion && clientVersion === currentVersion) {

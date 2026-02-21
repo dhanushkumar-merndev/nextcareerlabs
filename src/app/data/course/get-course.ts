@@ -3,8 +3,14 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
 
-export async function getIndividualCourse(slug: string, clientVersion?: string) {
-  const currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
+export async function getIndividualCourse(slug: string, clientVersion?: string, userId?: string) {
+  let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
+
+  // 🔹 If user is logged in, combine global version with user-specific version
+  if (userId) {
+    const userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
+    currentVersion = `${currentVersion}:${userVersion}`;
+  }
   
   // Smart Sync: If client has the latest version, don't re-fetch
   if (clientVersion && clientVersion === currentVersion) {

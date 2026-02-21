@@ -29,7 +29,7 @@ export function EnrollmentButton({
   status: string | null;
 }) {
   const queryClient = useQueryClient();
-  const { data: session } = useSmartSession();
+  const { session } = useSmartSession();
   const [isPending, startTransition] = useTransition();
   const [currentStatus, setCurrentStatus] = useState(status);
  // useEffect to sync status with local state

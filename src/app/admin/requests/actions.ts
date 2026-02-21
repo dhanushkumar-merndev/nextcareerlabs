@@ -34,7 +34,10 @@ export async function updateEnrollmentStatusAction(
       },
       select: { 
         userId: true,
-        courseId: true
+        courseId: true,
+        Course: {
+          select: { slug: true }
+        }
       }
     });
 
@@ -49,18 +52,28 @@ export async function updateEnrollmentStatusAction(
       });
 
       // Collective invalidation
-      await Promise.all([
+      const invalidations: Promise<any>[] = [
           invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId)),
           courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
           invalidateCache(`user:dashboard:${enrollment.userId}`),
-          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+          invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
           invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(enrollment.userId)),
           invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
-      ]);
+      ];
+
+      // On Grant, also invalidate specific user course caches to reflect enrollment status
+      if (status === "Granted") {
+          invalidations.push(
+              invalidateCache(`chat_cache_${enrollment.userId}_all_courses`),
+              invalidateCache(`chat_cache_${enrollment.userId}_course_${enrollment.Course.slug}`)
+          );
+      }
+
+      await Promise.all(invalidations);
     }
 
     revalidatePath("/admin/requests");
@@ -176,6 +189,23 @@ export async function deleteEnrollmentAction(
 
   try {
     const startTime = Date.now();
+    
+    // Find enrollment details first for user-specific invalidation
+    const enrollment = await prisma.enrollment.findUnique({
+      where: { id: enrollmentId },
+      select: { 
+        userId: true,
+        Course: { select: { slug: true } }
+      }
+    });
+
+    if (!enrollment) {
+        return {
+          status: "error",
+          message: "Enrollment not found",
+        };
+    }
+
     await prisma.enrollment.delete({
       where: { id: enrollmentId },
     });
@@ -184,6 +214,13 @@ export async function deleteEnrollmentAction(
     // Smart Sync Invalidation
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+      
+      // User invalidation
+      invalidateCache(`chat_cache_${enrollment.userId}_all_courses`),
+      invalidateCache(`chat_cache_${enrollment.userId}_course_${enrollment.Course.slug}`),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
+
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
     ]);

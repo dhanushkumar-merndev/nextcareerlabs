@@ -17,13 +17,25 @@ import { GLOBAL_CACHE_KEYS, incrementGlobalVersion, invalidateCache } from "@/li
 
 // Get Individual Course Action
 export async function getIndividualCourseAction(slug: string, clientVersion?: string) {
-    return await getIndividualCourse(slug, clientVersion);
+    const session = await auth.api.getSession({
+        headers: await headers()
+    });
+    return await getIndividualCourse(slug, clientVersion, session?.user?.id);
 }
 
 // Get Slug Page Data Action
 export async function getSlugPageDataAction(slug: string, clientVersion?: string, userId?: string) {
     console.log(`[SlugAction] Fetching data for: ${slug} (Client version: ${clientVersion || 'none'}, UserId: ${userId || 'none'})`);
-    const result = await getIndividualCourse(slug, clientVersion);
+    
+    let finalUserId = userId;
+    if (!finalUserId) {
+        const session = await auth.api.getSession({
+            headers: await headers()
+        });
+        finalUserId = session?.user?.id;
+    }
+
+    const result = await getIndividualCourse(slug, clientVersion, finalUserId);
     
     if (!result) {
         console.error(`[SlugAction] getIndividualCourse returned null for ${slug}`);

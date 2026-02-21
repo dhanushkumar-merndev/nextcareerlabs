@@ -49,11 +49,18 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     setMounted(true);
   }, []);
 
-  // Read cached courses + cursor from localStorage
   const cached = chatCache.get<CoursesCacheWithCursor>(
     "all_courses",
     safeUserId
   );
+
+  // 🔹 DYNAMIC STALE TIME: If user has any enrollment request, we force a version check (0ms)
+  // Otherwise, we keep it at 30 minutes.
+  const coursesInCache = cached?.data?.data ?? [];
+  const hasPendingEnrollment = Array.isArray(coursesInCache) && 
+    coursesInCache.some((c: any) => c.enrollmentStatus === "Pending");
+  
+  const dynamicStaleTime = hasPendingEnrollment ? 0 : 30 * 60 * 1000;
 
   const {
     data,
@@ -230,7 +237,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     getNextPageParam: (lastPage) => lastPage.nextCursor,
 
     // Cache freshness
-    staleTime: 30 * 60 * 1000,
+    staleTime: dynamicStaleTime,
     refetchOnWindowFocus: true,
     // 🔹 OPTIMIZATION: Wait for session to be stable before starting background sync
     // This prevents the "Double Fetch" (Guest then User) on refresh
