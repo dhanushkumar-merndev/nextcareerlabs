@@ -50,7 +50,6 @@ export function PublicCourseCard({data,enrollmentStatus = null,}: CoursesProps) 
             <p className="text-sm text-muted-foreground">{data.category}</p>
           </div>
         </div>
-        {/* Show BOTH buttons side by side if enrolled */}
         {enrollmentStatus === "Granted" ? (
           <div className="mt-4 flex items-center gap-2">
             <Link
@@ -75,10 +74,16 @@ export function PublicCourseCard({data,enrollmentStatus = null,}: CoursesProps) 
             href={`/courses/${data.slug}`}
             className={buttonVariants({
               className: "w-full mt-4",
-              variant: enrollmentStatus === "Pending" ? "secondary" : "default",
+              variant: 
+                enrollmentStatus === "Pending" ? "secondary" : 
+                (enrollmentStatus === "Rejected" || enrollmentStatus === "Revoked") ? "destructive" : 
+                "default",
             })}
           >
-            {enrollmentStatus === "Pending" ? "Pending Approval" : "Learn More"}
+            {enrollmentStatus === "Pending" ? "Pending Approval" : 
+             enrollmentStatus === "Rejected" ? "Request Rejected" :
+             enrollmentStatus === "Revoked" ? "Access Revoked" :
+             "Learn More"}
           </Link>
         )}
       </CardContent>

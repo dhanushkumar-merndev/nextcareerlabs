@@ -8,7 +8,7 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 // This component is used to navigate to the dashboard or admin dashboard based on the user role
 export function DashboardButton() {
   // Get session data
-  const { data: session } = useSmartSession();
+  const { session } = useSmartSession();
 
   // Get dashboard href based on user role
   const dashboardHref =

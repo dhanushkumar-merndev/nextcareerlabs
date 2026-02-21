@@ -27,6 +27,7 @@ export type CoursesCacheWithCursor = {
   data: Course[];
   version: string;
   nextCursor: string | null;
+  instantSync?: boolean;
 };
 
 export type CoursesPage = {
@@ -38,12 +39,14 @@ export type CoursesServerResult =
   | {
       status: "not-modified";
       version: string;
+      instantSync?: boolean;
     }
   | {
       status: "data";
       version: string;
       courses: PublicCourseType[];
       nextCursor: string | null;
+      instantSync?: boolean;
     };
 
 

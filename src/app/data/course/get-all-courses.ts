@@ -33,6 +33,8 @@ export async function getAllCourses(
     currentVersion = `${currentVersion}:${userVersion}`;
   }
 
+
+
   // 🔹 Version short-circuit ONLY for first page
   if (!searchQuery && !cursor && clientVersion && clientVersion === currentVersion) {
     console.log(`[getAllCourses] Version Match (${clientVersion}). Returning NOT_MODIFIED.`);

@@ -74,6 +74,41 @@ export const chatCache = {
     adminKeys.forEach(key => chatCache.invalidate(key));
     console.log("[chatCache] Admin data invalidated from local storage.");
   },
+
+  isRecentSync: (key: string, userId?: string, maxAgeMs: number = 60000) => {
+    if (typeof window === "undefined" || !key) return false;
+    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    const item = localStorage.getItem(storageKey);
+    if (!item) return false;
+
+    try {
+      const entry: CacheEntry<any> = JSON.parse(item);
+      const timestamp = entry.timestamp || 0;
+      const age = Date.now() - timestamp;
+      return age < maxAgeMs;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  /**
+   * Updates only the timestamp of a cache entry.
+   * Useful when server returns NOT_MODIFIED to prevent immediate re-checks.
+   */
+  touch: (key: string, userId?: string) => {
+    if (typeof window === "undefined" || !key) return;
+    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    const item = localStorage.getItem(storageKey);
+    if (!item) return;
+
+    try {
+      const entry: CacheEntry<any> = JSON.parse(item);
+      entry.timestamp = Date.now();
+      localStorage.setItem(storageKey, JSON.stringify(entry));
+    } catch (e) {
+      // Ignore errors
+    }
+  },
 };
 
 export const getSidebarKey = (userId: string, isAdmin: boolean) =>

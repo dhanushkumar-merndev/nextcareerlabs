@@ -2,7 +2,8 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { getAllCoursesAction } from "@/app/(users)/courses/actions";
-import { chatCache } from "@/lib/chat-cache";
+import { useSmartSession } from "@/hooks/use-smart-session";
+import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { PublicCourseCard, PublicCourseCardSkeleton } from "../../../(users)/_components/PublicCourseCard";
 import { useEffect, useState } from "react";
 import { useInView } from "react-intersection-observer";
@@ -15,7 +16,10 @@ type CoursesPage = {
   nextCursor: string | null;
 };
 
-export function AvailableCoursesClient({ currentUserId }: { currentUserId?: string }) {
+export function AvailableCoursesClient() {
+  const { session, isLoading: sessionLoading } = useSmartSession();
+  const safeUserId = session?.user.id ?? undefined;
+
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
   const [mounted, setMounted] = useState(false);
@@ -29,7 +33,6 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
     setMounted(true);
   }, []);
 
-  const safeUserId = currentUserId ?? undefined;
   const cacheKey = `available_courses_${safeUserId || 'guest'}`;
   const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
 
@@ -51,7 +54,7 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
     
     placeholderData: (previousData) => {
         if (previousData) return previousData;
-        if (!mounted) return undefined;
+        if (!mounted || sessionLoading) return undefined;
 
         // 🔹 SEARCH MODE → Try to show whatever we have in cache first
         if (searchTitle && cached) {
@@ -71,6 +74,7 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
 
         // 🔹 NORMAL MODE → Show cached first page
         if (!searchTitle && cached) {
+            console.log(`%c[AvailableCourses] HYDRATION HIT (v${cached.version}). Instant Preview.`, "color: #eab308; font-weight: bold");
             return {
                 pages: [{
                     courses: cached.data.data,
@@ -84,6 +88,18 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
     },
 
     queryFn: async ({ pageParam }) => {
+      // 🛑 SYNC GUARD: If we synced within the last 60s, skip network hit entirely (ONLY for first page)
+      if (!pageParam && !searchTitle) {
+        const isRecent = chatCache.isRecentSync(cacheKey, safeUserId, 60000);
+        if (isRecent && cached) {
+           console.log(`%c[AvailableCourses] Sync Guard: Recently synced. Skipping server check.`, "color: #a855f7; font-weight: bold");
+           return {
+             courses: cached.data.data.slice(0, 10),
+             nextCursor: cached.data.nextCursor
+           };
+        }
+      }
+
       // SEARCH MODE → no cache optimization
       if (searchTitle) {
         const result = await getAllCoursesAction(
@@ -105,11 +121,12 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
       }
 
       // NORMAL MODE → cache + cursor support
-      const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
+      const currentCache = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
 
       // Send version only for first page
-      const clientVersion = pageParam ? undefined : cached?.data.version;
+      const clientVersion = pageParam ? undefined : currentCache?.version;
 
+      console.log(`[AvailableCourses] Smart Sync: Checking version (v${clientVersion || 'None'})...`);
       const result = await getAllCoursesAction(
         clientVersion,
         safeUserId,
@@ -120,16 +137,18 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
 
       // Server says cache is still valid
       if (result.status === "not-modified") {
+        console.log(`%c[AvailableCourses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
+        chatCache.touch(cacheKey, safeUserId);
         return {
-          courses: cached?.data.data ?? [],
-          nextCursor: cached?.data.nextCursor ?? null,
+          courses: currentCache?.data.data ?? [],
+          nextCursor: currentCache?.data.nextCursor ?? null,
         };
       }
 
+      console.log(`%c[AvailableCourses] Server: NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
+
       // Persist merged courses + cursor to local storage
       if (!searchTitle) {
-        const currentCache = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
-        
         let mergedCourses: PublicCourseType[] = [];
         
         if (pageParam) {
@@ -150,7 +169,9 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
             version: result.version,
             nextCursor: result.nextCursor,
           },
-          safeUserId
+          safeUserId,
+          result.version,
+          PERMANENT_TTL
         );
       }
 
@@ -161,7 +182,8 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
     },
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    staleTime: 30 * 60 * 1000,
+    staleTime: 1800000, // 30 mins (Heartbeat)
+    refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
   });
 
@@ -173,7 +195,7 @@ export function AvailableCoursesClient({ currentUserId }: { currentUserId?: stri
     }
   }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage]);
 
-  if (!mounted || (isLoading && courses.length === 0)) {
+  if (!mounted || sessionLoading || (isLoading && courses.length === 0)) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {Array.from({ length: 9 }).map((_, i) => (

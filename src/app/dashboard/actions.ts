@@ -22,7 +22,7 @@ export async function getUserDashboardData(userId: string, clientVersion?: strin
     const cached = await getCache<any>(cacheKey);
     if (cached) {
         console.log(`[Redis] Cache HIT for dashboard data: ${userId}`);
-        return { ...cached, version: currentVersion };
+        return { data: cached, version: currentVersion };
     }
 
     try {
@@ -119,11 +119,12 @@ export async function getUserDashboardData(userId: string, clientVersion?: strin
             coursesProgress
         };
 
-        // Cache in Redis for 6 hours
+        // Cache in Redis for 30 days
         await setCache(cacheKey, result, 2592000); // 30 days
 
-        return { ...result, version: currentVersion };
+        return { data: result, version: currentVersion };
     } catch (error) {
+        console.error(`[getUserDashboardData] Error:`, error);
         return null;
     }
 }

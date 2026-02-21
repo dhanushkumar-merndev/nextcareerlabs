@@ -3,10 +3,10 @@ import { MyCoursesClient } from "./_components/MyCoursesClient";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-static";
+export const revalidate = 3600;
 
-export default async function MyCoursesPage() {
-  const user = await requireUser();
+export default function MyCoursesPage() {
 
   return (
     <div className="px-4 lg:px-6 pb-10 space-y-6">
@@ -20,7 +20,7 @@ export default async function MyCoursesPage() {
           ))}
         </div>
       }>
-        <MyCoursesClient userId={user.id} />
+        <MyCoursesClient />
       </Suspense>
     </div>
   );

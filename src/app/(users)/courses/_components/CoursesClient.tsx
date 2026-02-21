@@ -54,14 +54,18 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     safeUserId
   );
 
-  // 🔹 DYNAMIC STALE TIME: If user has any enrollment request, we force a version check (0ms)
-  // Otherwise, we keep it at 30 minutes.
   const coursesInCache = cached?.data?.data ?? [];
-  const hasPendingEnrollment = Array.isArray(coursesInCache) && 
-    coursesInCache.some((c: any) => c.enrollmentStatus === "Pending");
-  
-  const dynamicStaleTime = hasPendingEnrollment ? 0 : 30 * 60 * 1000;
+  const isGlobalInstant = cached?.data?.instantSync === true;
 
+  const hasSyncTrigger = Array.isArray(coursesInCache) && 
+    coursesInCache.some((c: any) => {
+      if (c.enrollmentStatus === "Pending") return true;
+      if (isGlobalInstant && (c.enrollmentStatus === "Revoked" || c.enrollmentStatus === "Rejected")) return true;
+      return false;
+    });
+  
+  const dynamicStaleTime = hasSyncTrigger ? 0 : 30 * 60 * 1000;
+  
   const {
     data,
     isLoading,
@@ -218,6 +222,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
             data: mergedCourses,
             version: result.version,
             nextCursor: result.nextCursor,
+            instantSync: result.instantSync,
           },
           safeUserId,
           result.version

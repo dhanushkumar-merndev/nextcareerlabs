@@ -20,3 +20,5 @@ export async function adminGetEnrollmentsStatsAction(clientVersion?: string) {
 export async function adminGetRecentCoursesAction(clientVersion?: string) {
     return await adminGetRecentCourses(clientVersion);
 }
+
+

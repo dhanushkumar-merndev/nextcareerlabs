@@ -11,7 +11,7 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 // Support footer link component
 export function SupportFooterLink() {
   const [open, setOpen] = useState(false);
-  const {data: session,isPending} = useSmartSession();
+  const { session, isLoading: isPending } = useSmartSession();
   const isAuthenticated = !!session?.user?.id;
   const { data: enrolledCourses } = useQuery({
     queryKey: ["enrolledCourses"],

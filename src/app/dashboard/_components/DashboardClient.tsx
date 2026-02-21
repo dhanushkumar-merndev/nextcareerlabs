@@ -2,68 +2,75 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getUserDashboardData } from "@/app/dashboard/actions";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { HorizontalCourseCard } from "../_components/HorizontalCourseCard";
 
-interface DashboardClientProps {
-    userId: string;
-    initialData?: any;
-    initialVersion?: string | null;
-}
+import { useSmartSession } from "@/hooks/use-smart-session";
 
 import { useEffect, useState } from "react";
 
-export function DashboardClient({ userId, initialData, initialVersion }: DashboardClientProps) {
+export function DashboardClient() {
+  const { session, isLoading: sessionLoading } = useSmartSession();
+  const userId = session?.user.id;
+
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Sync initialData to local storage on mount to keep local cache fresh
-  // Removed redundant useEffect sync to avoid hydration flickers
-  // Sync now happens during query execution
-
   const { data, isLoading } = useQuery({
     queryKey: ["user_dashboard", userId],
     queryFn: async () => {
+      if (!userId) return null;
       const cacheKey = `user_dashboard_${userId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      console.log(`[Dashboard] Syncing with server... (Client Version: ${clientVersion || 'None'})`);
+      // 🛑 SYNC GUARD: If we synced within the last 60s, skip network hit entirely
+      const isRecent = chatCache.isRecentSync(cacheKey, userId, 60000);
+      if (isRecent && cached?.data) {
+        console.log(`%c[Dashboard] Sync Guard: Recently synced. Skipping server check.`, "color: #a855f7; font-weight: bold");
+        return cached.data;
+      }
+
+      console.log(`[Dashboard] Smart Sync: Checking version (v${clientVersion || 'None'})...`);
       const result = await getUserDashboardData(userId, clientVersion);
 
-      if (result && (result as any).status === "not-modified" && cached) {
-        console.log(`[Dashboard] Version matches. Keeping local data.`);
-        return cached.data;
+      // 1. Version Match -> Return cached data
+      // Server says cache is still valid
+      if (result && (result as any).status === "not-modified") {
+        console.log(`%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
+        chatCache.touch(cacheKey, userId); // Refresh sync guard timer
+        return cached?.data || null; // Ensure we return cached data if available, or null
       }
 
-      if (result && !(result as any).status) {
-        console.log(`[Dashboard] Received fresh dashboard data.`);
-        chatCache.set(cacheKey, result, userId, (result as any).version);
+      // 2. Fresh Data -> Update Local Cache (Permanent TTL)
+      if (result && result.data) {
+        console.log(`%c[Dashboard] Server: NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
+        chatCache.set(cacheKey, result.data, userId, result.version, PERMANENT_TTL);
+        return result.data;
       }
-      return result;
+      
+      return cached?.data || null;
     },
     initialData: () => {
-      // ⭐ PRIORITY 1: Server-provided data (Source of Truth for fresh refresh)
-      if (initialData) return initialData;
+      if (typeof window === "undefined" || !userId) return undefined;
 
-      if (!mounted) return undefined;
-
-      // ⭐ PRIORITY 2: Local Cache (For fast navigation/stale state)
       const cacheKey = `user_dashboard_${userId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
-      if (cached) {
-        return cached.data;
+      if (cached?.data) {
+          console.log(`%c[Dashboard] LOCAL HIT (v${cached.version}). Instant Hydration.`, "color: #eab308; font-weight: bold");
+          return cached.data;
       }
       return undefined;
     },
-    staleTime: 1800000, // 30 mins
+    staleTime: 1800000, // 30 mins (Heartbeat)
+    refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
   });
 
-  if (isLoading && !data) {
+  if (!mounted || sessionLoading || (isLoading && !data)) {
     return (
         <div className="flex items-center justify-center p-20">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -118,10 +125,11 @@ export function DashboardClient({ userId, initialData, initialVersion }: Dashboa
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {data.coursesProgress?.map((course: any) => (
+            {data.coursesProgress?.map((course: any, index: number) => (
               <HorizontalCourseCard
                 key={course.id}
                 course={course}
+                index={index}
               />
             ))}
           </div>

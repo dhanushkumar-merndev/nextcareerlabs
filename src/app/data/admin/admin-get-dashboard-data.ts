@@ -7,6 +7,7 @@ export interface AdminDashboardVersions {
   stats?: string;
   enrollments?: string;
   recentCourses?: string;
+
 }
 
 export async function adminGetDashboardData(clientVersions?: AdminDashboardVersions) {
@@ -146,7 +147,7 @@ export async function adminGetDashboardData(clientVersions?: AdminDashboardVersi
     data: {
       stats,
       enrollments,
-      recentCourses: recent
+      recentCourses: recent,
     },
     versions: finalV
   };

@@ -4,9 +4,7 @@
 
 export const dynamic = "force-static";
 export const revalidate = 3600; // Cache on CDN for 1 hour, then background refresh
-import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import FeaturesSection from "./_components/FeaturesSection";
 import HomeClient from "./_components/HomeClient";
 import { BookTextIcon } from "@/components/ui/book-text";

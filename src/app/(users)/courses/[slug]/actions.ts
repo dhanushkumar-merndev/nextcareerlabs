@@ -74,7 +74,8 @@ export async function getSlugPageDataAction(slug: string, clientVersion?: string
             enrollmentStatus,
             isProfileComplete: true,
             requireName: false,
-            version: (result as any).version || (result as any).currentVersion
+            version: (result as any).version || (result as any).currentVersion,
+            instantSync: (result as any).instantSync ?? false
         };
     }
     return null;

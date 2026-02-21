@@ -71,17 +71,25 @@ export function EnrollmentButton({
     // Button component with loading states
     <Button
       onClick={onSubmit}
-      disabled={isPending || isActuallyPending}
+      disabled={isPending || currentStatus === "Pending" || currentStatus === "Rejected" || currentStatus === "Revoked"}
       className="w-full"
-      variant={isActuallyPending ? "outline" : "default"}
+      variant={
+        currentStatus === "Pending" ? "outline" : 
+        (currentStatus === "Rejected" || currentStatus === "Revoked") ? "destructive" : 
+        "default"
+      }
     >
       {isPending ? (
         <>
           <Loader2 className="size-4 animate-spin" />
           Loading...
         </>
-      ) : isActuallyPending ? (
+      ) : currentStatus === "Pending" ? (
         "Pending Approval"
+      ) : currentStatus === "Rejected" ? (
+        "Request Rejected"
+      ) : currentStatus === "Revoked" ? (
+        "Access Revoked"
       ) : (
         "Request Access"
       )}

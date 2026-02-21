@@ -68,7 +68,7 @@ export function SlugPageWrapper({
       return result;
     },
     // Dynamic stale time: 0 for enrolled users, 30m for others
-    staleTime: (() => {
+    staleTime: ((): number => {
         const cacheKey = `course_${slug}`;
         let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
         if (!cached) cached = chatCache.get<any>(cacheKey, undefined);

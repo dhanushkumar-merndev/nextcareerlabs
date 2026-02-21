@@ -11,6 +11,8 @@ export async function getIndividualCourse(slug: string, clientVersion?: string, 
     const userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
     currentVersion = `${currentVersion}:${userVersion}`;
   }
+
+
   
   // Smart Sync: If client has the latest version, don't re-fetch
   if (clientVersion && clientVersion === currentVersion) {

@@ -19,9 +19,10 @@ interface HorizontalCourseCardProps {
         slug: string;
         level: string;
     };
+    index?: number;
 }
 
-export function HorizontalCourseCard({ course }: HorizontalCourseCardProps) {
+export function HorizontalCourseCard({ course, index }: HorizontalCourseCardProps) {
     const isCompleted = course.progress === 100;
     const thumbnailUrl = useConstructUrl(course.imageUrl);
 
@@ -33,6 +34,8 @@ export function HorizontalCourseCard({ course }: HorizontalCourseCardProps) {
                     src={thumbnailUrl}
                     alt={course.title}
                     fill
+                    sizes="(max-width: 768px) 100vw, 128px"
+                    priority={index === 0}
                     className="object-cover group-hover:scale-110 transition-transform duration-500"
                     crossOrigin="anonymous"
                 />

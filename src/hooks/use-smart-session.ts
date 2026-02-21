@@ -72,7 +72,8 @@ export function useSmartSession() {
     return {
         session,
         user: session?.user || null,
-        isLoading: !isMounted || (isLoading && !session),
+        isLoading: (isLoading && !session) || (!isMounted && !session),
+        isSyncing: isLoading,
         refetch
     };
 }

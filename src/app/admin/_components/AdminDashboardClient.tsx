@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { 
-    adminGetDashboardDataAction
+    adminGetDashboardDataAction,
 } from "../actions";
 
 import { SectionCards } from "@/components/sidebar/section-cards";
@@ -119,16 +119,20 @@ export function AdminDashboardClient() {
         <div className="lg:py-5 md:py-6">
             <div className="flex items-center justify-between px-4 lg:px-6 mb-4 md:mb-6">
                 <h2 className="text-xl font-semibold">Dashboard Overview</h2>
-                <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="gap-2 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all font-bold uppercase tracking-widest text-[10px] h-9"
-                    onClick={handleManualRefresh}
-                    disabled={isInteractionDisabled}
-                >
-                    <RefreshCw className={cn("size-3", (mounted && (isRefreshing || isLoading)) && "animate-spin text-primary")} />
-                    {mounted ? (isRefreshing ? "Checking Versions..." : "Check for Updates") : "Checking Updates..."}
-                </Button>
+                <div className="flex items-center gap-3">
+
+
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all font-bold uppercase tracking-widest text-[10px] h-9"
+                        onClick={handleManualRefresh}
+                        disabled={isInteractionDisabled}
+                    >
+                        <RefreshCw className={cn("size-3", (mounted && (isRefreshing || isLoading)) && "animate-spin text-primary")} />
+                        {mounted ? (isRefreshing ? "Checking Versions..." : "Check for Updates") : "Checking Updates..."}
+                    </Button>
+                </div>
 
             </div>
 
