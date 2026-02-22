@@ -48,8 +48,8 @@ export function MyCoursesClient() {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {enrolledCourses.map((e: any) => (
-        <CourseProgressCard key={e.Course.id} data={e} />
+      {enrolledCourses.map((e: any, index: number) => (
+        <CourseProgressCard key={e.Course.id} data={e} isPriority={index < 3} />
       ))}
     </div>
   );

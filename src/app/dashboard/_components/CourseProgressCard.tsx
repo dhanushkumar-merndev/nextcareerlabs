@@ -13,9 +13,10 @@ import { useCourseProgress } from "@/hooks/use-course-progress";
 
 interface iAppProps {
   data: EnrolledCoursesType;
+  isPriority?: boolean;
 }
 
-export function CourseProgressCard({ data }: iAppProps) {
+export function CourseProgressCard({ data, isPriority = false }: iAppProps) {
   const course = data.Course;
   const thumbnailUrl = useConstructUrl(course.fileKey);
 
@@ -37,8 +38,10 @@ export function CourseProgressCard({ data }: iAppProps) {
         alt={course.title}
         width={600}
         height={400}
+        style={{ height: "auto" }}
         className="w-full aspect-video h-full object-cover rounded-t-xl"
-        priority
+        priority={isPriority}
+        loading={isPriority ? undefined : "lazy"}
         crossOrigin="anonymous"
       />
 

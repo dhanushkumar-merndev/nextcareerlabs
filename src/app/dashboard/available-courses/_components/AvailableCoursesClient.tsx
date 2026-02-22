@@ -255,11 +255,12 @@ export function AvailableCoursesClient() {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {courses.map((course) => (
+        {courses.map((course, index) => (
           <PublicCourseCard
             key={course.id}
             data={course}
             enrollmentStatus={course.enrollmentStatus ?? null}
+            isPriority={index < 3}
           />
         ))}
       </div>
