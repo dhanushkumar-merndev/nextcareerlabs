@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -78,15 +78,20 @@ export function EditCourseClientWrapper({
     refetchInterval: 1800000,
   });
 
+  const hasLogged = useRef(false);
+
   const data = queryData || propsData;
 
   useEffect(() => {
     setMounted(true);
-    const cached = chatCache.get<any>(cacheKey);
-    if (cached) {
-        console.log(`%c[EditCourse] ✨ LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+    if (!hasLogged.current) {
+        const cached = chatCache.get<any>(cacheKey);
+        if (cached) {
+            console.log(`%c[EditCourse] ✨ LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+        }
+        hasLogged.current = true;
     }
-  }, []);
+  }, [cacheKey]);
 
   const isDirty = basicDirty || structureDirty;
 

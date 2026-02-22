@@ -19,9 +19,11 @@ export async function getUserDashboardData(userId: string, clientVersion?: strin
 
     // Check Redis cache
     const cacheKey = `user:dashboard:${userId}`;
+    const startTime = Date.now();
     const cached = await getCache<any>(cacheKey);
+    
     if (cached) {
-        console.log(`[Redis] Cache HIT for dashboard data: ${userId}`);
+        console.log(`[Redis] Cache HIT for dashboard: ${userId}`);
         return { data: cached, version: currentVersion };
     }
 
@@ -45,6 +47,8 @@ export async function getUserDashboardData(userId: string, clientVersion?: strin
                 }
             }
         });
+
+        console.log(`[getUserDashboardData] DB Computation took ${Date.now() - startTime}ms`);
 
         const enrolledCoursesCount = enrollments.length;
 

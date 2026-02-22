@@ -62,17 +62,25 @@ export async function updateEnrollmentStatusAction(
           invalidateCache(`available_courses_${enrollment.userId}`),
           invalidateCache(`user_dashboard_${enrollment.userId}`), 
 
-          // Admin Keys (for Analytics)
-          invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+          // Admin Keys (Full Refresh)
           invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+          invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
 
           // Versions (The triggers)
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
           incrementChatVersion(enrollment.userId),
+          
+          // Admin Version Bumps
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
       ];
 
       // On Grant, also invalidate specific user course caches to reflect enrollment status
@@ -116,12 +124,22 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
     // Invalidate user caches and admin list
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+
       invalidateCache(`user:dashboard:${userId}`),
       invalidateCache(`user:enrollments:${userId}`),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
-      incrementChatVersion(userId)
+      incrementChatVersion(userId),
+
+      // Admin Version Bumps
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
     ]);
 
     revalidatePath("/admin/requests");
@@ -151,12 +169,22 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
     // Invalidate user caches and admin list
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+
       invalidateCache(`user:dashboard:${userId}`),
       invalidateCache(`user:enrollments:${userId}`),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
-      incrementChatVersion(userId)
+      incrementChatVersion(userId),
+
+      // Admin Version Bumps
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
     ]);
 
     revalidatePath("/admin/requests");
@@ -237,6 +265,9 @@ export async function deleteEnrollmentAction(
     // Smart Sync Invalidation
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
       
       // User invalidation
@@ -245,12 +276,18 @@ export async function deleteEnrollmentAction(
       invalidateCache(`user:dashboard:${enrollment.userId}`),
       invalidateCache(`course:${enrollment.Course.slug}`),
 
+      // Versions (The triggers)
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
+      incrementChatVersion(enrollment.userId),
 
+      // Admin Version Bumps
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-      incrementChatVersion(enrollment.userId)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
     ]);
 
     revalidatePath("/admin/requests");

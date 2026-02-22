@@ -78,10 +78,7 @@ export function RenderUploadedState({
     height: spriteMetadata.spriteHeight || 135,
   } : undefined;
 
-  useEffect(() => {
-    if (spriteMetadata) console.log("RenderUploadedState: spriteMetadata", spriteMetadata);
-    if (spriteProps) console.log("RenderUploadedState: spriteProps", spriteProps);
-  }, [spriteMetadata, spriteProps]);
+
 
   return (
     <div className="relative group w-full h-full flex items-center justify-center">

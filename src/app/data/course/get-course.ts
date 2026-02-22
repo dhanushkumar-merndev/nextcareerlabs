@@ -22,7 +22,9 @@ export async function getIndividualCourse(slug: string, clientVersion?: string, 
 
   // Check Redis cache for this specific course (versioned to skip stale data)
   const cacheKey = `${GLOBAL_CACHE_KEYS.COURSE_DETAIL(slug)}:${currentVersion}`;
+  const startTime = Date.now();
   const cached = await getCache<any>(cacheKey);
+  
   if (cached) {
     console.log(`[Redis] Cache HIT for course: ${slug} (v${currentVersion})`);
     return { course: cached, version: currentVersion };
@@ -62,12 +64,10 @@ export async function getIndividualCourse(slug: string, clientVersion?: string, 
       },
     },
   });
-  
-  if (!course) {
-    return notFound();
-  }
 
-  // Cache in Redis for 6 hours
+  console.log(`[getIndividualCourse] DB Computation took ${Date.now() - startTime}ms`);
+
+  // Cache in Redis for 30 days
   await setCache(cacheKey, course, 2592000); // 30 days
   
   return { course, version: currentVersion };

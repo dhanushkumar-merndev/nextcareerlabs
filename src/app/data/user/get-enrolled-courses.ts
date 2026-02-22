@@ -16,7 +16,9 @@ export async function getEnrolledCourses(clientVersion?: string) {
 
   // Check Redis cache
   const cacheKey = GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(user.id);
+  const startTime = Date.now();
   const cached = await getCache<any>(cacheKey);
+  
   if (cached) {
     console.log(`[Redis] Cache HIT for enrolled courses: ${user.id}`);
     return { enrollments: cached, version: currentVersion };
@@ -59,7 +61,9 @@ export async function getEnrolledCourses(clientVersion?: string) {
     },
   });
 
-  // Cache in Redis for 6 hours
+  console.log(`[getEnrolledCourses] DB Computation took ${Date.now() - startTime}ms`);
+
+  // Cache in Redis for 30 days
   await setCache(cacheKey, data, 2592000); // 30 days
   
   return { enrollments: data, version: currentVersion };

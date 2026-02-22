@@ -96,6 +96,10 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
     if (result && !(result as any)?.status) {
       console.log(`[Chat] Server: NEW_DATA -> Updating Local Cache (v${result.version})`);
 
+      const oldCoursesCount = (cached?.data as any)?.enrolledCourses?.length || 0;
+      const newCoursesCount = (result as any)?.enrolledCourses?.length || 0;
+      const enrollmentChanged = oldCoursesCount !== newCoursesCount;
+
       chatCache.set(
         localKey,
         result,
@@ -104,8 +108,11 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
         PERMANENT_TTL
       );
 
-      if (currentUserId) {
+      // 🔹 Surgical Sync: Only clear Dashboard if enrollment actually changed 
+      // or if another component explicitly requested a sync (needsSync)
+      if (currentUserId && (enrollmentChanged || chatCache.needsSync(currentUserId))) {
         chatCache.invalidateUserDashboardData(currentUserId);
+        chatCache.clearSync(currentUserId); // Reset the needsSync flag
       }
       return result;
     }

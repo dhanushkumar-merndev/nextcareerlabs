@@ -29,7 +29,7 @@ export function useEnrolledCourses() {
 
       // 2. Fresh Data -> Update Local Cache
       if (result && result.enrollments) {
-        console.log(`%c[useEnrolledCourses] Server: NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
+        console.log(`%c[useEnrolledCourses] Server: NEW_DATA (${result.enrollments.length} courses) -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
         chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
         if (userId) chatCache.clearSync(userId);
         return result.enrollments;
