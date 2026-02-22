@@ -150,7 +150,7 @@ export function Navbar() {
           <span className="font-medium">Skill Force Cloud</span>
         </Link>
           {/* ================= DESKTOP NAV ================= */}
-          <nav className="hidden md:flex flex-1 justify-center items-center gap-6 lg:gap-8 px-4">
+          <nav className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-6 lg:gap-8 px-4">
             {isHomePage ? (
               <>
                 <button
