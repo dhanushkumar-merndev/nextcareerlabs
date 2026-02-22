@@ -22,12 +22,11 @@ import Link from "next/link";
 import { JSX } from "react";
 import { EnrollmentButton } from "./EnrollmentButton";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSlugPageDataAction } from "../actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache } from "@/lib/chat-cache";
 import { useState, useEffect, useRef } from "react";
-import Loader from "@/components/ui/Loader";
 import { SlugPageSkeleton } from "./SlugPageSkeleton";
 import { useRouter } from "next/navigation";
 
@@ -37,6 +36,7 @@ export function SlugPageWrapper({
   slug: string;
 }) {
   const { session } = useSmartSession();
+  const queryClient = useQueryClient();
   const currentUserId = session?.user?.id;
   const router = useRouter();
   // Used to avoid hydration mismatch
@@ -83,7 +83,19 @@ export function SlugPageWrapper({
 
       const isData = result && !(result as any).status;
       if (isData) {
+        console.log(`%c[SlugPage] Server: NEW_DATA -> Broad Invalidation`, "color: #3b82f6; font-weight: bold");
         chatCache.set(cacheKey, result, currentUserId, (result as any).version);
+        if (currentUserId) {
+          chatCache.invalidateUserDashboardData(currentUserId);
+          
+          // 🔹 INSTANT SPA NOTIFICATION:
+          queryClient.invalidateQueries({ queryKey: ["user_dashboard", currentUserId] });
+          queryClient.invalidateQueries({ queryKey: ["enrolled_courses", currentUserId] });
+          queryClient.invalidateQueries({ queryKey: ["all_courses", currentUserId] });
+          
+          // Also invalidating chat sidebar key if it helps
+          queryClient.invalidateQueries({ queryKey: ["chat_threads", currentUserId] });
+        }
       }
       return result;
     },

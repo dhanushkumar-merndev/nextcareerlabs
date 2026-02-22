@@ -1,10 +1,8 @@
-import { requireUser } from "@/app/data/user/require-user";
+
 import { MyCoursesClient } from "./_components/MyCoursesClient";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export const dynamic = "force-static";
-export const revalidate = 3600;
 
 export default function MyCoursesPage() {
 

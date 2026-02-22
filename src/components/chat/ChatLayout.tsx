@@ -104,6 +104,9 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
         PERMANENT_TTL
       );
 
+      if (currentUserId) {
+        chatCache.invalidateUserDashboardData(currentUserId);
+      }
       return result;
     }
 

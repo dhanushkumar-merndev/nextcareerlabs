@@ -131,19 +131,27 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
   const { checkRateLimit } = useRefreshRateLimit(5, 60000);
 
 
-  const clearLocalCache = useCallback(() => {
+  const clearLocalCache = useCallback((userId?: string) => {
     secureStorage.removeItemTracked("admin_enrollment_requests");
     secureStorage.removeItemTracked("admin_enrollment_version");
     secureStorage.removeItemTracked("admin_enrollment_last_sync");
-    console.log("[RequestsTable] Local cache cleared after admin action.");
+
+    // If we have a userId (Admin = User testing), clear their specific pages too
+    if (userId) {
+      secureStorage.removeItemTracked(`chat_cache_${userId}_user_enrolled_courses_${userId}`);
+      secureStorage.removeItemTracked(`chat_cache_${userId}_available_courses_${userId}`);
+      secureStorage.removeItemTracked(`chat_cache_${userId}_user_dashboard_${userId}`);
+    }
+
+    console.log(`[RequestsTable] Local cache cleared ${userId ? 'including user pages ' : ''}after admin action.`);
   }, []);
 
-  const handleStatusUpdate = (id: string, status: "Granted" | "Revoked" | "Pending") => {
+  const handleStatusUpdate = (id: string, request: Request, status: "Granted" | "Revoked" | "Pending") => {
     startTransition(async () => {
       const result = await updateEnrollmentStatusAction(id, status);
       if (result.status === "success") {
         toast.success(result.message);
-        clearLocalCache();
+        clearLocalCache(request.User.id);
         setData(prev => prev.map(item => item.id === id ? { ...item, status } : item));
       } else {
         toast.error(result.message);
@@ -167,7 +175,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
             : await banUserAction(userId);
           if (result.status === "success") {
             toast.success(result.message);
-            clearLocalCache();
+            clearLocalCache(userId);
             setData(prev => prev.map(item => item.User.id === userId ? { ...item, User: { ...item.User, banned: !isBanned } } : item));
           } else {
             toast.error(result.message);
@@ -189,7 +197,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
       
       if (result.status === "success") {
         toast.success(result.message);
-        clearLocalCache();
+        clearLocalCache(editingUser.id);
         setData(prev => prev.map(item => 
           item.User.id === editingUser.id 
             ? { ...item, User: { ...item.User, email: editEmail, phoneNumber: editPhone } } 
@@ -214,7 +222,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
           const result = await deleteEnrollmentAction(id);
           if (result.status === "success") {
             toast.success(result.message);
-            clearLocalCache();
+            clearLocalCache(); // Don't know userId here easily from list, but admin cache is cleared
             setData(prev => prev.filter(item => item.id !== id));
           } else {
             toast.error(result.message);
@@ -519,7 +527,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
                     <ActionMenu 
                       request={request} 
                       isPending={isPending} 
-                      onStatusUpdate={handleStatusUpdate} 
+                      onStatusUpdate={(id: string, status: any) => handleStatusUpdate(id, request, status)} 
                       onBanToggle={handleBanToggle} 
                       onDelete={handleDelete}
                       onEditOpen={(user) => {
@@ -596,7 +604,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
                 <ActionMenu 
                   request={request} 
                   isPending={isPending} 
-                  onStatusUpdate={handleStatusUpdate} 
+                  onStatusUpdate={(id: string, status: any) => handleStatusUpdate(id, request, status)} 
                   onBanToggle={handleBanToggle} 
                   onDelete={handleDelete}
                   onEditOpen={(user) => {

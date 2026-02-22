@@ -79,6 +79,29 @@ export const chatCache = {
     console.log("[chatCache] Admin data invalidated from local storage.");
   },
 
+  invalidateUserDashboardData: (userId: string) => {
+    if (typeof window === "undefined") return;
+    
+    const userPrefix = `${STORAGE_PREFIX}${userId}_`;
+    const keysToRemove: string[] = [];
+
+    // 1. Find all keys belonging to this user (Prefix Match)
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(userPrefix)) {
+        keysToRemove.push(key);
+      }
+    }
+
+    // 2. Clear them all
+    keysToRemove.forEach((key) => secureStorage.removeItemTracked(key));
+    
+    // 3. Clear auth_session (Shared across users)
+    chatCache.invalidate("auth_session");
+    
+    console.log(`%c[chatCache] BROAD INVALIDATION: Cleared ${keysToRemove.length} user-specific keys for ${userId}`, "color: #ef4444; font-weight: bold");
+  },
+
   /**
    * Updates only the timestamp of a cache entry.
    * Useful when server returns NOT_MODIFIED to prevent immediate re-checks.

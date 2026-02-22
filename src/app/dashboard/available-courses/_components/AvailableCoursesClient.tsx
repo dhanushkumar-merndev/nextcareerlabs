@@ -226,7 +226,6 @@ export function AvailableCoursesClient() {
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     staleTime: 1800000, // 30 mins (Heartbeat)
-    refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
   });
 

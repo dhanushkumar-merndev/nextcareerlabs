@@ -1,4 +1,3 @@
-import { getCourseSidebarData } from "@/app/data/course/get-course-sidebar-data";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 

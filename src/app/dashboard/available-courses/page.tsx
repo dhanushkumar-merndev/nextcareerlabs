@@ -1,9 +1,6 @@
 import { AvailableCoursesClient } from "./_components/AvailableCoursesClient";
 import { CourseSearch } from "../../(users)/courses/_components/CourseSearch";
-import { getCurrentUser } from "@/lib/session";
 
-export const dynamic = "force-static";
-export const revalidate = 3600;
 
 export default function AvailableCoursesPage() {
   return (

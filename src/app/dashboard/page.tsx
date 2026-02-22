@@ -1,10 +1,6 @@
-import { getCurrentUser } from "@/lib/session";
-import { redirect } from "next/navigation";
 import { DashboardClient } from "./_components/DashboardClient";
-import { getUserDashboardData } from "./actions";
 
-export const dynamic = "force-static";
-export const revalidate = 3600;
+
 
 export default function DashboardPage() {
   return (

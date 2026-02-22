@@ -28,8 +28,14 @@ export function useEnrolledCourses() {
 
       // 2. Fresh Data -> Update Local Cache
       if (result && result.enrollments) {
-        console.log(`%c[useEnrolledCourses] Server: NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
+        console.log(`%c[useEnrolledCourses] Server: NEW_DATA -> Updating Cache & Broad Invalidation (v${result.version})`, "color: #3b82f6; font-weight: bold");
         chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
+        
+        // 🔹 BROAD INVALIDATION: 
+        // Since this hook is in DashboardShell, it triggers when ANY enrollment changes 
+        // This keeps Dashboard and Available Courses in sync instantly.
+        chatCache.invalidateUserDashboardData(userId);
+        
         return result.enrollments;
       }
 
@@ -43,7 +49,6 @@ export function useEnrolledCourses() {
     },
     enabled: !!userId,
     staleTime: 1800000, // 30 mins
-    refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
   });
 

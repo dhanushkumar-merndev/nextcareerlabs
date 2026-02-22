@@ -7,7 +7,7 @@
 
 "use client";
 import { useSmartSession } from "@/hooks/use-smart-session";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { getAllCoursesAction } from "../actions";
 import { chatCache } from "@/lib/chat-cache";
 import { PublicCourseCard, PublicCourseCardSkeleton } from "../../_components/PublicCourseCard";
@@ -26,6 +26,7 @@ type CoursesPage = {
 // CoursesClient Component
 export function CoursesClient({ initialData }: { initialData?: any }) {
   const { session, isLoading: isSessionPending } = useSmartSession();
+  const queryClient = useQueryClient();
   const currentUserId = session?.user?.id;
 
   // Read search param (?title=...)
@@ -207,7 +208,17 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
         };
       }
 
-      console.log(`%c[Courses] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
+      console.log(`%c[Courses] Server: NEW_DATA -> Updating cache & Broad Invalidation`, "color: #3b82f6; font-weight: bold");
+      
+      if (safeUserId) {
+        chatCache.invalidateUserDashboardData(safeUserId);
+        
+        // 🔹 INSTANT SPA NOTIFICATION:
+        // Trigger background invalidation for all enrollment-sensitive queries
+        queryClient.invalidateQueries({ queryKey: ["user_dashboard", safeUserId] });
+        queryClient.invalidateQueries({ queryKey: ["enrolled_courses", safeUserId] });
+        queryClient.invalidateQueries({ queryKey: ["all_courses", safeUserId] });
+      }
 
       // Persist merged courses + cursor
       if (!searchTitle) {

@@ -3,10 +3,10 @@
 import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types/auth";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { EnrollmentStatus } from "@/generated/prisma";
-import { invalidateCache, CHAT_CACHE_KEYS, GLOBAL_CACHE_KEYS, incrementGlobalVersion } from "@/lib/redis";
+import { invalidateCache, CHAT_CACHE_KEYS, GLOBAL_CACHE_KEYS, incrementGlobalVersion, incrementChatVersion } from "@/lib/redis";
 
 export async function getRequestsAction(
   skip: number,
@@ -56,20 +56,24 @@ export async function updateEnrollmentStatusAction(
           invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId)),
           courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
           invalidateCache(`user:dashboard:${enrollment.userId}`),
+          invalidateCache(`user_dashboard_${enrollment.userId}`), // Local key placeholder if needed, but Redis uses colon
+          invalidateCache(`user_enrolled_courses_${enrollment.userId}`),
+          invalidateCache(`available_courses_${enrollment.userId}`),
           invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
           invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(enrollment.userId)),
           invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
+          incrementChatVersion(enrollment.userId)
       ];
 
       // On Grant, also invalidate specific user course caches to reflect enrollment status
       if (status === "Granted") {
           invalidations.push(
-              invalidateCache(`chat_cache_${enrollment.userId}_all_courses`),
-              invalidateCache(`chat_cache_${enrollment.userId}_course_${enrollment.Course.slug}`)
+              invalidateCache(`course:${enrollment.Course.slug}`)
           );
       }
 
@@ -77,6 +81,10 @@ export async function updateEnrollmentStatusAction(
     }
 
     revalidatePath("/admin/requests");
+    revalidatePath("/dashboard", "layout");
+    revalidatePath("/dashboard/resources");
+    revalidatePath("/courses", "layout");
+
     return {
       status: "success",
       message: `Enrollment status updated to ${status}`,
@@ -217,15 +225,24 @@ export async function deleteEnrollmentAction(
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
       
       // User invalidation
-      invalidateCache(`chat_cache_${enrollment.userId}_all_courses`),
-      invalidateCache(`chat_cache_${enrollment.userId}_course_${enrollment.Course.slug}`),
+      invalidateCache(`user_enrolled_courses_${enrollment.userId}`),
+      invalidateCache(`available_courses_${enrollment.userId}`),
+      invalidateCache(`user:dashboard:${enrollment.userId}`),
+      invalidateCache(`course:${enrollment.Course.slug}`),
+
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
 
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementChatVersion(enrollment.userId)
     ]);
 
     revalidatePath("/admin/requests");
+    revalidatePath("/dashboard", "layout");
+    revalidatePath("/dashboard/resources");
+    revalidatePath("/courses", "layout");
+
     return {
       status: "success",
       message: "Enrollment request deleted successfully",
