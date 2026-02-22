@@ -735,16 +735,19 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
             `lesson_content_${lessonId}`,
             `course_sidebar_${slug}`,
             `user_dashboard_${userId}`,
-            `lesson_mcqs_${lessonId}`
+            `lesson_mcqs_${lessonId}`,
+            `user_enrolled_courses_${userId}`
         ];
 
         // 1. Clear LocalStorage
         cacheKeys.forEach(key => chatCache.invalidate(key, userId));
+        chatCache.setNeedsSync(userId);
 
         // 2. Invalidate React Query
         queryClient.invalidateQueries({ queryKey: ["lesson_content", lessonId] });
         queryClient.invalidateQueries({ queryKey: ["course_sidebar", slug] });
         queryClient.invalidateQueries({ queryKey: ["user_dashboard", userId] });
+        queryClient.invalidateQueries({ queryKey: ["enrolled_courses", userId] });
         
         toast.success(result.message);
       } else {
@@ -910,16 +913,19 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
                 `lesson_content_${lessonId}`,
                 `course_sidebar_${slug}`,
                 `user_dashboard_${userId}`,
-                `lesson_mcqs_${lessonId}`
+                `lesson_mcqs_${lessonId}`,
+                `user_enrolled_courses_${userId}`
             ];
 
             // 1. Clear LocalStorage
             cacheKeys.forEach(key => chatCache.invalidate(key, userId));
+            chatCache.setNeedsSync(userId);
 
             // 2. Invalidate React Query
             queryClient.invalidateQueries({ queryKey: ["lesson_content", lessonId] });
             queryClient.invalidateQueries({ queryKey: ["course_sidebar", slug] });
             queryClient.invalidateQueries({ queryKey: ["user_dashboard", userId] });
+            queryClient.invalidateQueries({ queryKey: ["enrolled_courses", userId] });
           }}
         />
       )}

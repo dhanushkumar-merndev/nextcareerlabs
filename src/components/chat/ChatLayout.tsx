@@ -130,11 +130,14 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
     return undefined;
   },
 
-  // 30-minute version check (Heartbeat)
-  staleTime: 1800000, 
-  refetchInterval: 1800000,
-  refetchOnWindowFocus: true,
-});
+    initialDataUpdatedAt: typeof window !== "undefined"
+      ? chatCache.get<any>(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId)?.timestamp
+      : undefined,
+    // 30-minute version check (Heartbeat)
+    staleTime: 1800000, 
+    refetchInterval: 1800000,
+    refetchOnWindowFocus: true,
+  });
 
    const threads = (sidebarData as any)?.threads || [];
    const version = (sidebarData as any)?.version;

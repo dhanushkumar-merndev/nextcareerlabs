@@ -74,6 +74,7 @@ export const chatCache = {
       "admin_recent_courses",
       "admin_courses_list",
       "admin_chat_sidebar",
+      "admin_resource_page",
     ];
     adminKeys.forEach((key) => chatCache.invalidate(key));
     console.log("[chatCache] Admin data invalidated from local storage.");
@@ -82,24 +83,16 @@ export const chatCache = {
   invalidateUserDashboardData: (userId: string) => {
     if (typeof window === "undefined") return;
     
-    const userPrefix = `${STORAGE_PREFIX}${userId}_`;
-    const keysToRemove: string[] = [];
-
-    // 1. Find all keys belonging to this user (Prefix Match)
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith(userPrefix)) {
-        keysToRemove.push(key);
-      }
-    }
-
-    // 2. Clear them all
-    keysToRemove.forEach((key) => secureStorage.removeItemTracked(key));
+    // 🔹 Clear the "Index" pages to trigger fresh fetches on next visit
+    const keysToClear = [
+        `user_dashboard_${userId}`,
+        `user_enrolled_courses_${userId}`,
+        `available_courses_${userId}`
+    ];
     
-    // 3. Clear auth_session (Shared across users)
-    chatCache.invalidate("auth_session");
+    keysToClear.forEach(key => chatCache.invalidate(key, userId));
     
-    console.log(`%c[chatCache] BROAD INVALIDATION: Cleared ${keysToRemove.length} user-specific keys for ${userId}`, "color: #ef4444; font-weight: bold");
+    console.log(`%c[chatCache] BROAD INVALIDATION: Cleared Dashboard and Course indexes for ${userId}`, "color: #ef4444; font-weight: bold");
   },
 
   /**
@@ -119,6 +112,40 @@ export const chatCache = {
     } catch (e) {
       // Ignore errors
     }
+  },
+
+  /**
+   * Sync flag helpers — controls dynamic staleTime across user pages.
+   * Set on mutation (enroll, lesson complete), cleared after sync.
+   */
+  setNeedsSync: (userId: string) => {
+    chatCache.set("user_needs_sync", true, userId);
+  },
+
+  needsSync: (userId: string): boolean => {
+    return !!chatCache.get<boolean>("user_needs_sync", userId);
+  },
+
+  clearSync: (userId: string) => {
+    chatCache.invalidate("user_needs_sync", userId);
+  },
+
+  hasAnyPending: (userId: string): boolean => {
+    if (typeof window === "undefined") return false;
+    
+    // Check all possible course list caches for a 'Pending' status
+    const caches = ["all_courses", `available_courses_${userId}`];
+    
+    for (const key of caches) {
+        const cached = chatCache.get<any>(key, userId);
+        const data = cached?.data?.data || cached?.data; // Supports both {data:[]} and [] structures
+        if (Array.isArray(data) && data.some((c: any) => c.enrollmentStatus === "Pending")) {
+            return true;
+        }
+    }
+    
+    // Also check current slug page if stored? No, keep it simple.
+    return false;
   },
 };
 

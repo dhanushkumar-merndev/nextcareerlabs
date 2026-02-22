@@ -86,7 +86,9 @@ export function AnalyticsClient() {
       const cached = chatCache.get<any>("admin_analytics");
       return cached?.data;
     },
-
+    initialDataUpdatedAt: typeof window !== "undefined"
+      ? chatCache.get<any>("admin_analytics")?.timestamp
+      : undefined,
     // Version check every 30 min or on window focus
     staleTime: 1800000,
     refetchInterval: 1800000,

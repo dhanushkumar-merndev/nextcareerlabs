@@ -25,7 +25,7 @@ import { useConstructUrl } from "@/hooks/use-construct-url";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSlugPageDataAction } from "../actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { useState, useEffect, useRef } from "react";
 import { SlugPageSkeleton } from "./SlugPageSkeleton";
 import { useRouter } from "next/navigation";
@@ -78,24 +78,26 @@ export function SlugPageWrapper({
       if (result && (result as any).status === "not-modified" && cached) {
         console.log(`%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
         chatCache.touch(cacheKey, currentUserId);
+        if (currentUserId) chatCache.clearSync(currentUserId);
         return cached.data;
       }
 
       const isData = result && !(result as any).status;
       if (isData) {
-        console.log(`%c[SlugPage] Server: NEW_DATA -> Broad Invalidation`, "color: #3b82f6; font-weight: bold");
-        chatCache.set(cacheKey, result, currentUserId, (result as any).version);
+        console.log(`%c[SlugPage] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
+        
+        // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change
         if (currentUserId) {
-          chatCache.invalidateUserDashboardData(currentUserId);
-          
-          // 🔹 INSTANT SPA NOTIFICATION:
-          queryClient.invalidateQueries({ queryKey: ["user_dashboard", currentUserId] });
-          queryClient.invalidateQueries({ queryKey: ["enrolled_courses", currentUserId] });
-          queryClient.invalidateQueries({ queryKey: ["all_courses", currentUserId] });
-          
-          // Also invalidating chat sidebar key if it helps
-          queryClient.invalidateQueries({ queryKey: ["chat_threads", currentUserId] });
+            const oldStatus = cached?.data?.enrollmentStatus;
+            const newStatus = (result as any).enrollmentStatus;
+            if (oldStatus === "Pending" && newStatus !== "Pending") {
+                console.log(`%c[SlugPage] Status change detected! Triggering broad cache clearance.`, "color: #9333ea; font-weight: bold");
+                chatCache.invalidateUserDashboardData(currentUserId);
+            }
         }
+
+        chatCache.set(cacheKey, result, currentUserId, (result as any).version, PERMANENT_TTL);
+        if (currentUserId) chatCache.clearSync(currentUserId);
       }
       return result;
     },
@@ -111,13 +113,17 @@ export function SlugPageWrapper({
           ? chatCache.get<any>(`course_${slug}`, currentUserId)?.timestamp 
           : chatCache.get<any>(`course_${slug}`, undefined)?.timestamp)
       : undefined,
-    // Dynamic stale time: 0 for enrolled users, 30m for others
-    staleTime: ((): number => {
-        const cacheKey = `course_${slug}`;
-        let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
-        if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+    // 🔹 DYNAMIC STALE TIME: 
+    // 30s if: 1. Mutation flag set, OR 2. Enrollment status is 'Pending'.
+    // 30m otherwise.
+    staleTime: (() => {
+        if (!currentUserId) return 1800000;
         
+        // Only trigger background sync if user has a pending enrollment for THIS course
+        const cacheKey = `course_${slug}`;
+        const cached = chatCache.get<any>(cacheKey, currentUserId);
         const isPending = cached?.data?.enrollmentStatus === "Pending";
+        
         return isPending ? 0 : 1800000;
     })(),
     // Use cached data for instant initial paint

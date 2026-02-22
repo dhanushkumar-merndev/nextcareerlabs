@@ -46,6 +46,7 @@ export function DashboardClient() {
       if (result && (result as any).status === "not-modified") {
         console.log(`%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
         chatCache.touch(cacheKey, userId);
+        if (userId) chatCache.clearSync(userId);
         return cached?.data || null; // Ensure we return cached data if available, or null
       }
 
@@ -53,6 +54,7 @@ export function DashboardClient() {
       if (result && result.data) {
         console.log(`%c[Dashboard] Server: NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
         chatCache.set(cacheKey, result.data, userId, result.version, PERMANENT_TTL);
+        if (userId) chatCache.clearSync(userId);
         return result.data;
       }
       
@@ -68,7 +70,7 @@ export function DashboardClient() {
     initialDataUpdatedAt: typeof window !== "undefined" && userId 
       ? chatCache.get<any>(`user_dashboard_${userId}`, userId)?.timestamp 
       : undefined,
-    staleTime: 1800000, // 30 mins (Heartbeat)
+    staleTime: 1800000, 
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
   });

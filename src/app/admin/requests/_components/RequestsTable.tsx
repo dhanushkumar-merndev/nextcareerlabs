@@ -51,6 +51,7 @@ import { useState, useTransition, useCallback, useEffect, useRef } from "react";
 import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
 import { cn } from "@/lib/utils";
 import { secureStorage } from "@/lib/secure-storage";
+import { chatCache } from "@/lib/chat-cache";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
@@ -142,6 +143,9 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
       secureStorage.removeItemTracked(`chat_cache_${userId}_available_courses_${userId}`);
       secureStorage.removeItemTracked(`chat_cache_${userId}_user_dashboard_${userId}`);
     }
+
+    // 4. Invalidate all Admin Caches (Dashboard, Analytics, Resource Page)
+    chatCache.invalidateAdminData();
 
     console.log(`[RequestsTable] Local cache cleared ${userId ? 'including user pages ' : ''}after admin action.`);
   }, []);

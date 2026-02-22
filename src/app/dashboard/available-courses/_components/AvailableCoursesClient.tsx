@@ -121,24 +121,9 @@ export function AvailableCoursesClient() {
         return undefined;
     },
 
-    initialData: () => {
-        if (typeof window === "undefined" || searchTitle || sessionLoading) return undefined;
-        if (cached) {
-            return {
-                pages: [{
-                    courses: cached.data.data.slice(0, 9),
-                    nextCursor: cached.data.nextCursor,
-                    total: cached.data.data.length
-                }],
-                pageParams: [null]
-            };
-        }
-        return undefined;
-    },
 
-    initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle && !sessionLoading 
-      ? cached?.timestamp 
-      : undefined,
+
+
 
     queryFn: async ({ pageParam }) => {
       // SEARCH MODE → no cache optimization
@@ -180,6 +165,7 @@ export function AvailableCoursesClient() {
       if (result.status === "not-modified") {
         console.log(`%c[AvailableCourses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
         chatCache.touch(cacheKey, safeUserId);
+        if (safeUserId) chatCache.clearSync(safeUserId);
         return {
           courses: currentCache?.data.data ?? [],
           nextCursor: currentCache?.data.nextCursor ?? null,
@@ -215,6 +201,19 @@ export function AvailableCoursesClient() {
           result.version,
           PERMANENT_TTL
         );
+
+        // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change (e.g. Approved)
+        if (safeUserId) {
+            const oldData = currentCache?.data?.data || [];
+            const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
+            const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
+            
+            if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
+                console.log(`%c[AvailableCourses] Status change detected! Triggering broad cache clearance.`, "color: #9333ea; font-weight: bold");
+                chatCache.invalidateUserDashboardData(safeUserId);
+            }
+            chatCache.clearSync(safeUserId); 
+        }
       }
 
       return {
@@ -225,7 +224,26 @@ export function AvailableCoursesClient() {
     },
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    staleTime: 1800000, // 30 mins (Heartbeat)
+    initialData: () => {
+        if (!searchTitle && typeof window !== "undefined") {
+            const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
+            if (cached) {
+                return {
+                    pages: [{
+                        courses: cached.data.data,
+                        nextCursor: cached.data.nextCursor || null,
+                        total: cached.data.data.length
+                    }],
+                    pageParams: [null]
+                };
+            }
+        }
+        return undefined;
+    },
+    initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle
+        ? chatCache.get<any>(cacheKey, safeUserId)?.timestamp
+        : undefined,
+    staleTime: 1800000,
     refetchOnWindowFocus: true,
   });
 

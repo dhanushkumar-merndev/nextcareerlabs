@@ -83,6 +83,9 @@ export function AdminDashboardClient() {
             const cached = chatCache.get<any>("admin_dashboard_all");
             return cached?.data;
         },
+        initialDataUpdatedAt: typeof window !== "undefined"
+          ? chatCache.get<any>("admin_dashboard_all")?.timestamp
+          : undefined,
         staleTime: 1800000, 
         refetchInterval: 1800000, 
         refetchOnWindowFocus: true,

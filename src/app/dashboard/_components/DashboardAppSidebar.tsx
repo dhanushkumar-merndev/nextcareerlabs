@@ -110,6 +110,11 @@ const data = {
 export function AppSidebar({ isEnrolled, ...props }: React.ComponentProps<typeof Sidebar> & { isEnrolled: boolean }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
+  const [isMounted, setIsMounted] = React.useState(false);
+  
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleLogoClick = () => {
     if (isMobile) {
@@ -133,7 +138,7 @@ export function AppSidebar({ isEnrolled, ...props }: React.ComponentProps<typeof
       }
       return { ...item, isActive: pathname === item.url };
   }).filter(item => {
-    if (item.title === "Resources") return isEnrolled;
+    if (item.title === "Resources") return isMounted ? isEnrolled : false;
     return true;
   });
 

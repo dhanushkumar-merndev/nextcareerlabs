@@ -49,6 +49,9 @@ export function useSmartSession() {
             }
             return undefined;
         },
+        initialDataUpdatedAt: typeof window !== "undefined"
+            ? chatCache.get<any>(CACHE_KEY)?.timestamp
+            : undefined,
         staleTime: HEARTBEAT_INTERVAL,
         refetchInterval: HEARTBEAT_INTERVAL,
         refetchOnWindowFocus: true,

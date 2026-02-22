@@ -50,13 +50,22 @@ export function EnrollmentButton({
         toast.success(result.message);
         setCurrentStatus("Pending");
         
-        // Invalidate both local storage and React Query memory cache
-        chatCache.invalidate(`all_courses_${session?.user?.id}`);
-        chatCache.invalidate(`available_courses_${session?.user?.id}`);
-        
-        // Also invalidate the base keys just in case
-        chatCache.invalidate("all_courses", session?.user?.id);
-        chatCache.invalidate("available_courses", session?.user?.id);
+        // 🔹 BROAD INVALIDATION: Clear ALL user-facing caches
+        // Covers: /courses, /slug, /dashboard, /my-courses, /available-courses, /resources
+        const uid = session?.user?.id;
+        if (uid) {
+          // 🔹 SET SYNC FLAG: All user pages will do 1 version check on next open
+          chatCache.setNeedsSync(uid);
+          
+          chatCache.invalidate("all_courses", uid);
+          chatCache.invalidate(`available_courses_${uid}`, uid);
+          chatCache.invalidate(`user_enrolled_courses_${uid}`, uid);
+          chatCache.invalidate(`user_dashboard_${uid}`, uid);
+          if (slug) {
+            chatCache.invalidate(`course_${slug}`, uid);
+            chatCache.invalidate(`course_${slug}`, undefined); // guest cache
+          }
+        }
 
         // We wrap queryClient in setTimeout to let React finish rendering the current transition
         setTimeout(() => {
@@ -64,15 +73,16 @@ export function EnrollmentButton({
                 predicate: (query) => {
                     const key = query.queryKey[0] as string;
                     return key === "all_courses" || 
-                           key === `available_courses_${session?.user?.id}` ||
-                           key === "available_courses";
+                           key.startsWith("available_courses") ||
+                           key === "enrolled_courses" ||
+                           key === "user_dashboard" ||
+                           key === "chat_sidebar";
                 }
             });
 
             // If slug provided, invalidate specific course detail
-            if (slug) {
-                chatCache.invalidate(`course_${slug}`, session?.user?.id);
-                queryClient.invalidateQueries({ queryKey: ["course_detail", slug, session?.user?.id] });
+            if (slug && uid) {
+                queryClient.invalidateQueries({ queryKey: ["course_detail", slug, uid] });
             }
         }, 50);
       } else if (result.status === "error") {

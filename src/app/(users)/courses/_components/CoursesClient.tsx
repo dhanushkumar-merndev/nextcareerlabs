@@ -9,7 +9,7 @@
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { getAllCoursesAction } from "../actions";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { PublicCourseCard, PublicCourseCardSkeleton } from "../../_components/PublicCourseCard";
 import { useEffect, useState, useRef } from "react";
 import { useInView } from "react-intersection-observer";
@@ -60,22 +60,16 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     rootMargin: "0px",
   });
 
-  const cached = chatCache.get<CoursesCacheWithCursor>(
-    "all_courses",
-    safeUserId
-  );
-
+  const cached = chatCache.get<CoursesCacheWithCursor>("all_courses", safeUserId);
   const coursesInCache = cached?.data?.data ?? [];
-  const isGlobalInstant = cached?.data?.instantSync === true;
 
-  const hasSyncTrigger = Array.isArray(coursesInCache) && 
-    coursesInCache.some((c: any) => {
-      if (c.enrollmentStatus === "Pending") return true;
-      if (isGlobalInstant && (c.enrollmentStatus === "Revoked" || c.enrollmentStatus === "Rejected")) return true;
-      return false;
-    });
+  // 🔹 DYNAMIC STALE TIME: 
+  // 30s if: 1. Mutation flag set, OR 2. Any pending enrollment exists in local cache.
+  // 30m otherwise.
+  // This ensures we check Redis on page open for pending users, but avoid hits on instant hard refresh.
+  const hasPending = Array.isArray(coursesInCache) && coursesInCache.some((c: any) => c.enrollmentStatus === "Pending");
   
-  const dynamicStaleTime = hasSyncTrigger ? 0 : 30 * 60 * 1000;
+  const dynamicStaleTime = (safeUserId && hasPending) ? 0 : 30 * 60 * 1000;
   
   const {
     data,
@@ -202,23 +196,14 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       if (result.status === "not-modified") {
         console.log(`%c[Courses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
         chatCache.touch("all_courses", safeUserId);
+        if (safeUserId) chatCache.clearSync(safeUserId);
         return {
           courses: cached?.data.data ?? [],
           nextCursor: cached?.data.nextCursor ?? null,
         };
       }
 
-      console.log(`%c[Courses] Server: NEW_DATA -> Updating cache & Broad Invalidation`, "color: #3b82f6; font-weight: bold");
-      
-      if (safeUserId) {
-        chatCache.invalidateUserDashboardData(safeUserId);
-        
-        // 🔹 INSTANT SPA NOTIFICATION:
-        // Trigger background invalidation for all enrollment-sensitive queries
-        queryClient.invalidateQueries({ queryKey: ["user_dashboard", safeUserId] });
-        queryClient.invalidateQueries({ queryKey: ["enrolled_courses", safeUserId] });
-        queryClient.invalidateQueries({ queryKey: ["all_courses", safeUserId] });
-      }
+      console.log(`%c[Courses] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
 
       // Persist merged courses + cursor
       if (!searchTitle) {
@@ -244,11 +229,25 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
             data: mergedCourses,
             version: result.version,
             nextCursor: result.nextCursor,
-            instantSync: result.instantSync,
           },
           safeUserId,
-          result.version
+          result.version,
+          PERMANENT_TTL
         );
+
+        // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change (e.g. Approved)
+        if (safeUserId) {
+            const oldData = cached?.data?.data || [];
+            const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
+            const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
+            
+            if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
+                console.log(`%c[Courses] Status change detected! Triggering broad cache clearance.`, "color: #9333ea; font-weight: bold");
+                chatCache.invalidateUserDashboardData(safeUserId);
+                // No longer need to setNeedsSync because we cleared the storage
+            }
+            chatCache.clearSync(safeUserId); 
+        }
       }
 
       return {

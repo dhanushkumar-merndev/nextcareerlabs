@@ -23,19 +23,15 @@ export function useEnrolledCourses() {
       if (result && (result as any).status === "not-modified" && cached?.data) {
         console.log(`%c[useEnrolledCourses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
         chatCache.touch(cacheKey, userId);
+        if (userId) chatCache.clearSync(userId);
         return cached.data.enrollments;
       }
 
       // 2. Fresh Data -> Update Local Cache
       if (result && result.enrollments) {
-        console.log(`%c[useEnrolledCourses] Server: NEW_DATA -> Updating Cache & Broad Invalidation (v${result.version})`, "color: #3b82f6; font-weight: bold");
+        console.log(`%c[useEnrolledCourses] Server: NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
         chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
-        
-        // 🔹 BROAD INVALIDATION: 
-        // Since this hook is in DashboardShell, it triggers when ANY enrollment changes 
-        // This keeps Dashboard and Available Courses in sync instantly.
-        chatCache.invalidateUserDashboardData(userId);
-        
+        if (userId) chatCache.clearSync(userId);
         return result.enrollments;
       }
 
@@ -47,8 +43,11 @@ export function useEnrolledCourses() {
         const cached = chatCache.get<any>(cacheKey, userId);
         return cached?.data?.enrollments;
     },
+    initialDataUpdatedAt: typeof window !== "undefined" && userId
+      ? chatCache.get<any>(`user_enrolled_courses_${userId}`, userId)?.timestamp
+      : undefined,
     enabled: !!userId,
-    staleTime: 1800000, // 30 mins
+    staleTime: 1800000, 
     refetchOnWindowFocus: true,
   });
 
