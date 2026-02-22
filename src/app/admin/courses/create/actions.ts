@@ -90,6 +90,8 @@ export async function CreateCourse(
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(createdCourse.slug)),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(createdCourse.id)),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
@@ -106,6 +108,8 @@ export async function CreateCourse(
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
     ]);
 
+    revalidatePath("/courses");
+    revalidatePath(`/courses/${createdCourse.slug}`);
     revalidatePath("/admin/resources");
 
     return {

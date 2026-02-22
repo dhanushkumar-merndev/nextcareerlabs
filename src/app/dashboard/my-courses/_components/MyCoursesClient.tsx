@@ -1,75 +1,23 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { getEnrolledCourses } from "@/app/data/user/get-enrolled-courses";
-import { useSmartSession } from "@/hooks/use-smart-session";
-import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
+import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 import { CourseProgressCard } from "../../_components/CourseProgressCard";
 import { EmptyState } from "@/components/general/EmptyState";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function MyCoursesClient() {
-  const { session, isLoading: sessionLoading } = useSmartSession();
-  const userId = session?.user.id;
+  const { 
+    data: enrolledCourses, 
+    isLoading, 
+    sessionLoading 
+  } = useEnrolledCourses();
 
   const [mounted, setMounted] = useState(false);
-  const hasLogged = useRef(false);
 
   useEffect(() => {
     setMounted(true);
-
-    if (!hasLogged.current && userId) {
-      const cacheKey = `user_enrolled_courses_${userId}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-      if (cached) {
-        console.log(`%c[MyCourses] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
-      }
-      hasLogged.current = true;
-    }
-  }, [userId]);
-
-  const { data: enrolledCourses, isLoading } = useQuery({
-    queryKey: ["enrolled_courses", userId],
-    queryFn: async () => {
-      if (!userId) return [];
-      const cacheKey = `user_enrolled_courses_${userId}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-      const clientVersion = cached?.version;
-
-      console.log(`[MyCourses] Smart Sync: Checking version (v${clientVersion || 'None'})...`);
-      const result = await getEnrolledCourses(clientVersion);
-
-      // 1. Version Match -> Return cached data
-      if (result && (result as any).status === "not-modified" && cached?.data) {
-        console.log(`%c[MyCourses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
-        chatCache.touch(cacheKey, userId); // Refresh timestamp on not-modified
-        return cached.data.enrollments;
-      }
-
-      // 2. Fresh Data -> Update Local Cache (Permanent TTL)
-      if (result && result.enrollments) {
-        console.log(`%c[MyCourses] Server: NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
-        chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
-        return result.enrollments;
-      }
-
-      return cached?.data?.enrollments || [];
-    },
-    initialData: () => {
-        if (typeof window === "undefined" || !userId) return undefined;
-
-        const cacheKey = `user_enrolled_courses_${userId}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        return cached?.data?.enrollments;
-    },
-    initialDataUpdatedAt: typeof window !== "undefined" && userId
-      ? chatCache.get<any>(`user_enrolled_courses_${userId}`, userId)?.timestamp
-      : undefined,
-    staleTime: 1800000, // 30 mins (Heartbeat)
-    refetchInterval: 1800000, // 30 mins
-    refetchOnWindowFocus: true,
-  });
+  }, []);
 
   if (!mounted || sessionLoading || (isLoading && !enrolledCourses)) {
     return (

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { BookOpen, Calendar, CheckCircle2, Clock, Mail, User } from "lucide-react";
+import { BookOpen, Calendar, Clock, Mail, User } from "lucide-react";
 import Link from "next/link";
 import { formatIST } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
@@ -65,12 +65,12 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
                 return result;
             }
 
-            return result || cached?.data || initialData || null;
+            return result || cached?.data || initialData;
         },
         initialData: () => {
-            if (typeof window === "undefined") return initialData || null;
+            if (typeof window === "undefined") return initialData;
             const cached = chatCache.get<any>(cacheKey);
-            return cached?.data || initialData || null;
+            return cached?.data || initialData;
         },
         staleTime: 1800000, // 30 mins
         refetchInterval: 1800000,

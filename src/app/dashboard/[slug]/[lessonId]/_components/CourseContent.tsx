@@ -167,6 +167,7 @@ function VideoPlayer({
   // Track video coverage delta
   const lastPositionRef = useRef<number>(initialTime);
   const sessionDeltaRef = useRef<number>(0);
+  const lastSavedDeltaRef = useRef<number>(0);
   const hasSyncedOnMountRef = useRef<boolean>(false);
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -247,6 +248,7 @@ function VideoPlayer({
 
   const clearLocalDelta = () => {
     sessionDeltaRef.current = 0;
+    lastSavedDeltaRef.current = 0;
     secureStorage.removeItemTracked(`unsynced-delta-${lessonId}`);
     deleteCookie(`unsynced-delta-${lessonId}`);
   };
@@ -296,6 +298,7 @@ function VideoPlayer({
       // 1. Sync current lesson leftover
       const previousDelta = loadUnsyncedDelta();
       sessionDeltaRef.current = previousDelta; // load into active ref
+      lastSavedDeltaRef.current = previousDelta; // sync saving state
       
       const savedTime = secureStorage.getItem(`video-progress-${lessonId}`);
       const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
@@ -349,9 +352,10 @@ function VideoPlayer({
     if (delta > 0 && delta < 2) {
       sessionDeltaRef.current += delta;
       
-      // Heartbeat save to storage every 10 video seconds
-      if (Math.round(sessionDeltaRef.current) % 10 === 0) {
+      // Heartbeat save to storage every 5 video seconds (User Request: EVERY5 SEC)
+      if (Math.abs(sessionDeltaRef.current - lastSavedDeltaRef.current) >= 5) {
         saveUnsyncedDelta();
+        lastSavedDeltaRef.current = sessionDeltaRef.current;
       }
     }
     
@@ -510,6 +514,7 @@ function VideoPlayer({
   const onPause = () => {
     // Save current breadcrumb to localStorage
     saveProgress(lastPositionRef.current);
+    saveUnsyncedDelta(); // Ensure delta is saved on pause
   };
 
   const onEnded = () => {

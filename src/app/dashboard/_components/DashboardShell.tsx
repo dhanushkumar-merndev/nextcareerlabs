@@ -7,9 +7,11 @@ import { SidebarInset } from "@/components/ui/sidebar";
 import { SiteHeader } from "@/components/sidebar/site-header";
 import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { session, isLoading } = useSmartSession();
+  const { session } = useSmartSession();
+  const { isEnrolled, sessionLoading } = useEnrolledCourses();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -26,7 +28,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           requireName={session ? !session.user.name : false} 
         />
       )}
-      <AppSidebar variant="inset" isEnrolled={true} />
+      <AppSidebar variant="inset" isEnrolled={isEnrolled} />
       <SidebarInset className="overflow-hidden">
         <SiteHeader />
         <div className="flex flex-1 flex-col overflow-hidden">

@@ -26,6 +26,7 @@ export function PublicCourseCard({ data, enrollmentStatus = null, isPriority = f
       alt={data.title}
       width={600}
       height={400}
+      style={{ height: "auto" }}
       className="w-full aspect-video h-full object-cover rounded-t-lg"
       priority={isPriority}
       loading={isPriority ? undefined : "lazy"}

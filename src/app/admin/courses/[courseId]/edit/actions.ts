@@ -112,6 +112,8 @@ export async function editCourse(
         invalidateAdminsCache()
     ]);
 
+    revalidatePath("/courses");
+    revalidatePath(`/courses/${result.data.slug}`);
     revalidatePath("/admin/resources");
 
     return {

@@ -46,12 +46,14 @@ import { useRouter } from "next/navigation";
 import { useConfetti } from "@/hooks/use-confetti";
 
 import { useQueryClient } from "@tanstack/react-query";
+import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache } from "@/lib/chat-cache";
 
 export default function CourseCreationPage() {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useSmartSession();
   const { triggerConfetti } = useConfetti();
   const form = useForm<CourseSchemaType>({
     resolver: zodResolver(courseSchema),
@@ -87,7 +89,27 @@ export default function CourseCreationPage() {
         chatCache.invalidate("admin_dashboard_enrollments");
         chatCache.invalidate("admin_dashboard_recent_courses");
         chatCache.invalidate("admin_analytics");
-        chatCache.invalidate("admin_dashboard_all")
+        chatCache.invalidate("admin_dashboard_all");
+
+        if (user?.id) {
+          chatCache.invalidate(`all_courses_${user.id}`);
+          chatCache.invalidate(`available_courses_${user.id}`);
+          
+          // Also invalidate the base keys with userId prefix (handled by chatCache helper)
+          chatCache.invalidate("all_courses", user.id);
+          chatCache.invalidate("available_courses", user.id);
+
+          // Handle redundant prefixes used in AvailableCoursesClient
+          chatCache.invalidate(`available_courses_${user.id}`, user.id);
+          chatCache.invalidate(`all_courses_${user.id}`, user.id);
+        }
+        
+        // Always invalidate guest versions
+        chatCache.invalidate("all_courses");
+        chatCache.invalidate("available_courses");
+        chatCache.invalidate("available_courses_guest");
+        chatCache.invalidate("all_courses_guest");
+
         queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });

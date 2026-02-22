@@ -166,8 +166,8 @@ export default function Stacking() {
                           alt={`${program.title} logo`}
                           width={48}
                           height={48}
-                          style={{ width: "auto", height: "auto" }}
-                          className="h-8 w-8 md:h-12 md:w-12 object-contain"
+                          style={{ height: "auto" }}
+                          className="w-8 md:w-12 object-contain"
                           loading="lazy"
                         />
                       </div>

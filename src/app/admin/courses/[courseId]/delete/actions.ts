@@ -7,7 +7,8 @@ import { ApiResponse } from "@/lib/types/auth";
 import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
 import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS, CHAT_CACHE_KEYS, incrementChatVersion } from "@/lib/redis";
-import { invalidateAdminsCache } from "@/app/data/notifications/actions";
+
+
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
 export async function deleteCourse(courseId: string): Promise<ApiResponse> {
@@ -95,6 +96,8 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
     });
     console.log(`[deleteCourse] DB Delete took ${Date.now() - deleteStartTime}ms`);
 
+    revalidatePath("/courses");
+    revalidatePath(`/courses/${course.slug}`);
     revalidatePath("/admin/courses");
     revalidatePath("/admin/resources"); // Revalidate Resources page since ChatGroup is gone
 
@@ -110,7 +113,7 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
@@ -151,6 +154,7 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
     });
 
     await Promise.all(invalidationPromises);
+
 
     return {
       status: "success",

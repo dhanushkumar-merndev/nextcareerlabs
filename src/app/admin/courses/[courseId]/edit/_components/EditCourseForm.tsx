@@ -38,8 +38,8 @@ import { useRouter } from "next/navigation";
 import { editCourse } from "../actions";
 import { chatCache } from "@/lib/chat-cache";
 import { AdminCourseSingularData } from "@/app/data/admin/admin-get-course";
-
 import { useQueryClient } from "@tanstack/react-query";
+import { useSmartSession } from "@/hooks/use-smart-session";
 
 interface iAppProps {
   data: AdminCourseSingularData;
@@ -50,6 +50,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useSmartSession();
   const form = useForm<CourseSchemaType>({
     resolver: zodResolver(courseSchema),
     defaultValues: {
@@ -70,8 +71,8 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
   }, [form.formState.isDirty, setDirty]);
 
   function onSubmit(values: CourseSchemaType, skipRedirect = false) {
-    if (!skipRedirect) {
-       if (!values.fileKey) {
+    if (!values.fileKey) {
+       if (!skipRedirect) {
         form.setError("fileKey", { message: "File must be selected" });
         return;
       }
@@ -90,6 +91,32 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
         }
         chatCache.invalidateAdminData();
         chatCache.invalidate("all_courses");
+        chatCache.invalidate("admin_dashboard_all");
+        chatCache.invalidate(`admin_course_${data.id}`);
+        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidate("admin_dashboard_recent_courses");
+        chatCache.invalidate("admin_analytics");
+        chatCache.invalidate("admin_chat_sidebar");
+
+        if (user?.id) {
+          chatCache.invalidate(`all_courses_${user.id}`);
+          chatCache.invalidate(`available_courses_${user.id}`);
+          
+          // Also invalidate the base keys with userId prefix (handled by chatCache helper)
+          chatCache.invalidate("all_courses", user.id);
+          chatCache.invalidate("available_courses", user.id);
+
+          // Handle redundant prefixes used in AvailableCoursesClient
+          chatCache.invalidate(`available_courses_${user.id}`, user.id);
+          chatCache.invalidate(`all_courses_${user.id}`, user.id);
+        }
+
+        // Always invalidate guest versions
+        chatCache.invalidate("all_courses");
+        chatCache.invalidate("available_courses");
+        chatCache.invalidate("available_courses_guest");
+        chatCache.invalidate("all_courses_guest");
+
         queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
@@ -98,13 +125,6 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
         queryClient.invalidateQueries({ queryKey: [`admin_course_${data.id}`] });
         queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
         queryClient.invalidateQueries({ queryKey: ["admin_chat_sidebar"] });
-        chatCache.invalidate("admin_dashboard_all")
-        chatCache.invalidate(`admin_course_${data.id}`);
-        chatCache.invalidate("all_courses");
-        chatCache.invalidate("admin_courses_list");
-        chatCache.invalidate("admin_dashboard_recent_courses");
-        chatCache.invalidate("admin_analytics");
-        chatCache.invalidate("admin_chat_sidebar");
 
         form.reset(values);
         if (!skipRedirect) {
