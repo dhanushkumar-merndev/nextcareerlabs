@@ -28,6 +28,7 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache } from "@/lib/chat-cache";
 import { useState, useEffect, useRef } from "react";
 import Loader from "@/components/ui/Loader";
+import { SlugPageSkeleton } from "./SlugPageSkeleton";
 import { useRouter } from "next/navigation";
 
 export function SlugPageWrapper({
@@ -133,19 +134,11 @@ export function SlugPageWrapper({
   // This matches the server output exactly, avoiding hydration mismatch.
   // After mount, placeholderData (cached) or fetched data will take over.
   if (!mounted) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-4 min-h-[400px]">
-        <Loader size={40} />
-      </div>
-    );
+    return <SlugPageSkeleton />;
   }
 
   if (!data && isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-4 min-h-[400px]">
-        <Loader size={40} />
-      </div>
-    );
+    return <SlugPageSkeleton />;
   }
 
   const rawData = data as any;

@@ -1,4 +1,5 @@
 import { SlugPageWrapper } from "./_components/SlugPageWrapper";
+import { SlugPageSkeleton } from "./_components/SlugPageSkeleton";
 import { Suspense } from "react";
 
 // Params Type
@@ -10,7 +11,7 @@ export default async function SlugPage({ params }: { params: Params }) {
   const { slug } = await params;
 
   return (
-    <Suspense>
+    <Suspense fallback={<SlugPageSkeleton />}>
       <SlugPageWrapper slug={slug} />
     </Suspense>
   );

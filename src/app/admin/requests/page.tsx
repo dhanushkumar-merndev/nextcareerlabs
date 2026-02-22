@@ -1,4 +1,3 @@
-import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { RequestsTable } from "./_components/RequestsTable";
 import { 
   Card, 
