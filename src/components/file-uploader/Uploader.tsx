@@ -380,14 +380,18 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
                 const xhr = new XMLHttpRequest();
                 activeXHRs.current.add(xhr);
                 
+                const updateProgress = () => {
+                  const currentTotalLoaded = loadedBytes.reduce((a, b) => a + b, 0);
+                  const globalProgress = Math.min(100, Math.round((currentTotalLoaded / totalBytes) * 100));
+                  setFileState((s) => ({ ...s, progress: globalProgress }));
+                };
+
                 // Real-time byte tracking
                 if (xhr.upload) {
                   xhr.upload.onprogress = (e) => {
                     if (e.lengthComputable) {
                       loadedBytes[index] = e.loaded;
-                      const currentTotalLoaded = loadedBytes.reduce((a, b) => a + b, 0);
-                      const globalProgress = Math.min(100, Math.round((currentTotalLoaded / totalBytes) * 100));
-                      setFileState((s) => ({ ...s, progress: globalProgress }));
+                      updateProgress();
                     }
                   };
                 }
@@ -396,6 +400,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
                     activeXHRs.current.delete(xhr);
                     if (xhr.status >= 200 && xhr.status < 300) {
                       loadedBytes[index] = blob.size;
+                      updateProgress(); // Ensure 100% contribution of this chunk is reflected
                       resolve();
                     }
                     else reject(new Error(`Status ${xhr.status}`));
