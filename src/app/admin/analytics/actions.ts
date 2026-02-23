@@ -72,7 +72,15 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
                 select: { createdAt: true },
             }),
             prisma.user.count(),
-            prisma.enrollment.count(),
+            prisma.user.count({
+                where: {
+                    enrollment: {
+                        some: {
+                            status: "Granted"
+                        }
+                    }
+                }
+            }),
             prisma.course.count(),
             prisma.lesson.count(),
             prisma.user.findMany({

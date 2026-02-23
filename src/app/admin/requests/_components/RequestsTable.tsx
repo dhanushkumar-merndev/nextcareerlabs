@@ -148,6 +148,11 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
     chatCache.invalidateAdminData();
 
     console.log(`[RequestsTable] Local cache cleared ${userId ? 'including user pages ' : ''}after admin action.`);
+
+    // Hard refresh to apply changes globally across all admin modules
+    setTimeout(() => {
+        window.location.reload();
+    }, 500);
   }, []);
 
   const handleStatusUpdate = (id: string, request: Request, status: "Granted" | "Revoked" | "Pending") => {

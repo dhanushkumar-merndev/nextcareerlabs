@@ -19,7 +19,7 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { secureStorage } from "@/lib/secure-storage";
 import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
 import CryptoJS from "crypto-js";
-import { getLessonMCQs } from "@/app/admin/lessons/mcqs/actions";
+import { getLessonMCQs } from "@/app/admin/(lessons)/mcqs/actions";
 import { AssessmentModal } from "./AssessmentModal";
 
 import { Skeleton } from "@/components/ui/skeleton";

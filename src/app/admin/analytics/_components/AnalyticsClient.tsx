@@ -125,7 +125,7 @@ export function AnalyticsClient() {
           title="Users & Enrollments"
           value={data.totalUsers}
           icon="users"
-          description={`Total registered users (${data.totalEnrollments} enrollments)`}
+          description={`Total registered users (${data.totalEnrollments} users with granted enrollment)`}
         />
         <AnalyticsCard
           title="Chapters & Lessons"

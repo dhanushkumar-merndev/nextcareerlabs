@@ -168,8 +168,45 @@ export async function getGlobalVersion(key: string): Promise<string> {
     return version || "0";
 }
 
+
 export async function incrementGlobalVersion(key: string) {
     if (!redis) return;
     const nextVersion = Date.now().toString();
     await setCache(key, nextVersion, 86400 * 7); // Store for 7 days
+}
+
+/**
+ * Centralized Admin Cache Invalidation
+ * Invalidates all admin-related keys and increments all admin-related versions.
+ */
+export async function invalidateAllAdminCache() {
+    if (!redis) return;
+
+    const invalidations: Promise<any>[] = [
+        // 1. Invalidate Primary Data Keys
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST}:enrolled`),
+        invalidateCache("admin:admins:list"),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+
+        // 2. Increment Version Triggers
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+    ];
+
+    await Promise.all(invalidations);
+    console.log("[Redis] Global Admin Cache Invalidated.");
 }

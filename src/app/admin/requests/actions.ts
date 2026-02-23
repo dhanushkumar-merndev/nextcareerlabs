@@ -6,7 +6,7 @@ import { ApiResponse } from "@/lib/types/auth";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { EnrollmentStatus } from "@/generated/prisma";
-import { invalidateCache, CHAT_CACHE_KEYS, GLOBAL_CACHE_KEYS, incrementGlobalVersion, incrementChatVersion } from "@/lib/redis";
+import { invalidateCache, CHAT_CACHE_KEYS, GLOBAL_CACHE_KEYS, incrementGlobalVersion, incrementChatVersion, invalidateAllAdminCache } from "@/lib/redis";
 
 export async function getRequestsAction(
   skip: number,
@@ -56,31 +56,19 @@ export async function updateEnrollmentStatusAction(
           invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId)),
           courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
           
-          // User Keys
+          // Admin Keys (Centralized Invalidation)
+          invalidateAllAdminCache(),
+
+          // Support for User Synchronicity
           invalidateCache(`user:dashboard:${enrollment.userId}`),
           invalidateCache(`user:enrollments:${enrollment.userId}`),
           invalidateCache(`available_courses_${enrollment.userId}`),
           invalidateCache(`user_dashboard_${enrollment.userId}`), 
 
-          // Admin Keys (Full Refresh)
-          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
-          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-          invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
-
           // Versions (The triggers)
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
           incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
           incrementChatVersion(enrollment.userId),
-          
-          // Admin Version Bumps
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
       ];
 
       // On Grant, also invalidate specific user course caches to reflect enrollment status
@@ -95,8 +83,9 @@ export async function updateEnrollmentStatusAction(
 
     revalidatePath("/admin/requests");
     revalidatePath("/dashboard", "layout");
-    revalidatePath("/dashboard/resources");
-    revalidatePath("/courses", "layout");
+    revalidatePath("/my-courses");
+    revalidatePath("/available-courses");
+    revalidatePath("/resources");
 
     return {
       status: "success",
@@ -115,34 +104,40 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
 
   try {
     const startTime = Date.now();
-    await prisma.user.update({
-      where: { id: userId },
-      data: { banned: true },
-    });
-    console.log(`[banUserAction] DB Update took ${Date.now() - startTime}ms`);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: { banned: true },
+      }),
+      prisma.enrollment.updateMany({
+        where: { userId },
+        data: { status: "Revoked" }
+      })
+    ]);
+    console.log(`[banUserAction] DB Update (Ban + Revoke) took ${Date.now() - startTime}ms`);
 
-    // Invalidate user caches and admin list
+    // Invalidate user caches and admin list (Centralized)
     await Promise.all([
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
-
+      invalidateAllAdminCache(),
+      
+      // User specific invalidation
       invalidateCache(`user:dashboard:${userId}`),
       invalidateCache(`user:enrollments:${userId}`),
+      invalidateCache(`available_courses_${userId}`),
+      
+      // Versions (The triggers)
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
       incrementChatVersion(userId),
-
-      // Admin Version Bumps
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
     ]);
 
     revalidatePath("/admin/requests");
+    revalidatePath("/dashboard", "layout");
+    revalidatePath("/my-courses");
+    revalidatePath("/available-courses");
+    revalidatePath("/dashboard/resources");
+    revalidatePath("/admin/analytics");
+    revalidatePath("/resources");
     return {
       status: "success",
       message: "User has been banned",
@@ -166,28 +161,28 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
     });
     console.log(`[unbanUserAction] DB Update took ${Date.now() - startTime}ms`);
 
-    // Invalidate user caches and admin list
+    // Invalidate user caches and admin list (Centralized)
     await Promise.all([
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
-
+      invalidateAllAdminCache(),
+      
+      // User specific invalidation
       invalidateCache(`user:dashboard:${userId}`),
       invalidateCache(`user:enrollments:${userId}`),
+      invalidateCache(`available_courses_${userId}`),
+  
+      // Versions (The triggers)
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
       incrementChatVersion(userId),
-
-      // Admin Version Bumps
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
     ]);
 
     revalidatePath("/admin/requests");
+    revalidatePath("/dashboard", "layout");
+    revalidatePath("/my-courses");
+    revalidatePath("/available-courses");
+    revalidatePath("/resources");
+    revalidatePath("/dashboard/resources");
+    revalidatePath("/admin/analytics");
     return {
       status: "success",
       message: "User has been unbanned",
@@ -221,6 +216,12 @@ export async function updateUserDetailsAction(
     ]);
 
     revalidatePath("/admin/requests");
+    revalidatePath("/dashboard", "layout");
+    revalidatePath("/dashboard/resources");
+    revalidatePath("/admin/analytics");
+    revalidatePath("/my-courses");
+    revalidatePath("/available-courses");
+    revalidatePath("/resources");
     return {
       status: "success",
       message: "User details updated successfully",
@@ -262,13 +263,9 @@ export async function deleteEnrollmentAction(
     });
     console.log(`[deleteEnrollmentAction] DB Delete took ${Date.now() - startTime}ms`);
 
-    // Smart Sync Invalidation
+    // Smart Sync Invalidation (Centralized Admin + User Specific)
     await Promise.all([
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+      invalidateAllAdminCache(),
       
       // User invalidation
       invalidateCache(`user_enrolled_courses_${enrollment.userId}`),
@@ -280,20 +277,15 @@ export async function deleteEnrollmentAction(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
       incrementChatVersion(enrollment.userId),
-
-      // Admin Version Bumps
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
     ]);
 
     revalidatePath("/admin/requests");
     revalidatePath("/dashboard", "layout");
+    revalidatePath("/my-courses");
+    revalidatePath("/available-courses");
+    revalidatePath("/resources");
     revalidatePath("/dashboard/resources");
-    revalidatePath("/courses", "layout");
+    revalidatePath("/admin/analytics");
 
     return {
       status: "success",

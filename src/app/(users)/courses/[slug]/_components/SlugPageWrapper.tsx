@@ -29,6 +29,8 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { useState, useEffect, useRef } from "react";
 import { SlugPageSkeleton } from "./SlugPageSkeleton";
 import { useRouter } from "next/navigation";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 export function SlugPageWrapper({
   slug,
@@ -91,8 +93,13 @@ export function SlugPageWrapper({
             const oldStatus = cached?.data?.enrollmentStatus;
             const newStatus = (result as any).enrollmentStatus;
             if (oldStatus === "Pending" && newStatus !== "Pending") {
-                console.log(`%c[SlugPage] Status change detected! Triggering broad cache clearance.`, "color: #9333ea; font-weight: bold");
+                console.log(`%c[SlugPage] Status change detected! Triggering broad cache clearance and reload.`, "color: #9333ea; font-weight: bold");
                 chatCache.invalidateUserDashboardData(currentUserId);
+                
+                // Hard refresh to ensure UI reflects the new enrollment status (Granted/Revoked)
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
             }
         }
 
@@ -173,37 +180,58 @@ export function SlugPageWrapper({
   const course = rawData?.course || (rawData?.id ? rawData : null);
   const enrollmentStatus = rawData?.enrollmentStatus || null;
 
-  // 🔹 SSR / INITIAL PAINT FALLBACK
-  // If we have NO data even in sync cache, show skeleton.
   if (!course && isLoading) {
     return <SlugPageSkeleton />;
   }
 
+  return (
+    <SlugPageContent 
+        course={course} 
+        enrollmentStatus={enrollmentStatus} 
+        slug={slug}
+        router={router}
+    />
+  );
+}
 
-  if (!course) {
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-            <h2 className="text-2xl font-bold">Course Not Found</h2>
-            <p className="text-muted-foreground">The course you are looking for might have been moved or deleted.</p>
-            <Link href="/courses" className={buttonVariants()}>Go Back to Courses</Link>
-        </div>
-    );
-  }
+function SlugPageContent({ course, enrollmentStatus, slug, router }: { 
+    course: any, 
+    enrollmentStatus: string | null, 
+    slug: string,
+    router: any
+}) {
+    const [imageLoaded, setImageLoaded] = useState(false);
+
+    if (!course) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+                <h2 className="text-2xl font-bold">Course Not Found</h2>
+                <p className="text-muted-foreground">The course you are looking for might have been moved or deleted.</p>
+                <Link href="/courses" className={buttonVariants()}>Go Back to Courses</Link>
+            </div>
+        );
+    }
   return (
     <div suppressHydrationWarning>
       {/* Course Content */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
 
         <div className="order-1 lg:col-span-2">
-          {/* Course Image */}
-          <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg bg-accent">
+            {!imageLoaded && (
+                <Skeleton className="absolute inset-0 z-10" />
+            )}
             <Image
               src={useConstructUrl(course.fileKey)}
               alt="Thumbnail"
               fill
-              className="object-cover"
+              className={cn(
+                "object-cover transition-opacity duration-500",
+                imageLoaded ? "opacity-100" : "opacity-0"
+              )}
               priority
               crossOrigin="anonymous"
+              onLoad={() => setImageLoaded(true)}
             />
             <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent"></div>
           </div>

@@ -209,8 +209,13 @@ export function AvailableCoursesClient() {
             const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
             
             if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
-                console.log(`%c[AvailableCourses] Status change detected! Triggering broad cache clearance.`, "color: #9333ea; font-weight: bold");
+                console.log(`%c[AvailableCourses] Status change detected! Triggering broad cache clearance and reload.`, "color: #9333ea; font-weight: bold");
                 chatCache.invalidateUserDashboardData(safeUserId);
+                
+                // Hard refresh to ensure the course list reflects approved/removed pending requests
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
             }
             chatCache.clearSync(safeUserId); 
         }
