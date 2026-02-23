@@ -407,6 +407,10 @@ export function VideoPlayer({
     }, 1000);
   };
 
+  const resetControlsTimeout = () => {
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 2000);
+  };
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -560,17 +564,19 @@ export function VideoPlayer({
       }
       return;
     }
-
-    if (isMobile) {
-        // On mobile, first tap just shows controls
+if (isMobile) {
         if (!showControls) {
+            // First tap: reveal controls, auto-hide after 2s
             setShowControls(true);
             if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-            controlsTimeoutRef.current = setTimeout(() => {
-                if (isPlaying) setShowControls(false);
-            }, 1000);
+            controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 2000);
             return;
         }
+        // Second tap while controls are visible: toggle play/pause, then hide after 2s
+        togglePlay(e);
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 2000);
+        return;
     }
 
     togglePlay(e);
@@ -1267,7 +1273,7 @@ export function VideoPlayer({
             <div className="flex items-center gap-2 sm:gap-4 text-white">
               <button 
                 type="button"
-                onClick={togglePlay}
+                onClick={(e) => { togglePlay(e); resetControlsTimeout(); }}
                 className="hover:text-primary transition-colors focus:outline-none p-1 sm:p-0"
               >
                 {isPlaying ? <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current" /> : <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />}
@@ -1358,7 +1364,7 @@ export function VideoPlayer({
       </div>
 
       {(showControls && !isBuffering && !seekAnimation && !volumeAnimation.visible && !hoverPosition) && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-[10%]">
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-[8%]">
           {/* Backward 10s */}
           <button
             type="button"
@@ -1368,6 +1374,7 @@ export function VideoPlayer({
               const newTime = Math.max(0, playerRef.current.currentTime() - 10);
               playerRef.current.currentTime(newTime);
               triggerSeekAnimation("backward", 10);
+              resetControlsTimeout();
             }}
             className="
               flex flex-col items-center justify-center gap-1
@@ -1377,16 +1384,16 @@ export function VideoPlayer({
             "
           >
             <div className="relative flex items-center justify-center overflow-visible">
-              <RotateCcw className="size-[clamp(32px,8cqw,64px)]" />
-              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-primary text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
+              <RotateCcw className="size-6 sm:size-8 md:size-[clamp(32px,8cqw,64px)]" />
+              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-primary text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
             </div>
           </button>
 
           {/* Centered Play/Pause */}
           <div 
-            onClick={togglePlay}
+            onClick={(e) => { togglePlay(e); resetControlsTimeout(); }}
             className="
-              size-[clamp(64px,12cqw,84px)]
+              size-12 sm:size-16 md:size-[clamp(64px,12cqw,84px)]
               flex items-center justify-center
               rounded-full 
               backdrop-blur-md 
@@ -1417,6 +1424,7 @@ export function VideoPlayer({
               const newTime = Math.min(playerRef.current.duration(), playerRef.current.currentTime() + 10);
               playerRef.current.currentTime(newTime);
               triggerSeekAnimation("forward", 10);
+              resetControlsTimeout();
             }}
             className="
               flex flex-col items-center justify-center gap-1
@@ -1426,8 +1434,8 @@ export function VideoPlayer({
             "
           >
             <div className="relative flex items-center justify-center overflow-visible">
-              <RotateCw className="size-[clamp(32px,8cqw,64px)]" />
-              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-primary text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
+              <RotateCw className="size-6 sm:size-8 md:size-[clamp(32px,8cqw,64px)]" />
+              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-primary text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
             </div>
           </button>
         </div>
