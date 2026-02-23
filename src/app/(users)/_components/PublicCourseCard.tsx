@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { CrownIcon, School, TimerIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -13,7 +13,7 @@ import { CoursesProps } from "@/lib/types/course";
 
 // PublicCourseCard component
 export function PublicCourseCard({ data, enrollmentStatus = null, isPriority = false }: CoursesProps & { isPriority?: boolean }) {
-  const thumbnaiUrl = useConstructUrl(data.fileKey || "");
+  const thumbnaiUrl = constructUrl(data.fileKey || "");
   return (
     <Card className="group relative py-0 gap-0">
       {/* Badge */}

@@ -70,6 +70,7 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason");
   const callbackUrl = searchParams.get("callbackUrl");
+  const authFailure = searchParams.get("auth_failure");
 
   const hasShownToast = useRef(false);
 
@@ -85,8 +86,14 @@ export function LoginForm() {
       toast.info("Please login to access the dashboard");
       router.replace("/login");
       hasShownToast.current = true;
+    } else if (authFailure === "true") {
+      // Session expired or revoked - clear local cache to ensure UI reflects logged-out state
+      authClient.signOut().catch(() => {});
+      toast.error("Session expired. Please login again.");
+      router.replace("/login");
+      hasShownToast.current = true;
     }
-  }, [reason, callbackUrl, router]);
+  }, [reason, callbackUrl, authFailure, router]);
 
 
 

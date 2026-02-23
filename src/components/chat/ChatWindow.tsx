@@ -21,7 +21,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MessageContent } from "./MessageContent";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { chatCache, getSidebarKey, getSidebarLocalKey } from "@/lib/chat-cache";
 import { secureStorage } from "@/lib/secure-storage";
 import { useSmartSession } from "@/hooks/use-smart-session";
@@ -1048,7 +1048,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
 
 
-    const displayAvatar = avatarUrl ? (avatarUrl.startsWith("http") || avatarUrl.startsWith("/") ? avatarUrl : useConstructUrl(avatarUrl)) : undefined;
+    const displayAvatar = avatarUrl ? (avatarUrl.startsWith("http") || avatarUrl.startsWith("/") ? avatarUrl : constructUrl(avatarUrl)) : undefined;
 
     return (
         <div className="flex flex-col h-full min-h-0 bg-muted/20 overflow-hidden">
@@ -1281,7 +1281,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                     {msg.imageUrl && (
                                                         <div className="mb-2 rounded-lg overflow-hidden">
                                                             <img
-                                                                src={useConstructUrl(msg.imageUrl)}
+                                                                src={constructUrl(msg.imageUrl)}
                                                                 alt="attachment"
                                                                 className="max-w-full max-h-[300px] w-auto h-auto object-contain bg-muted/50"
                                                             />
@@ -1301,7 +1301,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                                                                 variant="ghost"
                                                                 size="icon"
                                                                 className="h-8 w-8 hover:bg-background rounded-full shrink-0"
-                                                                onClick={() => triggerDirectDownload(useConstructUrl(msg.fileUrl), msg.fileName || "download", msg.id)}
+                                                                onClick={() => triggerDirectDownload(constructUrl(msg.fileUrl), msg.fileName || "download", msg.id)}
                                                                 disabled={downloadingFileId === msg.id}
                                                             >
                                                                 {downloadingFileId === msg.id ? (
@@ -1594,7 +1594,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                     {/* Edit Image Area */}
                     {editImageUrl && (
                         <div className="relative mb-2 w-fit">
-                            <img src={editImageUrl.startsWith("http") || editImageUrl.startsWith("/") ? editImageUrl : useConstructUrl(editImageUrl)} alt="edit attachment" className="h-20 w-auto rounded-md border" />
+                            <img src={editImageUrl.startsWith("http") || editImageUrl.startsWith("/") ? editImageUrl : constructUrl(editImageUrl)} alt="edit attachment" className="h-20 w-auto rounded-md border" />
                             <button
                                 onClick={() => setEditImageUrl("")}
                                 className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-0.5"

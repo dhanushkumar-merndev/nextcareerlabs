@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Search, Users, Archive, ChevronLeft } from "lucide-react";
 import { formatDistanceToNow, isToday, format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { getSidebarKey } from "@/lib/chat-cache";
@@ -49,7 +49,7 @@ export function ChatSidebar({
   const getAvatarUrl = (url?: string) => {
     if (!url) return "";
     if (url.startsWith("http") || url.startsWith("/")) return url;
-    return useConstructUrl(url);
+    return constructUrl(url);
   };
 
   const queryClient = useQueryClient();

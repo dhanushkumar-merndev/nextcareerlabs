@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { Play, Check, Clock } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 
 interface iAppProps {
   lesson: {
@@ -20,7 +20,7 @@ interface iAppProps {
 }
 
 export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail }: iAppProps) {
-  const thumbnail = useConstructUrl(lesson.thumbnailKey || courseThumbnail || "");
+  const thumbnail = constructUrl(lesson.thumbnailKey || courseThumbnail || "");
 
   return (
     <Link
@@ -76,7 +76,7 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
         <div className="flex flex-col min-w-0 flex-1 py-0.5">
           <h4
             className={cn(
-              "text-xs md:text-sm font-semibold line-clamp-2 leading-snug transition-colors",
+              "text-xs md:text-sm font-semibold truncate leading-snug transition-colors",
               isActive ? "text-primary" : "text-card-foreground group-hover:text-primary/90",
               completed && !isActive && "text-muted-foreground"
             )}

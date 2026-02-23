@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { CrownIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -18,7 +18,7 @@ interface iAppProps {
 
 export function CourseProgressCard({ data, isPriority = false }: iAppProps) {
   const course = data.Course;
-  const thumbnailUrl = useConstructUrl(course.fileKey);
+  const thumbnailUrl = constructUrl(course.fileKey);
 
   const { completedLessons, totalLessons, progressPercentage } =
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

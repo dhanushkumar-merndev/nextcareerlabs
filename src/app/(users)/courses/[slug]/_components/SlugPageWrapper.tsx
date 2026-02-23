@@ -21,7 +21,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { JSX } from "react";
 import { EnrollmentButton } from "./EnrollmentButton";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSlugPageDataAction } from "../actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
@@ -222,7 +222,7 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
                 <Skeleton className="absolute inset-0 z-10" />
             )}
             <Image
-              src={useConstructUrl(course.fileKey)}
+              src={constructUrl(course.fileKey)}
               alt="Thumbnail"
               fill
               className={cn(

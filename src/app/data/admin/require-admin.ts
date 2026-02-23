@@ -11,7 +11,7 @@ export const requireAdmin = cache(async () => {
   }) as AuthSession | null;
 
   if (!session) {
-    redirect("/login");
+    redirect("/login?auth_failure=true");
   }
   
   const user = session.user;

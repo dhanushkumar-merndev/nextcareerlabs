@@ -11,7 +11,7 @@ export const requireUser = cache(async () => {
   }) as AuthSession | null;
 
   if (!session) {
-    redirect("/login");
+    redirect("/login?auth_failure=true");
   }
   
 

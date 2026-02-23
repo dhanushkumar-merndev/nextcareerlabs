@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { DropdownMenuSeparator } from "@radix-ui/react-dropdown-menu";
 
 import {
@@ -31,7 +31,7 @@ interface iAppProps {
 }
 
 export function AdminCourseCard({ data }: iAppProps) {
-  const thumbnaiUrl = useConstructUrl(data.fileKey);
+  const thumbnaiUrl = constructUrl(data.fileKey);
   return (
     <Card className="group relative py-0 gap-0">
       <div className="absolute top-2 left-2 z-10">

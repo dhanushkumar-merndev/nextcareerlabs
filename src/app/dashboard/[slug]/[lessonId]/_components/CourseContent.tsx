@@ -5,7 +5,7 @@ import { RenderDescription } from "@/components/rich-text-editor/RenderDescripti
 import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { BookIcon, CheckCircle, ChevronRight, X, ChevronDown } from "lucide-react";
 import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
@@ -71,9 +71,9 @@ function VideoPlayer({
   lowResKey?: string | null;
   transcriptionUrl?: string | null;
 }) {
-  const thumbnailUrl = useConstructUrl(thumbnailkey);
-  const spriteUrl = useConstructUrl(spriteKey || "");
-  const lowResUrl = useConstructUrl(lowResKey || "");
+  const thumbnailUrl = constructUrl(thumbnailkey);
+  const spriteUrl = constructUrl(spriteKey || "");
+  const lowResUrl = constructUrl(lowResKey || "");
   const [vttCues, setVttCues] = useState<any[]>([]);
 
   const spriteMetadata = useMemo(() => {

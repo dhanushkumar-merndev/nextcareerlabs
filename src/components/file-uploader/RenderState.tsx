@@ -5,7 +5,7 @@ import Image from "next/image";
 import CircularProgressColorDemo from "@/components/ui/progress-10";
 import { useEffect, useRef } from "react";
 import { VideoPlayer } from "../video-player/VideoPlayer";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 export function RenderEmptyState({ isDragActive }: { isDragActive: boolean }) {
   return (
@@ -69,8 +69,8 @@ export function RenderUploadedState({
   captionUrl?: string;
 }) {
   const spriteProps = spriteMetadata ? {
-    url: useConstructUrl(spriteMetadata.spriteKey),
-    lowResUrl: spriteMetadata.lowResKey ? useConstructUrl(spriteMetadata.lowResKey) : undefined,
+    url: constructUrl(spriteMetadata.spriteKey),
+    lowResUrl: spriteMetadata.lowResKey ? constructUrl(spriteMetadata.lowResKey) : undefined,
     cols: spriteMetadata.spriteCols || 10,
     rows: spriteMetadata.spriteRows || 0,
     interval: spriteMetadata.spriteInterval || 10,

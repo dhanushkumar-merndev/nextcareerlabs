@@ -11,7 +11,7 @@ import {
 } from "./RenderState";
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { transcodeToHLS, compressAudio } from "@/lib/client-video-processor";
 import { env } from "@/lib/env";
 import { Loader2 } from "lucide-react";
@@ -80,7 +80,7 @@ interface UploaderState {
 }
 
 export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey, captionUrl }: iAppProps) {
-  const fileUrl = useConstructUrl(value || "");
+  const fileUrl = constructUrl(value || "");
   
   // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
   const extractedBaseKey = value ? (() => {
@@ -720,7 +720,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
 
       const isExistingVideo = !fileState.file;
       const hlsKey = (isExistingVideo && fileState.baseKey) ? `hls/${fileState.baseKey}/master.m3u8` : undefined;
-      const hlsUrl = hlsKey ? useConstructUrl(hlsKey) : undefined;
+      const hlsUrl = hlsKey ? constructUrl(hlsKey) : undefined;
       
       // Reactive Sprite Metadata: Use state if available (new upload), otherwise derive from key (existing)
       const effectiveSpriteMetadata = fileState.spriteMetadata || (extractedBaseKey ? {
