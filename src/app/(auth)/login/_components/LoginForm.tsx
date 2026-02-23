@@ -10,8 +10,9 @@ import { AuthProviderResult } from "@/lib/types/auth";
 import { Loader, Loader2, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import React, { useState, useTransition } from "react";
+import React, { useState, useTransition, useEffect, useRef } from "react";
 import { toast } from "sonner";
+import { useSearchParams } from "next/navigation";
 
 // Google icon component
 export const GoogleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
@@ -66,6 +67,30 @@ export function LoginForm() {
   const [googlePending, startGoogleTransition] = useTransition();
   const [emailPending, startEmailTransition] = useTransition();
   const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+  const reason = searchParams.get("reason");
+  const callbackUrl = searchParams.get("callbackUrl");
+
+  const hasShownToast = useRef(false);
+
+  // Show toast if redirected for enrollment or dashboard access
+  useEffect(() => {
+    if (hasShownToast.current) return;
+
+    if (reason === "enroll") {
+      toast.info("Please login to enroll in a course");
+      router.replace("/login");
+      hasShownToast.current = true;
+    } else if (callbackUrl?.includes("/dashboard")) {
+      toast.info("Please login to access the dashboard");
+      router.replace("/login");
+      hasShownToast.current = true;
+    }
+  }, [reason, callbackUrl, router]);
+
+
+
+
   // Normalize email and avoid extra re-renders
   const normalizedEmail = React.useMemo(() => email.trim().toLowerCase(), [email]);
   // Validate email

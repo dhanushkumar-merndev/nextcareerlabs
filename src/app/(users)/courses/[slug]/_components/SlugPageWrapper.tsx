@@ -113,18 +113,28 @@ export function SlugPageWrapper({
           ? chatCache.get<any>(`course_${slug}`, currentUserId)?.timestamp 
           : chatCache.get<any>(`course_${slug}`, undefined)?.timestamp)
       : undefined,
-    // 🔹 DYNAMIC STALE TIME: 
-    // 30s if: 1. Mutation flag set, OR 2. Enrollment status is 'Pending'.
-    // 30m otherwise.
     staleTime: (() => {
-        if (!currentUserId) return 1800000;
-        
-        // Only trigger background sync if user has a pending enrollment for THIS course
+        // Strict Cache Control: If we have a local hit that is less than 30m old, don't even talk to the server.
         const cacheKey = `course_${slug}`;
-        const cached = chatCache.get<any>(cacheKey, currentUserId);
-        const isPending = cached?.data?.enrollmentStatus === "Pending";
+        const cached = typeof window !== "undefined" 
+            ? (currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : chatCache.get<any>(cacheKey, undefined))
+            : null;
         
-        return isPending ? 0 : 1800000;
+        if (cached) {
+            const age = Date.now() - (cached.timestamp || 0);
+            
+            // 🔹 If THIS course is pending, or ANY course is pending, sync immediately.
+            const isPending = cached.data?.enrollmentStatus === "Pending";
+            const hasAnyPending = currentUserId ? chatCache.hasAnyPending(currentUserId) : false;
+            
+            if (isPending || hasAnyPending) return 0;
+            
+            // If it's less than 30m old, it's NOT stale.
+            if (age < 1800000) return 1800000 - age;
+        }
+
+
+        return 0; // Default to stale if no cache
     })(),
     // Use cached data for instant initial paint
     placeholderData: (previousData) => {
@@ -134,7 +144,6 @@ export function SlugPageWrapper({
 
         // 🔹 DURING HYDRATION / SESSION LOADING:
         // Try to find ANY cache for this slug (User or Guest)
-        // ONLY if mounted to prevent hydration mismatch
         if (typeof window !== "undefined") {
             let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
             if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
@@ -147,22 +156,29 @@ export function SlugPageWrapper({
     },
   });
 
-  // 🔹 SSR HYDRATION GUARD: 
-  // Renders a loader on both server and client (before mount)
-  // This matches the server output exactly, avoiding hydration mismatch.
-  // After mount, placeholderData (cached) or fetched data will take over.
-  if (!mounted) {
-    return <SlugPageSkeleton />;
-  }
 
-  if (!data && isLoading) {
-    return <SlugPageSkeleton />;
-  }
+  // 🔹 INSTANT DATA LOOKUP (DURING RENDER)
+  // This allows us to render the page immediately on the client if cache exists,
+  // even before hydration completes.
+  const syncCache = (() => {
+      if (typeof window === "undefined") return null;
+      const cacheKey = `course_${slug}`;
+      let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+      if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+      return cached;
+  })();
 
-  const rawData = data as any;
+  const rawData = (data as any) || syncCache?.data;
   // Resiliency: Handle new format {course, enrollmentStatus...} or old raw course object
   const course = rawData?.course || (rawData?.id ? rawData : null);
   const enrollmentStatus = rawData?.enrollmentStatus || null;
+
+  // 🔹 SSR / INITIAL PAINT FALLBACK
+  // If we have NO data even in sync cache, show skeleton.
+  if (!course && isLoading) {
+    return <SlugPageSkeleton />;
+  }
+
 
   if (!course) {
     return (
@@ -174,9 +190,10 @@ export function SlugPageWrapper({
     );
   }
   return (
-    <>
+    <div suppressHydrationWarning>
       {/* Course Content */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
+
         <div className="order-1 lg:col-span-2">
           {/* Course Image */}
           <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg">
@@ -407,7 +424,7 @@ export function SlugPageWrapper({
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 // Feature Row Component

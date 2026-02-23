@@ -94,7 +94,19 @@ const aj = arcjet.withRule(
 export async function enrollInCourseAction(
   courseId: string
 ): Promise<ApiResponse> {
-  const user = await requireUser();
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+
+  if (!session) {
+    return {
+      status: "error",
+      message: "Please login to request access",
+    };
+  }
+
+  const user = session.user;
+
   // Check if the user is blocked
   try {
     const req = await request();

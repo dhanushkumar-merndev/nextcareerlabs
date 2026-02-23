@@ -67,9 +67,10 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   // 30s if: 1. Mutation flag set, OR 2. Any pending enrollment exists in local cache.
   // 30m otherwise.
   // This ensures we check Redis on page open for pending users, but avoid hits on instant hard refresh.
-  const hasPending = Array.isArray(coursesInCache) && coursesInCache.some((c: any) => c.enrollmentStatus === "Pending");
+  const hasPending = safeUserId ? chatCache.hasAnyPending(safeUserId) : false;
   
-  const dynamicStaleTime = (safeUserId && hasPending) ? 0 : 30 * 60 * 1000;
+  const dynamicStaleTime = hasPending ? 0 : 30 * 60 * 1000;
+
   
   const {
     data,

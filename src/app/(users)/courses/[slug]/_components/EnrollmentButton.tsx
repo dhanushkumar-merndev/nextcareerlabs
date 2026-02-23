@@ -38,14 +38,20 @@ export function EnrollmentButton({
   }, [status]);
 
   function onSubmit() {
+    if (!session) {
+      window.location.href = "/login?reason=enroll";
+      return;
+    }
+
     startTransition(async () => {
       const { data: result, error } = await tryCatch(
         enrollInCourseAction(courseId)
       );
       if (error) {
-        toast.error("An unexpected error occurred. Please try again later");
+        toast.error("Failed to process request. Please try again later");
         return;
       }
+
       if (result.status === "success") {
         toast.success(result.message);
         setCurrentStatus("Pending");
