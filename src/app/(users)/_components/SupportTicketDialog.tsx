@@ -149,6 +149,10 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
         queryClient.invalidateQueries({ queryKey: ["messages", finalThreadId, currentUserId] });
         chatCache.invalidate(`messages_${finalThreadId}`, currentUserId);
 
+        // 5. DASHBOARD & RESOURCES INVALIDATION
+        queryClient.invalidateQueries({ queryKey: ["user_dashboard", currentUserId] });
+        chatCache.invalidate(`user_dashboard_${currentUserId}`, currentUserId);
+
       } catch (error) {
         toast.error("Failed to raise ticket. Please try again.");
         queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });

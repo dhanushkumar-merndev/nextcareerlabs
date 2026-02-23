@@ -79,7 +79,6 @@ export const chatCache = {
     adminKeys.forEach((key) => chatCache.invalidate(key));
     console.log("[chatCache] Admin data invalidated from local storage.");
   },
-
   invalidateUserDashboardData: (userId: string) => {
     if (typeof window === "undefined") return;
     
@@ -93,6 +92,23 @@ export const chatCache = {
     keysToClear.forEach(key => chatCache.invalidate(key, userId));
     
     console.log(`%c[chatCache] BROAD INVALIDATION: Cleared Dashboard and Course indexes for ${userId}`, "color: #ef4444; font-weight: bold");
+  },
+
+  invalidateAllCourseData: () => {
+    if (typeof window === "undefined") return;
+    
+    // 1. Clear generic course list
+    chatCache.invalidate("all_courses");
+    
+    // 2. Clear all keys that look like course_ slug caches
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes("course_") || key.includes("available_courses_") || key.includes("user_dashboard_"))) {
+            localStorage.removeItem(key);
+        }
+    }
+    
+    console.log("%c[chatCache] GLOBAL INVALIDATION: Cleared all course-related local storage", "color: #ef4444; font-weight: bold");
   },
 
   /**

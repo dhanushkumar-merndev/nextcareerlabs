@@ -134,7 +134,10 @@ export async function sendNotificationAction(
         recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(recipientId)),
         recipientId && incrementChatVersion(recipientId),
         invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
-        (isAdmin || data.type === "SUPPORT_TICKET") && invalidateAdminsCache()
+        (isAdmin || data.type === "SUPPORT_TICKET") && invalidateAdminsCache(),
+        // Invalidate dashboard for the user
+        !isAdmin && invalidateCache(`user:dashboard:${senderId}`),
+        !isAdmin && incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(senderId))
     ]);
   }
 
@@ -849,7 +852,10 @@ export async function resolveTicketAction(id: string, status: "Resolved" | "Deni
       n.senderId && invalidateCache(CHAT_CACHE_KEYS.THREADS(n.senderId)),
       n.senderId && incrementChatVersion(n.senderId),
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
-      invalidateAdminsCache()
+      invalidateAdminsCache(),
+      // Invalidate dashboard for the user who raised the ticket
+      n.senderId && invalidateCache(`user:dashboard:${n.senderId}`),
+      n.senderId && incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(n.senderId))
   ]);
 
   revalidatePath("/admin/resources");
@@ -883,7 +889,10 @@ export async function submitFeedbackAction(data: {
       invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
       incrementChatVersion(session.user.id),
-      invalidateAdminsCache()
+      invalidateAdminsCache(),
+      // Invalidate dashboard for the user giving feedback
+      invalidateCache(`user:dashboard:${session.user.id}`),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.user.id))
   ]);
 
   revalidatePath("/admin/resources");

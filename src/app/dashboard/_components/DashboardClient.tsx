@@ -5,6 +5,7 @@ import { getUserDashboardData } from "@/app/dashboard/actions";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { HorizontalCourseCard } from "../_components/HorizontalCourseCard";
+import { Skeleton } from "@/components/ui/skeleton";
 
 import { useSmartSession } from "@/hooks/use-smart-session";
 
@@ -77,9 +78,50 @@ export function DashboardClient() {
 
   if (!mounted || sessionLoading || (isLoading && !data)) {
     return (
-        <div className="flex items-center justify-center p-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex-1 space-y-4">
+        {/* Top Stats Skeletons */}
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-card border border-border/10 rounded-3xl p-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-4 rounded-full" />
+              </div>
+              <Skeleton className="h-8 w-16" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          ))}
         </div>
+
+        {/* Courses Section Skeleton */}
+        <div className="space-y-6 pt-6">
+          <div className="flex flex-col gap-2">
+            <Skeleton className="h-7 w-48" />
+            <Skeleton className="h-4 w-64" />
+          </div>
+
+          <div className="flex flex-col gap-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="flex flex-col sm:flex-row gap-4 p-4 rounded-3xl border border-border/10 bg-muted/5">
+                <Skeleton className="aspect-video w-full sm:w-48 rounded-2xl" />
+                <div className="flex-1 space-y-3 py-2">
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                  </div>
+                  <div className="space-y-2 pt-2">
+                    <div className="flex justify-between">
+                      <Skeleton className="h-4 w-12" />
+                      <Skeleton className="h-4 w-12" />
+                    </div>
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     );
   }
 

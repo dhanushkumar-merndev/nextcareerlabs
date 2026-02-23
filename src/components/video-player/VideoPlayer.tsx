@@ -369,12 +369,28 @@ export function VideoPlayer({
     }
   }, [sources, src, type]);
 
-  const handleMouseMove = () => {
+  const handleMouseMove = (e: React.MouseEvent) => {
+    // Desktop: If hovering below the seekbar area, don't trigger controls
+    // The controls are roughly the bottom 100px. If we are in the bottom 20px, it's "below"
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const relativeY = e.clientY - rect.top;
+      const isMobile = window.innerWidth < 768;
+      
+      if (!isMobile && relativeY > rect.height - 15) {
+        return;
+      }
+    }
+
     setShowControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+    
+    // 1s timeout for mobile, 3s for desktop
+    const timeout = window.innerWidth < 768 ? 1000 : 3000;
+    
     controlsTimeoutRef.current = setTimeout(() => {
       if (isPlaying) setShowControls(false);
-    }, 3000);
+    }, timeout);
   };
 
   const triggerSeekAnimation = (type: "forward" | "backward", amount: number = 10) => {
@@ -484,11 +500,22 @@ export function VideoPlayer({
     e.stopPropagation();
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().catch((err) => {
+      containerRef.current.requestFullscreen().then(() => {
+        // Lock to landscape on mobile
+        if (typeof window !== "undefined" && (window.screen as any).orientation?.lock) {
+            (window.screen as any).orientation.lock("landscape").catch(() => {
+                console.log("Orientation lock not supported or failed");
+            });
+        }
+      }).catch((err) => {
         console.error(`Error attempting to enable full-screen mode: ${err.message}`);
       });
     } else {
       document.exitFullscreen();
+      // Unlock orientation
+      if (typeof window !== "undefined" && (window.screen as any).orientation?.unlock) {
+          (window.screen as any).orientation.unlock();
+      }
     }
   };
 
@@ -507,6 +534,8 @@ export function VideoPlayer({
   };
 
   const handleContainerClick = (e: React.MouseEvent) => {
+    const isMobile = window.innerWidth < 768;
+    
     // Only handle double tap on mobile for seeking
     const now = Date.now();
     const isDoubleTap = now - lastTapTimeRef.current < 300;
@@ -530,6 +559,18 @@ export function VideoPlayer({
         triggerSeekAnimation("forward", 10);
       }
       return;
+    }
+
+    if (isMobile) {
+        // On mobile, first tap just shows controls
+        if (!showControls) {
+            setShowControls(true);
+            if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+            controlsTimeoutRef.current = setTimeout(() => {
+                if (isPlaying) setShowControls(false);
+            }, 1000);
+            return;
+        }
     }
 
     togglePlay(e);
@@ -1102,7 +1143,9 @@ export function VideoPlayer({
           onMouseLeave={() => setHoverPosition(null)}
         >
           <div 
-            className="relative group/seekbar touch-none cursor-pointer"
+            data-seekbar
+            className="relative group/seekbar touch-none cursor-pointer py-3 -my-3"
+            ref={seekbarRef}
             onMouseMove={(e) => {
               e.stopPropagation();
               handleSeekbarMouseMove(e);
@@ -1113,24 +1156,15 @@ export function VideoPlayer({
             }}
             onPointerDown={(e) => {
               e.stopPropagation();
-              // Expand hit area: allow clicking near the line to seek
               const pos = calculatePosition(e.clientX);
               if (pos) {
-                // Snap to sprite timestamp to match the preview exactly
                 const spritePos = spriteMetadata ? getSpritePosition(pos.time) : null;
                 const snapTime = spritePos?.startTime ?? pos.time;
                 handleSeek([snapTime]);
               }
             }}
-            onTouchStart={(e) => {
-              e.stopPropagation();
-            }}
             onTouchMove={handleSeekbarTouchMove}
             onTouchEnd={handleSeekbarTouchEnd}
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-            ref={seekbarRef}
           >
             {hoverPosition && (() => {
                 const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
@@ -1138,7 +1172,7 @@ export function VideoPlayer({
                 
                 return (
                   <div 
-                    className="absolute bottom-full mb-3 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none"
+                    className="absolute bottom-full mb-1 sm:mb-1.5 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
                     style={{ left: `${(snapTime / duration) * 100}%` }}
                   >
                     {spriteMetadata ? (
@@ -1202,55 +1236,31 @@ export function VideoPlayer({
                   </div>
                 );
             })()}
-              <div
-                data-seekbar
-                className="relative group/seekbar touch-none cursor-pointer py-4 -my-4"
-                ref={seekbarRef}
-                onMouseMove={(e) => {
-                  e.stopPropagation();
-                  handleSeekbarMouseMove(e);
-                }}
-                onMouseLeave={(e) => {
-                  e.stopPropagation();
-                  setHoverPosition(null);
-                }}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  const pos = calculatePosition(e.clientX);
-                  if (pos) {
-                    const spritePos = spriteMetadata ? getSpritePosition(pos.time) : null;
-                    const snapTime = spritePos?.startTime ?? pos.time;
-                    handleSeek([snapTime]);
-                  }
-                }}
-                onTouchMove={handleSeekbarTouchMove}
-                onTouchEnd={handleSeekbarTouchEnd}
-              >
-                {/* Base Track (since we'll make Slider track transparent) */}
-                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 bg-white/10 rounded-full pointer-events-none" />
+            
+            {/* Base Track (since we'll make Slider track transparent) */}
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 bg-white/10 rounded-full pointer-events-none" />
 
-                {/* Buffer Overlay Bar */}
-                <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 pointer-events-none px-px">
-                   {bufferedRanges.map((range, idx) => (
-                    <div 
-                      key={idx}
-                      className="absolute h-full bg-white/20 rounded-full transition-all duration-300"
-                      style={{
-                        left: `${(range.start / (duration || 1)) * 100}%`,
-                        width: `${((range.end - range.start) / (duration || 1)) * 100}%`
-                      }}
-                    />
-                   ))}
-                </div>
-
-                <Slider
-                  value={[currentTime]}
-                  max={duration || 100}
-                  step={0.01}
-                  onValueChange={handleSeek}
-                  className="cursor-pointer h-1.5 relative z-10"
+            {/* Buffer Overlay Bar */}
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 pointer-events-none px-px">
+               {bufferedRanges.map((range, idx) => (
+                <div 
+                  key={idx}
+                  className="absolute h-full bg-white/20 rounded-full transition-all duration-300"
+                  style={{
+                    left: `${(range.start / (duration || 1)) * 100}%`,
+                    width: `${((range.end - range.start) / (duration || 1)) * 100}%`
+                  }}
                 />
-              </div>
+               ))}
+            </div>
+
+            <Slider
+              value={[currentTime]}
+              max={duration || 100}
+              step={0.01}
+              onValueChange={handleSeek}
+              className="cursor-pointer h-1.5 relative z-10"
+            />
           </div>
 
           <div className="flex items-center justify-between mt-1 sm:mt-2">
@@ -1316,7 +1326,7 @@ export function VideoPlayer({
                              backdrop-blur-3xl p-1.5
                              shadow-2xl animate-in fade-in
                              duration-200
-                             z-[9999]
+                             z-9999
                              rounded-xl border`}>
                   <div className="px-2 py-1 text-[9px] font-bold text-white/40 uppercase tracking-widest border-b border-white/5 mb-1">
                     Speed
@@ -1376,7 +1386,7 @@ export function VideoPlayer({
           <div 
             onClick={togglePlay}
             className="
-              size-[clamp(48px,12cqw,86px)]
+              size-[clamp(64px,12cqw,84px)]
               flex items-center justify-center
               rounded-full 
               backdrop-blur-md 

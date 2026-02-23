@@ -20,13 +20,12 @@ export async function getAuthSessionAction(clientVersion?: string) {
     }
 
     // 2. Version Check (Only hits Redis if there's an actual session cookie)
-    let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
-
-    if (currentVersion === "0") {
-        console.log(`[AuthAction] Version key missing. Initializing...`);
-        await incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
-        currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
-    }
+    const [authVersion, coursesVersion] = await Promise.all([
+        getGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
+        getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+    ]);
+    
+    const currentVersion = `${authVersion}:${coursesVersion}`;
 
     // 3. Client-Side Match (Heartbeat)
     if (clientVersion && clientVersion === currentVersion) {

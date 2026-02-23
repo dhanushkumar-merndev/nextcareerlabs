@@ -84,6 +84,7 @@ export function ChatSidebar({
             ...(hidden !== undefined && { hidden }),
             ...(lastMessage !== undefined && { lastMessage }),
             ...(updatedAt !== undefined && { updatedAt }),
+            ...(e.detail.resolved !== undefined && { resolved: e.detail.resolved }),
           };
         } else if (e.detail.newThread) {
           // OPTIMISTICALLY ADD NEW THREAD

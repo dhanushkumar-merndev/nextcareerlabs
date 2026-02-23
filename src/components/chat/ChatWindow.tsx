@@ -642,6 +642,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         // Determine if it was positive or negative from the status
         const isPositive = resolveStatus === "Helpful";
         const isNegative = resolveStatus === "More Help";
+        const isThreadResolved = !isNegative; // "More Help" means NOT resolved
 
         if (isPositive) {
             previewText = "Positive Feedback";
@@ -657,6 +658,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             } else if (f === "denied") {
                 previewText = "Issue Denied";
                 finalizedFeedback = "Issue Denied";
+            } else if (f === "more help") {
+                previewText = "Negative Feedback";
+                finalizedFeedback = "Negative Feedback";
             } else {
                 previewText = `Feedback: ${feedback}`;
             }
@@ -673,7 +677,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 threadId,
                 lastMessage: previewText,
                 updatedAt: new Date().toISOString(),
-                resolved: true
+                resolved: isThreadResolved
             }
         }));
 
@@ -685,7 +689,7 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 pages: old.pages.map((page: any) => ({
                     ...page,
                     messages: page.messages?.map((n: any) =>
-                        n.id === id ? { ...n, resolved: true, feedback: finalizedFeedback || n.feedback } : n
+                        n.id === id ? { ...n, resolved: isThreadResolved, feedback: finalizedFeedback || n.feedback } : n
                     ) || page.messages
                 }))
             };
@@ -894,6 +898,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         }));
 
         try {
+            await resolveTicketAction(id, status);
+            
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
             chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
             queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });

@@ -4,12 +4,12 @@ import { chatCache } from "@/lib/chat-cache";
 import { getAuthSessionAction } from "@/app/actions/auth-session";
 
 const CACHE_KEY = "auth_session";
-const HEARTBEAT_INTERVAL = 10 * 60 * 1000; // 10 minutes
+const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
 /**
  * A "Smart" session hook that:
  * 1. Loads instantly from LocalStorage on mount (Instant UI)
- * 2. Background Heartbeat every 10 mins (via Server Action)
+ * 2. Background Heartbeat every 30 mins (via Server Action)
  * 3. Minimizes data transfer using Versioning
  */
 export function useSmartSession() {
@@ -34,6 +34,16 @@ export function useSmartSession() {
             // Fresh data received -> Update LocalStorage
             if (result.data !== undefined) {
                 console.log(`[Auth] 🛰️ Sync: New session data received (v${result.version})`);
+                
+                // 🔹 If version MISMATCH and it's not the first load (cached exists), 
+                // it means a global change (like course deletion) happened.
+                if (clientVersion && clientVersion !== result.version) {
+                    console.warn(`[Auth] Global version mismatch detected! Invalidating course caches.`);
+                    chatCache.invalidateAllCourseData();
+                    queryClient.invalidateQueries({ queryKey: ["user_dashboard"] });
+                    queryClient.invalidateQueries({ queryKey: ["course_detail"] });
+                }
+
                 chatCache.set(CACHE_KEY, result.data, undefined, result.version, 6 * 60 * 60 * 1000);
                 return result.data;
             }
