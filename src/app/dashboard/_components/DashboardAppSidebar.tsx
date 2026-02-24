@@ -7,9 +7,6 @@ import {
   IconLibrary,
   IconFileAi,
   IconFileDescription,
-  IconHelp,
-  IconSearch,
-  IconSettings,
   IconMessages,
 } from "@tabler/icons-react";
 

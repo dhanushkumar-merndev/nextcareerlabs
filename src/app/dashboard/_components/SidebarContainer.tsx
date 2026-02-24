@@ -41,7 +41,6 @@ export function SidebarContainer({
   const { data: course, isLoading } = useQuery({
     queryKey: ["course_sidebar", slug],
     queryFn: async () => {
-     if (typeof window === "undefined") return null; // ✅ ADD
   const cacheKey = `course_sidebar_${slug}`;
   const cached = chatCache.get<any>(cacheKey, userId);
 
@@ -72,9 +71,6 @@ export function SidebarContainer({
 
   return cached?.data?.course ?? null;
 },
-
-    // ✅ Remove initialData — was causing isLoading:false with undefined data
-    enabled: typeof window !== "undefined", 
     staleTime: 1800000,
   });
 

@@ -59,9 +59,10 @@ export function useSmartSession() {
             }
             return undefined;
         },
-        initialDataUpdatedAt: typeof window !== "undefined"
-            ? chatCache.get<any>(CACHE_KEY)?.timestamp
-            : undefined,
+        initialDataUpdatedAt: () => {
+            if (typeof window === "undefined") return undefined;
+            return chatCache.get<any>(CACHE_KEY)?.timestamp;
+        },
         staleTime: HEARTBEAT_INTERVAL,
         refetchInterval: HEARTBEAT_INTERVAL,
         refetchOnWindowFocus: false,
