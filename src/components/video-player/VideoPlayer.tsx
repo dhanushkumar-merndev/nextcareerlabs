@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, { useCallback, useEffect, useRef, useState} from "react";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 import { 
@@ -114,11 +114,11 @@ export function VideoPlayer({
   const [showCenterControls, setShowCenterControls] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [seekAnimation, setSeekAnimation] = useState<{ type: "forward" | "backward", amount: number } | null>(null);
-  const seekAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const seekAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [volumeAnimation, setVolumeAnimation] = useState<{ level: number, visible: boolean }>({ level: 1, visible: false });
-  const volumeAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const volumeAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [bufferedRanges, setBufferedRanges] = useState<{ start: number, end: number }[]>([]);
   const seekbarRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
