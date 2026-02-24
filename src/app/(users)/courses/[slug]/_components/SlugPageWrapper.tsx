@@ -180,7 +180,7 @@ export function SlugPageWrapper({
   const course = rawData?.course || (rawData?.id ? rawData : null);
   const enrollmentStatus = rawData?.enrollmentStatus || null;
 
-  if (!course && isLoading) {
+  if (!mounted || (!course && isLoading)) {
     return <SlugPageSkeleton />;
   }
 
@@ -212,9 +212,7 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
         );
     }
   return (
-    <div suppressHydrationWarning>
-      {/* Course Content */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
 
         <div className="order-1 lg:col-span-2">
           <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg bg-accent">
@@ -451,7 +449,6 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }

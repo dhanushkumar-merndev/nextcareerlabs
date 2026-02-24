@@ -27,83 +27,84 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
   // ── Tier 3: Database ──────────────────────────────────────────────
   console.log(`%c[Lesson] 🗄️  DB COMPUTE → lesson:${lessonId}`, "color: #f97316; font-weight: bold");
   const dbStart = Date.now();
-  // ✅ Optimization: Concurrent fetching of lesson and enrollment
-  const [lesson, enrollment] = await Promise.all([
-    prisma.lesson.findUnique({
-      where: {
-        id: lessonId,
+  
+  // 1. Fetch Lesson Core Data
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      thumbnailKey: true,
+      videoKey: true,
+      position: true,
+      spriteKey: true,
+      spriteCols: true,
+      spriteRows: true,
+      spriteInterval: true,
+      spriteWidth: true,
+      spriteHeight: true,
+      lessonProgress: {
+        where: { userId: session.id },
+        select: {
+          completed: true,
+          quizPassed: true,
+          lessonId: true,
+          lastWatched: true,
+          actualWatchTime: true,
+        },
       },
+      transcription: {
+        select: { vttUrl: true }
+      },
+      Chapter: {
+        select: {
+          courseId: true,
+          Course: {
+            select: { slug: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!lesson) return notFound();
+
+  // 2. Optimized Enrollment + MCQs (Concurrent)
+  const [enrollment, questions] = await Promise.all([
+    prisma.enrollment.findUnique({
+      where: {
+        userId_courseId: {
+          userId: session.id,
+          courseId: lesson.Chapter.courseId
+        }
+      },
+      select: { status: true }
+    }),
+    prisma.question.findMany({
+      where: { lessonId },
+      orderBy: { order: 'asc' },
       select: {
         id: true,
-        title: true,
-        description: true,
-        thumbnailKey: true,
-        videoKey: true,
-        position: true,
-        spriteKey: true,
-        spriteCols: true,
-        spriteRows: true,
-        spriteInterval: true,
-        spriteWidth: true,
-        spriteHeight: true,
-        lessonProgress: {
-          where: {
-            userId: session.id,
-          },
-          select: {
-            completed: true,
-            quizPassed: true,
-            lessonId: true,
-            lastWatched: true,
-            actualWatchTime: true,
-          },
-        },
-        transcription: {
-          select: {
-            vttUrl: true,
-          }
-        },
-        Chapter: {
-          select: {
-            courseId: true,
-            Course: {
-              select: {
-                slug: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-    prisma.enrollment.findFirst({
-        where: {
-            userId: session.id,
-            Course: {
-                chapter: {
-                    some: {
-                        lesson: {
-                            some: {
-                                id: lessonId
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        select: { status: true }
+        question: true,
+        options: true,
+        correctIdx: true,
+        explanation: true,
+        order: true,
+      }
     })
   ]);
 
   console.log(`%c[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`, "color: #f97316");
 
-  if (!lesson || !enrollment || enrollment.status !== "Granted") {
+  if (!enrollment || enrollment.status !== "Granted") {
     return notFound();
   }
 
-  const result = { lesson };
+  const result = { lesson, questions };
 
-  // ── Cache in Redis: 30 min hot TTL (1800s), full data stored ──────
-  await setCache(cacheKey, result, 1800); // 30 minutes Redis TTL
+  // ── Cache in Redis: 30 min hot TTL (1800s) ──────────────────────
+  await setCache(cacheKey, result, 1800);
   console.log(`%c[Lesson] 💾 CACHED in Redis (30 min) → lesson:${lessonId}`, "color: #8b5cf6");
 
   return { ...result, version: currentVersion };

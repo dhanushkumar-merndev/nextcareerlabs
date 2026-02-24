@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 import { 
@@ -91,6 +91,7 @@ export function VideoPlayer({
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [showCenterControls, setShowCenterControls] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -101,6 +102,8 @@ export function VideoPlayer({
   const [bufferedRanges, setBufferedRanges] = useState<{ start: number, end: number }[]>([]);
   const seekbarRef = useRef<HTMLDivElement>(null);
   const pendingPlayRef = useRef<Promise<void> | null>(null);
+  const isSeekingRef = useRef<boolean>(false);
+  const isPlayingRef = useRef<boolean>(false);
 
   // Initialize player only once, then update sources
   useEffect(() => {
@@ -161,13 +164,27 @@ export function VideoPlayer({
 
       player.on("play", () => {
         setIsPlaying(true);
+        isPlayingRef.current = true;
         onPlay?.();
       });
-      player.on("pause", () => setIsPlaying(false));
+      player.on("pause", () => {
+        setIsPlaying(false);
+        isPlayingRef.current = false;
+      });
       player.on("timeupdate", () => {
-        const time = player.currentTime() || 0;
-        setCurrentTime(time);
-        onTimeUpdate?.(time);
+        // ✅ FIX: Don't sync state from player if the user is currently dragging the slider
+        if (isSeekingRef.current) return;
+
+        const time = player.currentTime();
+        if (typeof time === "number" && !isNaN(time)) {
+          // ✅ FIX: Round to match Slider precision (0.01) to reduce re-renders
+          const rounded = Math.round(time * 100) / 100;
+          setCurrentTime(prev => {
+            if (prev === rounded) return prev;
+            return rounded;
+          });
+          onTimeUpdate?.(time); // Original precision for parent tracking
+        }
       });
       player.on("loadedmetadata", () => {
         const duration = player.duration() || 0;
@@ -370,26 +387,43 @@ export function VideoPlayer({
   }, [sources, src, type]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    // Desktop: If hovering below the seekbar area, don't trigger controls
-    // The controls are roughly the bottom 100px. If we are in the bottom 20px, it's "below"
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const relativeY = e.clientY - rect.top;
       const isMobile = window.innerWidth < 768;
       
-      if (!isMobile && relativeY > rect.height - 15) {
-        return;
+      if (!isMobile) {
+        // 1. Extreme bottom edge (leaving the player area): Hide everything
+        if (relativeY > rect.height - 5) {
+          setShowControls(false);
+          setShowCenterControls(false);
+          if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+          return;
+        }
+
+        // 2. Toolbar/Seekbar area: Keep toolbar visible but hide center Play/Pause overlay
+        if (relativeY > rect.height - 60) {
+          setShowControls(true);
+          setShowCenterControls(false);
+          if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+          return;
+        }
       }
     }
 
+    // 3. Main video area: show everything
     setShowControls(true);
+    setShowCenterControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     
     // 1s timeout for mobile, 3s for desktop
-    const timeout = window.innerWidth < 768 ? 1000 : 3000;
+    const timeout = window.innerWidth < 768 ? 1000 : 2000;
     
     controlsTimeoutRef.current = setTimeout(() => {
-      if (isPlaying) setShowControls(false);
+      if (isPlayingRef.current) {
+        setShowControls(false);
+        setShowCenterControls(false);
+      }
     }, timeout);
   };
 
@@ -409,11 +443,18 @@ export function VideoPlayer({
 
   const resetControlsTimeout = () => {
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 2000);
+    setShowControls(true);
+    setShowCenterControls(true);
+    controlsTimeoutRef.current = setTimeout(() => {
+      if (isPlayingRef.current) {
+        setShowControls(false);
+        setShowCenterControls(false);
+      }
+    }, 2000);
   };
 
-  const togglePlay = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const togglePlay = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     if (!playerRef.current) return;
 
     if (playerRef.current.paused()) {
@@ -444,17 +485,38 @@ export function VideoPlayer({
     }
   };
 
-  const handleSeek = (value: number[]) => {
-    let time = value[0];
+  const handleSeek = useCallback((value: number[]) => {
+    if (!playerRef.current || !value || isNaN(value[0])) return;
     
-    // Snap to sprite interval if available for better HLS performance and preview matching
+    // Lock state updates from the player's timeupdate event while we are seeking
+    isSeekingRef.current = true;
+
+    // Snap incoming value to 0.01 immediately
+    let time = Math.round(value[0] * 100) / 100;
+    
+    // Clamp time between 0 and duration
+    time = Math.max(0, Math.min(time, duration || 0));
+
+    // snap to sprite interval if available
     if (spriteMetadata?.interval) {
         time = Math.floor(time / spriteMetadata.interval) * spriteMetadata.interval;
     }
     
     playerRef.current.currentTime(time);
     setCurrentTime(time);
-  };
+  }, [duration, spriteMetadata?.interval]);
+
+  const handleSeekCommit = useCallback((value: number[]) => {
+    // Unlock state updates from player
+    isSeekingRef.current = false;
+    
+    // Final sync
+    if (playerRef.current && value && !isNaN(value[0])) {
+        const time = Math.round(value[0] * 100) / 100;
+        playerRef.current.currentTime(time);
+        setCurrentTime(time);
+    }
+  }, []);
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -468,12 +530,12 @@ export function VideoPlayer({
     });
   };
 
-  const handleVolumeChange = (value: number[]) => {
+  const handleVolumeChange = useCallback((value: number[]) => {
     const vol = value[0];
     setVolume(vol);
-    playerRef.current.volume(vol);
+    if (playerRef.current) playerRef.current.volume(vol);
     setIsMuted(vol === 0);
-  };
+  }, []);
 
   const handlePlaybackRate = (rate: number) => {
     setPlaybackRate(rate);
@@ -524,6 +586,7 @@ export function VideoPlayer({
   };
 
   const lastTapTimeRef = useRef<number>(0);
+  const singleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const handleTouchStart = (e: React.TouchEvent) => {
     // Mobile touch start
   };
@@ -533,53 +596,54 @@ export function VideoPlayer({
     if (e.cancelable) e.preventDefault();
   };
 
-  const handleTouchEnd = () => {
-    // Mobile touch end
-  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    // Use touch events for mobile tap detection (fires instantly, no 300ms click delay)
+    const touch = e.changedTouches[0];
+    if (!touch || !containerRef.current) return;
 
-  const handleContainerClick = (e: React.MouseEvent) => {
-    const isMobile = window.innerWidth < 768;
-    
-    // Only handle double tap on mobile for seeking
     const now = Date.now();
     const isDoubleTap = now - lastTapTimeRef.current < 300;
     lastTapTimeRef.current = now;
 
     if (isDoubleTap) {
-      if (!containerRef.current || !playerRef.current) return;
+      // Cancel the pending single-tap play/pause
+      if (singleTapTimeoutRef.current) {
+        clearTimeout(singleTapTimeoutRef.current);
+        singleTapTimeoutRef.current = null;
+      }
+      // Double tap: seek forward/backward based on touch position
+      if (!playerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
+      const x = touch.clientX - rect.left;
       const mid = rect.width / 2;
 
       if (x < mid) {
-        // Rewind
         const newTime = Math.max(0, playerRef.current.currentTime() - 10);
         playerRef.current.currentTime(newTime);
         triggerSeekAnimation("backward", 10);
       } else {
-        // Forward
         const newTime = Math.min(playerRef.current.duration(), playerRef.current.currentTime() + 10);
         playerRef.current.currentTime(newTime);
         triggerSeekAnimation("forward", 10);
       }
-      return;
+      resetControlsTimeout();
+    } else {
+      // Single tap: delay 300ms then toggle play/pause
+      singleTapTimeoutRef.current = setTimeout(() => {
+        singleTapTimeoutRef.current = null;
+        togglePlay();
+        resetControlsTimeout();
+      }, 300);
     }
-if (isMobile) {
-        if (!showControls) {
-            // First tap: reveal controls, auto-hide after 2s
-            setShowControls(true);
-            if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-            controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 2000);
-            return;
-        }
-        // Second tap while controls are visible: toggle play/pause, then hide after 2s
-        togglePlay(e);
-        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-        controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 2000);
-        return;
-    }
+  };
+
+  const handleContainerClick = (e: React.MouseEvent) => {
+    // Desktop only — mobile is handled by handleTouchEnd for instant response
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) return;
 
     togglePlay(e);
+    resetControlsTimeout();
   };
 
   const formatTime = (seconds: number) => {
@@ -928,13 +992,26 @@ if (isMobile) {
         }
       }}
       onMouseLeave={() => {
-        if (isPlaying) setShowControls(false);
+        // ✅ User Request: "hide that pause play bitton > , when outise the video player"
+        setShowControls(false);
+        setShowCenterControls(false);
         setHoverPosition(null);
+        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
+      {/* Memoized Slider value props for stability */}
+      {(() => {
+        const progressValue = [Math.round(currentTime * 100) / 100];
+        const volumeValue = [Math.round((isMuted ? 0 : volume) * 100) / 100];
+        
+        // Note: Using an IIFE or inline definition here to keep it simple, 
+        // though typically these would be defined as useMemo variables above.
+        // For the sake of this component's stability, they are calculated here.
+        return null; 
+      })()}
       <style dangerouslySetInnerHTML={{ __html: `
         .video-js .vjs-tech {
           position: absolute !important;
@@ -973,7 +1050,9 @@ if (isMobile) {
           Positioned above video but below controls/animations. */}
       <div 
         className="absolute inset-0 z-5 cursor-pointer" 
+        style={{ touchAction: 'manipulation' }}
         onClick={handleContainerClick}
+        onTouchEnd={handleTouchEnd}
         aria-hidden="true"
       />
 
@@ -1076,7 +1155,7 @@ if (isMobile) {
   </div>
 
   {/* Time Label */}
-  <span className="text-primary font-black text-base sm:text-lg md:text-2xl tracking-tight tabular-nums animate-in fade-in duration-300 delay-150 -mt-1">
+  <span className="text-white font-black text-base sm:text-lg md:text-2xl tracking-tight tabular-nums animate-in fade-in duration-300 delay-150 -mt-1">
     {seekAnimation.type === "forward" ? "+" : "-"}
     {seekAnimation.amount}s
   </span>
@@ -1117,7 +1196,7 @@ if (isMobile) {
 
       {/* Primary Custom Buffer Loader */}
       {isBuffering && !error && (
-        <div className="absolute inset-0 z-45 flex items-center justify-center">
+        <div className="absolute inset-0 z-45 flex items-center justify-center pointer-events-none">
           <Loader size={48} />
         </div>
       )}
@@ -1140,7 +1219,7 @@ if (isMobile) {
 
       <div 
         className={cn(
-          "absolute inset-0 z-10 flex flex-col justify-end transition-opacity duration-300 bg-linear-to-t from-black/90 via-transparent to-transparent pointer-events-none",
+          "absolute inset-0 z-40 flex flex-col justify-end transition-opacity duration-300 bg-linear-to-t from-black/90 via-transparent to-transparent pointer-events-none",
           showControls && !error ? "opacity-100" : "opacity-0"
         )}
       >
@@ -1153,11 +1232,9 @@ if (isMobile) {
             className="relative group/seekbar touch-none cursor-pointer py-3 -my-3"
             ref={seekbarRef}
             onMouseMove={(e) => {
-              e.stopPropagation();
               handleSeekbarMouseMove(e);
             }}
             onMouseLeave={(e) => {
-              e.stopPropagation();
               setHoverPosition(null);
             }}
             onPointerDown={(e) => {
@@ -1261,10 +1338,11 @@ if (isMobile) {
             </div>
 
             <Slider
-              value={[currentTime]}
+              value={[Math.round(currentTime * 100) / 100]}
               max={duration || 100}
               step={0.01}
               onValueChange={handleSeek}
+              onValueCommit={handleSeekCommit}
               className="cursor-pointer h-1.5 relative z-10"
             />
           </div>
@@ -1285,7 +1363,7 @@ if (isMobile) {
                 </button>
                 <div className="w-0 sm:group-hover/volume:w-20 transition-all duration-300 overflow-hidden hidden sm:block">
                    <Slider
-                    value={[isMuted ? 0 : volume]}
+                    value={[Math.round((isMuted ? 0 : volume) * 100) / 100]}
                     max={1}
                     step={0.01}
                     onValueChange={handleVolumeChange}
@@ -1363,8 +1441,8 @@ if (isMobile) {
         </div>
       </div>
 
-      {(showControls && !isBuffering && !seekAnimation && !volumeAnimation.visible && !hoverPosition) && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-[8%]">
+      {(showCenterControls && !isBuffering && !seekAnimation && !volumeAnimation.visible && !hoverPosition) && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-[8%] bg-black/50 animate-in fade-in duration-300">
           {/* Backward 10s */}
           <button
             type="button"
@@ -1385,7 +1463,7 @@ if (isMobile) {
           >
             <div className="relative flex items-center justify-center overflow-visible">
               <RotateCcw className="size-6 sm:size-8 md:size-[clamp(32px,8cqw,64px)]" />
-              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-primary text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
+              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-white/90 text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
             </div>
           </button>
 
@@ -1396,13 +1474,12 @@ if (isMobile) {
               size-12 sm:size-16 md:size-[clamp(64px,12cqw,84px)]
               flex items-center justify-center
               rounded-full 
-              backdrop-blur-md 
               bg-primary/20
               border-2 border-primary/50
               text-primary
               shadow-[0_0_30px_rgba(var(--primary),0.3)]
               transition-all duration-300
-              hover:scale-110 hover:bg-primary/20 hover:border-primary
+              hover:scale-105 hover:bg-primary/20 hover:border-primary
               pointer-events-auto
               cursor-pointer
               animate-in fade-in zoom-in
@@ -1435,7 +1512,7 @@ if (isMobile) {
           >
             <div className="relative flex items-center justify-center overflow-visible">
               <RotateCw className="size-6 sm:size-8 md:size-[clamp(32px,8cqw,64px)]" />
-              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-primary text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
+              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-white/90 text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
             </div>
           </button>
         </div>

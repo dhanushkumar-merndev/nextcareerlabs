@@ -11,7 +11,7 @@ import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
 import { env } from "@/lib/env";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -19,7 +19,7 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { secureStorage } from "@/lib/secure-storage";
 import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
 import CryptoJS from "crypto-js";
-import { getLessonMCQs } from "@/app/admin/(lessons)/mcqs/actions";
+
 import { AssessmentModal } from "./AssessmentModal";
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,6 +41,8 @@ interface iAppProps {
   initialLesson?: any;
   initialVersion?: string | null;
 }
+
+const EMPTY_ARRAY: any[] = [];
 
 function VideoPlayer({
   thumbnailkey,
@@ -180,6 +182,46 @@ function VideoPlayer({
     if (videoUrl) list.push({ src: videoUrl, type: "video/mp4" });
     return list;
   }, [hlsUrl, videoUrl]);
+
+  const fullSpriteMetadata = useMemo(() => {
+    if (!spriteMetadata) return undefined;
+    return { ...spriteMetadata, initialCues: vttCues };
+  }, [spriteMetadata, vttCues]);
+
+  /* ============================================================
+     VIDEO EVENT HANDLERS (Memoized for stability)
+  ============================================================ */
+  const onLoadedMetadata = useCallback((duration: number) => {
+    // No-op for now as CustomPlayer handles seeking initially
+  }, []);
+
+  const onTimeUpdate = useCallback((currentTime: number) => {
+    // ✅ Track coverage
+    trackCoverage(currentTime);
+
+    // Save position for resume (every 5 seconds)
+    const lastSavedTime = parseFloat(
+      secureStorage.getItem(`video-progress-${lessonId}`) || "0"
+    );
+
+    if (Math.abs(currentTime - lastSavedTime) > 5) {
+      saveProgress(currentTime);
+    }
+  }, [lessonId]);
+
+  const onPlay = useCallback(() => {
+    // Starting position is already tracked by onTimeUpdate
+  }, []);
+
+  const onPause = useCallback(() => {
+    // Save current breadcrumb to localStorage
+    saveProgress(lastPositionRef.current);
+    saveUnsyncedDelta(); // Ensure delta is saved on pause
+  }, [lessonId]);
+
+  const onEnded = useCallback(() => {
+    syncToDB();
+  }, [lessonId]);
 
   // const thumbnailUrl = useConstructUrl(thumbnailkey); // Removed duplicate
 
@@ -486,40 +528,6 @@ function VideoPlayer({
     secureStorage.setItemTracked(`video-progress-${lessonId}`, time.toString());
   };
 
-  const onLoadedMetadata = (duration: number) => {
-    // No-op for now as CustomPlayer handles seeking initially
-  };
-
-  const onTimeUpdate = (currentTime: number) => {
-    // ✅ Track coverage
-    trackCoverage(currentTime);
-
-    // Save position for resume (every 5 seconds)
-    const lastSavedTime = parseFloat(
-      secureStorage.getItem(`video-progress-${lessonId}`) || "0"
-    );
-
-    if (Math.abs(currentTime - lastSavedTime) > 5) {
-      saveProgress(currentTime);
-    }
-  };
-
-  /* ============================================================
-     VIDEO EVENT HANDLERS
-  ============================================================ */
-  const onPlay = () => {
-    // Starting position is already tracked by onTimeUpdate
-  };
-
-  const onPause = () => {
-    // Save current breadcrumb to localStorage
-    saveProgress(lastPositionRef.current);
-    saveUnsyncedDelta(); // Ensure delta is saved on pause
-  };
-
-  const onEnded = () => {
-    syncToDB();
-  };
 
 
   /* ============================================================
@@ -545,6 +553,7 @@ function VideoPlayer({
     );
   }
 
+
   /* ============================================================
      PLAYER RENDER (with download prevention)
   ============================================================ */
@@ -565,7 +574,7 @@ function VideoPlayer({
           onEnded={onEnded}
           onLoadedMetadata={onLoadedMetadata}
           captionUrl={captionUrl}
-          spriteMetadata={spriteMetadata ? { ...spriteMetadata, initialCues: vttCues } : undefined}
+          spriteMetadata={fullSpriteMetadata}
           className="w-full h-full"
           noDownload
         />
@@ -607,15 +616,15 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       if (result && (result as any).status === "not-modified" && cached) {
         console.log("%c[■ Lesson] 🟡 LOCAL HIT → version matched, NO server fetch", "color: #eab308; font-weight: bold");
         chatCache.touch(cacheKey, userId); // Refresh local TTL
-        return cached.data.lesson;
+        return cached.data;
       }
 
       if (result && !(result as any).status) {
         console.log("%c[■ Lesson] 💡 NEW DATA → updating local cache", "color: #06b6d4");
         chatCache.set(cacheKey, result, userId, (result as any).version, PERMANENT_TTL);
-        return (result as any).lesson;
+        return result;
       }
-      return (result as any)?.lesson || cached?.data?.lesson;
+      return result || cached?.data;
     },
     initialData: () => {
       // ★ PRIORITY 1: Local Cache (instant render, no network)
@@ -627,16 +636,21 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
             "color: #eab308; font-weight: bold"
           );
         }
-        return cachedLesson.data.lesson;
+        return cachedLesson.data;
       }
       // ★ PRIORITY 2: Server-provided SSR data
       return initialLesson;
     },
-    staleTime: 1800000, // 30 minutes — aligns with Redis TTL
+    staleTime: 1800000,
     initialDataUpdatedAt: initialUpdatedAt,
-    refetchInterval: false, // Don't poll — staleTime handles freshness
+    refetchInterval: false,
     refetchOnWindowFocus: true,
   });
+
+  // Extract lesson and questions from data
+  const rawData = lesson as any;
+  const lessonData = rawData?.lesson;
+  const mcqsData = useMemo(() => rawData?.questions || EMPTY_ARRAY, [rawData?.questions]);
 
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
@@ -651,49 +665,22 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const [isLoadingMCQs, setIsLoadingMCQs] = useState(true);
 
   useEffect(() => {
-    const fetchMCQs = async () => {
-      setIsLoadingMCQs(true);
-      try {
-        const cacheKey = `lesson_mcqs_${lessonId}`;
-        const cached = chatCache.get<any[]>(cacheKey, userId);
-
-        if (cached) {
-          console.log("%c[■ MCQ] 🟡 LOCAL HIT → MCQs from localStorage", "color: #eab308; font-weight: bold");
-          setQuestions(cached.data);
-          setIsLoadingMCQs(false);
-          return;
-        }
-
-        // No local cache — fetch from server (Redis or DB)
-        console.log("%c[■ MCQ] 🔄 FETCH → checking Redis/DB", "color: #94a3b8");
-        const res = await getLessonMCQs(lessonId);
-        if (res.success && res.questions) {
-          setQuestions(res.questions);
-          // Store in local cache permanently (30-day effective TTL)
-          chatCache.set(cacheKey, res.questions, userId, undefined, PERMANENT_TTL);
-          console.log("%c[■ MCQ] 💾 CACHED locally (30-day)", "color: #8b5cf6");
-        } else {
-          setQuestions([]);
-        }
-      } catch (error) {
-        setQuestions([]);
-      } finally {
-        setIsLoadingMCQs(false);
-      }
-    };
-    fetchMCQs();
-  }, [lessonId, userId]);
+    if (mcqsData) {
+      setQuestions(mcqsData);
+      setIsLoadingMCQs(false);
+    }
+  }, [mcqsData]);
 
 
   useEffect(() => {
     // Component reset logic if any
   }, [lessonId]);
 
-  if (!mounted || (isLoading && !lesson)) {
+  if (!mounted || (isLoading && !lessonData)) {
       return <LessonContentSkeleton />;
   }
 
-  if (!lesson) {
+  if (!lessonData) {
     return (
         <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
             <BookIcon size={64} className="mb-4" />
@@ -703,7 +690,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
     );
   }
 
-  const data = lesson;
+  const data = lessonData;
 
   function onSubmit() {
     if (isLoadingMCQs) return;
@@ -757,8 +744,8 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
     });
   }
 
-  const isCompleted = optimisticCompleted || lesson?.lessonProgress?.some((p: any) => p.completed);
-  const quizPassed = lesson?.lessonProgress?.some((p: any) => p.quizPassed);
+  const isCompleted = optimisticCompleted || lessonData?.lessonProgress?.some((p: any) => p.completed);
+  const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
   const hasVideo = Boolean(data.videoKey);
 
   return (

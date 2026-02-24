@@ -4,7 +4,7 @@ import { chatCache } from "@/lib/chat-cache";
 import { getAuthSessionAction } from "@/app/actions/auth-session";
 
 const CACHE_KEY = "auth_session";
-const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 minutes
+const HEARTBEAT_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
 /**
  * A "Smart" session hook that:
@@ -44,7 +44,7 @@ export function useSmartSession() {
                     queryClient.invalidateQueries({ queryKey: ["course_detail"] });
                 }
 
-                chatCache.set(CACHE_KEY, result.data, undefined, result.version, 6 * 60 * 60 * 1000);
+                chatCache.set(CACHE_KEY, result.data, undefined, result.version, 30 * 24 * 60 * 60 * 1000);
                 return result.data;
             }
 
@@ -64,7 +64,8 @@ export function useSmartSession() {
             : undefined,
         staleTime: HEARTBEAT_INTERVAL,
         refetchInterval: HEARTBEAT_INTERVAL,
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
+        refetchOnMount: false,
     });
 
     useEffect(() => {
