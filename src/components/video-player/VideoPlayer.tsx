@@ -20,7 +20,15 @@ import {
   RotateCw
 } from "lucide-react";
 
-// Global hook to fix 404s on existing HLS manifests with relative key URLs
+// Silence Video.js deprecation warnings for beforeRequest (which we use for surgical URL rewriting)
+if (typeof window !== "undefined") {
+  const originalWarn = (videojs as any).log.warn;
+  (videojs as any).log.warn = (...args: any[]) => {
+    if (typeof args[0] === "string" && args[0].includes("beforeRequest is deprecated")) return;
+    originalWarn(...args);
+  };
+}
+
 if (typeof window !== "undefined") {
   (videojs as any).Vhs.xhr.beforeRequest = (options: any) => {
     if (options.uri.includes("/api/video/key/")) {
