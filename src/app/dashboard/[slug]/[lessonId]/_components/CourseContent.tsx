@@ -645,18 +645,18 @@ const { data: lesson, isLoading } = useQuery({
   refetchOnWindowFocus: true,
 });
 
-  // Extract lesson and questions from data
-  const rawData = lesson as any;
-  const lessonData = rawData?.lesson;
-
+  // ✅ ALL hooks MUST be called before any early return (Rules of Hooks)
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
+  const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
 
- const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
+  // Extract lesson and questions from data
+  const rawData = lesson as any;
+  const lessonData = rawData?.lesson;
   const questions = useMemo(() => rawData?.questions ?? EMPTY_ARRAY, [rawData?.questions]);
   const isLoadingMCQs = isLoading;
 

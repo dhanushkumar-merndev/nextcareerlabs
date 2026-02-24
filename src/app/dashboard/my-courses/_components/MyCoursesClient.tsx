@@ -10,7 +10,6 @@ export function MyCoursesClient() {
   const { 
     data: enrolledCourses, 
     isLoading, 
-    sessionLoading 
   } = useEnrolledCourses();
 
   const [mounted, setMounted] = useState(false);
@@ -25,7 +24,7 @@ export function MyCoursesClient() {
     }
   }, [enrolledCourses]);
 
-  if (!mounted || sessionLoading || (isLoading && !enrolledCourses)) {
+  if (!mounted || (isLoading && !enrolledCourses)) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {[1, 2, 3].map((i) => (
