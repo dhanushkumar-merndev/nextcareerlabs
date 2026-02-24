@@ -40,7 +40,8 @@ export function SidebarContainer({
 
   const { data: course, isLoading } = useQuery({
     queryKey: ["course_sidebar", slug],
-   queryFn: async () => {
+    queryFn: async () => {
+     if (typeof window === "undefined") return null; // ✅ ADD
   const cacheKey = `course_sidebar_${slug}`;
   const cached = chatCache.get<any>(cacheKey, userId);
 
@@ -73,6 +74,7 @@ export function SidebarContainer({
 },
 
     // ✅ Remove initialData — was causing isLoading:false with undefined data
+    enabled: typeof window !== "undefined", 
     staleTime: 1800000,
   });
 
@@ -105,8 +107,11 @@ export function SidebarContainer({
     return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  // ✅ Simple, clean skeleton check
-  const showSkeleton = isLoading && !course;
+const [isMounted, setIsMounted] = useState(false);
+useEffect(() => { setIsMounted(true); }, []);
+
+// ✅ Fix: only show skeleton after mount — prevents SSR/client mismatch
+const showSkeleton = isMounted && isLoading && !course;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

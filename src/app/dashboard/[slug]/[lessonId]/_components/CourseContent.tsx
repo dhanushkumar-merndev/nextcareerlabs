@@ -178,16 +178,13 @@ function VideoPlayer({
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
   const [captionUrl, setCaptionUrl] = useState<string | undefined>(undefined);
 
-  // ✅ Instant Local Resume: Prioritize local storage over server-provided time
-  const resumeTime = useMemo(() => {
-    const localProgress = secureStorage.getItem(`video-progress-${lessonId}`);
-    if (localProgress) {
-      const parsedLocal = parseFloat(localProgress);
-      // Take the latest of server or local time to ensure we never go backwards
-      return Math.max(initialTime, parsedLocal);
-    }
-    return initialTime;
-  }, [lessonId, initialTime]);
+const [resumeTime, setResumeTime] = useState(initialTime);
+useEffect(() => {
+  const localProgress = secureStorage.getItem(`video-progress-${lessonId}`);
+  if (localProgress) {
+    setResumeTime(Math.max(initialTime, parseFloat(localProgress)));
+  }
+}, [lessonId, initialTime]);
 
   const sources = useMemo(() => {
     const list = [];
@@ -614,48 +611,43 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
     }
   }, [lessonId, userId, initialLesson, initialVersion]);
 
-  const { data: lesson, isLoading } = useQuery({
-    queryKey: ["lesson_content", lessonId],
-queryFn: async () => {
-  const cacheKey = `lesson_content_${lessonId}`;
-  const cached = chatCache.get<any>(cacheKey, userId);
-  
-  if (cached) {
-    const cacheAge = Date.now() - (cached.timestamp ?? 0);
-    const thirtyMins = 30 * 60 * 1000;
+const { data: lesson, isLoading } = useQuery({
+  queryKey: ["lesson_content", lessonId],
+  queryFn: async () => {
+    const cacheKey = `lesson_content_${lessonId}`;
+    const cached = chatCache.get<any>(cacheKey, userId);
     
-    // ✅ Under 30 mins — skip server entirely, no Redis calls at all
-    if (cacheAge < thirtyMins) {
-      console.log("[■ Lesson] 🟡 LOCAL HIT → skipping server (under 30 min)");
+    if (cached) {
+      const cacheAge = Date.now() - (cached.timestamp ?? 0);
+      if (cacheAge < 30 * 60 * 1000) {
+        return cached.data;
+      }
+    }
+
+    const clientVersion = cached?.version;
+    const result = await getLessonContent(lessonId, clientVersion) as any;
+
+    if (result?.status === "not-modified" && cached) {
+      chatCache.touch(cacheKey, userId);
       return cached.data;
     }
-  }
 
-  // Over 30 mins — do the version check
-  const clientVersion = cached?.version;
-  const result = await getLessonContent(lessonId, clientVersion) as any;
+    if (result?.lesson) {
+      chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
+      return result;
+    }
 
-  if (result?.status === "not-modified" && cached) {
-    chatCache.touch(cacheKey, userId);
-    return cached.data;
-  }
-
-  if (result?.lesson) {
-    chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
-    return result;
-  }
-
-  return cached?.data ?? null;
-},
-    staleTime: 1800000,
-    refetchInterval: false,
-    refetchOnWindowFocus: true,
-  });
+    return cached?.data ?? null;
+  },
+  // ✅ Remove: enabled: typeof window !== "undefined"
+  staleTime: 1800000,
+  refetchInterval: false,
+  refetchOnWindowFocus: true,
+});
 
   // Extract lesson and questions from data
   const rawData = lesson as any;
   const lessonData = rawData?.lesson;
-  const mcqsData = useMemo(() => rawData?.questions || EMPTY_ARRAY, [rawData?.questions]);
 
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
@@ -664,25 +656,12 @@ queryFn: async () => {
   const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
 
-  // Assessment State
-  const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
-  const [questions, setQuestions] = useState<any[]>([]);
-  const [isLoadingMCQs, setIsLoadingMCQs] = useState(true);
+ const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
+  const questions = useMemo(() => rawData?.questions ?? EMPTY_ARRAY, [rawData?.questions]);
+  const isLoadingMCQs = isLoading;
 
-  useEffect(() => {
-    if (mcqsData) {
-      setQuestions(mcqsData);
-      setIsLoadingMCQs(false);
-    }
-  }, [mcqsData]);
-
-
-  useEffect(() => {
-    // Component reset logic if any
-  }, [lessonId]);
-
-  if ((isLoading && !lessonData)) {
-      return <LessonContentSkeleton />;
+  if (isLoading || !lessonData) {
+    return <LessonContentSkeleton />;
   }
 
   if (!lessonData) {

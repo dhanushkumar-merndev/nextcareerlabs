@@ -8,46 +8,42 @@ export function useEnrolledCourses() {
   const { session, isLoading: sessionLoading } = useSmartSession();
   const userId = session?.user.id;
 
+  const getCached = () => {
+    if (typeof window === "undefined" || !userId) return undefined;
+    return chatCache.get<any>(`user_enrolled_courses_${userId}`, userId) ?? undefined;
+  };
+
   const query = useQuery({
     queryKey: ["enrolled_courses", userId],
     queryFn: async () => {
       if (!userId) return [];
+
       const cacheKey = `user_enrolled_courses_${userId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      console.log(`[useEnrolledCourses] Smart Sync: Checking version (v${clientVersion || 'None'})...`);
       const result = await getEnrolledCourses(clientVersion);
 
-      // 1. Version Match -> Return cached data
       if (result && (result as any).status === "not-modified" && cached?.data) {
-        console.log(`%c[useEnrolledCourses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
+        console.log(`%c[useEnrolledCourses] NOT_MODIFIED (v${clientVersion})`, "color: #22c55e; font-weight: bold");
         chatCache.touch(cacheKey, userId);
-        if (userId) chatCache.clearSync(userId);
+        chatCache.clearSync(userId);
         return cached.data.enrollments;
       }
 
-      // 2. Fresh Data -> Update Local Cache
       if (result && result.enrollments) {
-        console.log(`%c[useEnrolledCourses] Server: NEW_DATA (${result.enrollments.length} courses) -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
+        console.log(`%c[useEnrolledCourses] NEW_DATA (${result.enrollments.length} courses, v${result.version})`, "color: #3b82f6; font-weight: bold");
         chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
-        if (userId) chatCache.clearSync(userId);
+        chatCache.clearSync(userId);
         return result.enrollments;
       }
 
-      return cached?.data?.enrollments || [];
+      return cached?.data?.enrollments ?? [];
     },
-    initialData: () => {
-        if (typeof window === "undefined" || !userId) return undefined;
-        const cacheKey = `user_enrolled_courses_${userId}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        return cached?.data?.enrollments;
-    },
-    initialDataUpdatedAt: typeof window !== "undefined" && userId
-      ? chatCache.get<any>(`user_enrolled_courses_${userId}`, userId)?.timestamp
-      : undefined,
-    enabled: !!userId,
-    staleTime: 1800000, 
+    enabled: !sessionLoading && !!userId,
+    initialData: () => getCached()?.data?.enrollments,
+    initialDataUpdatedAt: () => getCached()?.timestamp,
+    staleTime: 1800000,
     refetchOnWindowFocus: true,
   });
 

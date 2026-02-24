@@ -291,7 +291,7 @@ export function VideoPlayer({
         }
 
         switch (e.key.toLowerCase()) {
-          case "spacebar":
+          case " ":
             e.preventDefault();
             if (player.paused()) player.play();
             else player.pause();
@@ -430,7 +430,7 @@ export function VideoPlayer({
     validateAndAdd();
 
     return () => { cancelled = true; };
-  }, [captionUrl, playerRef.current, sources, src]);
+}, [captionUrl, sources, src]);
 
   // Sync sources when they change after initialization
   useEffect(() => {
@@ -652,9 +652,6 @@ export function VideoPlayer({
 
   const lastTapTimeRef = useRef<number>(0);
   const singleTapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const handleTouchStart = (e: React.TouchEvent) => {
-    // Mobile touch start
-  };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     // Prevent scrolling while dragging (optional, but keeping it clean)
@@ -751,7 +748,7 @@ export function VideoPlayer({
 
 
   const [vttCues, setVttCues] = useState<any[]>(spriteMetadata?.initialCues || []);
-  const [vttLoading, setVttLoading] = useState(false);
+
 
   // Sync initial cues if they arrive later
   useEffect(() => {
@@ -826,8 +823,7 @@ export function VideoPlayer({
       }
     }
 
-    // Not cached, fetch it
-    setVttLoading(true);
+
     console.log("VideoPlayer: Fetching VTT from", spriteMetadata.url);
     fetch(spriteMetadata.url)
       .then(res => {
@@ -882,11 +878,10 @@ export function VideoPlayer({
         
         // ✅ Preload all sprite images
         preloadSpriteImages(parsedCues, spriteMetadata.url);
-        setVttLoading(false);
+   
       })
       .catch(err => {
         console.error("VideoPlayer: Error loading VTT:", err);
-        setVttLoading(false);
       });
   }, [spriteMetadata?.url]);
 
@@ -911,7 +906,10 @@ export function VideoPlayer({
   };
 
   // Fixed display width for preview (source res is 320x180)
-  const PREVIEW_DISPLAY_WIDTH = typeof window !== 'undefined' && window.innerWidth < 640 ? 180 : 240;
+  const [previewWidth, setPreviewWidth] = useState(240);
+useEffect(() => {
+  setPreviewWidth(window.innerWidth < 640 ? 180 : 240);
+}, []);
 
   const getSpritePosition = (time: number) => {
     if (!spriteMetadata) return null;
@@ -963,11 +961,11 @@ export function VideoPlayer({
         }
 
         // Scale display: source is e.g. 320x180, display at PREVIEW_DISPLAY_WIDTH
-        const scale = PREVIEW_DISPLAY_WIDTH / cue.w;
+        const scale = previewWidth / cue.w;
         
         // Accurate background size for the sprite sheet
         // We calculate based on the source size and the current display scale
-        const sheetWidth = (spriteMetadata.cols || 10) * PREVIEW_DISPLAY_WIDTH;
+        const sheetWidth = (spriteMetadata.cols || 10) * previewWidth;
 
         return {
             backgroundImage: `url(${imageUrl})`,
@@ -988,8 +986,6 @@ export function VideoPlayer({
         const index = Math.floor(time / spriteMetadata.interval);
         
         // Low-res grid constants (matched with sprite-generator.ts)
-        const lowWidth = 40;
-        const lowHeight = 22;
         const lowCols = 25;
         
         const col = index % lowCols;
@@ -1000,16 +996,16 @@ export function VideoPlayer({
         const lowFrameH = 22;
         
         // Scale the 40px frame to fill PREVIEW_DISPLAY_WIDTH
-        const lowScale = PREVIEW_DISPLAY_WIDTH / lowFrameW;
+        const lowScale = previewWidth / lowFrameW;
         
         const totalFrames = Math.ceil(duration / (spriteMetadata.interval || 10));
         const lowRows = Math.ceil(totalFrames / lowCols);
 
         return {
             backgroundImage: `url(${spriteMetadata.lowResUrl})`,
-            backgroundPosition: `-${col * PREVIEW_DISPLAY_WIDTH}px -${row * (lowFrameH * lowScale)}px`,
-            backgroundSize: `${lowCols * PREVIEW_DISPLAY_WIDTH}px ${lowRows * (lowFrameH * lowScale)}px`,
-            width: PREVIEW_DISPLAY_WIDTH, 
+            backgroundPosition: `-${col * previewWidth}px -${row * (lowFrameH * lowScale)}px`,
+            backgroundSize: `${lowCols * previewWidth}px ${lowRows * (lowFrameH * lowScale)}px`,
+            width: previewWidth, 
             height: Math.round(lowFrameH * lowScale),
             isHighRes: false,
             startTime: index * spriteMetadata.interval,
@@ -1026,7 +1022,7 @@ export function VideoPlayer({
     );
     const col = index % spriteMetadata.cols;
     const row = Math.floor(index / spriteMetadata.cols);
-    const scale = PREVIEW_DISPLAY_WIDTH / spriteMetadata.width;
+    const scale = previewWidth / spriteMetadata.width;
     const displayW = Math.round(spriteMetadata.width * scale);
     const displayH = Math.round(spriteMetadata.height * scale);
     return {
@@ -1079,51 +1075,54 @@ export function VideoPlayer({
         setHoverPosition(null);
         if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       }}
-      onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Memoized Slider value props for stability */}
-      {(() => {
-        const progressValue = [Math.round(currentTime * 100) / 100];
-        const volumeValue = [Math.round((isMuted ? 0 : volume) * 100) / 100];
-        
-        // Note: Using an IIFE or inline definition here to keep it simple, 
-        // though typically these would be defined as useMemo variables above.
-        // For the sake of this component's stability, they are calculated here.
-        return null; 
-      })()}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .video-js .vjs-tech {
-          position: absolute !important;
-          top: 0 !important;
-          left: 0 !important;
-          width: 100% !important;
-          height: 100% !important;
-          display: block !important;
-          opacity: 1 !important;
-          visibility: visible !important;
-          object-fit: contain !important;
-        }
-        .vjs-poster {
-          background-size: cover !important;
-          background-position: center !important;
-        }
-        .vjs-poster img {
-          object-fit: cover !important;
-          width: 100% !important;
-          height: 100% !important;
-        }
-        .vjs-loading-spinner {
-          display: none !important;
-        }
-        ${currentTime > 0 ? `
-          .video-js .vjs-poster {
-            display: none !important;
-          }
-        ` : ''}
-      `}} />
 
+<style dangerouslySetInnerHTML={{ __html: `
+  .video-js .vjs-tech { ... }
+  .vjs-poster { ... }
+  .vjs-loading-spinner { display: none !important; }
+  ${currentTime > 0 ? `.video-js .vjs-poster { display: none !important; }` : ''}
+
+  .video-js { container-type: size; }
+
+  .video-js .vjs-text-track-display {
+    position: absolute !important;
+    bottom: 6% !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    width: 92% !important;
+    display: flex !important;
+    justify-content: center !important;
+    pointer-events: none !important;
+  }
+
+  .video-js .vjs-text-track-display div {
+    background: transparent !important;
+  }
+
+  .video-js .vjs-text-track-cue > div {
+    display: inline-block !important;
+    max-width: 100% !important;
+    font-size: clamp(14px, 3.5cqh, 32px) !important;
+    padding: clamp(6px, 1cqh, 14px) clamp(12px, 2cqh, 28px) !important;
+    background: rgba(0,0,0,0.80) !important;
+    color: #fff !important;
+    border-radius: clamp(6px, 1cqh, 12px) !important;
+    line-height: 1.4 !important;
+    text-align: center !important;
+    white-space: pre-wrap !important;
+  }
+
+  @keyframes flash {
+    0%, 100% { opacity: 0.2; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.1); }
+  }
+  .animate-flash {
+    animation: flash 0.6s ease-in-out infinite;
+  }
+`}} />
       <div data-vjs-player ref={videoRef} className="absolute inset-0 w-full h-full bg-black z-0" />
 
       {/* Playback Toggle Layer (z-5)
@@ -1137,51 +1136,7 @@ export function VideoPlayer({
         aria-hidden="true"
       />
 
-    <style
-  dangerouslySetInnerHTML={{
-    __html: `
-.video-js {
-  container-type: size;
-}
 
-/* Bottom center wrapper */
-.video-js .vjs-text-track-display {
-  position: absolute !important;
-  bottom: 6% !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  width: 92% !important;
-  display: flex !important;
-  justify-content: center !important;
-  pointer-events: none !important;
-}
-
-/* Remove defaults */
-.video-js .vjs-text-track-display div {
-  background: transparent !important;
-}
-
-/* Caption text */
-.video-js .vjs-text-track-cue > div {
-  display: inline-block !important;
-  max-width: 100% !important;
-
-  font-size: clamp(14px, 3.5cqh, 32px) !important;
-
-  padding: clamp(6px, 1cqh, 14px) clamp(12px, 2cqh, 28px) !important;
-
-  background: rgba(0,0,0,0.80) !important;
-  color: #fff !important;
-
-  border-radius: clamp(6px, 1cqh, 12px) !important;
-
-  line-height: 1.4 !important;
-  text-align: center !important;
-  white-space: pre-wrap !important;
-}
-`,
-  }}
-/>
 
 
 
@@ -1269,16 +1224,7 @@ export function VideoPlayer({
   </div>
 )}
 
-{/* Mobile Vertical Volume Bar (Right Side) Removed */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes flash {
-          0%, 100% { opacity: 0.2; transform: scale(0.9); }
-          50% { opacity: 1; transform: scale(1.1); }
-        }
-        .animate-flash {
-          animation: flash 0.6s ease-in-out infinite;
-        }
-      `}} />
+
 
       {/* Primary Custom Buffer Loader */}
       {isBuffering && !error && (
