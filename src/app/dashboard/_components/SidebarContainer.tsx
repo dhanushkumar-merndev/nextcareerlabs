@@ -46,7 +46,9 @@ export function SidebarContainer({
   // StrictMode guard: ensure LOCAL HIT log fires exactly once per mount
   const localHitLoggedRef = useRef(false);
 
-  // Pre-calculate initial data from chatCache to ensure number-based initialDataUpdatedAt
+  // Read chatCache on client to provide instant initialData to useQuery.
+  // Hydration safety is handled by `isHydrated`/`showSkeleton` at lines 139-142,
+  // which ensures server & first client render BOTH show skeleton.
   const cachedSidebar = typeof window !== "undefined" ? chatCache.get<any>(`course_sidebar_${slug}`, userId) : null;
   const initialUpdatedAt = cachedSidebar?.timestamp ?? 0;
 

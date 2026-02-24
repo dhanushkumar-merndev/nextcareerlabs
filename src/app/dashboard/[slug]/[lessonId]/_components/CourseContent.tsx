@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { BookIcon, CheckCircle, ChevronRight, X, ChevronDown } from "lucide-react";
+import { BookIcon, CheckCircle, ChevronRight, X } from "lucide-react";
 import { markLessonComplete, updateVideoProgress } from "../actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,6 @@ import {
   Drawer,
   DrawerContent,
   DrawerDescription,
-  DrawerHeader,
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
@@ -44,6 +43,8 @@ interface iAppProps {
 
 const EMPTY_ARRAY: any[] = [];
 
+// VideoPlayer is defined as a separate top-level component (not inside CourseContent)
+// to ensure React maintains a stable identity across renders
 function VideoPlayer({
   thumbnailkey,
   videoKey,
@@ -73,6 +74,7 @@ function VideoPlayer({
   lowResKey?: string | null;
   transcriptionUrl?: string | null;
 }) {
+  console.log('[VideoPlayer] Render start', { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
   const spriteUrl = constructUrl(spriteKey || "");
   const lowResUrl = constructUrl(lowResKey || "");
@@ -547,6 +549,7 @@ function VideoPlayer({
      UI STATES
   ============================================================ */
   if (!videoKey) {
+    console.log('[VideoPlayer] No videoKey, showing placeholder');
     return (
       <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border relative group overflow-hidden">
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-6 bg-background/50">
@@ -558,6 +561,7 @@ function VideoPlayer({
   }
 
   if (!videoUrl && !hlsUrl) {
+    console.log('[VideoPlayer] Waiting for video URLs (loading state)');
     return (
         <div className="aspect-video bg-muted rounded-lg border flex items-center justify-center relative overflow-hidden">
             <Skeleton className="absolute inset-0 w-full h-full" />
@@ -599,10 +603,12 @@ function VideoPlayer({
 }
 
 export function CourseContent({ lessonId, userId, initialLesson, initialVersion }: iAppProps) {
+  console.log('[CourseContent] Render start', { lessonId, userId });
   const [mounted, setMounted] = useState(false);
 
   // Sync initialData to local storage on mount (Legacy/SSR support)
   useEffect(() => {
+    console.log('[CourseContent] useEffect: setMounted(true)');
     setMounted(true);
     if (initialLesson && initialVersion) {
         const cacheKey = `lesson_content_${lessonId}`;
@@ -613,7 +619,9 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   // StrictMode guard: ensure LOCAL HIT log fires exactly once per mount
   const localHitLoggedRef = useRef(false);
 
-  // Pre-calculate initial data from chatCache to ensure number-based initialDataUpdatedAt
+  // Read chatCache on client to provide instant initialData to useQuery.
+  // Hydration safety is handled by the `!mounted` early return below (line ~695),
+  // which ensures server & first client render BOTH show skeleton regardless of cached data.
   const cachedLesson = typeof window !== "undefined" ? chatCache.get<any>(`lesson_content_${lessonId}`, userId) : null;
   const initialUpdatedAt = cachedLesson?.timestamp ?? 0;
 
@@ -690,10 +698,12 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   }, [lessonId]);
 
   if (!mounted || (isLoading && !lessonData)) {
+      console.log('[CourseContent] Early return: skeleton', { mounted, isLoading, hasLessonData: !!lessonData });
       return <LessonContentSkeleton />;
   }
 
   if (!lessonData) {
+    console.log('[CourseContent] Early return: no lesson data');
     return (
         <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
             <BookIcon size={64} className="mb-4" />
@@ -821,8 +831,9 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
               </DrawerTrigger>
               <DrawerContent className="max-h-[85vh] bg-background">
                  <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
-                    {/* Accessibility: DrawerTitle is required */}
+                    {/* Accessibility: DrawerTitle and DrawerDescription are required by vaul */}
                     <DrawerTitle className="sr-only">Lesson Description</DrawerTitle>
+                    <DrawerDescription className="sr-only">Detailed description for the current lesson</DrawerDescription>
                     <div className="flex-1 overflow-y-auto px-6 pt-8 pb-12 overscroll-contain" data-lenis-prevent>
                        <div className="prose prose-sm dark:prose-invert max-w-none">
                           <h3 className="text-xl font-bold mb-4">{data.title}</h3>
