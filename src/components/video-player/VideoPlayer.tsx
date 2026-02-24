@@ -121,9 +121,10 @@ export function VideoPlayer({
   const volumeAnimationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [bufferedRanges, setBufferedRanges] = useState<{ start: number, end: number }[]>([]);
   const seekbarRef = useRef<HTMLDivElement>(null);
-  const pendingPlayRef = useRef<Promise<void> | null>(null);
   const isSeekingRef = useRef<boolean>(false);
   const isPlayingRef = useRef<boolean>(false);
+  const lastToggleTimeRef = useRef<number>(0);
+  const pendingPlayRef = useRef<Promise<void> | null>(null);
 
   // Initialize player only once, then update sources
   useEffect(() => {
@@ -462,7 +463,7 @@ export function VideoPlayer({
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     
     // 1s timeout for mobile, 3s for desktop
-    const timeout = window.innerWidth < 768 ? 1000 : 500;
+    const timeout = window.innerWidth < 768 ? 1000 : 1500;
     
     controlsTimeoutRef.current = setTimeout(() => {
       if (isPlayingRef.current) {
@@ -498,11 +499,18 @@ export function VideoPlayer({
     }, 2000);
   };
 
-  const togglePlay = (e?: React.MouseEvent) => {
+  const togglePlay = (e?: React.MouseEvent | React.TouchEvent) => {
     e?.stopPropagation();
     if (!playerRef.current) return;
 
+    // Debounce to prevent "double-toggle" on mobile (e.g. touch + synthetic click)
+    const now = Date.now();
+    if (now - lastToggleTimeRef.current < 300) return;
+    lastToggleTimeRef.current = now;
+
     if (playerRef.current.paused()) {
+      setIsPlaying(true);
+      isPlayingRef.current = true;
       // Chain pause onto the play Promise to avoid AbortError
       const playPromise = playerRef.current.play() as Promise<void> | undefined;
       if (playPromise !== undefined) {
@@ -516,9 +524,13 @@ export function VideoPlayer({
             if (err.name !== "AbortError") {
               console.error("VideoPlayer play() error:", err);
             }
+            setIsPlaying(false);
+            isPlayingRef.current = false;
           });
       }
     } else {
+      setIsPlaying(false);
+      isPlayingRef.current = false;
       if (pendingPlayRef.current) {
         // play() is still resolving — pause after it settles
         pendingPlayRef.current
@@ -567,11 +579,11 @@ export function VideoPlayer({
     }
   }, [duration, spriteMetadata?.interval]);
 
-  const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleMute = (e?: React.MouseEvent | React.TouchEvent) => {
+    e?.stopPropagation();
     const muted = !isMuted;
     setIsMuted(muted);
-    playerRef.current.muted(muted);
+    if (playerRef.current) playerRef.current.muted(muted);
     
     toast.success(muted ? "Audio muted" : "Audio unmuted", {
       duration: 1000,
@@ -591,8 +603,8 @@ export function VideoPlayer({
     playerRef.current.playbackRate(rate);
   };
 
-  const toggleCaptions = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleCaptions = (e?: React.MouseEvent | React.TouchEvent) => {
+    e?.stopPropagation();
     if (playerRef.current) {
       const tracks = playerRef.current.textTracks();
       const enabled = !captionsEnabled;
@@ -611,8 +623,8 @@ export function VideoPlayer({
     }
   };
 
-  const toggleFullscreen = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleFullscreen = (e?: React.MouseEvent | React.TouchEvent) => {
+    e?.stopPropagation();
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
       containerRef.current.requestFullscreen().then(() => {
@@ -646,23 +658,33 @@ export function VideoPlayer({
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    // Use touch events for mobile tap detection (fires instantly, no 300ms click delay)
-    const touch = e.changedTouches[0];
-    if (!touch || !containerRef.current) return;
+    // If the touch started/ended on a button or other interactive element,
+    // let THAT element's events handle the logic. 
+    // This prevents background tap logic from firing on icon clicks.
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('[role="button"]') || target.closest('.cursor-pointer')) {
+      return;
+    }
 
     const now = Date.now();
     const isDoubleTap = now - lastTapTimeRef.current < 300;
     lastTapTimeRef.current = now;
 
     if (isDoubleTap) {
-      // Cancel the pending single-tap play/pause
+      // Cancel the pending single-tap toggle
       if (singleTapTimeoutRef.current) {
         clearTimeout(singleTapTimeoutRef.current);
         singleTapTimeoutRef.current = null;
       }
+
       // Double tap: seek forward/backward based on touch position
       if (!playerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+
       const x = touch.clientX - rect.left;
       const mid = rect.width / 2;
 
@@ -677,11 +699,20 @@ export function VideoPlayer({
       }
       resetControlsTimeout();
     } else {
-      // Single tap: delay 300ms then toggle play/pause
+      // Single tap: strictly toggle controls visibility
       singleTapTimeoutRef.current = setTimeout(() => {
         singleTapTimeoutRef.current = null;
-        togglePlay();
-        resetControlsTimeout();
+        
+        setShowControls(prev => {
+          const newState = !prev;
+          setShowCenterControls(newState);
+          if (newState) {
+            resetControlsTimeout();
+          } else {
+            if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+          }
+          return newState;
+        });
       }, 300);
     }
   };
@@ -1398,6 +1429,7 @@ export function VideoPlayer({
               onValueChange={handleSeek}
               onValueCommit={handleSeekCommit}
               className="cursor-pointer h-1.5 relative z-10"
+              onTouchEnd={(e) => e.stopPropagation()}
             />
           </div>
 
@@ -1406,6 +1438,7 @@ export function VideoPlayer({
               <button 
                 type="button"
                 onClick={(e) => { togglePlay(e); resetControlsTimeout(); }}
+                onTouchEnd={(e) => { e.stopPropagation(); togglePlay(e); resetControlsTimeout(); }}
                 className="hover:text-primary transition-colors focus:outline-none p-1 sm:p-0"
               >
                 {isPlaying ? <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current" /> : <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />}
@@ -1422,6 +1455,7 @@ export function VideoPlayer({
                     step={0.01}
                     onValueChange={handleVolumeChange}
                     className="w-20 cursor-pointer"
+                    onTouchEnd={(e) => e.stopPropagation()}
                   />
                 </div>
               </div>
@@ -1448,10 +1482,13 @@ export function VideoPlayer({
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button type="button" className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md border border-white/10">
-                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    {playbackRate}x
-                  </button>
+                  <button 
+                type="button" 
+                onTouchEnd={(e) => e.stopPropagation()}
+                className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md border border-white/10">
+                <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                {playbackRate}x
+              </button>
                 </DropdownMenuTrigger>
                <DropdownMenuContent 
                   side="top"
