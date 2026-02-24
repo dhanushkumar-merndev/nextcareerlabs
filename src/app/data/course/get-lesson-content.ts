@@ -6,13 +6,17 @@ import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/r
 
 export async function getLessonContent(lessonId: string, clientVersion?: string) {
   const session = await requireUser();
-  const coursesVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
-  const userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id));
+  
+  // ✅ Parallel version reads instead of sequential
+  const [coursesVersion, userVersion] = await Promise.all([
+    getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+    getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
+  ]);
   const currentVersion = `${coursesVersion}_${userVersion}`;
 
   // Smart Sync – version match means client local cache is fresh
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(`%c[Lesson] ✅ VERSION MATCH → NOT_MODIFIED (v${currentVersion})`, "color: #22c55e; font-weight: bold");
+    console.log(`[Lesson] ✅ VERSION MATCH → NOT_MODIFIED (v${currentVersion})`);
     return { status: "not-modified", version: currentVersion };
   }
 
@@ -20,15 +24,15 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
   const cacheKey = `user:lesson:${session.id}:${lessonId}`;
   const cached = await getCache<any>(cacheKey);
   if (cached) {
-    console.log(`%c[Lesson] 🔵 REDIS HIT → lesson:${lessonId} (v${currentVersion})`, "color: #3b82f6; font-weight: bold");
+    console.log(`[Lesson] 🔵 REDIS HIT → lesson:${lessonId} (v${currentVersion})`);
     return { ...cached, version: currentVersion };
   }
 
   // ── Tier 3: Database ──────────────────────────────────────────────
-  console.log(`%c[Lesson] 🗄️  DB COMPUTE → lesson:${lessonId}`, "color: #f97316; font-weight: bold");
+  console.log(`[Lesson] 🗄️  DB COMPUTE → lesson:${lessonId}`);
   const dbStart = Date.now();
-  
-  // 1. Fetch Lesson Core Data
+
+  // ✅ Parallel: lesson fetch first, then enrollment + MCQs concurrently
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
     select: {
@@ -44,6 +48,7 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
       spriteInterval: true,
       spriteWidth: true,
       spriteHeight: true,
+      lowResKey: true,
       lessonProgress: {
         where: { userId: session.id },
         select: {
@@ -70,7 +75,6 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
 
   if (!lesson) return notFound();
 
-  // 2. Optimized Enrollment + MCQs (Concurrent)
   const [enrollment, questions] = await Promise.all([
     prisma.enrollment.findUnique({
       where: {
@@ -95,7 +99,7 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
     })
   ]);
 
-  console.log(`%c[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`, "color: #f97316");
+  console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
 
   if (!enrollment || enrollment.status !== "Granted") {
     return notFound();
@@ -103,9 +107,9 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
 
   const result = { lesson, questions };
 
-  // ── Cache in Redis: 30 min hot TTL (1800s) ──────────────────────
-  await setCache(cacheKey, result, 1800);
-  console.log(`%c[Lesson] 💾 CACHED in Redis (30 min) → lesson:${lessonId}`, "color: #8b5cf6");
+  // ✅ Don't await cache write — let it happen in background
+  setCache(cacheKey, result, 1800).catch(console.error);
+  console.log(`[Lesson] 💾 CACHED in Redis (30 min) → lesson:${lessonId}`);
 
   return { ...result, version: currentVersion };
 }

@@ -12,7 +12,6 @@ import { useCourseProgress } from "@/hooks/use-course-progress";
 import { useQuery } from "@tanstack/react-query";
 import { getCourseSidebarData, CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { chatCache } from "@/lib/chat-cache";
-
 export function SidebarContainer({
   slug,
   children,
@@ -26,180 +25,140 @@ export function SidebarContainer({
   initialCourseData?: CourseSidebarDataType["course"] | null;
   initialVersion?: string | null;
 }) {
-  const [mounted, setMounted] = useState(false);
+  // ✅ Remove mounted state entirely
 
   useEffect(() => {
-    setMounted(true);
-    
-    // Sync initialData to local storage on mount to keep local cache fresh
     if (initialCourseData && initialVersion) {
-        const cacheKey = `course_sidebar_${slug}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        
-        if (!cached || cached.version !== initialVersion) {
-            console.log(`[Hydration] Syncing server sidebar data to local cache for ${slug}`);
-            chatCache.set(cacheKey, { course: initialCourseData }, userId, initialVersion);
-        }
+      const cacheKey = `course_sidebar_${slug}`;
+      const cached = chatCache.get<any>(cacheKey, userId);
+      if (!cached || cached.version !== initialVersion) {
+        chatCache.set(cacheKey, { course: initialCourseData }, userId, initialVersion);
+      }
     }
   }, [slug, userId, initialCourseData, initialVersion]);
 
-  // StrictMode guard: ensure LOCAL HIT log fires exactly once per mount
-  const localHitLoggedRef = useRef(false);
-
-  // Read chatCache on client to provide instant initialData to useQuery.
-  // Hydration safety is handled by `isHydrated`/`showSkeleton` at lines 139-142,
-  // which ensures server & first client render BOTH show skeleton.
-  const cachedSidebar = typeof window !== "undefined" ? chatCache.get<any>(`course_sidebar_${slug}`, userId) : null;
-  const initialUpdatedAt = cachedSidebar?.timestamp ?? 0;
 
   const { data: course, isLoading } = useQuery({
     queryKey: ["course_sidebar", slug],
-    queryFn: async () => {
-      const cacheKey = `course_sidebar_${slug}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-      const clientVersion = cached?.version;
+   queryFn: async () => {
+  const cacheKey = `course_sidebar_${slug}`;
+  const cached = chatCache.get<any>(cacheKey, userId);
 
-      const result = await getCourseSidebarData(slug, clientVersion);
+  if (cached) {
+    const cacheAge = Date.now() - (cached.timestamp ?? 0);
+    const thirtyMins = 30 * 60 * 1000;
 
-      if (result && (result as any).status === "not-modified" && cached) {
-        console.log("%c[■ Sidebar] 🟡 LOCAL HIT → version matched, NO server fetch", "color: #eab308; font-weight: bold");
-        chatCache.touch(cacheKey, userId); // Refresh local TTL
-        return cached.data.course;
-      }
+    // ✅ Under 30 mins — skip server entirely, no Redis calls at all
+    if (cacheAge < thirtyMins) {
+      console.log("[■ Sidebar] 🟡 LOCAL HIT → skipping server (under 30 min)");
+      return cached.data.course;
+    }
+  }
 
-      if (result && !(result as any).status) {
-        console.log("%c[■ Sidebar] 💡 NEW DATA → updating local cache", "color: #06b6d4");
-        chatCache.set(cacheKey, result, userId, (result as any).version);
-        return (result as any).course;
-      }
-      return (result as any)?.course;
-    },
-    initialData: () => {
-      // ★ PRIORITY 1: Local Cache (instant render, no network)
-      if (cachedSidebar) {
-        if (!localHitLoggedRef.current) {
-          localHitLoggedRef.current = true;
-          console.log(
-            `%c[■ Sidebar] 🟡 LOCAL HIT (v${cachedSidebar.version}) → instant render from localStorage`,
-            "color: #eab308; font-weight: bold"
-          );
-        }
-        return cachedSidebar.data.course;
-      }
-      // ★ PRIORITY 2: Server-provided SSR data (first-ever load, no local cache yet)
-      if (initialCourseData) return initialCourseData;
-      return undefined;
-    },
-    staleTime: 1800000, // 30 minutes — aligns with Redis TTL
-    initialDataUpdatedAt: initialUpdatedAt,
+  // Over 30 mins — do the version check
+  const clientVersion = cached?.version;
+  const result = await getCourseSidebarData(slug, clientVersion) as any;
+
+  if (result?.status === "not-modified" && cached) {
+    chatCache.touch(cacheKey, userId);
+    return result.course;
+  }
+
+  if (result?.course) {
+    chatCache.set(cacheKey, result, userId, result.version);
+    return result.course;
+  }
+
+  return cached?.data?.course ?? null;
+},
+
+    // ✅ Remove initialData — was causing isLoading:false with undefined data
+    staleTime: 1800000,
   });
 
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
-
   const { setProgressPercentage, setShowProgress, setCourseTitle } = useCourseProgressContext();
   const { progressPercentage } = useCourseProgress({ courseData: course });
 
-  // Sync progress context
   useEffect(() => {
     if (!course) return;
     setProgressPercentage(progressPercentage);
     setCourseTitle(course.title);
     setShowProgress(true);
-    
     return () => {
       setShowProgress(false);
       setCourseTitle("");
     };
   }, [progressPercentage, course, setProgressPercentage, setShowProgress, setCourseTitle]);
 
-  // -------------------------------------------------
-  // 🚫 FIX: Close sidebar when navigating to a new page
-  // -------------------------------------------------
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  useEffect(() => { setOpen(false); }, [pathname]);
 
-  // -------------------------------------------------
-  // 🚫 Disable background scroll when sidebar is open (MOBILE ONLY)
-  // -------------------------------------------------
   useEffect(() => {
     if (typeof window === "undefined") return;
     const isMobile = window.innerWidth < 768;
-
     if (isMobile && open) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
-
-    return () => {
-      document.body.style.overflow = "";
-    };
+    return () => { document.body.style.overflow = ""; };
   }, [open]);
 
-  // Hydration fix: Always match server's first render (Skeleton if initialData is null)
-  const isHydrated = mounted;
-  const activeCourse = isHydrated ? course : initialCourseData;
-  const showSkeleton = !isHydrated || (isLoading && !activeCourse);
+  // ✅ Simple, clean skeleton check
+  const showSkeleton = isLoading && !course;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* MAIN CONTENT AREA */}
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
         {/* DESKTOP SIDEBAR */}
-       <div className="hidden md:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
+        <div className="hidden md:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
           {showSkeleton ? (
             <div className="p-4 space-y-6">
-              {/* ProgressBar Skeleton */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Skeleton className="size-10 rounded-lg" />
                     <div className="space-y-2">
-                       <Skeleton className="h-4 w-20" />
-                       <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-3 w-12" />
                     </div>
                   </div>
                   <Skeleton className="size-9 rounded-full" />
                 </div>
                 <Skeleton className="h-1.5 w-full rounded-full" />
               </div>
-
-              {/* Chapter/Lesson List Skeleton */}
               <div className="space-y-3 pt-4">
                 {[1,2,3,4,5].map(i => (
-                  <div key={i} className="flex flex-col gap-2">
-                    <Skeleton className="h-12 w-full rounded-xl" />
-                  </div>
+                  <Skeleton key={i} className="h-12 w-full rounded-xl" />
                 ))}
               </div>
             </div>
           ) : (
-            activeCourse && <CourseSidebar course={activeCourse} />
+            course && <CourseSidebar course={course} />
           )}
         </div>
 
-        {/* PAGE CONTENT (Video/Lesson) */}
+        {/* PAGE CONTENT */}
         <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0 bg-background">
           <div className="max-w-screen-7xl mx-auto w-full">
             {children}
           </div>
           
-          {/* MOBILE PLAYLIST (Visible only on mobile, below content) */}
+          {/* MOBILE */}
           <div className="md:hidden border-t border-border pb-12">
-          {showSkeleton ? (
-               <div className="p-4 space-y-4">
-                 <div className="flex items-center justify-between gap-4">
-                    <Skeleton className="h-8 flex-1 rounded-lg" />
-                    <Skeleton className="h-8 w-24 rounded-lg" />
-                 </div>
-                 <div className="space-y-3">
-                    {[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
-                 </div>
-               </div>
+            {showSkeleton ? (
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <Skeleton className="h-8 flex-1 rounded-lg" />
+                  <Skeleton className="h-8 w-24 rounded-lg" />
+                </div>
+                <div className="space-y-3">
+                  {[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+                </div>
+              </div>
             ) : (
-              activeCourse && <CourseSidebar course={activeCourse} />
+              course && <CourseSidebar course={course} />
             )}
           </div>
         </div>

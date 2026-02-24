@@ -604,66 +604,50 @@ function VideoPlayer({
 
 export function CourseContent({ lessonId, userId, initialLesson, initialVersion }: iAppProps) {
   console.log('[CourseContent] Render start', { lessonId, userId });
-  const [mounted, setMounted] = useState(false);
 
   // Sync initialData to local storage on mount (Legacy/SSR support)
   useEffect(() => {
-    console.log('[CourseContent] useEffect: setMounted(true)');
-    setMounted(true);
+
     if (initialLesson && initialVersion) {
         const cacheKey = `lesson_content_${lessonId}`;
         chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, PERMANENT_TTL);
     }
   }, [lessonId, userId, initialLesson, initialVersion]);
 
-  // StrictMode guard: ensure LOCAL HIT log fires exactly once per mount
-  const localHitLoggedRef = useRef(false);
-
-  // Read chatCache on client to provide instant initialData to useQuery.
-  // Hydration safety is handled by the `!mounted` early return below (line ~695),
-  // which ensures server & first client render BOTH show skeleton regardless of cached data.
-  const cachedLesson = typeof window !== "undefined" ? chatCache.get<any>(`lesson_content_${lessonId}`, userId) : null;
-  const initialUpdatedAt = cachedLesson?.timestamp ?? 0;
-
   const { data: lesson, isLoading } = useQuery({
     queryKey: ["lesson_content", lessonId],
-    queryFn: async () => {
-      const cacheKey = `lesson_content_${lessonId}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-      const clientVersion = cached?.version;
+queryFn: async () => {
+  const cacheKey = `lesson_content_${lessonId}`;
+  const cached = chatCache.get<any>(cacheKey, userId);
+  
+  if (cached) {
+    const cacheAge = Date.now() - (cached.timestamp ?? 0);
+    const thirtyMins = 30 * 60 * 1000;
+    
+    // ✅ Under 30 mins — skip server entirely, no Redis calls at all
+    if (cacheAge < thirtyMins) {
+      console.log("[■ Lesson] 🟡 LOCAL HIT → skipping server (under 30 min)");
+      return cached.data;
+    }
+  }
 
-      const result = await getLessonContent(lessonId, clientVersion);
+  // Over 30 mins — do the version check
+  const clientVersion = cached?.version;
+  const result = await getLessonContent(lessonId, clientVersion) as any;
 
-      if (result && (result as any).status === "not-modified" && cached) {
-        console.log("%c[■ Lesson] 🟡 LOCAL HIT → version matched, NO server fetch", "color: #eab308; font-weight: bold");
-        chatCache.touch(cacheKey, userId); // Refresh local TTL
-        return cached.data;
-      }
+  if (result?.status === "not-modified" && cached) {
+    chatCache.touch(cacheKey, userId);
+    return cached.data;
+  }
 
-      if (result && !(result as any).status) {
-        console.log("%c[■ Lesson] 💡 NEW DATA → updating local cache", "color: #06b6d4");
-        chatCache.set(cacheKey, result, userId, (result as any).version, PERMANENT_TTL);
-        return result;
-      }
-      return result || cached?.data;
-    },
-    initialData: () => {
-      // ★ PRIORITY 1: Local Cache (instant render, no network)
-      if (cachedLesson) {
-        if (!localHitLoggedRef.current) {
-          localHitLoggedRef.current = true;
-          console.log(
-            `%c[■ Lesson] 🟡 LOCAL HIT (v${cachedLesson.version}) → instant render from localStorage`,
-            "color: #eab308; font-weight: bold"
-          );
-        }
-        return cachedLesson.data;
-      }
-      // ★ PRIORITY 2: Server-provided SSR data
-      return initialLesson;
-    },
+  if (result?.lesson) {
+    chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
+    return result;
+  }
+
+  return cached?.data ?? null;
+},
     staleTime: 1800000,
-    initialDataUpdatedAt: initialUpdatedAt,
     refetchInterval: false,
     refetchOnWindowFocus: true,
   });
@@ -696,6 +680,21 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   useEffect(() => {
     // Component reset logic if any
   }, [lessonId]);
+
+  if ((isLoading && !lessonData)) {
+      return <LessonContentSkeleton />;
+  }
+
+  if (!lessonData) {
+    console.log('[CourseContent] Early return: no lesson data');
+    return (
+        <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
+            <BookIcon size={64} className="mb-4" />
+            <h2 className="text-xl font-black uppercase tracking-widest">Lesson Not Available</h2>
+            <p className="text-sm">Please check your internet connection or contact support.</p>
+        </div>
+    );
+  }
 
   const data = lessonData;
 
@@ -755,21 +754,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
   const hasVideo = Boolean(data.videoKey);
 
-  if (!mounted || (isLoading && !lessonData)) {
-      console.log('[CourseContent] Early return: skeleton', { mounted, isLoading, hasLessonData: !!lessonData });
-      return <LessonContentSkeleton />;
-  }
 
-  if (!lessonData) {
-    console.log('[CourseContent] Early return: no lesson data');
-    return (
-        <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
-            <BookIcon size={64} className="mb-4" />
-            <h2 className="text-xl font-black uppercase tracking-widest">Lesson Not Available</h2>
-            <p className="text-sm">Please check your internet connection or contact support.</p>
-        </div>
-    );
-  }
 
   return (
     <div className="relative flex flex-col md:flex-row bg-background md:h-full overflow-hidden md:border-l border-border ">
