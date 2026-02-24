@@ -63,6 +63,8 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       spriteWidth: data.spriteWidth ?? undefined,
       spriteHeight: data.spriteHeight ?? undefined,
       lowResKey: data.lowResKey ?? undefined,
+      videoEncryptionKey: (data as any).videoEncryptionKey ?? undefined,
+      videoEncryptionIV: (data as any).videoEncryptionIV ?? undefined,
     },
   });
 
@@ -220,6 +222,17 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                         duration={form.getValues("duration") ?? undefined}
                         initialSpriteKey={form.getValues("spriteKey")}
                         captionUrl={captionUrl}
+                        lessonId={data.id}
+                        onEncryptionChange={(key, iv) => {
+                          form.setValue("videoEncryptionKey", key);
+                          form.setValue("videoEncryptionIV", iv);
+                          // Auto-save with encryption data
+                          onSubmit({
+                            ...form.getValues(),
+                            videoEncryptionKey: key,
+                            videoEncryptionIV: iv,
+                          }, true);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />

@@ -66,14 +66,13 @@ export const lessonSchema = z.object({
   courseId: z.string().uuid({ message: "Invalid course ID" }),
   description: z
     .string()
-    .min(3, { message: "Description must be at least 3 characters" })
-    .optional(),
+    .optional()
+    .or(z.literal("")),
   thumbnailKey: z
     .string()
-    .min(1, { message: "Thumbnail must be selected" })
     .nullable()
     .optional(),
-  videoKey: z.string().min(1, { message: "Video must be selected" }).nullable().optional(),
+  videoKey: z.string().nullable().optional(),
   duration: z.number().optional().nullable(),
 
   // Sprite sheet metadata
@@ -84,6 +83,10 @@ export const lessonSchema = z.object({
   spriteWidth: z.number().nullable().optional(),
   spriteHeight: z.number().nullable().optional(),
   lowResKey: z.string().nullable().optional(),
+  
+  // HLS Encryption metadata
+  videoEncryptionKey: z.string().nullable().optional(),
+  videoEncryptionIV: z.string().nullable().optional(),
 });
 
 

@@ -26,6 +26,8 @@ export async function adminGetLesson(id: string) {
       spriteWidth: true,
       spriteHeight: true,
       lowResKey: true,
+      videoEncryptionKey: true,
+      videoEncryptionIV: true,
       transcription: {
         select: {
           id: true,

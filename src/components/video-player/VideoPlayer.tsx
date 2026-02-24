@@ -19,6 +19,26 @@ import {
   RotateCcw,
   RotateCw
 } from "lucide-react";
+
+// Global hook to fix 404s on existing HLS manifests with relative key URLs
+if (typeof window !== "undefined") {
+  (videojs as any).Vhs.xhr.beforeRequest = (options: any) => {
+    if (options.uri.includes("/api/video/key/")) {
+      options.withCredentials = true;
+      if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com")) {
+        try {
+          const url = new URL(options.uri);
+          const newUri = `${window.location.origin}${url.pathname}`;
+          console.log("VideoPlayer-Global: Redirecting key request to origin:", newUri);
+          return { ...options, uri: newUri };
+        } catch (e) {
+          return options;
+        }
+      }
+    }
+    return options;
+  };
+}
 import { Slider } from "@/components/ui/slider";
 import {
   DropdownMenu,
@@ -144,6 +164,27 @@ export function VideoPlayer({
           vhs: { 
             overrideNative: true,
             fastQualityChange: true,
+            beforeRequest: (options: any) => {
+              // Fix for relative key URLs in existing manifests:
+              // If the request for a key is going to the storage domain, redirect it to our origin.
+              if (options.uri.includes("/api/video/key/")) {
+                options.withCredentials = true;
+                
+                // If the URL has been resolved against Tigris/S3 (e.g. via relative path in manifest),
+                // swap it back to our origin so the key delivery API can handle it.
+                if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com")) {
+                  try {
+                    const url = new URL(options.uri);
+                    const newUri = `${window.location.origin}${url.pathname}`;
+                    console.log("VideoPlayer: Redirecting key request to origin:", newUri);
+                    options.uri = newUri;
+                  } catch (e) {
+                    console.error("VideoPlayer: Failed to rewrite key URL", e);
+                  }
+                }
+              }
+              return options;
+            },
             enableLowInitialPlaylist: true,
             smoothQualityChange: false,
             useDevicePixelRatio: true,
@@ -187,10 +228,14 @@ export function VideoPlayer({
         }
       });
       player.on("loadedmetadata", () => {
-        const duration = player.duration() || 0;
-        setDuration(duration);
-        onLoadedMetadata?.(duration);
+        const d = player.duration() || 0;
+        setDuration(d);
+        onLoadedMetadata?.(d);
         if (initialTime > 0) player.currentTime(initialTime);
+      });
+      player.on("durationchange", () => {
+        const d = player.duration() || 0;
+        if (d > 0) setDuration(d);
       });
       player.on("ended", () => onEnded?.());
       player.on("error", () => {
@@ -417,7 +462,7 @@ export function VideoPlayer({
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     
     // 1s timeout for mobile, 3s for desktop
-    const timeout = window.innerWidth < 768 ? 1000 : 2000;
+    const timeout = window.innerWidth < 768 ? 1000 : 500;
     
     controlsTimeoutRef.current = setTimeout(() => {
       if (isPlayingRef.current) {
@@ -486,37 +531,41 @@ export function VideoPlayer({
   };
 
   const handleSeek = useCallback((value: number[]) => {
-    if (!playerRef.current || !value || isNaN(value[0])) return;
+    if (!value || isNaN(value[0])) return;
     
-    // Lock state updates from the player's timeupdate event while we are seeking
+    // Lock status and update UI state only for performance
     isSeekingRef.current = true;
-
-    // Snap incoming value to 0.01 immediately
     let time = Math.round(value[0] * 100) / 100;
-    
-    // Clamp time between 0 and duration
     time = Math.max(0, Math.min(time, duration || 0));
 
-    // snap to sprite interval if available
-    if (spriteMetadata?.interval) {
-        time = Math.floor(time / spriteMetadata.interval) * spriteMetadata.interval;
-    }
-    
-    playerRef.current.currentTime(time);
     setCurrentTime(time);
-  }, [duration, spriteMetadata?.interval]);
+  }, [duration]);
 
   const handleSeekCommit = useCallback((value: number[]) => {
-    // Unlock state updates from player
-    isSeekingRef.current = false;
-    
-    // Final sync
-    if (playerRef.current && value && !isNaN(value[0])) {
-        const time = Math.round(value[0] * 100) / 100;
-        playerRef.current.currentTime(time);
-        setCurrentTime(time);
+    if (!playerRef.current || !value || isNaN(value[0])) {
+      isSeekingRef.current = false;
+      return;
     }
-  }, []);
+    
+    let time = Math.round(value[0] * 100) / 100;
+    time = Math.max(0, Math.min(time, duration || 0));
+
+    // Optional: Only snap on commit to keep dragging smooth but final position precise
+    if (spriteMetadata?.interval) {
+      time = Math.floor(time / spriteMetadata.interval) * spriteMetadata.interval;
+    }
+
+    try {
+      playerRef.current.currentTime(time);
+      setCurrentTime(time);
+    } finally {
+      // Small delay before unlocking to prevent the next 'timeupdate' 
+      // from snapping the UI back to the old position before the seek completes
+      setTimeout(() => {
+        isSeekingRef.current = false;
+      }, 50);
+    }
+  }, [duration, spriteMetadata?.interval]);
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1105,12 +1154,16 @@ export function VideoPlayer({
 
 
 {seekAnimation?.type && (
-  <div
-    className={cn(
-      "absolute inset-y-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ",
-      seekAnimation.type === "forward" ? "right-0" : "left-0"
-    )}
-  >
+  <>
+    {/* Full Screen Dark Overlay */}
+    <div className="absolute inset-0 z-15 bg-black/50 animate-in fade-in duration-300 pointer-events-none" />
+    
+    <div
+      className={cn(
+        "absolute inset-y-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ",
+        seekAnimation.type === "forward" ? "right-0" : "left-0"
+      )}
+    >
     {/* Soft side glow */}
     <div
       className={cn(
@@ -1163,6 +1216,7 @@ export function VideoPlayer({
 </div>
    
   </div>
+    </>
 )}
 
 {/* Centered Volume Indicator */}
@@ -1243,7 +1297,7 @@ export function VideoPlayer({
               if (pos) {
                 const spritePos = spriteMetadata ? getSpritePosition(pos.time) : null;
                 const snapTime = spritePos?.startTime ?? pos.time;
-                handleSeek([snapTime]);
+                handleSeekCommit([snapTime]);
               }
             }}
             onTouchMove={handleSeekbarTouchMove}

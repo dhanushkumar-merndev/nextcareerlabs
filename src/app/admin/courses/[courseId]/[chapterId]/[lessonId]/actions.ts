@@ -50,6 +50,8 @@ export async function updateLesson(
           spriteWidth: result.data.spriteWidth,
           spriteHeight: result.data.spriteHeight,
           lowResKey: result.data.lowResKey,
+          videoEncryptionKey: result.data.videoEncryptionKey,
+          videoEncryptionIV: result.data.videoEncryptionIV,
         },
       });
 

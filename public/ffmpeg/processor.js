@@ -15,11 +15,13 @@
   // Combined HLS transcode + audio compression in a SINGLE FFmpeg session.
   // The input file is loaded into WASM memory once and reused for both operations,
   // saving 10-30s that would otherwise be spent re-initializing FFmpeg + re-reading the file.
-  window.transcodeVideoToHLS = async function (file, onProgress, duration) {
+  window.transcodeVideoToHLS = async function (file, onProgress, duration, encryption = null) {
     const ffmpeg = await createFFmpeg();
     const inputName = "input.mp4";
     const hlsOutputName = "index.m3u8";
     const audioOutputName = "compressed.ogg";
+    const keyInfoName = "enc.keyinfo";
+    const keyFileName = "enc.key";
 
     let lastProgress = 0;
     const progressHandler = ({ progress }) => {
@@ -41,18 +43,32 @@
       onProgress?.(5);
       lastProgress = 5;
 
-      // ✅ Phase 1: Byte-Range HLS (copy mode — very fast)
-      // hls_time=2 targets ~2s segments for better seek precision
-      // (with copy mode, actual splits happen at nearest keyframe)
-      await ffmpeg.exec([
+      const ffmpegArgs = [
         "-i", inputName,
         "-c", "copy",
-        "-hls_time", "1", 
+        "-hls_time", "6", 
         "-hls_playlist_type", "vod",
         "-hls_flags", "single_file",
-        "-f", "hls",
-        hlsOutputName
-      ]);
+        "-f", "hls"
+      ];
+
+      // ✅ Phase 1: Byte-Range HLS (copy mode — very fast)
+      // If encryption is provided, setup the key info file
+      if (encryption && encryption.key && encryption.iv && encryption.keyUrl) {
+        console.log("[Processor] HLS Encryption Enabled");
+        // FFmpeg hls_key_info_file format:
+        // Line 1: URL for the key (to be put in the .m3u8)
+        // Line 2: Path to the local key file (in WASM mem)
+        // Line 3: Initialization Vector (hex)
+        const keyInfoContent = `${encryption.keyUrl}\n${keyFileName}\n${encryption.iv}`;
+        await ffmpeg.writeFile(keyFileName, encryption.key); // encryption.key should be Uint8Array (16 bytes)
+        await ffmpeg.writeFile(keyInfoName, keyInfoContent);
+        
+        ffmpegArgs.push("-hls_key_info_file", keyInfoName);
+      }
+
+      ffmpegArgs.push(hlsOutputName);
+      await ffmpeg.exec(ffmpegArgs);
 
       onProgress?.(70);
       lastProgress = 70;

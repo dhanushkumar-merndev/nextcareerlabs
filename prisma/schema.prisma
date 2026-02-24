@@ -164,6 +164,10 @@ model Lesson {
   spriteWidth    Int? // Width of each thumbnail in px
   spriteHeight   Int? // Height of each thumbnail in px
   lowResKey      String? // S3 key to the low-res preview grid
+  
+  // HLS Encryption (AES-128)
+  videoEncryptionKey String? // 16-byte base64 encoded key
+  videoEncryptionIV  String? // 16-byte hex encoded IV
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

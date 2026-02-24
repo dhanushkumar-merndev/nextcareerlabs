@@ -43,7 +43,8 @@ async function ensureScriptsLoaded() {
 export async function transcodeToHLS(
   file: File,
   onProgress: (progress: number) => void,
-  duration: number
+  duration: number,
+  encryption?: { key: Uint8Array; iv: string; keyUrl: string; keyBase64?: string }
 ): Promise<TranscodeResult> {
   await ensureScriptsLoaded();
 
@@ -51,7 +52,7 @@ export async function transcodeToHLS(
     throw new Error("Transcoder script not initialized properly");
   }
 
-  return window.transcodeVideoToHLS(file, onProgress, duration);
+  return window.transcodeVideoToHLS(file, onProgress, duration, encryption);
 }
 
 export async function compressAudio(
@@ -78,7 +79,8 @@ declare global {
     transcodeVideoToHLS: (
       file: File,
       onProgress: (progress: number) => void,
-      duration: number
+      duration: number,
+      encryption?: { key: Uint8Array; iv: string; keyUrl: string }
     ) => Promise<TranscodeResult & { audioBlob: Blob | null }>;
     FFmpegWASM: any;
     FFmpegUtil: any;

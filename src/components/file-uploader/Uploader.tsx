@@ -55,7 +55,8 @@ interface iAppProps {
   duration?: number;
   initialSpriteKey?: string | null;
   captionUrl?: string | null;
-
+  lessonId?: string;
+  onEncryptionChange?: (key: string, iv: string) => void;
 }
 interface UploaderState {
   id: string | null;
@@ -79,7 +80,7 @@ interface UploaderState {
   audioCompressing: boolean;
 }
 
-export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey, captionUrl }: iAppProps) {
+export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncryptionChange, lessonId, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey, captionUrl }: iAppProps) {
   const fileUrl = constructUrl(value || "");
   
   // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
@@ -214,9 +215,30 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           (window as any).__PROCESSING_VIDEO__ = true;
           
           // Combined HLS transcode + audio compression in a single FFmpeg session
+          let encryptionMetadata = null;
+          if (lessonId) {
+            const key = window.crypto.getRandomValues(new Uint8Array(16));
+            // Convert to base64 immediately while buffer is fresh
+            // Use Array.from to avoid "detached buffer" when spreading TypedArray later
+            const keyBase64 = btoa(String.fromCharCode.apply(null, Array.from(key)));
+            
+            const iv = Array.from(window.crypto.getRandomValues(new Uint8Array(16)))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join('');
+            
+            const keyUrl = `${window.location.origin}/api/video/key/${lessonId}`;
+            
+            encryptionMetadata = { key, keyBase64, iv, keyUrl };
+            console.log("[Uploader] Encryption metadata generated", { iv, keyUrl });
+          }
+
           const { m3u8, segments, audioBlob: transcodedAudio } = await transcodeToHLS(file, (p) => {
             setFileState((s) => ({ ...s, transcodingProgress: p }));
-          }, duration);
+          }, duration, encryptionMetadata ? { 
+            key: encryptionMetadata.key, 
+            iv: encryptionMetadata.iv, 
+            keyUrl: encryptionMetadata.keyUrl 
+          } : undefined);
           if (isCancelled()) return;
           setFileState((s) => ({ ...s, transcoding: false }));
 
@@ -473,6 +495,11 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
              setFileState(s => ({ ...s, isSpriteGenerated: true, spriteMetadata: metadata }));
           }
 
+          // Update Encryption in DB if generated
+          if (encryptionMetadata) {
+            onEncryptionChange?.(encryptionMetadata.keyBase64, encryptionMetadata.iv);
+          }
+
           setFileState((prevState) => ({
             ...prevState,
             uploading: false,
@@ -544,6 +571,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, value, fi
           });
         }
       } catch (error: any) {
+        console.error("[Uploader] Error during upload process:", error);
         // Don't show error toast if it was a user-initiated cancel
         if (isCancelled() || error?.message === "Upload cancelled" || error?.name === "AbortError") return;
         toast.error("Something went wrong during upload");
