@@ -2,33 +2,39 @@
 
 import { useState, useEffect } from "react";
 import { useSmartSession } from "@/hooks/use-smart-session";
+import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 import { AppSidebar } from "./DashboardAppSidebar";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { SiteHeader } from "@/components/sidebar/site-header";
 import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
-  const { session } = useSmartSession();
-  const { isEnrolled, sessionLoading } = useEnrolledCourses();
+  const { session, isLoading: sessionLoading } = useSmartSession();
+
+  const { isEnrolled } = useEnrolledCourses(
+    session?.user?.id,
+    sessionLoading
+  );
+
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const isComplete = !!session?.user.phoneNumber;
-  
+  const isComplete = !!session?.user?.phoneNumber;
+
   return (
     <>
-      {mounted && (
-        <PhoneNumberDialog 
-          isOpen={session ? !isComplete : false} 
-          requireName={session ? !session.user.name : false} 
+      {mounted && session && (
+        <PhoneNumberDialog
+          isOpen={!isComplete}
+          requireName={!session.user.name}
         />
       )}
+
       <AppSidebar variant="inset" isEnrolled={isEnrolled} />
+
       <SidebarInset className="overflow-hidden">
         <SiteHeader />
         <div className="flex flex-1 flex-col overflow-hidden">
