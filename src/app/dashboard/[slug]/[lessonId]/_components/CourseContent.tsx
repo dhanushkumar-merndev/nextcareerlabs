@@ -176,6 +176,17 @@ function VideoPlayer({
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
   const [captionUrl, setCaptionUrl] = useState<string | undefined>(undefined);
 
+  // ✅ Instant Local Resume: Prioritize local storage over server-provided time
+  const resumeTime = useMemo(() => {
+    const localProgress = secureStorage.getItem(`video-progress-${lessonId}`);
+    if (localProgress) {
+      const parsedLocal = parseFloat(localProgress);
+      // Take the latest of server or local time to ensure we never go backwards
+      return Math.max(initialTime, parsedLocal);
+    }
+    return initialTime;
+  }, [lessonId, initialTime]);
+
   const sources = useMemo(() => {
     const list = [];
     if (hlsUrl) list.push({ src: hlsUrl, type: "application/x-mpegURL" });
@@ -498,18 +509,20 @@ function VideoPlayer({
   }, [lessonId]);
 
   /* ============================================================
-     BEFOREUNLOAD: Save to both storages
+     BEFOREUNLOAD: Save to both storages (Local + Cookie)
   ============================================================ */
   useEffect(() => {
     const handleBeforeUnload = () => {
       saveUnsyncedDelta();
+      saveProgress(lastPositionRef.current);
     };
 
     const handleVisibilityChange = () => {
-        if (document.visibilityState === "hidden") {
-            saveUnsyncedDelta();
-            syncToDB();
-        }
+      if (document.visibilityState === "hidden") {
+        saveUnsyncedDelta();
+        saveProgress(lastPositionRef.current);
+        syncToDB(); // Push to DB immediately on tab hide
+      }
     };
 
     window.addEventListener("beforeunload", handleBeforeUnload);
@@ -567,7 +580,7 @@ function VideoPlayer({
           key={lessonId}
           sources={sources}
           poster={thumbnailUrl}
-          initialTime={initialTime}
+          initialTime={resumeTime}
           onTimeUpdate={onTimeUpdate}
           onPlay={onPlay}
           onPause={onPause}

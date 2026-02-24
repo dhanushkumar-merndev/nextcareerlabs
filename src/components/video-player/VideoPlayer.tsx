@@ -1107,7 +1107,7 @@ export function VideoPlayer({
 {seekAnimation?.type && (
   <div
     className={cn(
-      "absolute inset-y-0 z-20 w-1/3 flex items-center justify-center pointer-events-none",
+      "absolute inset-y-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ",
       seekAnimation.type === "forward" ? "right-0" : "left-0"
     )}
   >
