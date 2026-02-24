@@ -155,7 +155,15 @@ export const auth = betterAuth({
     },
     session: {
         create: {
-            after: async () => {
+        after: async (session) => {
+                 await prisma.session.deleteMany({
+                  where: {
+                    userId: session.userId,
+                    NOT: {
+                      id: session.id,
+                    },
+                  },
+                });  
                 const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } = await import("./redis");
                 await incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
                 console.log("[Auth Hook] Session created. Syncing all clients...");
