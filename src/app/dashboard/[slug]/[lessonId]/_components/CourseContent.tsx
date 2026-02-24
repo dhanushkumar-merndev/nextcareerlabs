@@ -602,6 +602,15 @@ useEffect(() => {
 export function CourseContent({ lessonId, userId, initialLesson, initialVersion }: iAppProps) {
   console.log('[CourseContent] Render start', { lessonId, userId });
 
+  // ✅ ALL hooks FIRST — before any early returns (Rules of Hooks)
+  const queryClient = useQueryClient();
+  const [isPending, startTransition] = useTransition();
+  const { triggerConfetti } = useConfetti2();
+  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
+  const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
+  const [optimisticCompleted, setOptimisticCompleted] = useState(false);
+  const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
+
   // Sync initialData to local storage on mount (Legacy/SSR support)
   useEffect(() => {
 
@@ -644,15 +653,6 @@ const { data: lesson, isLoading } = useQuery({
   refetchInterval: false,
   refetchOnWindowFocus: true,
 });
-
-  // ✅ ALL hooks MUST be called before any early return (Rules of Hooks)
-  const queryClient = useQueryClient();
-  const [isPending, startTransition] = useTransition();
-  const { triggerConfetti } = useConfetti2();
-  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
-  const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
-  const [optimisticCompleted, setOptimisticCompleted] = useState(false);
-  const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
 
   // Extract lesson and questions from data
   const rawData = lesson as any;

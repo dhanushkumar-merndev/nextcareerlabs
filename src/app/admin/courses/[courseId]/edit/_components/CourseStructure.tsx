@@ -64,6 +64,37 @@ interface SortableItemProps {
   };
 }
 
+
+  function SortableItem({ children, id, className, data }: SortableItemProps) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id, data });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        className={cn(
+          className,
+          isDragging ? "relative z-50 pointer-events-none" : ""
+        )}
+      >
+        {children(listeners)}
+      </div>
+    );
+  }
+
 export function CourseStructure({ data, setDirty }: iAppProps) {
   const queryClient = useQueryClient();
   const [isMounted, setIsMounted] = useState(false);
@@ -135,35 +166,6 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     setDirty(changed);
   }, [items, initialItems, setDirty]);
 
-  function SortableItem({ children, id, className, data }: SortableItemProps) {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id, data });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
-
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        className={cn(
-          className,
-          isDragging ? "relative z-50 pointer-events-none" : ""
-        )}
-      >
-        {children(listeners)}
-      </div>
-    );
-  }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;

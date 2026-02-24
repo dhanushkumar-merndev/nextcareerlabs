@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect,useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { CourseSidebar } from "./CourseSidebar";
