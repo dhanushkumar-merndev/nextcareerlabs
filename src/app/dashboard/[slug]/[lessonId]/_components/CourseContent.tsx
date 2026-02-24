@@ -697,22 +697,6 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
     // Component reset logic if any
   }, [lessonId]);
 
-  if (!mounted || (isLoading && !lessonData)) {
-      console.log('[CourseContent] Early return: skeleton', { mounted, isLoading, hasLessonData: !!lessonData });
-      return <LessonContentSkeleton />;
-  }
-
-  if (!lessonData) {
-    console.log('[CourseContent] Early return: no lesson data');
-    return (
-        <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
-            <BookIcon size={64} className="mb-4" />
-            <h2 className="text-xl font-black uppercase tracking-widest">Lesson Not Available</h2>
-            <p className="text-sm">Please check your internet connection or contact support.</p>
-        </div>
-    );
-  }
-
   const data = lessonData;
 
   function onSubmit() {
@@ -770,6 +754,22 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const isCompleted = optimisticCompleted || lessonData?.lessonProgress?.some((p: any) => p.completed);
   const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
   const hasVideo = Boolean(data.videoKey);
+
+  if (!mounted || (isLoading && !lessonData)) {
+      console.log('[CourseContent] Early return: skeleton', { mounted, isLoading, hasLessonData: !!lessonData });
+      return <LessonContentSkeleton />;
+  }
+
+  if (!lessonData) {
+    console.log('[CourseContent] Early return: no lesson data');
+    return (
+        <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
+            <BookIcon size={64} className="mb-4" />
+            <h2 className="text-xl font-black uppercase tracking-widest">Lesson Not Available</h2>
+            <p className="text-sm">Please check your internet connection or contact support.</p>
+        </div>
+    );
+  }
 
   return (
     <div className="relative flex flex-col md:flex-row bg-background md:h-full overflow-hidden md:border-l border-border ">
