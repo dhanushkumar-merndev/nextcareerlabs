@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // compiler: {
-  //   removeConsole: process.env.NODE_ENV === "production",
-  // },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production",
+  },
   // Disabled: causes "Expected static flag was missing" errors with Turbopack in dev
   // reactCompiler: true,
 
