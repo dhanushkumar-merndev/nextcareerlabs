@@ -38,7 +38,7 @@ export function SidebarContainer({
   }, [slug, userId, initialCourseData, initialVersion]);
 
 
-  const { data: course, isLoading } = useQuery({
+  const { data: course, isLoading, isError } = useQuery({
     queryKey: ["course_sidebar", slug],
     queryFn: async () => {
   const cacheKey = `course_sidebar_${slug}`;
@@ -61,7 +61,7 @@ export function SidebarContainer({
 
   if (result?.status === "not-modified" && cached) {
     chatCache.touch(cacheKey, userId);
-    return result.course;
+    return cached.data.course;  // ✅ Fix: return cached data, not result.course
   }
 
   if (result?.course) {
@@ -72,6 +72,7 @@ export function SidebarContainer({
   return cached?.data?.course ?? null;
 },
     staleTime: 1800000,
+    retry: 1,  // ✅ Limit retries so errors surface quickly
   });
 
   const [open, setOpen] = useState(false);
@@ -106,8 +107,8 @@ export function SidebarContainer({
 const [isMounted, setIsMounted] = useState(false);
 useEffect(() => { setIsMounted(true); }, []);
 
-// ✅ Fix: only show skeleton after mount — prevents SSR/client mismatch
-const showSkeleton = isMounted && isLoading && !course;
+// ✅ Fix: stop showing skeleton on error — prevents infinite loading
+const showSkeleton = isMounted && isLoading && !course && !isError;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">

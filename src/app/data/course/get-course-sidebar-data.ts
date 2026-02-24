@@ -1,7 +1,6 @@
 "use server"
 import { requireUser } from "../user/require-user";
 import { prisma } from "@/lib/db";
-import { notFound, redirect } from "next/navigation";
 
 import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
 
@@ -78,7 +77,7 @@ export async function getCourseSidebarData(slug: string, clientVersion?: string)
   });
 
   if (!course) {
-    return notFound();
+    return { status: "not-found" as const, course: null, version: currentVersion };
   }
 
   const enrollment = await prisma.enrollment.findUnique({
@@ -91,7 +90,7 @@ export async function getCourseSidebarData(slug: string, clientVersion?: string)
   });
 
   if (!enrollment || enrollment.status !== "Granted") {
-    return notFound();
+    return { status: "not-enrolled" as const, course: null, version: currentVersion };
   }
 
   console.log(`%c[Sidebar] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`, "color: #f97316");
