@@ -503,27 +503,24 @@ export function VideoPlayer({
     e?.stopPropagation();
     if (!playerRef.current) return;
 
-    // Debounce to prevent "double-toggle" on mobile (e.g. touch + synthetic click)
+    // Robust toggle logic using actual player state + debouncing
     const now = Date.now();
-    if (now - lastToggleTimeRef.current < 300) return;
+    if (now - lastToggleTimeRef.current < 400) return;
     lastToggleTimeRef.current = now;
 
-    if (playerRef.current.paused()) {
+    const isCurrentlyPaused = playerRef.current.paused();
+
+    if (isCurrentlyPaused) {
       setIsPlaying(true);
       isPlayingRef.current = true;
-      // Chain pause onto the play Promise to avoid AbortError
       const playPromise = playerRef.current.play() as Promise<void> | undefined;
       if (playPromise !== undefined) {
         pendingPlayRef.current = playPromise;
         playPromise
-          .then(() => {
-            pendingPlayRef.current = null;
-          })
+          .then(() => { pendingPlayRef.current = null; })
           .catch((err: Error) => {
             pendingPlayRef.current = null;
-            if (err.name !== "AbortError") {
-              console.error("VideoPlayer play() error:", err);
-            }
+            if (err.name !== "AbortError") console.error("VideoPlayer play() error:", err);
             setIsPlaying(false);
             isPlayingRef.current = false;
           });
@@ -532,7 +529,6 @@ export function VideoPlayer({
       setIsPlaying(false);
       isPlayingRef.current = false;
       if (pendingPlayRef.current) {
-        // play() is still resolving — pause after it settles
         pendingPlayRef.current
           .then(() => playerRef.current?.pause())
           .catch(() => {});
@@ -658,13 +654,10 @@ export function VideoPlayer({
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    // If the touch started/ended on a button or other interactive element,
-    // let THAT element's events handle the logic. 
-    // This prevents background tap logic from firing on icon clicks.
+    // 1. Strict Target Isolation: Ignore ANY touch that lands on or near interactive controls
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('[role="button"]') || target.closest('.cursor-pointer')) {
-      return;
-    }
+    const isInteractive = !!target.closest('button, [role="button"], .cursor-pointer, .Slider-root, [data-seekbar]');
+    if (isInteractive) return;
 
     const now = Date.now();
     const isDoubleTap = now - lastTapTimeRef.current < 300;
