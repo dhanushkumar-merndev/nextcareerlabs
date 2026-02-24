@@ -659,23 +659,10 @@ const { data: lesson, isLoading } = useQuery({
   const lessonData = rawData?.lesson;
   const questions = useMemo(() => rawData?.questions ?? EMPTY_ARRAY, [rawData?.questions]);
   const isLoadingMCQs = isLoading;
-
-  if (isLoading || !lessonData) {
-    return <LessonContentSkeleton />;
-  }
-
-  if (!lessonData) {
-    console.log('[CourseContent] Early return: no lesson data');
-    return (
-        <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
-            <BookIcon size={64} className="mb-4" />
-            <h2 className="text-xl font-black uppercase tracking-widest">Lesson Not Available</h2>
-            <p className="text-sm">Please check your internet connection or contact support.</p>
-        </div>
-    );
-  }
-
   const data = lessonData;
+   const isCompleted = optimisticCompleted || lessonData?.lessonProgress?.some((p: any) => p.completed);
+  const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
+ const hasVideo = Boolean(data?.videoKey); 
 
   function onSubmit() {
     if (isLoadingMCQs) return;
@@ -729,9 +716,25 @@ const { data: lesson, isLoading } = useQuery({
     });
   }
 
-  const isCompleted = optimisticCompleted || lessonData?.lessonProgress?.some((p: any) => p.completed);
-  const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
-  const hasVideo = Boolean(data.videoKey);
+
+  if (isLoading || !lessonData) {
+    return <LessonContentSkeleton />;
+  }
+
+  if (!lessonData) {
+    console.log('[CourseContent] Early return: no lesson data');
+    return (
+        <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
+            <BookIcon size={64} className="mb-4" />
+            <h2 className="text-xl font-black uppercase tracking-widest">Lesson Not Available</h2>
+            <p className="text-sm">Please check your internet connection or contact support.</p>
+        </div>
+    );
+  }
+
+ 
+
+ 
 
 
 
