@@ -82,7 +82,7 @@ interface UploaderState {
 
 export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncryptionChange, lessonId, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey, captionUrl }: iAppProps) {
   const fileUrl = constructUrl(value || "");
-  
+
   // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
   const extractedBaseKey = value ? (() => {
     if (value.startsWith('hls/')) return value.split('/')[1];
@@ -99,7 +99,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
 
     // 2. Abort all in-flight XHR uploads
     activeXHRs.current.forEach(xhr => {
-      try { xhr.abort(); } catch {}
+      try { xhr.abort(); } catch { }
     });
     activeXHRs.current.clear();
 
@@ -153,9 +153,9 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     spriteUploadProgress: 0,
     isSpriteGenerated: !!initialSpriteKey || !!extractedBaseKey,
     spriteMetadata: initialSpriteKey ? {
-        spriteKey: initialSpriteKey
+      spriteKey: initialSpriteKey
     } : (extractedBaseKey ? {
-        spriteKey: `sprites/${extractedBaseKey}/thumbnails.vtt`
+      spriteKey: `sprites/${extractedBaseKey}/thumbnails.vtt`
     } : undefined),
     baseKey: extractedBaseKey,
     duration: initialDuration,
@@ -206,14 +206,14 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             transcoding: true,
             transcodingProgress: 0,
           }));
-          
+
           const duration = await getVideoDuration(file);
           if (isCancelled()) return;
           onDurationChange?.(Math.round(duration));
-          
+
           // LOCK: Start Memory-Intensive Phase
           (window as any).__PROCESSING_VIDEO__ = true;
-          
+
           // Combined HLS transcode + audio compression in a single FFmpeg session
           let encryptionMetadata = null;
           if (lessonId) {
@@ -221,23 +221,23 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             // Convert to base64 immediately while buffer is fresh
             // Use Array.from to avoid "detached buffer" when spreading TypedArray later
             const keyBase64 = btoa(String.fromCharCode.apply(null, Array.from(key)));
-            
+
             const iv = Array.from(window.crypto.getRandomValues(new Uint8Array(16)))
               .map(b => b.toString(16).padStart(2, '0'))
               .join('');
-            
+
             const keyUrl = `${window.location.origin}/api/video/key/${lessonId}`;
-            
+
             encryptionMetadata = { key, keyBase64, iv, keyUrl };
             console.log("[Uploader] Encryption metadata generated", { iv, keyUrl });
           }
 
           const { m3u8, segments, audioBlob: transcodedAudio } = await transcodeToHLS(file, (p) => {
             setFileState((s) => ({ ...s, transcodingProgress: p }));
-          }, duration, encryptionMetadata ? { 
-            key: encryptionMetadata.key, 
-            iv: encryptionMetadata.iv, 
-            keyUrl: encryptionMetadata.keyUrl 
+          }, duration, encryptionMetadata ? {
+            key: encryptionMetadata.key,
+            iv: encryptionMetadata.iv,
+            keyUrl: encryptionMetadata.keyUrl
           } : undefined);
           if (isCancelled()) return;
           setFileState((s) => ({ ...s, transcoding: false }));
@@ -263,25 +263,25 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           // 1.5 Generate Sprites (New Auto Step)
           setFileState((s) => ({ ...s, spriteGenerating: true, spriteUploadProgress: 0 }));
           toast.info("Generating thumbnails...");
-          
+
           let spriteResult: any = null;
           try {
-             // Dynamic Interval based on duration for premium experience
-             let interval = 10;
-             if (duration < 300) interval = 1;      // 1s for short videos (< 5 min)
-             else if (duration < 1200) interval = 2; // 2s for medium (< 20 min)
-             else if (duration < 3600) interval = 5; // 5s for long (< 60 min)
-             
-             console.log(`Uploader: Generating thumbnails with ${interval}s interval for ${duration}s video`);
-             
-             // 240x135, dynamic interval, 10 columns
-             const generator = new SpriteGenerator(320, 180, interval, 10);
-             spriteResult = await generator.generate(file, (progress, status) => {
-                setFileState(s => ({ ...s, spriteUploadProgress: progress, spriteStatus: status }));
-             });
+            // Dynamic Interval based on duration for premium experience
+            let interval = 10;
+            if (duration < 300) interval = 1;      // 1s for short videos (< 5 min)
+            else if (duration < 1200) interval = 2; // 2s for medium (< 20 min)
+            else if (duration < 3600) interval = 5; // 5s for long (< 60 min)
+
+            console.log(`Uploader: Generating thumbnails with ${interval}s interval for ${duration}s video`);
+
+            // 240x135, dynamic interval, 10 columns
+            const generator = new SpriteGenerator(320, 180, interval, 10);
+            spriteResult = await generator.generate(file, (progress, status) => {
+              setFileState(s => ({ ...s, spriteUploadProgress: progress, spriteStatus: status }));
+            });
           } catch (spriteError) {
-             console.error("Auto sprite generation failed:", spriteError);
-             toast.error("Thumbnail generation failed, but video will still upload.");
+            console.error("Auto sprite generation failed:", spriteError);
+            toast.error("Thumbnail generation failed, but video will still upload.");
           }
 
           if (isCancelled()) return;
@@ -299,7 +299,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/master.m3u8`,
-             
+
             },
             ...segments.map((segment) => ({
               fileName: `hls/${baseKey}/${segment.name}`,
@@ -308,7 +308,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/${segment.name}`,
-            
+
             })),
           ];
 
@@ -321,7 +321,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/audio.ogg`,
-             
+
             });
           }
 
@@ -330,41 +330,41 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           // Add Consolidated Sprites to Upload Request if generated
           let vttKey: string | null = null;
           if (spriteResult) {
-             // Binary file containing ALL sheets (stripes)
-             uploadRequests.push({
-                 fileName: spriteResult.spriteFileName,
-                 contentType: "application/octet-stream",
-                 size: spriteResult.combinedBlob.size,
-                 isImage: false,
-                 isKeyDirect: true,
-                 customKey: `sprites/${baseKey}/${spriteResult.spriteFileName}`,
-                
-             });
-             
-             // VTT
-             vttKey = `sprites/${baseKey}/thumbnails.vtt`;
-             uploadRequests.push({
-                fileName: "thumbnails.vtt",
-                contentType: "text/vtt",
-                size: spriteResult.vttBlob.size,
+            // Binary file containing ALL sheets (stripes)
+            uploadRequests.push({
+              fileName: spriteResult.spriteFileName,
+              contentType: "application/octet-stream",
+              size: spriteResult.combinedBlob.size,
+              isImage: false,
+              isKeyDirect: true,
+              customKey: `sprites/${baseKey}/${spriteResult.spriteFileName}`,
+
+            });
+
+            // VTT
+            vttKey = `sprites/${baseKey}/thumbnails.vtt`;
+            uploadRequests.push({
+              fileName: "thumbnails.vtt",
+              contentType: "text/vtt",
+              size: spriteResult.vttBlob.size,
+              isImage: false,
+              isKeyDirect: true,
+              customKey: vttKey,
+
+            });
+
+            // Low-Res Preview
+            if (spriteResult.previewLowBlob) {
+              uploadRequests.push({
+                fileName: "preview_low.jpg",
+                contentType: "image/jpeg",
+                size: spriteResult.previewLowBlob.size,
                 isImage: false,
                 isKeyDirect: true,
-                customKey: vttKey,
-          
-             });
+                customKey: `sprites/${baseKey}/preview_low.jpg`,
 
-             // Low-Res Preview
-             if (spriteResult.previewLowBlob) {
-               uploadRequests.push({
-                  fileName: "preview_low.jpg",
-                  contentType: "image/jpeg",
-                  size: spriteResult.previewLowBlob.size,
-                  isImage: false,
-                  isKeyDirect: true,
-                  customKey: `sprites/${baseKey}/preview_low.jpg`,
-            
-               });
-             }
+              });
+            }
           }
 
           if (isCancelled()) return;
@@ -391,92 +391,92 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           // 4. Upload everything else (Segments, Audio, Sprites)
           const totalBytes = uploadRequests.reduce((acc, req) => acc + (req.size || 0), 0);
           const loadedBytes = new Array(uploadRequests.length).fill(0);
-          
+
           // The master playlist (index 0) is already uploaded, mark it as full size
           loadedBytes[0] = uploadRequests[0].size;
 
           const uploadFileToS3 = async (index: number, blob: Blob, contentType: string) => {
-             if (isCancelled()) return;
-             const { presignedUrl } = presignedUrls[index];
-             await new Promise<void>((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                activeXHRs.current.add(xhr);
-                
-                const updateProgress = () => {
-                  const currentTotalLoaded = loadedBytes.reduce((a, b) => a + b, 0);
-                  const globalProgress = Math.min(100, Math.round((currentTotalLoaded / totalBytes) * 100));
-                  setFileState((s) => ({ ...s, progress: globalProgress }));
-                };
+            if (isCancelled()) return;
+            const { presignedUrl } = presignedUrls[index];
+            await new Promise<void>((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              activeXHRs.current.add(xhr);
 
-                // Real-time byte tracking
-                if (xhr.upload) {
-                  xhr.upload.onprogress = (e) => {
-                    if (e.lengthComputable) {
-                      loadedBytes[index] = e.loaded;
-                      updateProgress();
-                    }
-                  };
+              const updateProgress = () => {
+                const currentTotalLoaded = loadedBytes.reduce((a, b) => a + b, 0);
+                const globalProgress = Math.min(100, Math.round((currentTotalLoaded / totalBytes) * 100));
+                setFileState((s) => ({ ...s, progress: globalProgress }));
+              };
+
+              // Real-time byte tracking
+              if (xhr.upload) {
+                xhr.upload.onprogress = (e) => {
+                  if (e.lengthComputable) {
+                    loadedBytes[index] = e.loaded;
+                    updateProgress();
+                  }
+                };
+              }
+
+              xhr.onload = () => {
+                activeXHRs.current.delete(xhr);
+                if (xhr.status >= 200 && xhr.status < 300) {
+                  loadedBytes[index] = blob.size;
+                  updateProgress(); // Ensure 100% contribution of this chunk is reflected
+                  resolve();
                 }
-
-                xhr.onload = () => {
-                    activeXHRs.current.delete(xhr);
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                      loadedBytes[index] = blob.size;
-                      updateProgress(); // Ensure 100% contribution of this chunk is reflected
-                      resolve();
-                    }
-                    else reject(new Error(`Status ${xhr.status}`));
-                };
-                xhr.onerror = () => {
-                    activeXHRs.current.delete(xhr);
-                    reject(new Error("Network error"));
-                };
-                xhr.onabort = () => {
-                    activeXHRs.current.delete(xhr);
-                    reject(new Error("Upload cancelled"));
-                };
-                xhr.open("PUT", presignedUrl);
-                xhr.setRequestHeader("Content-Type", contentType);
-                xhr.send(blob);
-             });
+                else reject(new Error(`Status ${xhr.status}`));
+              };
+              xhr.onerror = () => {
+                activeXHRs.current.delete(xhr);
+                reject(new Error("Network error"));
+              };
+              xhr.onabort = () => {
+                activeXHRs.current.delete(xhr);
+                reject(new Error("Upload cancelled"));
+              };
+              xhr.open("PUT", presignedUrl);
+              xhr.setRequestHeader("Content-Type", contentType);
+              xhr.send(blob);
+            });
           };
 
           // Build queue
           const uploadQueue: (() => Promise<void>)[] = [];
-          
+
           // Segments start at index 1
           segments.forEach((segment, i) => {
-             uploadQueue.push(() => uploadFileToS3(i + 1, segment.blob, "video/MP2T"));
+            uploadQueue.push(() => uploadFileToS3(i + 1, segment.blob, "video/MP2T"));
           });
 
           let currentIndex = 1 + segments.length;
 
           // Audio
           if (audioBlob) {
-             const audioIdx = currentIndex++;
-             uploadQueue.push(() => uploadFileToS3(audioIdx, audioBlob!, "audio/ogg"));
+            const audioIdx = currentIndex++;
+            uploadQueue.push(() => uploadFileToS3(audioIdx, audioBlob!, "audio/ogg"));
           }
 
 
           // Sprites
           if (spriteResult) {
-             const binaryIdx = currentIndex++;
-             uploadQueue.push(() => uploadFileToS3(binaryIdx, spriteResult.combinedBlob, "application/octet-stream"));
-             
-             const vttIdx = currentIndex++;
-             uploadQueue.push(() => uploadFileToS3(vttIdx, spriteResult.vttBlob, "text/vtt"));
+            const binaryIdx = currentIndex++;
+            uploadQueue.push(() => uploadFileToS3(binaryIdx, spriteResult.combinedBlob, "application/octet-stream"));
 
-             if (spriteResult.previewLowBlob) {
-                const lowIdx = currentIndex++;
-                uploadQueue.push(() => uploadFileToS3(lowIdx, spriteResult.previewLowBlob, "image/jpeg"));
-             }
+            const vttIdx = currentIndex++;
+            uploadQueue.push(() => uploadFileToS3(vttIdx, spriteResult.vttBlob, "text/vtt"));
+
+            if (spriteResult.previewLowBlob) {
+              const lowIdx = currentIndex++;
+              uploadQueue.push(() => uploadFileToS3(lowIdx, spriteResult.previewLowBlob, "image/jpeg"));
+            }
           }
 
           // Execute all in parallel (browser will throttle automatically)
           await Promise.all(uploadQueue.map(t => t()));
 
           // Cleanup HLS blobs from memory
-          segments.length = 0; 
+          segments.length = 0;
           if (spriteResult) {
             spriteResult.combinedBlob = null;
             spriteResult.vttBlob = null;
@@ -487,12 +487,12 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
 
           // Update Metadata if sprites were generated
           if (vttKey) {
-             const metadata: SpriteMetadata = {
-                spriteKey: vttKey, 
-                lowResKey: `sprites/${baseKey}/preview_low.jpg`,
-             };
-             onSpriteChange?.(metadata);
-             setFileState(s => ({ ...s, isSpriteGenerated: true, spriteMetadata: metadata }));
+            const metadata: SpriteMetadata = {
+              spriteKey: vttKey,
+              lowResKey: `sprites/${baseKey}/preview_low.jpg`,
+            };
+            onSpriteChange?.(metadata);
+            setFileState(s => ({ ...s, isSpriteGenerated: true, spriteMetadata: metadata }));
           }
 
           // Update Encryption in DB if generated
@@ -515,7 +515,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           (window as any).__PROCESSING_VIDEO__ = false;
 
           // Cleanup HLS blobs from memory
-          segments.length = 0; 
+          segments.length = 0;
           if (spriteResult) {
             spriteResult.combinedBlob = null;
             spriteResult.vttBlob = null;
@@ -532,7 +532,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               contentType: file.type,
               size: file.size,
               isImage: true,
-        
+
             }),
           });
 
@@ -714,7 +714,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         label = "Compressing audio...";
         progress = fileState.transcodingProgress;
       }
-       else if (fileState.spriteGenerating) {
+      else if (fileState.spriteGenerating) {
         label = fileState.spriteStatus || "Generating snappy thumbnails...";
         progress = fileState.spriteUploadProgress;
       }
@@ -749,14 +749,14 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
       const isExistingVideo = !fileState.file;
       const hlsKey = (isExistingVideo && fileState.baseKey) ? `hls/${fileState.baseKey}/master.m3u8` : undefined;
       const hlsUrl = hlsKey ? constructUrl(hlsKey) : undefined;
-      
+
       // Reactive Sprite Metadata: Use state if available (new upload), otherwise derive from key (existing)
       const effectiveSpriteMetadata = fileState.spriteMetadata || (extractedBaseKey ? {
-          spriteKey: `sprites/${extractedBaseKey}/thumbnails.vtt`
+        spriteKey: `sprites/${extractedBaseKey}/thumbnails.vtt`
       } : undefined);
 
       return (
-        <div className="relative w-full h-full">
+        <div className="w-full">
           <RenderUploadedState
             previewUrl={fileState.objectUrl}
             hlsUrl={hlsUrl}
@@ -778,10 +778,10 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           {/* Background Upload Indicator */}
           {fileState.spriteGenerating && (
             <div className="absolute bottom-2 left-2 flex items-center gap-2 bg-black/60 px-3 py-1.5 rounded-full backdrop-blur-sm z-20">
-               <Loader2 className="size-3 animate-spin text-white" />
-               <span className="text-[10px] text-white/90 font-medium">
-                 {`Uploading Sprite (${fileState.spriteUploadProgress}%)`}
-               </span>
+              <Loader2 className="size-3 animate-spin text-white" />
+              <span className="text-[10px] text-white/90 font-medium">
+                {`Uploading Sprite (${fileState.spriteUploadProgress}%)`}
+              </span>
             </div>
           )}
         </div>
@@ -812,10 +812,9 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     <Card
       {...getRootProps()}
       className={cn(
-        "relative border-2 border-dashed transition-colors duration-200 ease-ini-out w-full h-72 md:h-[500px] rounded-lg",
-        isDragActive
-          ? "border-primary bg-primary/10 border-solid"
-          : "border-border hover:border-primary"
+        "relative border-2 border-dashed transition-colors duration-200 w-full rounded-lg", isDragActive
+        ? "border-primary bg-primary/10 border-solid"
+        : "border-border hover:border-primary"
       )}
     >
       <CardContent className="flex items-center justify-center h-full w-full p-4">

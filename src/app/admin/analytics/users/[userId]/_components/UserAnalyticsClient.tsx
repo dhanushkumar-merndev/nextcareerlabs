@@ -28,7 +28,7 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
 
     useEffect(() => {
         setMounted(true);
-        
+
         if (!hasLogged.current) {
             const cached = chatCache.get<any>(cacheKey);
             if (cached) {
@@ -39,7 +39,7 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
 
         // Sync initial server data if provided
         if (initialData && !initialData.status) {
-             chatCache.set(cacheKey, initialData, undefined, initialData.version, PERMANENT_TTL);
+            chatCache.set(cacheKey, initialData, undefined, initialData.version, PERMANENT_TTL);
         }
     }, [userId, initialData, cacheKey]);
 
@@ -80,19 +80,19 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
     if (!mounted || (isLoading && !data)) {
         return (
             <div className="flex flex-col gap-8 p-4 lg:p-6 w-full mx-auto">
-                 <div className="flex items-center gap-5">
+                <div className="flex items-center gap-5">
                     <Skeleton className="size-20 rounded-full" />
                     <div className="flex flex-col gap-2">
                         <Skeleton className="h-8 w-48" />
                         <Skeleton className="h-4 w-64" />
                     </div>
-                 </div>
-                 <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 lg:gap-6">
+                </div>
+                <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 lg:gap-6">
                     {Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton key={i} className="h-32 w-full" />
                     ))}
-                 </div>
-                 <Skeleton className="h-[400px] w-full mt-4" />
+                </div>
+                <Skeleton className="h-[400px] w-full mt-4" />
             </div>
         );
     }
@@ -183,8 +183,8 @@ export function UserAnalyticsClient({ userId, initialData }: UserAnalyticsClient
                 ) : (
                     <div className="grid gap-4">
                         {coursesProgress.map((course: any) => (
-                            <Link 
-                                key={course.id} 
+                            <Link
+                                key={course.id}
                                 href={`/admin/analytics/users/${userId}/${course.id}`}
                                 className="block group active:scale-[0.99] transition-all"
                             >

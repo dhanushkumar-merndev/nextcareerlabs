@@ -1,17 +1,17 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
-import { 
-  Play, 
-  Pause, 
-  Volume2, 
+import {
+  Play,
+  Pause,
+  Volume2,
   Volume1,
   Volume,
-  VolumeX, 
-  Maximize, 
-  Minimize, 
+  VolumeX,
+  Maximize,
+  Minimize,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -141,14 +141,14 @@ export function VideoPlayer({
 
     const initPlayer = () => {
       if (!videoRef.current) return;
-      
+
       console.log("VideoPlayer: Initializing stable player instance");
 
       if (playerRef.current) {
         playerRef.current.dispose();
         playerRef.current = null;
       }
-      
+
       videoRef.current.innerHTML = "";
       const videoElement = document.createElement("video");
       videoElement.className = "video-js vjs-big-play-centered vjs-fill";
@@ -163,14 +163,14 @@ export function VideoPlayer({
       videoRef.current.appendChild(videoElement);
 
       const currentSources = sources || (src ? [{ src, type }] : []);
-      
+
       const player = (playerRef.current = videojs(videoElement, {
         autoplay: false,
         controls: false,
         fill: true,
         responsive: true,
         html5: {
-          vhs: { 
+          vhs: {
             overrideNative: true,
             fastQualityChange: true,
             beforeRequest: (options: any) => {
@@ -178,7 +178,7 @@ export function VideoPlayer({
               // If the request for a key is going to the storage domain, redirect it to our origin.
               if (options.uri.includes("/api/video/key/")) {
                 options.withCredentials = true;
-                
+
                 // If the URL has been resolved against Tigris/S3 (e.g. via relative path in manifest),
                 // swap it back to our origin so the key delivery API can handle it.
                 if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com")) {
@@ -281,7 +281,7 @@ export function VideoPlayer({
       // Keyboard Shortcuts (J, K, L)
       const handleKeyDown = (e: KeyboardEvent) => {
         if (!player || player.isDisposed()) return;
-        
+
         // Ignore if user is typing in an input or textarea
         if (
           document.activeElement instanceof HTMLInputElement ||
@@ -395,7 +395,7 @@ export function VideoPlayer({
       player.ready(() => {
         if (cancelled) return;
         console.log("VideoPlayer: Updating caption track", captionUrl);
-        
+
         // 1. Remove any existing caption/subtitle tracks to allow hot-swapping
         const tracks = player.textTracks();
         for (let i = tracks.length - 1; i >= 0; i--) {
@@ -430,7 +430,7 @@ export function VideoPlayer({
     validateAndAdd();
 
     return () => { cancelled = true; };
-}, [captionUrl, sources, src]);
+  }, [captionUrl, sources, src]);
 
   // Sync sources when they change after initialization
   useEffect(() => {
@@ -445,7 +445,7 @@ export function VideoPlayer({
       const rect = containerRef.current.getBoundingClientRect();
       const relativeY = e.clientY - rect.top;
       const isMobile = window.innerWidth < 768;
-      
+
       if (!isMobile) {
         // 1. Extreme bottom edge (leaving the player area): Hide everything
         if (relativeY > rect.height - 5) {
@@ -469,10 +469,10 @@ export function VideoPlayer({
     setShowControls(true);
     setShowCenterControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
-    
+
     // 1s timeout for mobile, 3s for desktop
-    const timeout = window.innerWidth < 768 ? 1000 : 1500;
-    
+    const timeout = window.innerWidth < 768 ? 2000 : 1500;
+
     controlsTimeoutRef.current = setTimeout(() => {
       if (isPlayingRef.current) {
         setShowControls(false);
@@ -539,7 +539,7 @@ export function VideoPlayer({
       if (pendingPlayRef.current) {
         pendingPlayRef.current
           .then(() => playerRef.current?.pause())
-          .catch(() => {});
+          .catch(() => { });
       } else {
         playerRef.current.pause();
       }
@@ -548,7 +548,7 @@ export function VideoPlayer({
 
   const handleSeek = useCallback((value: number[]) => {
     if (!value || isNaN(value[0])) return;
-    
+
     // Lock status and update UI state only for performance
     isSeekingRef.current = true;
     let time = Math.round(value[0] * 100) / 100;
@@ -562,7 +562,7 @@ export function VideoPlayer({
       isSeekingRef.current = false;
       return;
     }
-    
+
     let time = Math.round(value[0] * 100) / 100;
     time = Math.max(0, Math.min(time, duration || 0));
 
@@ -588,7 +588,7 @@ export function VideoPlayer({
     const muted = !isMuted;
     setIsMuted(muted);
     if (playerRef.current) playerRef.current.muted(muted);
-    
+
     toast.success(muted ? "Audio muted" : "Audio unmuted", {
       duration: 1000,
       position: "top-center"
@@ -612,13 +612,13 @@ export function VideoPlayer({
     if (playerRef.current) {
       const tracks = playerRef.current.textTracks();
       const enabled = !captionsEnabled;
-      
+
       for (let i = 0; i < tracks.length; i++) {
         if (tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') {
           tracks[i].mode = enabled ? 'showing' : 'disabled';
         }
       }
-      
+
       setCaptionsEnabled(enabled);
       toast.success(enabled ? "Captions enabled" : "Captions disabled", {
         duration: 1000,
@@ -634,9 +634,9 @@ export function VideoPlayer({
       containerRef.current.requestFullscreen().then(() => {
         // Lock to landscape on mobile
         if (typeof window !== "undefined" && (window.screen as any).orientation?.lock) {
-            (window.screen as any).orientation.lock("landscape").catch(() => {
-                console.log("Orientation lock not supported or failed");
-            });
+          (window.screen as any).orientation.lock("landscape").catch(() => {
+            console.log("Orientation lock not supported or failed");
+          });
         }
       }).catch((err) => {
         console.error(`Error attempting to enable full-screen mode: ${err.message}`);
@@ -645,7 +645,7 @@ export function VideoPlayer({
       document.exitFullscreen();
       // Unlock orientation
       if (typeof window !== "undefined" && (window.screen as any).orientation?.unlock) {
-          (window.screen as any).orientation.unlock();
+        (window.screen as any).orientation.unlock();
       }
     }
   };
@@ -679,7 +679,7 @@ export function VideoPlayer({
       if (!playerRef.current) return;
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
-      
+
       const touch = e.changedTouches[0];
       if (!touch) return;
 
@@ -700,7 +700,7 @@ export function VideoPlayer({
       // Single tap: strictly toggle controls visibility
       singleTapTimeoutRef.current = setTimeout(() => {
         singleTapTimeoutRef.current = null;
-        
+
         setShowControls(prev => {
           const newState = !prev;
           setShowCenterControls(newState);
@@ -753,15 +753,15 @@ export function VideoPlayer({
   // Sync initial cues if they arrive later
   useEffect(() => {
     if (spriteMetadata?.initialCues && spriteMetadata.initialCues.length > 0) {
-        setVttCues(spriteMetadata.initialCues);
-        preloadSpriteImages(spriteMetadata.initialCues, spriteMetadata.url);
+      setVttCues(spriteMetadata.initialCues);
+      preloadSpriteImages(spriteMetadata.initialCues, spriteMetadata.url);
     }
   }, [spriteMetadata?.initialCues]);
 
   // Preload sprite images/ranges so they're cached by browser
   const preloadSpriteImages = (cues: any[], vttUrl: string) => {
     if (cues.length === 0) return;
-    
+
     // ✅ Preload Low-Res Grid First (Instant Placeholder)
     if (spriteMetadata?.lowResUrl) {
       const img = new Image();
@@ -770,14 +770,14 @@ export function VideoPlayer({
     }
 
     const baseUrl = vttUrl.substring(0, vttUrl.lastIndexOf("/") + 1);
-    
+
     // For Byte-Range consolidated sprites, we don't want to preload the WHOLE .bin
     // We only preload the FIRST stripe to give instant feedback
     const firstCue = cues[0];
     if (firstCue?.url?.includes("#range=")) {
-        console.log("VideoPlayer: Byte-Range mode detected. Preloading first stripe...");
-        // getSpritePosition will handle the specific range fetch
-        return;
+      console.log("VideoPlayer: Byte-Range mode detected. Preloading first stripe...");
+      // getSpritePosition will handle the specific range fetch
+      return;
     }
 
     const uniqueImages = new Set<string>();
@@ -787,7 +787,7 @@ export function VideoPlayer({
         uniqueImages.add(imageUrl);
       }
     });
-    
+
     console.log(`VideoPlayer: Preloading ${uniqueImages.size} sprite images...`);
     uniqueImages.forEach(url => {
       const img = new Image();
@@ -798,23 +798,23 @@ export function VideoPlayer({
   // Fetch and parse VTT if spriteMetadata.url contains .vtt
   useEffect(() => {
     const isVTT = spriteMetadata?.url && (spriteMetadata.url.includes(".vtt") || spriteMetadata.url.includes("thumbnails"));
-    
+
     if (!isVTT) {
-        console.log("VideoPlayer: Not a VTT URL", spriteMetadata?.url);
-        setVttCues([]);
-        return;
+      console.log("VideoPlayer: Not a VTT URL", spriteMetadata?.url);
+      setVttCues([]);
+      return;
     }
 
     // ✅ Check cache first (sessionStorage for this browser session)
     const cacheKey = `vtt-cache-${spriteMetadata.url}`;
     const cached = sessionStorage.getItem(cacheKey);
-    
+
     if (cached) {
       try {
         const parsedCache = JSON.parse(cached);
         console.log("VideoPlayer: Using cached VTT data", parsedCache.length, "cues");
         setVttCues(parsedCache);
-        
+
         // ✅ Preload sprite images from cache
         preloadSpriteImages(parsedCache, spriteMetadata.url);
         return;
@@ -836,12 +836,12 @@ export function VideoPlayer({
         // ... (rest of parser)
         const parsedCues: any[] = [];
         let currentCue: any = {};
-        
+
         // Simple VTT parser
         lines.forEach(line => {
           line = line.trim();
           if (line === "WEBVTT" || line === "") return;
-          
+
           if (line.includes("-->")) {
             const [start, end] = line.split("-->").map(t => {
               const parts = t.trim().split(":");
@@ -872,13 +872,13 @@ export function VideoPlayer({
         });
         console.log("VideoPlayer: Parsed Cues:", parsedCues.length);
         setVttCues(parsedCues);
-        
+
         // ✅ Cache for this session
         sessionStorage.setItem(cacheKey, JSON.stringify(parsedCues));
-        
+
         // ✅ Preload all sprite images
         preloadSpriteImages(parsedCues, spriteMetadata.url);
-   
+
       })
       .catch(err => {
         console.error("VideoPlayer: Error loading VTT:", err);
@@ -907,114 +907,114 @@ export function VideoPlayer({
 
   // Fixed display width for preview (source res is 320x180)
   const [previewWidth, setPreviewWidth] = useState(240);
-useEffect(() => {
-  setPreviewWidth(window.innerWidth < 640 ? 180 : 240);
-}, []);
+  useEffect(() => {
+    setPreviewWidth(window.innerWidth < 640 ? 180 : 240);
+  }, []);
 
   const getSpritePosition = (time: number) => {
     if (!spriteMetadata) return null;
 
     if (vttCues.length > 0) {
-        const cue = vttCues.find(c => time >= c.startTime && time < c.endTime);
-        if (!cue) return null;
-        
-        const baseUrl = spriteMetadata.url.substring(0, spriteMetadata.url.lastIndexOf("/") + 1);
-        let imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
-        
-        if (imageUrl.includes("#range=")) {
-            const [pureUrl, fragment] = imageUrl.split("#range=");
-            const cacheKey = `${pureUrl}#${fragment}`;
-            
-            // 1. If we have the full binary, use it (Truly Instant)
-            if (fullBinaryRef.current) {
-                if (!rangeCache.has(cacheKey)) {
-                   const [start, end] = fragment.split("-").map(Number);
-                   const slice = fullBinaryRef.current.slice(start, end + 1);
-                   const blobUrl = URL.createObjectURL(slice);
-                   rangeCache.set(cacheKey, blobUrl);
-                }
-                imageUrl = rangeCache.get(cacheKey)!;
-            } 
-            // 2. WHILE LOADING: Fallback to individual range fetch (Instant Feedback)
-            else if (rangeCache.has(cacheKey)) {
-                imageUrl = rangeCache.get(cacheKey)!;
-            } else {
-                if (!rangeCache.has(`pending-${cacheKey}`)) {
-                    rangeCache.set(`pending-${cacheKey}`, "true");
-                    preloadFullBinary(pureUrl); // Trigger full load in background
-                    
-                    const [start, end] = fragment.split("-").map(Number);
-                    fetch(pureUrl, { headers: { "Range": `bytes=${start}-${end}` } })
-                        .then(res => res.blob())
-                        .then(blob => {
-                            const blobUrl = URL.createObjectURL(blob);
-                            rangeCache.set(cacheKey, blobUrl);
-                            setVttUpdateTick(t => t + 1); // Trigger re-render to show frame
-                        })
-                        .catch(err => {
-                            console.error("Sprite range fetch failed:", err);
-                            rangeCache.delete(`pending-${cacheKey}`);
-                        });
-                }
-                return null; 
-            }
+      const cue = vttCues.find(c => time >= c.startTime && time < c.endTime);
+      if (!cue) return null;
+
+      const baseUrl = spriteMetadata.url.substring(0, spriteMetadata.url.lastIndexOf("/") + 1);
+      let imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
+
+      if (imageUrl.includes("#range=")) {
+        const [pureUrl, fragment] = imageUrl.split("#range=");
+        const cacheKey = `${pureUrl}#${fragment}`;
+
+        // 1. If we have the full binary, use it (Truly Instant)
+        if (fullBinaryRef.current) {
+          if (!rangeCache.has(cacheKey)) {
+            const [start, end] = fragment.split("-").map(Number);
+            const slice = fullBinaryRef.current.slice(start, end + 1);
+            const blobUrl = URL.createObjectURL(slice);
+            rangeCache.set(cacheKey, blobUrl);
+          }
+          imageUrl = rangeCache.get(cacheKey)!;
         }
+        // 2. WHILE LOADING: Fallback to individual range fetch (Instant Feedback)
+        else if (rangeCache.has(cacheKey)) {
+          imageUrl = rangeCache.get(cacheKey)!;
+        } else {
+          if (!rangeCache.has(`pending-${cacheKey}`)) {
+            rangeCache.set(`pending-${cacheKey}`, "true");
+            preloadFullBinary(pureUrl); // Trigger full load in background
 
-        // Scale display: source is e.g. 320x180, display at PREVIEW_DISPLAY_WIDTH
-        const scale = previewWidth / cue.w;
-        
-        // Accurate background size for the sprite sheet
-        // We calculate based on the source size and the current display scale
-        const sheetWidth = (spriteMetadata.cols || 10) * previewWidth;
+            const [start, end] = fragment.split("-").map(Number);
+            fetch(pureUrl, { headers: { "Range": `bytes=${start}-${end}` } })
+              .then(res => res.blob())
+              .then(blob => {
+                const blobUrl = URL.createObjectURL(blob);
+                rangeCache.set(cacheKey, blobUrl);
+                setVttUpdateTick(t => t + 1); // Trigger re-render to show frame
+              })
+              .catch(err => {
+                console.error("Sprite range fetch failed:", err);
+                rangeCache.delete(`pending-${cacheKey}`);
+              });
+          }
+          return null;
+        }
+      }
 
-        return {
-            backgroundImage: `url(${imageUrl})`,
-            backgroundPosition: `-${cue.x * scale}px -${cue.y * scale}px`,
-            backgroundSize: `${sheetWidth}px auto`, // Allow height to auto-scale proportionately
-            width: Math.round(cue.w * scale),
-            height: Math.round(cue.h * scale),
-            sourceWidth: cue.w,
-            sourceHeight: cue.h,
-            startTime: cue.startTime,
-            isHighRes: true,
-        };
+      // Scale display: source is e.g. 320x180, display at PREVIEW_DISPLAY_WIDTH
+      const scale = previewWidth / cue.w;
+
+      // Accurate background size for the sprite sheet
+      // We calculate based on the source size and the current display scale
+      const sheetWidth = (spriteMetadata.cols || 10) * previewWidth;
+
+      return {
+        backgroundImage: `url(${imageUrl})`,
+        backgroundPosition: `-${cue.x * scale}px -${cue.y * scale}px`,
+        backgroundSize: `${sheetWidth}px auto`, // Allow height to auto-scale proportionately
+        width: Math.round(cue.w * scale),
+        height: Math.round(cue.h * scale),
+        sourceWidth: cue.w,
+        sourceHeight: cue.h,
+        startTime: cue.startTime,
+        isHighRes: true,
+      };
     }
 
     // 3. Fallback to Low-Res Grid if High-Res is pending
     if (spriteMetadata?.lowResUrl) {
-        // High-res interval is used for both
-        const index = Math.floor(time / spriteMetadata.interval);
-        
-        // Low-res grid constants (matched with sprite-generator.ts)
-        const lowCols = 25;
-        
-        const col = index % lowCols;
-        const row = Math.floor(index / lowCols);
-        
-        // Match preview-generator.ts: low-res frames are 40x22
-        const lowFrameW = 40;
-        const lowFrameH = 22;
-        
-        // Scale the 40px frame to fill PREVIEW_DISPLAY_WIDTH
-        const lowScale = previewWidth / lowFrameW;
-        
-        const totalFrames = Math.ceil(duration / (spriteMetadata.interval || 10));
-        const lowRows = Math.ceil(totalFrames / lowCols);
+      // High-res interval is used for both
+      const index = Math.floor(time / spriteMetadata.interval);
 
-        return {
-            backgroundImage: `url(${spriteMetadata.lowResUrl})`,
-            backgroundPosition: `-${col * previewWidth}px -${row * (lowFrameH * lowScale)}px`,
-            backgroundSize: `${lowCols * previewWidth}px ${lowRows * (lowFrameH * lowScale)}px`,
-            width: previewWidth, 
-            height: Math.round(lowFrameH * lowScale),
-            isHighRes: false,
-            startTime: index * spriteMetadata.interval,
-        };
+      // Low-res grid constants (matched with sprite-generator.ts)
+      const lowCols = 25;
+
+      const col = index % lowCols;
+      const row = Math.floor(index / lowCols);
+
+      // Match preview-generator.ts: low-res frames are 40x22
+      const lowFrameW = 40;
+      const lowFrameH = 22;
+
+      // Scale the 40px frame to fill PREVIEW_DISPLAY_WIDTH
+      const lowScale = previewWidth / lowFrameW;
+
+      const totalFrames = Math.ceil(duration / (spriteMetadata.interval || 10));
+      const lowRows = Math.ceil(totalFrames / lowCols);
+
+      return {
+        backgroundImage: `url(${spriteMetadata.lowResUrl})`,
+        backgroundPosition: `-${col * previewWidth}px -${row * (lowFrameH * lowScale)}px`,
+        backgroundSize: `${lowCols * previewWidth}px ${lowRows * (lowFrameH * lowScale)}px`,
+        width: previewWidth,
+        height: Math.round(lowFrameH * lowScale),
+        isHighRes: false,
+        startTime: index * spriteMetadata.interval,
+      };
     }
 
     // Legacy Grid Logic (Ensure metadata exists)
     if (!spriteMetadata || !spriteMetadata.cols || !spriteMetadata.interval) {
-        return null;
+      return null;
     }
     const index = Math.min(
       Math.floor(time / spriteMetadata.interval),
@@ -1054,7 +1054,7 @@ useEffect(() => {
   };
 
   return (
-    <div 
+    <div
       ref={containerRef}
       className={cn(
         "relative group bg-black aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/5 isolate select-none touch-manipulation @container",
@@ -1079,7 +1079,8 @@ useEffect(() => {
       onTouchEnd={handleTouchEnd}
     >
 
-<style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
   .video-js .vjs-tech { ... }
   .vjs-poster { ... }
   .vjs-loading-spinner { display: none !important; }
@@ -1128,8 +1129,8 @@ useEffect(() => {
       {/* Playback Toggle Layer (z-5)
           Captures background clicks for play/pause and mobile double-tap to seek.
           Positioned above video but below controls/animations. */}
-      <div 
-        className="absolute inset-0 z-5 cursor-pointer" 
+      <div
+        className="absolute inset-0 z-5 cursor-pointer"
         style={{ touchAction: 'manipulation' }}
         onClick={handleContainerClick}
         onTouchEnd={handleTouchEnd}
@@ -1140,89 +1141,88 @@ useEffect(() => {
 
 
 
-{seekAnimation?.type && (
-  <>
-    {/* Full Screen Dark Overlay */}
-    <div className="absolute inset-0 z-15 bg-black/50 animate-in fade-in duration-300 pointer-events-none" />
-    
-    <div
-      className={cn(
-        "absolute inset-y-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ",
-        seekAnimation.type === "forward" ? "right-0" : "left-0"
+      {seekAnimation?.type && (
+        <>
+          {/* Full Screen Dark Overlay */}
+          <div className="absolute inset-0 z-15 bg-black/50 animate-in fade-in duration-300 pointer-events-none" />
+
+          <div
+            className={cn(
+              "absolute inset-y-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ",
+              seekAnimation.type === "forward" ? "right-0" : "left-0"
+            )}
+          >
+            {/* Soft side glow */}
+            <div
+              className={cn(
+                "absolute inset-0 opacity-60",
+                seekAnimation.type === "forward"
+                  ? "bg-linear-to-l from-primary/10 to-transparent rounded-l-[100%]"
+                  : "bg-linear-to-r from-primary/10 to-transparent rounded-r-[100%]"
+              )}
+            />
+            <div className="relative flex flex-col items-center justify-center gap-2 sm:gap-3 md:gap-4 animate-in fade-in zoom-in-95 duration-200">
+
+              {/* Direction Chevrons */}
+              <div className="flex items-center justify-center -space-x-3 sm:-space-x-4 md:-space-x-6">
+                {[0, 1, 2].map((i) => {
+                  const isForward = seekAnimation.type === "forward";
+                  const Icon = isForward ? ChevronRight : ChevronLeft;
+                  const visualIndex = isForward ? i : 2 - i;
+
+                  return (
+                    <Icon
+                      key={i}
+                      className={cn(
+                        "size-8 sm:size-10 md:size-13 lg:size-15 text-primary animate-in fade-in duration-300",
+                        isForward
+                          ? "slide-in-from-left-2"
+                          : "slide-in-from-right-2"
+                      )}
+                      style={{
+                        animationDelay: `${visualIndex * 60}ms`,
+                        opacity: 0.3 + visualIndex * 0.35,
+                        filter: `blur(${visualIndex === 2
+                            ? 0
+                            : visualIndex === 1
+                              ? 0.4
+                              : 0.8
+                          }px)`
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Time Label */}
+              <span className="text-white font-black text-base sm:text-lg md:text-2xl tracking-tight tabular-nums animate-in fade-in duration-300 delay-150 -mt-1">
+                {seekAnimation.type === "forward" ? "+" : "-"}
+                {seekAnimation.amount}s
+              </span>
+
+            </div>
+
+          </div>
+        </>
       )}
-    >
-    {/* Soft side glow */}
-    <div
-      className={cn(
-        "absolute inset-0 opacity-60",
-        seekAnimation.type === "forward"
-          ? "bg-linear-to-l from-primary/10 to-transparent rounded-l-[100%]"
-          : "bg-linear-to-r from-primary/10 to-transparent rounded-r-[100%]"
+
+      {/* Centered Volume Indicator */}
+      {volumeAnimation.visible && (
+        <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
+          <div className="px-6 py-4 rounded-2xl flex flex-col items-center gap-2 animate-in fade-in zoom-in duration-200 border border-white/10">
+            {(() => {
+              const lv = volumeAnimation.level;
+              if (lv === 0) return <VolumeX className="size-8 text-primary fill-white" />;
+              if (lv <= 0.33) return <Volume className="size-8 text-primary fill-white" />;
+              if (lv <= 0.66) return <Volume1 className="size-8 text-primary fill-white" />;
+              return <Volume2 className="size-8 text-primary fill-white" />;
+            })()}
+            <span className="text-primary font-black text-2xl tabular-nums">
+              {Math.round(volumeAnimation.level * 100)}%
+            </span>
+          </div>
+        </div>
       )}
-    />
- <div className="relative flex flex-col items-center justify-center gap-2 sm:gap-3 md:gap-4 animate-in fade-in zoom-in-95 duration-200">
-
-  {/* Direction Chevrons */}
-  <div className="flex items-center justify-center -space-x-3 sm:-space-x-4 md:-space-x-6">
-    {[0, 1, 2].map((i) => {
-      const isForward = seekAnimation.type === "forward";
-      const Icon = isForward ? ChevronRight : ChevronLeft;
-      const visualIndex = isForward ? i : 2 - i;
-
-      return (
-        <Icon
-          key={i}
-          className={cn(
-            "size-8 sm:size-10 md:size-13 lg:size-15 text-primary animate-in fade-in duration-300",
-            isForward
-              ? "slide-in-from-left-2"
-              : "slide-in-from-right-2"
-          )}
-          style={{
-            animationDelay: `${visualIndex * 60}ms`,
-            opacity: 0.3 + visualIndex * 0.35,
-            filter: `blur(${
-              visualIndex === 2
-                ? 0
-                : visualIndex === 1
-                ? 0.4
-                : 0.8
-            }px)`
-          }}
-        />
-      );
-    })}
-  </div>
-
-  {/* Time Label */}
-  <span className="text-white font-black text-base sm:text-lg md:text-2xl tracking-tight tabular-nums animate-in fade-in duration-300 delay-150 -mt-1">
-    {seekAnimation.type === "forward" ? "+" : "-"}
-    {seekAnimation.amount}s
-  </span>
-
-</div>
-   
-  </div>
-    </>
-)}
-
-{/* Centered Volume Indicator */}
-{volumeAnimation.visible && (
-  <div className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none">
-    <div className="px-6 py-4 rounded-2xl flex flex-col items-center gap-2 animate-in fade-in zoom-in duration-200 border border-white/10">
-      {(() => {
-        const lv = volumeAnimation.level;
-        if (lv === 0) return <VolumeX className="size-8 text-primary fill-white" />;
-        if (lv <= 0.33) return <Volume className="size-8 text-primary fill-white" />;
-        if (lv <= 0.66) return <Volume1 className="size-8 text-primary fill-white" />;
-        return <Volume2 className="size-8 text-primary fill-white" />;
-      })()}
-      <span className="text-primary font-black text-2xl tabular-nums">
-        {Math.round(volumeAnimation.level * 100)}%
-      </span>
-    </div>
-  </div>
-)}
 
 
 
@@ -1238,7 +1238,7 @@ useEffect(() => {
           <div className="bg-destructive/20 border border-destructive/50 p-4 rounded-lg max-w-sm">
             <h3 className="text-destructive font-bold mb-2">Playback Error</h3>
             <p className="text-sm text-white/70 mb-4">{error}</p>
-            <button 
+            <button
               type="button"
               onClick={() => window.location.reload()}
               className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-md text-sm transition-colors"
@@ -1249,17 +1249,17 @@ useEffect(() => {
         </div>
       )}
 
-      <div 
+      <div
         className={cn(
           "absolute inset-0 z-40 flex flex-col justify-end transition-opacity duration-300 bg-linear-to-t from-black/90 via-transparent to-transparent pointer-events-none",
           showControls && !error ? "opacity-100" : "opacity-0"
         )}
       >
-        <div 
+        <div
           className="space-y-2 sm:space-y-3 pb-3 sm:pb-4 px-2 sm:px-4 pointer-events-auto"
           onMouseLeave={() => setHoverPosition(null)}
         >
-          <div 
+          <div
             data-seekbar
             className="relative group/seekbar touch-none cursor-pointer py-3 -my-3"
             ref={seekbarRef}
@@ -1282,42 +1282,24 @@ useEffect(() => {
             onTouchEnd={handleSeekbarTouchEnd}
           >
             {hoverPosition && (() => {
-                const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
-                const snapTime = spritePos?.startTime ?? hoverPosition.time;
-                
-                return (
-                  <div 
-                    className="absolute bottom-full mb-1 sm:mb-1.5 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
-                    style={{ left: `${(snapTime / duration) * 100}%` }}
-                  >
-                    {spriteMetadata ? (
-                      spritePos ? (
-                        <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">
-                          <div className="relative rounded-md overflow-hidden bg-muted flex items-center justify-center" style={{ width: `${spritePos.width}px`, height: `${spritePos.height}px` }}>
-                            {/* Low Res Layer (visible while loading HD or as base) */}
-                            {(!spritePos.isHighRes || true) && (
-                                <div
-                                    className={cn(
-                                        "absolute inset-0 transition-opacity duration-300",
-                                        spritePos.isHighRes ? "opacity-0" : "opacity-100 blur-[2px] scale-105"
-                                    )}
-                                    style={{
-                                        width: `${spritePos.width}px`,
-                                        height: `${spritePos.height}px`,
-                                        backgroundImage: spritePos.backgroundImage,
-                                        backgroundPosition: spritePos.backgroundPosition,
-                                        backgroundSize: spritePos.backgroundSize,
-                                        backgroundRepeat: 'no-repeat',
-                                        imageRendering: 'crisp-edges' as any,
-                                    }}
-                                />
-                            )}
-                            
-                            {/* High Res Layer */}
+              const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
+              const snapTime = spritePos?.startTime ?? hoverPosition.time;
+
+              return (
+                <div
+                  className="absolute bottom-full mb-1 sm:mb-1.5 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
+                  style={{ left: `${(snapTime / duration) * 100}%` }}
+                >
+                  {spriteMetadata ? (
+                    spritePos ? (
+                      <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">
+                        <div className="relative rounded-md overflow-hidden bg-muted flex items-center justify-center" style={{ width: `${spritePos.width}px`, height: `${spritePos.height}px` }}>
+                          {/* Low Res Layer (visible while loading HD or as base) */}
+                          {(!spritePos.isHighRes || true) && (
                             <div
                               className={cn(
-                                  "transition-opacity duration-300",
-                                  spritePos.isHighRes ? "opacity-100" : "opacity-0"
+                                "absolute inset-0 transition-opacity duration-300",
+                                spritePos.isHighRes ? "opacity-0" : "opacity-100 blur-[2px] scale-105"
                               )}
                               style={{
                                 width: `${spritePos.width}px`,
@@ -1326,39 +1308,57 @@ useEffect(() => {
                                 backgroundPosition: spritePos.backgroundPosition,
                                 backgroundSize: spritePos.backgroundSize,
                                 backgroundRepeat: 'no-repeat',
-                                imageRendering: 'auto',
+                                imageRendering: 'crisp-edges' as any,
                               }}
                             />
-                            
-                            <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/90">
-                              {formatTime(snapTime)}
-                            </div>
+                          )}
+
+                          {/* High Res Layer */}
+                          <div
+                            className={cn(
+                              "transition-opacity duration-300",
+                              spritePos.isHighRes ? "opacity-100" : "opacity-0"
+                            )}
+                            style={{
+                              width: `${spritePos.width}px`,
+                              height: `${spritePos.height}px`,
+                              backgroundImage: spritePos.backgroundImage,
+                              backgroundPosition: spritePos.backgroundPosition,
+                              backgroundSize: spritePos.backgroundSize,
+                              backgroundRepeat: 'no-repeat',
+                              imageRendering: 'auto',
+                            }}
+                          />
+
+                          <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/90">
+                            {formatTime(snapTime)}
                           </div>
                         </div>
-                      ) : (
-                        <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md flex items-center justify-center w-32 aspect-video">
-                            <Loader size={16} />
-                        </div>
-                      )
-                    ) : (
-                      <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 shadow-2xl backdrop-blur-md">
-                        <div className="text-sm font-mono text-white/90">
-                          {formatTime(hoverPosition.time)}
-                        </div>
                       </div>
-                    )}
-                    <div className="w-2.5 h-2.5 bg-black/95 rotate-45 border-r border-b border-white/20 -mt-1.5 -z-1" />
-                  </div>
-                );
+                    ) : (
+                      <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md flex items-center justify-center w-32 aspect-video">
+                        <Loader size={16} />
+                      </div>
+                    )
+                  ) : (
+                    <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 shadow-2xl backdrop-blur-md">
+                      <div className="text-sm font-mono text-white/90">
+                        {formatTime(hoverPosition.time)}
+                      </div>
+                    </div>
+                  )}
+                  <div className="w-2.5 h-2.5 bg-black/95 rotate-45 border-r border-b border-white/20 -mt-1.5 -z-1" />
+                </div>
+              );
             })()}
-            
+
             {/* Base Track (since we'll make Slider track transparent) */}
             <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 bg-white/10 rounded-full pointer-events-none" />
 
             {/* Buffer Overlay Bar */}
             <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 pointer-events-none px-px">
-               {bufferedRanges.map((range, idx) => (
-                <div 
+              {bufferedRanges.map((range, idx) => (
+                <div
                   key={idx}
                   className="absolute h-full bg-white/20 rounded-full transition-all duration-300"
                   style={{
@@ -1366,7 +1366,7 @@ useEffect(() => {
                     width: `${((range.end - range.start) / (duration || 1)) * 100}%`
                   }}
                 />
-               ))}
+              ))}
             </div>
 
             <Slider
@@ -1382,7 +1382,7 @@ useEffect(() => {
 
           <div className="flex items-center justify-between mt-1 sm:mt-2">
             <div className="flex items-center gap-2 sm:gap-4 text-white">
-              <button 
+              <button
                 type="button"
                 onClick={(e) => { togglePlay(e); resetControlsTimeout(); }}
                 onTouchEnd={(e) => { e.stopPropagation(); togglePlay(e); resetControlsTimeout(); }}
@@ -1396,7 +1396,7 @@ useEffect(() => {
                   {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" /> : <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />}
                 </button>
                 <div className="w-0 sm:group-hover/volume:w-20 transition-all duration-300 overflow-hidden hidden sm:block">
-                   <Slider
+                  <Slider
                     value={[Math.round((isMuted ? 0 : volume) * 100) / 100]}
                     max={1}
                     step={0.01}
@@ -1414,9 +1414,9 @@ useEffect(() => {
 
             <div className="flex items-center gap-2 sm:gap-4 text-white">
               {captionUrl && (
-                <button 
-                  type="button" 
-                  onClick={toggleCaptions} 
+                <button
+                  type="button"
+                  onClick={toggleCaptions}
                   className={cn(
                     "hover:text-primary focus:outline-none transition-all duration-200 p-1 sm:p-0",
                     captionsEnabled ? "text-primary scale-110" : "text-white/70"
@@ -1429,15 +1429,15 @@ useEffect(() => {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button 
-                type="button" 
-                onTouchEnd={(e) => e.stopPropagation()}
-                className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md border border-white/10">
-                <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                {playbackRate}x
-              </button>
+                  <button
+                    type="button"
+                    onTouchEnd={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md border border-white/10">
+                    <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    {playbackRate}x
+                  </button>
                 </DropdownMenuTrigger>
-               <DropdownMenuContent 
+                <DropdownMenuContent
                   side="top"
                   align="end"
                   sideOffset={26}
@@ -1454,8 +1454,8 @@ useEffect(() => {
                     Speed
                   </div>
                   {[0.5, 1, 1.5, 2].map((rate) => (
-                    <DropdownMenuItem 
-                      key={rate} 
+                    <DropdownMenuItem
+                      key={rate}
                       onClick={() => handlePlaybackRate(rate)}
                       className={cn(
                         "cursor-pointer focus:bg-primary/20 focus:text-primary text-[11px] font-medium px-2 py-1.5 rounded-md transition-colors",
@@ -1506,7 +1506,7 @@ useEffect(() => {
           </button>
 
           {/* Centered Play/Pause */}
-          <div 
+          <div
             onClick={(e) => { togglePlay(e); resetControlsTimeout(); }}
             className="
               size-12 sm:size-16 md:size-[clamp(64px,12cqw,84px)]

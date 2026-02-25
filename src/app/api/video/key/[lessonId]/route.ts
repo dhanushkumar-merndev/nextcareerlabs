@@ -39,7 +39,7 @@ export async function GET(
     }
 
     // 2. Access Check: Admin OR Granted Enrollment
-    const isAdmin = user.role === "ADMIN";
+    const isAdmin = user.role === "admin";
     const enrollment = lesson.Chapter.Course.enrollment[0];
     const hasAccess = isAdmin || (enrollment && enrollment.status === "Granted");
 

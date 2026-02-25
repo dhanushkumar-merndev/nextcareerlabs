@@ -1,7 +1,7 @@
 
-import { 
-  Card, 
-  CardContent, 
+import {
+  Card,
+  CardContent,
 } from "@/components/ui/card";
 import { ChatLayoutLoader } from "@/components/chat/ChatLayoutLoader";
 
@@ -9,12 +9,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminNotificationsPage() {
   return (
-    <div className="flex flex-col -mt-6 md:mt-0 md:-mb-1 px-4 lg:px-6 h-[calc(100dvh-1rem)] md:h-[calc(100dvh-1rem)]  overflow-hidden">
+    <div className="flex flex-col -mt-6 md:mt-0 md:-mb-1 px-4 lg:px-6 h-[calc(100dvh-1.5rem)] md:h-[calc(100dvh-4.5rem)]  overflow-hidden">
       <Card className="flex-1 min-h-0 border-0 shadow-none bg-transparent">
         <CardContent className="p-0 h-full min-h-0">
-           <div className="rounded-xl border bg-card h-full min-h-0 overflow-hidden shadow-sm">
-             <ChatLayoutLoader isAdmin={true} />
-           </div>
+          <div className="rounded-xl border bg-card h-full min-h-0 overflow-hidden shadow-sm">
+            <ChatLayoutLoader isAdmin={true} />
+          </div>
         </CardContent>
       </Card>
     </div>

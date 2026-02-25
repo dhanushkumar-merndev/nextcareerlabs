@@ -21,7 +21,7 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { EditCourseSkeleton } from "./EditCourseSkeleton";
 
 interface EditCourseClientWrapperProps {
-  data?: any; 
+  data?: any;
   courseId: string;
 }
 
@@ -43,38 +43,38 @@ export function EditCourseClientWrapper({
   const { data: queryData, isLoading } = useQuery({
     queryKey: [cacheKey],
     queryFn: async () => {
-        const cached = chatCache.get<any>(cacheKey);
-        const result = await adminGetCourseAction(courseId, cached?.version);
+      const cached = chatCache.get<any>(cacheKey);
+      const result = await adminGetCourseAction(courseId, cached?.version);
 
-        if ((result as any).status === "not-modified" && cached) {
-            console.log(`%c[EditCourse] ✨ LOCAL HIT (Smart Sync Match) (v${cached.version})`, "color: #eab308; font-weight: bold");
-            return cached.data;
-        }
+      if ((result as any).status === "not-modified" && cached) {
+        console.log(`%c[EditCourse] ✨ LOCAL HIT (Smart Sync Match) (v${cached.version})`, "color: #eab308; font-weight: bold");
+        return cached.data;
+      }
 
-        const freshData = (result as any).data;
-        const version = (result as any).version;
-        const source = (result as any).source;
-        const computeTime = (result as any).computeTime;
+      const freshData = (result as any).data;
+      const version = (result as any).version;
+      const source = (result as any).source;
+      const computeTime = (result as any).computeTime;
 
-        if (source === "REDIS") {
-            console.log(`%c[EditCourse] 🔵 REDIS HIT → course:${courseId} (v${version})`, "color: #3b82f6; font-weight: bold");
-        } else if (source === "DB") {
-            console.log(`%c[EditCourse] 🗄️ DB COMPUTE → course:${courseId} done in ${computeTime}ms`, "color: #f97316; font-weight: bold");
-        }
+      if (source === "REDIS") {
+        console.log(`%c[EditCourse] 🔵 REDIS HIT → course:${courseId} (v${version})`, "color: #3b82f6; font-weight: bold");
+      } else if (source === "DB") {
+        console.log(`%c[EditCourse] 🗄️ DB COMPUTE → course:${courseId} done in ${computeTime}ms`, "color: #f97316; font-weight: bold");
+      }
 
-        chatCache.set(cacheKey, freshData, undefined, version, PERMANENT_TTL);
+      chatCache.set(cacheKey, freshData, undefined, version, PERMANENT_TTL);
 
-        return freshData;
+      return freshData;
     },
     initialData: () => {
-        if (typeof window === "undefined") return undefined;
-        const cached = chatCache.get<any>(cacheKey);
-        if (cached) {
-            return cached.data;
-        }
-        return undefined;
+      if (typeof window === "undefined") return undefined;
+      const cached = chatCache.get<any>(cacheKey);
+      if (cached) {
+        return cached.data;
+      }
+      return undefined;
     },
-    staleTime: 1800000, 
+    staleTime: 1800000,
     refetchInterval: 1800000,
   });
 
@@ -85,11 +85,11 @@ export function EditCourseClientWrapper({
   useEffect(() => {
     setMounted(true);
     if (!hasLogged.current) {
-        const cached = chatCache.get<any>(cacheKey);
-        if (cached) {
-            console.log(`%c[EditCourse] ✨ LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
-        }
-        hasLogged.current = true;
+      const cached = chatCache.get<any>(cacheKey);
+      if (cached) {
+        console.log(`%c[EditCourse] ✨ LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+      }
+      hasLogged.current = true;
     }
   }, [cacheKey]);
 
@@ -117,9 +117,9 @@ export function EditCourseClientWrapper({
         </span>
       </h1>
 
-      <Tabs 
-        value={activeTab} 
-        onValueChange={handleTabChange} 
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange}
         className="w-full"
       >
         <TabsList className="grid grid-cols-2 w-full ">
@@ -135,7 +135,7 @@ export function EditCourseClientWrapper({
                 Provide basic information about the course.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-2 md:p-4">
               <EditCourseForm data={data} setDirty={setBasicDirty} />
             </CardContent>
           </Card>

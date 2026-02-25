@@ -81,32 +81,27 @@ export function RenderUploadedState({
 
 
   return (
-    <div className="relative group w-full h-full flex items-center justify-center">
+    <div className="relative w-full md:max-w-[500px] lg:max-w-[700px] aspect-video bg-black overflow-hidden rounded-xl mx-auto">
       {fileType === "video" ? (
         <VideoPlayer
           sources={[
             ...(hlsUrl ? [{ src: hlsUrl, type: "application/x-mpegURL" }] : []),
             { src: previewUrl, type: "video/mp4" },
           ]}
-          spriteMetadata={spriteProps}
-          className="w-full h-full"
+          className="absolute inset-0 w-full h-full object-cover"
           onLoadedMetadata={onDurationLoaded}
           captionUrl={captionUrl}
         />
       ) : (
-        <div className="relative w-full h-full">
-          <Image
-            src={previewUrl}
-            alt="Upload File"
-            fill
-            className="object-cover"
-            sizes="300px"
-            loading="eager"
-            crossOrigin="anonymous"
-          />
-        </div>
+        <Image
+          src={previewUrl}
+          alt="Upload File"
+          fill
+          className="object-cover"
+          sizes="(max-width: 500px) 100vw, 500px"
+          loading="eager"
+        />
       )}
-
 
 
       {/* Delete Button */}
@@ -126,7 +121,7 @@ export function RenderUploadedState({
           <XIcon className="size-4" />
         )}
       </Button>
-    </div>
+    </div >
   );
 }
 
@@ -153,14 +148,14 @@ export function RenderUploadingState({
         </p>
       )}
       {onCancel && (
-<TooltipProvider>
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="
           mt-3
           h-8 w-8
           rounded-full
@@ -171,20 +166,20 @@ export function RenderUploadingState({
           transition-all duration-200 ease-in-out
           cursor-pointer
         "
-        onClick={(e) => {
-          e.stopPropagation();
-          onCancel();
-        }}
-      >
-        <XIcon className="h-4 w-4" />
-      </Button>
-    </TooltipTrigger>
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCancel();
+                }}
+              >
+                <XIcon className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
 
-    <TooltipContent side="bottom" className="text-xs">
-      Cancel
-    </TooltipContent>
-  </Tooltip>
-</TooltipProvider>
+            <TooltipContent side="bottom" className="text-xs">
+              Cancel
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
       )}
     </div>
