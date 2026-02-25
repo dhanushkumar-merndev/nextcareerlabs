@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "skillforcecloud.t3.storage.dev",
+        hostname: "next-career-labs-assets.t3.storage.dev",
       },
       {
         protocol: "https",

@@ -82,14 +82,16 @@ export const chatCache = {
   invalidateUserDashboardData: (userId: string) => {
     if (typeof window === "undefined") return;
     
-    // 🔹 Clear the "Index" pages to trigger fresh fetches on next visit
+    // Use registry-safe prefix invalidation
+    const prefix = `${STORAGE_PREFIX}${userId}_`;
     const keysToClear = [
-        `user_dashboard_${userId}`,
-        `user_enrolled_courses_${userId}`,
-        `available_courses_${userId}`
+        `${prefix}user_dashboard_${userId}`,
+        `${prefix}user_enrolled_courses_${userId}`,
+        `${prefix}available_courses_${userId}`,
+        `${prefix}user_needs_sync`
     ];
     
-    keysToClear.forEach(key => chatCache.invalidate(key, userId));
+    keysToClear.forEach(key => secureStorage.removeItemTracked(key));
     
     console.log(`%c[chatCache] BROAD INVALIDATION: Cleared Dashboard and Course indexes for ${userId}`, "color: #ef4444; font-weight: bold");
   },
@@ -100,13 +102,15 @@ export const chatCache = {
     // 1. Clear generic course list
     chatCache.invalidate("all_courses");
     
-    // 2. Clear all keys that look like course_ slug caches
-    for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes("course_") || key.includes("available_courses_") || key.includes("user_dashboard_"))) {
-            localStorage.removeItem(key);
+    // 2. Clear all keys that look like course_ slug caches or dashboard data
+    // We use keysByPrefix to find everything starting with our internal storage prefix
+    const allKeys = secureStorage.keysByPrefix(STORAGE_PREFIX);
+    
+    allKeys.forEach(origKey => {
+        if (origKey.includes("course_") || origKey.includes("available_courses_") || origKey.includes("user_dashboard_")) {
+            secureStorage.removeItemTracked(origKey);
         }
-    }
+    });
     
     console.log("%c[chatCache] GLOBAL INVALIDATION: Cleared all course-related local storage", "color: #ef4444; font-weight: bold");
   },

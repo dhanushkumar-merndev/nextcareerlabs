@@ -11,10 +11,10 @@ const getRedisInstance = () => {
         const client = new Redis(env.REDIS_URL, {
             connectTimeout: 5000,
             commandTimeout: 2000,
-            maxRetriesPerRequest: 0,
+            maxRetriesPerRequest: 3,
             // Allow a few retries instead of failing immediately forever
             retryStrategy: (times) => {
-                if (times > 3) return null; // Stop after 3 attempts
+                if (times > 5) return null; // Stop after 5 attempts
                 return Math.min(times * 100, 2000); // 100ms, 200ms, 300ms
             },
             lazyConnect: true
@@ -79,7 +79,7 @@ export const GLOBAL_CACHE_KEYS = {
   AUTH_SESSION_VERSION: "global:version:auth_session",
 };
 
-const OPERATION_TIMEOUT = 1500;
+const OPERATION_TIMEOUT = 500;
 
 async function withTimeout<T>(promise: Promise<T>, defaultValue: T): Promise<T> {
   // If redis is explicitly in a "closed" or "end" state, don't even try

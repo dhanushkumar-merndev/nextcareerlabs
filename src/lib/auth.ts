@@ -12,10 +12,8 @@ const date = new Date().getFullYear();
 export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://192.168.1.2:3000", // your LAN IP
-    "https://nextcareerlabs.online",
-    "https://www.nextcareerlabs.online",
+    `https://${env.NEXT_PUBLIC_APP_DOMAIN}`,
+    `https://www.${env.NEXT_PUBLIC_APP_DOMAIN}`,
   ],  
 
   database: prismaAdapter(prisma, {
@@ -73,7 +71,7 @@ export const auth = betterAuth({
     emailOTP({
       async sendVerificationOTP({ email, otp }) {
         await resend.emails.send({
-          from: "Skillforce Cloud <no-reply@nextcareerlabs.online>",
+          from: `Skillforce Cloud <no-reply@${env.NEXT_PUBLIC_APP_DOMAIN}>`,
           to: [email],
           subject: "Skillforce Cloud - Verify your email",
           html: `<!-- Email Template for Skillforce Cloud -->

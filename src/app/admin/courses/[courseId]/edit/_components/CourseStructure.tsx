@@ -97,7 +97,6 @@ interface SortableItemProps {
 
 export function CourseStructure({ data, setDirty }: iAppProps) {
   const queryClient = useQueryClient();
-  const [isMounted, setIsMounted] = useState(false);
   const initialItems = useMemo(() => {
     return data?.chapter?.map((chapter: any) => ({
       id: chapter.id,
@@ -134,9 +133,6 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
 };
   const [items, setItems] = useState(initialItems);
 
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   useEffect(() => {
     setItems((prevItems) => {
@@ -272,7 +268,6 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     })
   );
 
-  if (!isMounted) return null;
 
   return (
     <DndContext

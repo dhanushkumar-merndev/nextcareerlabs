@@ -179,6 +179,7 @@ export async function enrollInCourseAction(
     // Invalidate caches to show updated status immediately (Admin & User side)
     await Promise.all([
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(user.id)), // 🔹 CRITICAL: Invalidate user's enrollment map
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),

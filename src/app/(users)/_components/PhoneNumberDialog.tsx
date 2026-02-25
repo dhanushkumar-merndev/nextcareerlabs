@@ -1,7 +1,7 @@
 /* This component is used to display the phone number dialog */
 
 "use client";
-import { useTransition } from "react";
+import { useTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -20,7 +20,7 @@ import { formSchema } from "@/lib/zodSchemas";
 import { PhoneNumberDialogProps } from "@/lib/types/homePage";
 
 // PhoneNumberDialog component 
-export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDialogProps) {
+export function PhoneNumberDialog({ isOpen, requireName = false, onSuccess }: PhoneNumberDialogProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
@@ -46,6 +46,7 @@ export function PhoneNumberDialog({ isOpen, requireName = false }: PhoneNumberDi
         phoneNumber: values.phoneNumber,
       });
       if (result.status === "success") {
+        onSuccess?.();
         toast.success(result.message);
         
         // 🔹 FORCE CACHE INVALIDATION

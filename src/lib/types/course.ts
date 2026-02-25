@@ -18,6 +18,7 @@ export type PublicCourseType = {
   fileKey: string | null;
   category: string;
   slug: string;
+  firstLessonId?: string | null;
   enrollmentStatus?: string | null;
 };
 

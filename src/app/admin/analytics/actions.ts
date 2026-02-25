@@ -17,15 +17,15 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
     }
 
     if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
-        console.log(`[getAdminAnalytics] Version Match (${clientVersion}). Returning NOT_MODIFIED.`);
+        console.log(`[getAdminAnalytics] Chart Version Match (${clientVersion}). Returning NOT_MODIFIED.`);
         return { status: "not-modified", version: currentVersion };
     }
 
-    const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS;
+    const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:chart`;
     if (!isCustomRange) {
         const cached = await getCache<any>(cacheKey);
         if (cached) {
-            console.log(`[getAdminAnalytics] Redis Cache HIT. Returning data.`);
+            console.log(`[getAdminAnalytics] Chart Redis Cache HIT.`);
             return { data: cached, version: currentVersion };
         }
     }
@@ -53,66 +53,15 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
         console.log(`[getAdminAnalytics] Range (UTC): ${normalizedStart.toISOString()} to ${normalizedEnd.toISOString()}`);
 
         const startTime = Date.now();
-        const [
-            userGrowth,
-            totalUsers,
-            totalEnrollments,
-            totalCourses,
-            totalLessons,
-            recentUsers,
-            enrollmentStats,
-            courseEnrollment,
-            lessonCompletionData,
-            totalResources,
-            totalChapters,
-            averageProgressData
-        ] = await Promise.all([
+        const [userGrowth] = await Promise.all([
             prisma.user.findMany({
                 where: { createdAt: { gte: normalizedStart, lte: normalizedEnd } },
                 select: { createdAt: true },
             }),
-            prisma.user.count(),
-            prisma.user.count({
-                where: {
-                    enrollment: {
-                        some: {
-                            status: "Granted"
-                        }
-                    }
-                }
-            }),
-            prisma.course.count(),
-            prisma.lesson.count(),
-            prisma.user.findMany({
-                orderBy: { createdAt: "desc" },
-                take: 5,
-                select: { id: true, name: true, email: true, image: true, createdAt: true },
-            }),
-            prisma.enrollment.groupBy({
-                by: ["status"],
-                _count: { _all: true },
-            }),
-            prisma.enrollment.groupBy({
-                by: ["courseId"],
-                _count: { _all: true },
-                orderBy: { _count: { courseId: "desc" } },
-                take: 5,
-            }),
-            prisma.lessonProgress.aggregate({
-                where: { completed: true },
-                _count: { completed: true },
-            }),
-            prisma.notification.count({
-                where: { fileUrl: { not: null } }
-            }),
-            prisma.chapter.count(),
-            getAverageProgressCached()
         ]);
 
         const mainDuration = Date.now() - startTime;
-        console.log(`[getAdminAnalytics] Main DB Queries took ${mainDuration}ms`);
-
-        const enrollRatio = totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
+        console.log(`[getAdminAnalytics] Chart DB Query took ${mainDuration}ms`);
 
         // 6. Process Chart Data (Registrations by Day - IST Grouped)
         const getISTDateKey = (date: Date) => {
@@ -142,6 +91,91 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             }
         }
 
+        const enrollmentChartData = []; // Removed from here
+        const popularCoursesChartData = []; // Removed from here
+
+        const result = {
+            chartData,
+        };
+
+        if (!isCustomRange) {
+            await setCache(cacheKey, result, 2592000);
+        }
+
+        return { data: result, version: currentVersion };
+    } catch (error) {
+        console.error("[getAdminAnalytics Error]", error);
+        return null;
+    }
+}
+
+/**
+ * Dedicated action for Global Stats (Total counts, pie charts, recent users)
+ * Highly cached and NOT date-range dependent for the Growth Chart
+ */
+export async function getAdminStaticAnalytics(clientVersion?: string) {
+    await requireAdmin();
+
+    let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+
+    if (clientVersion && clientVersion === currentVersion) {
+        return { status: "not-modified", version: currentVersion };
+    }
+
+    const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`;
+    const cached = await getCache<any>(cacheKey);
+    if (cached) {
+        return { data: cached, version: currentVersion };
+    }
+
+    try {
+        const startTime = Date.now();
+        const [
+            totalUsers,
+            totalEnrollments,
+            totalCourses,
+            totalLessons,
+            recentUsers,
+            enrollmentStats,
+            courseEnrollment,
+            totalResources,
+            totalChapters,
+        ] = await Promise.all([
+            prisma.user.count(),
+            prisma.user.count({
+                where: {
+                    enrollment: {
+                        some: {
+                            status: "Granted"
+                        }
+                    }
+                }
+            }),
+            prisma.course.count(),
+            prisma.lesson.count(),
+            prisma.user.findMany({
+                orderBy: { createdAt: "desc" },
+                take: 5,
+                select: { id: true, name: true, email: true, image: true, createdAt: true },
+            }),
+            prisma.enrollment.groupBy({
+                by: ["status"],
+                _count: { _all: true },
+            }),
+            prisma.enrollment.groupBy({
+                by: ["courseId"],
+                _count: { _all: true },
+                orderBy: { _count: { courseId: "desc" } },
+                take: 5,
+            }),
+            prisma.notification.count({
+                where: { fileUrl: { not: null } }
+            }),
+            prisma.chapter.count(),
+        ]);
+
+        const enrollRatio = totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
+
         const enrollmentChartData = enrollmentStats.map((item) => ({
             name: item.status,
             value: item._count._all
@@ -168,24 +202,29 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
             totalLessons,
             totalChapters,
             totalResources,
-            averageProgress: averageProgressData.value,
-            averageProgressLastUpdated: averageProgressData.lastUpdated,
             enrollRatio,
             recentUsers,
-            chartData,
             enrollmentChartData,
             popularCoursesChartData
         };
 
-        if (!isCustomRange) {
-            await setCache(cacheKey, result, 2592000);
-        }
+        await setCache(cacheKey, result, 86400); // 24 hours
+        console.log(`[getAdminStaticAnalytics] Computed in ${Date.now() - startTime}ms`);
 
         return { data: result, version: currentVersion };
     } catch (error) {
-        console.error("[getAdminAnalytics Error]", error);
+        console.error("[getAdminStaticAnalytics Error]", error);
         return null;
     }
+}
+
+/**
+ * Dedicated action for Success Rate (Average Progress)
+ * Isolated because it's CPU-intensive and cached for 24h
+ */
+export async function getAdminSuccessRate() {
+  await requireAdmin();
+  return await getAverageProgressCached();
 }
 
 /**

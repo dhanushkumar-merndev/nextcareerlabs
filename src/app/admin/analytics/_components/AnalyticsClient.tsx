@@ -13,7 +13,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getAdminAnalytics } from "@/app/admin/analytics/actions";
+import { getAdminAnalytics, getAdminSuccessRate, getAdminStaticAnalytics } from "@/app/admin/analytics/actions";
 
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { SimpleBarChart, SimplePieChart } from "@/components/analytics/Charts";
@@ -57,43 +57,81 @@ export function AnalyticsClient() {
 
   const getTime = () => new Date().toLocaleTimeString();
 
-  // Use React Query to fetch analytics data
-  const { data, isLoading } = useQuery({
-    queryKey: ["admin_analytics"],
+  // 1. Static Analytics (Counts, Distribution, Popular Courses, Recent Users)
+  const { data: staticDataRaw, isLoading: isStaticLoading } = useQuery({
+    queryKey: ["admin_static_analytics"],
     queryFn: async () => {
-      const cached = chatCache.get<any>("admin_analytics");
-      const clientVersion = cached?.version;
-
-      if (!cached) {
-          console.log(`[${getTime()}] [Analytics] Cache MISS. Fetching...`);
+      const cached = chatCache.get<any>("admin_static_analytics");
+      const result = await getAdminStaticAnalytics(cached?.version);
+      
+      if (result?.status === "not-modified" && cached) {
+        return cached.data;
       }
 
-      const result = await getAdminAnalytics(undefined, undefined, clientVersion);
-
-      if ((result as any).status === "not-modified" && cached) {
-          return cached.data || null;
+      if (result?.data) {
+        console.log(`[${getTime()}] [Analytics] Static Data: UPDATED`);
+        chatCache.set("admin_static_analytics", result.data, undefined, result.version, PERMANENT_TTL);
+        return result.data;
       }
-
-      if (result && !(result as any).status && (result as any).data) {
-          console.log(`[${getTime()}] [Analytics] Result: NEW_DATA. Updating cache.`);
-          chatCache.set("admin_analytics", result.data, undefined, (result as any).version, PERMANENT_TTL);
-          return result.data;
-      }
-      return (result as any)?.data || cached?.data || null;
+      return cached?.data || null;
     },
     initialData: () => {
       if (typeof window === "undefined") return undefined;
-      const cached = chatCache.get<any>("admin_analytics");
-      return cached?.data;
+      return chatCache.get<any>("admin_static_analytics")?.data;
     },
-    initialDataUpdatedAt: typeof window !== "undefined"
-      ? chatCache.get<any>("admin_analytics")?.timestamp
-      : undefined,
-    // Version check every 30 min or on window focus
-    staleTime: 1800000,
-    refetchInterval: 1800000,
-    refetchOnWindowFocus: true,
+    staleTime: 3600000, // 1 hour
+    refetchInterval: 3600000,
   });
+
+  const staticData = staticDataRaw as any;
+
+  // 2. Growth Chart Data (Date-range filtered)
+  const { data: growthDataRaw, isLoading: isGrowthLoading } = useQuery({
+    queryKey: ["admin_analytics_growth"],
+    queryFn: async () => {
+      const cached = chatCache.get<any>("admin_analytics_growth");
+      const result = await getAdminAnalytics(undefined, undefined, cached?.version);
+
+      if (result?.status === "not-modified" && cached) {
+        return cached.data;
+      }
+
+      if (result?.data) {
+        chatCache.set("admin_analytics_growth", result.data, undefined, result.version, PERMANENT_TTL);
+        return result.data;
+      }
+      return cached?.data || null;
+    },
+    initialData: () => {
+      if (typeof window === "undefined") return undefined;
+      return chatCache.get<any>("admin_analytics_growth")?.data;
+    },
+    staleTime: 1800000, // 30 mins
+  });
+
+  const growthData = growthDataRaw as any;
+
+  // 3. Success Rate Query (CPU Intensive calculation)
+  const { data: successRateRaw, isLoading: isSuccessRateLoading } = useQuery({
+    queryKey: ["admin_success_rate"],
+    queryFn: async () => {
+      const cached = chatCache.get<any>("admin_success_rate");
+      const result = await getAdminSuccessRate();
+      
+      if (result) {
+        chatCache.set("admin_success_rate", result, undefined, result.lastUpdated, PERMANENT_TTL);
+        return result;
+      }
+      return cached?.data || null;
+    },
+    initialData: () => {
+      if (typeof window === "undefined") return undefined;
+      return chatCache.get<any>("admin_success_rate")?.data;
+    },
+    staleTime: 3600000,
+  });
+
+  const successRate = successRateRaw as { value: number; lastUpdated: string } | null;
 
   // Strict hydration guard
   if (!mounted) {
@@ -104,8 +142,8 @@ export function AnalyticsClient() {
     );
   }
 
-  // If loading, return loading state
-  if (isLoading && !data) {
+  // If loading essential static data, return loading state
+  if ((isStaticLoading && !staticData) || (isGrowthLoading && !growthData)) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 min-h-[400px]">
         <Loader size={40} />
@@ -113,8 +151,8 @@ export function AnalyticsClient() {
     );
   }
 
-  // If no data, return error message
-  if (!data) return <div>Failed to load analytics.</div>;
+  // If no data available at all
+  if (!staticData || !growthData) return <div>Failed to load analytics.</div>;
 
   // Render analytics dashboard
   return (
@@ -123,26 +161,26 @@ export function AnalyticsClient() {
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <AnalyticsCard
           title="Users & Enrollments"
-          value={data.totalUsers}
+          value={staticData.totalUsers}
           icon="users"
-          description={`Total registered users (${data.totalEnrollments} users with granted enrollment)`}
+          description={`Total registered users (${staticData.totalEnrollments} users with granted enrollment)`}
         />
         <AnalyticsCard
           title="Chapters & Lessons"
-          value={`${data.totalChapters}`}
+          value={`${staticData.totalChapters}`}
           icon="book-text"
-          description={`Across ${data.totalLessons} total lessons`}
+          description={`Across ${staticData.totalLessons} total lessons`}
         />
         <AnalyticsCard
           title="Success Rate"
-          value={`${data.averageProgress}%`}
+          value={isSuccessRateLoading && !successRate ? "Loading..." : `${successRate?.value ?? 0}%`}
           icon="play"
           description="Average lesson completion rate"
-          lastUpdated={data.averageProgressLastUpdated}
+          lastUpdated={successRate?.lastUpdated}
         />
         <AnalyticsCard
           title="Shared Resources"
-          value={`${data.totalResources}`}
+          value={`${staticData.totalResources}`}
           icon="file-text"
           description="Total PDF & file uploads shared"
         />
@@ -150,7 +188,7 @@ export function AnalyticsClient() {
        {/* Growth Chart */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-1 md:col-span-2 lg:col-span-4">
-          <GrowthChartWithFilter initialData={data.chartData} />
+          <GrowthChartWithFilter initialData={growthData.chartData} />
         </Card>
         {/* Enrollment Distribution Chart */}
         <Card className="col-span-1 md:col-span-2 lg:col-span-3">
@@ -159,7 +197,7 @@ export function AnalyticsClient() {
             <CardDescription>Status of enrollments</CardDescription>
           </CardHeader>
           <CardContent>
-            <SimplePieChart data={data.enrollmentChartData} />
+            <SimplePieChart data={staticData.enrollmentChartData} />
           </CardContent>
         </Card>
       </div>
@@ -171,7 +209,7 @@ export function AnalyticsClient() {
             <CardDescription>Top 5 courses by enrollment</CardDescription>
           </CardHeader>
           <CardContent className="pl-2">
-            <SimpleBarChart data={data.popularCoursesChartData} />
+            <SimpleBarChart data={staticData.popularCoursesChartData} />
           </CardContent>
         </Card>
         <Card className="col-span-1 md:col-span-2 lg:col-span-3">
@@ -197,7 +235,7 @@ export function AnalyticsClient() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.recentUsers?.map((user: any) => (
+                  {staticData.recentUsers?.map((user: any) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">

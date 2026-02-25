@@ -33,7 +33,7 @@ if (typeof window !== "undefined") {
   (videojs as any).Vhs.xhr.beforeRequest = (options: any) => {
     if (options.uri.includes("/api/video/key/")) {
       options.withCredentials = true;
-      if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com")) {
+      if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com") || options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN)) {
         try {
           const url = new URL(options.uri);
           const newUri = `${window.location.origin}${url.pathname}`;
@@ -57,6 +57,7 @@ import {
 import { cn } from "@/lib/utils";
 import Loader from "@/components/ui/Loader";
 import { toast } from "sonner";
+import { env } from "@/lib/env";
 
 export interface VideoSource {
   src: string;
@@ -107,6 +108,7 @@ export function VideoPlayer({
   captionUrl,
   noDownload = false,
 }: VideoPlayerProps) {
+  console.log('[DEBUG] VideoPlayer (Custom) render', { src: !!src, sources: sources?.length, captionUrl: !!captionUrl });
   const videoRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
@@ -133,6 +135,8 @@ export function VideoPlayer({
   const isPlayingRef = useRef<boolean>(false);
   const lastToggleTimeRef = useRef<number>(0);
   const pendingPlayRef = useRef<Promise<void> | null>(null);
+
+  const [hasCaptions, setHasCaptions] = useState(!!captionUrl);
 
   // Initialize player only once, then update sources
   useEffect(() => {
@@ -180,8 +184,9 @@ export function VideoPlayer({
                 options.withCredentials = true;
 
                 // If the URL has been resolved against Tigris/S3 (e.g. via relative path in manifest),
+                // or if it's pointing to production,
                 // swap it back to our origin so the key delivery API can handle it.
-                if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com")) {
+                if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com") || options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN)) {
                   try {
                     const url = new URL(options.uri);
                     const newUri = `${window.location.origin}${url.pathname}`;
@@ -260,6 +265,36 @@ export function VideoPlayer({
       player.on("canplay", () => setIsBuffering(false));
       player.on("seeking", () => setIsBuffering(true));
       player.on("seeked", () => setIsBuffering(false));
+
+      // Tracks listener for manifest-embedded captions
+      const trackList = player.textTracks();
+      const updateCaptionsStatus = () => {
+        let found = false;
+        const tracks = trackList as any;
+        for (let i = 0; i < tracks.length; i++) {
+          if (tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') {
+            found = true;
+            break;
+          }
+        }
+        setHasCaptions(found);
+      };
+
+      trackList.on('addtrack', updateCaptionsStatus);
+      trackList.on('removetrack', updateCaptionsStatus);
+      const onTrackChange = () => {
+         // Sync UI state if changed elsewhere
+         let isAnyShowing = false;
+         const tracks = trackList as any;
+         for (let i = 0; i < tracks.length; i++) {
+           if ((tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') && tracks[i].mode === 'showing') {
+             isAnyShowing = true;
+             break;
+           }
+         }
+         setCaptionsEnabled(isAnyShowing);
+      };
+      trackList.on('change', onTrackChange);
 
       // Buffered Progress listener
       player.on("progress", () => {
@@ -351,7 +386,13 @@ export function VideoPlayer({
       };
 
       window.addEventListener("keydown", handleKeyDown);
-      player.on("dispose", () => window.removeEventListener("keydown", handleKeyDown));
+      
+      player.on("dispose", () => {
+        window.removeEventListener("keydown", handleKeyDown);
+        trackList.off('addtrack', updateCaptionsStatus);
+        trackList.off('removetrack', updateCaptionsStatus);
+        trackList.off('change', onTrackChange);
+      });
     };
 
     const frame = requestAnimationFrame(initPlayer);
@@ -370,67 +411,31 @@ export function VideoPlayer({
     const player = playerRef.current;
     if (!player || !captionUrl) return;
 
-    let cancelled = false;
+    player.ready(() => {
+      console.log("VideoPlayer: Adding sidecar caption track", captionUrl);
 
-    // Validate URL returns a real WebVTT file before adding to player
-    const validateAndAdd = async () => {
-      try {
-        const res = await fetch(captionUrl, { method: "GET", headers: { Range: "bytes=0-20" } });
-        if (!res.ok) {
-          console.log("VideoPlayer: Caption URL returned", res.status, "— skipping");
-          return;
+      // 1. Remove ONLY our previous sidecar tracks, not manifest ones
+      const tracks = player.textTracks();
+      for (let i = tracks.length - 1; i >= 0; i--) {
+        const track = (tracks[i] as any);
+        // Only remove if it matches our sidecar logic (usually via label or src if available)
+        if (track.label === "Sidecar-English") {
+          player.removeRemoteTextTrack(track);
         }
-        const text = await res.text();
-        if (!text.trimStart().startsWith("WEBVTT")) {
-          console.log("VideoPlayer: Caption URL is not valid WebVTT — skipping");
-          return;
-        }
-      } catch (err) {
-        console.log("VideoPlayer: Caption URL unreachable — skipping", err);
-        return;
       }
 
-      if (cancelled) return;
+      // 2. Add the new sidecar track
+      player.addRemoteTextTrack({
+        kind: "captions",
+        src: captionUrl,
+        srclang: "en",
+        label: "Sidecar-English",
+        default: captionsEnabled,
+      }, false);
 
-      player.ready(() => {
-        if (cancelled) return;
-        console.log("VideoPlayer: Updating caption track", captionUrl);
-
-        // 1. Remove any existing caption/subtitle tracks to allow hot-swapping
-        const tracks = player.textTracks();
-        for (let i = tracks.length - 1; i >= 0; i--) {
-          const track = tracks[i];
-          if (track.kind === "captions" || track.kind === "subtitles") {
-            player.removeRemoteTextTrack(track);
-          }
-        }
-
-        // 2. Add the new track
-        player.addRemoteTextTrack({
-          kind: "captions",
-          src: captionUrl,
-          srclang: "en",
-          label: "English",
-          default: captionsEnabled,
-        }, false);
-
-        // 3. Sync track mode with UI state after a short delay
-        setTimeout(() => {
-          const newTracks = player.textTracks();
-          for (let i = 0; i < newTracks.length; i++) {
-            const t = newTracks[i];
-            if (t.kind === "captions" || t.kind === "subtitles") {
-              t.mode = captionsEnabled ? "showing" : "disabled";
-            }
-          }
-        }, 100);
-      });
-    };
-
-    validateAndAdd();
-
-    return () => { cancelled = true; };
-  }, [captionUrl, sources, src]);
+      setHasCaptions(true);
+    });
+  }, [captionUrl]);
 
   // Sync sources when they change after initialization
   useEffect(() => {
@@ -1413,7 +1418,7 @@ export function VideoPlayer({
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4 text-white">
-              {captionUrl && (
+              {(hasCaptions || captionUrl) && (
                 <button
                   type="button"
                   onClick={toggleCaptions}

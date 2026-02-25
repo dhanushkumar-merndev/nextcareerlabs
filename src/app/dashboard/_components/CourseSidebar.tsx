@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 import { CollapsibleContent } from "@radix-ui/react-collapsible";
-import { ChevronDown, Play } from "lucide-react";
+import { ChevronDown} from "lucide-react";
 import { LessonItem } from "./LessonItem";
 import { usePathname } from "next/navigation";
 import { CourseProgressBar } from "./CourseProgressBar";
 import { CircularProgress } from "@/components/ui/circular-progress";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -34,14 +34,24 @@ const getChapterProgress = (chapter: CourseSidebarDataType["course"]["chapter"][
 };
 
 export function CourseSidebar({ course }: iAppProps) {
+
   const pathname = usePathname();
   const currentLessonId = pathname.split("/").pop();
 
-  const [openChapter, setOpenChapter] = useState<string | null>(
-    course.chapter.find((c:any) => c.lesson.some((l:any) => l.id === currentLessonId))?.id ||
-      course.chapter[0]?.id ||
-      null
-  );
+ const [openChapter, setOpenChapter] = useState<string | null>(null);
+
+useEffect(() => {
+  if (!course?.chapter?.length) return;
+
+  const found =
+    course.chapter.find((c:any) =>
+      c.lesson.some((l:any) => l.id === currentLessonId)
+    )?.id ||
+    course.chapter[0]?.id ||
+    null;
+
+  setOpenChapter(found);
+}, [course, currentLessonId]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const toggleChapter = (id: string) => {

@@ -56,17 +56,13 @@ export function EnrollmentButton({
         toast.success(result.message);
         setCurrentStatus("Pending");
         
-        // 🔹 BROAD INVALIDATION: Clear ALL user-facing caches
-        // Covers: /courses, /slug, /dashboard, /my-courses, /available-courses, /resources
         const uid = session?.user?.id;
         if (uid) {
-          // 🔹 SET SYNC FLAG: All user pages will do 1 version check on next open
-          chatCache.setNeedsSync(uid);
+          // 🔹 BROAD INVALIDATION: Clear ALL user-facing caches using standardized logic
+          // Handles hashed keys and registry-safe deletion
+          chatCache.invalidateUserDashboardData(uid);
+          chatCache.invalidateAllCourseData();
           
-          chatCache.invalidate("all_courses", uid);
-          chatCache.invalidate(`available_courses_${uid}`, uid);
-          chatCache.invalidate(`user_enrolled_courses_${uid}`, uid);
-          chatCache.invalidate(`user_dashboard_${uid}`, uid);
           if (slug) {
             chatCache.invalidate(`course_${slug}`, uid);
             chatCache.invalidate(`course_${slug}`, undefined); // guest cache

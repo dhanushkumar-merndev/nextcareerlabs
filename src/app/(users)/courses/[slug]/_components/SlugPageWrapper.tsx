@@ -425,7 +425,16 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
                     {enrollmentStatus === "Granted" ? (
                       <Link
                         className={buttonVariants({ className: "w-full" })}
-                        href={`/dashboard/${course.slug}`}
+                        href={(() => {
+                          const firstLesson = course.chapter
+                            ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
+                            ?.[0]?.lesson
+                            ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
+                            ?.[0];
+                          return firstLesson
+                            ? `/dashboard/${course.slug}/${firstLesson.id}`
+                            : `/dashboard/${course.slug}`;
+                        })()}
                       >
                         Watch Course
                       </Link>

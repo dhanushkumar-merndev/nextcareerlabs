@@ -74,7 +74,7 @@ function VideoPlayer({
   lowResKey?: string | null;
   transcriptionUrl?: string | null;
 }) {
-  console.log('[VideoPlayer] Render start', { lessonId, videoKey: !!videoKey });
+  console.log('[DEBUG] VideoPlayer render', { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
   const spriteUrl = constructUrl(spriteKey || "");
   const lowResUrl = constructUrl(lowResKey || "");
@@ -598,11 +598,7 @@ useEffect(() => {
     </div>
   );
 }
-
 export function CourseContent({ lessonId, userId, initialLesson, initialVersion }: iAppProps) {
-  console.log('[CourseContent] Render start', { lessonId, userId });
-
-  // ✅ ALL hooks FIRST — before any early returns (Rules of Hooks)
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
@@ -611,220 +607,167 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
 
-  // Sync initialData to local storage on mount (Legacy/SSR support)
+  // ✅ Sync initial data into cache
   useEffect(() => {
-
     if (initialLesson && initialVersion) {
-        const cacheKey = `lesson_content_${lessonId}`;
-        chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, PERMANENT_TTL);
+      const cacheKey = `lesson_content_${lessonId}`;
+      chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, PERMANENT_TTL);
     }
   }, [lessonId, userId, initialLesson, initialVersion]);
 
-const { data: lesson, isLoading } = useQuery({
-  queryKey: ["lesson_content", lessonId],
-  queryFn: async () => {
-    const cacheKey = `lesson_content_${lessonId}`;
-    const cached = chatCache.get<any>(cacheKey, userId);
-    
-    if (cached) {
-      const cacheAge = Date.now() - (cached.timestamp ?? 0);
-      if (cacheAge < 30 * 60 * 1000) {
-        return cached.data;
-      }
-    }
-
-    const clientVersion = cached?.version;
-    const result = await getLessonContent(lessonId, clientVersion) as any;
-
-    if (result?.status === "not-modified" && cached) {
-      chatCache.touch(cacheKey, userId);
-      return cached.data;
-    }
-
-    if (result?.lesson) {
-      chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
+  const { data: lesson, isLoading } = useQuery({
+    queryKey: ["lesson_content", lessonId],
+    queryFn: async () => {
+      const cacheKey = `lesson_content_${lessonId}`;
+      const cached = chatCache.get<any>(cacheKey, userId);
+      if (cached) return cached.data;
+      const result = await getLessonContent(lessonId);
       return result;
-    }
+    },
+    staleTime: 1800000,
+  });
 
-    return cached?.data ?? null;
-  },
-  // ✅ Remove: enabled: typeof window !== "undefined"
-  staleTime: 1800000,
-  refetchInterval: false,
-  refetchOnWindowFocus: true,
-});
-
-  // Extract lesson and questions from data
   const rawData = lesson as any;
   const lessonData = rawData?.lesson;
-  const questions = useMemo(() => rawData?.questions ?? EMPTY_ARRAY, [rawData?.questions]);
-  const isLoadingMCQs = isLoading;
-  const data = lessonData;
-   const isCompleted = optimisticCompleted || lessonData?.lessonProgress?.some((p: any) => p.completed);
-  const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
- const hasVideo = Boolean(data?.videoKey); 
 
-  function onSubmit() {
-    if (isLoadingMCQs) return;
+  const questions = useMemo(() => {
+    return rawData?.questions ?? EMPTY_ARRAY;
+  }, [rawData?.questions]);
 
-    // If there's a quiz, open the modal instead of completing instantly
-    if (questions.length > 0) {
+  // ✅ isLoadingMCQs state
+  const [isLoadingMCQs, setIsLoadingMCQs] = useState(false);
+
+  const isCompleted =
+    optimisticCompleted ||
+    lessonData?.lessonProgress?.some((p: any) => p.completed);
+
+  const quizPassed = lessonData?.lessonProgress?.some(
+    (p: any) => p.quizPassed
+  );
+
+  const hasVideo = Boolean(lessonData?.videoKey);
+
+  // ✅ onSubmit: opens the assessment modal
+  const onSubmit = useCallback(async () => {
+    if (!hasVideo) return;
+    setIsLoadingMCQs(true);
+    try {
       setIsAssessmentOpen(true);
-      return;
+    } catch (e) {
+      console.error("[onSubmit] Error:", e);
+    } finally {
+      setIsLoadingMCQs(false);
     }
+  }, [hasVideo]);
 
-    setOptimisticCompleted(true);
-    triggerConfetti();
-
-    startTransition(async () => {
-      const { data: result, error } = await tryCatch(
-        markLessonComplete(data.id, data.Chapter.Course.slug)
-      );
-
-      if (error) {
-        setOptimisticCompleted(false);
-        toast.error("An unexpected error occurred. Please try again later.");
-        return;
-      }
-
-      if (result.status === "success") {
-        // ✅ Invalidate Client Caches
-        const slug = data.Chapter.Course.slug;
-        const cacheKeys = [
-            `lesson_content_${lessonId}`,
-            `course_sidebar_${slug}`,
-            `user_dashboard_${userId}`,
-            `lesson_mcqs_${lessonId}`,
-            `user_enrolled_courses_${userId}`
-        ];
-
-        // 1. Clear LocalStorage
-        cacheKeys.forEach(key => chatCache.invalidate(key, userId));
-        chatCache.setNeedsSync(userId);
-
-        // 2. Invalidate React Query
-        queryClient.invalidateQueries({ queryKey: ["lesson_content", lessonId] });
-        queryClient.invalidateQueries({ queryKey: ["course_sidebar", slug] });
-        queryClient.invalidateQueries({ queryKey: ["user_dashboard", userId] });
-        queryClient.invalidateQueries({ queryKey: ["enrolled_courses", userId] });
-        
-        toast.success(result.message);
-      } else {
-        setOptimisticCompleted(false);
-        toast.error(result.message);
-      }
-    });
-  }
-
-
-  if (isLoading || !lessonData) {
+  if (isLoading) {
     return <LessonContentSkeleton />;
   }
 
   if (!lessonData) {
-    console.log('[CourseContent] Early return: no lesson data');
     return (
-        <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
-            <BookIcon size={64} className="mb-4" />
-            <h2 className="text-xl font-black uppercase tracking-widest">Lesson Not Available</h2>
-            <p className="text-sm">Please check your internet connection or contact support.</p>
-        </div>
+      <div className="flex flex-col items-center justify-center p-12 text-center opacity-40">
+        Lesson Not Available
+      </div>
     );
   }
 
- 
-
- 
-
-
-
   return (
-    <div className="relative flex flex-col md:flex-row bg-background md:h-full overflow-hidden md:border-l border-border ">
-      <div className="flex-1 flex flex-col md:pl-6 md:overflow-y-auto ">
+    <div className="relative flex flex-col md:flex-row bg-background md:h-full overflow-hidden md:border-l border-border">
+      <div className="flex-1 flex flex-col md:pl-6 md:overflow-y-auto">
+
+        {/* VIDEO */}
         <div className="order-1 md:order-1 w-full relative">
           <VideoPlayer
-            thumbnailkey={data.thumbnailKey ?? ""}
-            videoKey={data.videoKey ?? ""}
-            lessonId={data.id}
+            thumbnailkey={lessonData.thumbnailKey ?? ""}
+            videoKey={lessonData.videoKey ?? ""}
+            lessonId={lessonData?.id ?? ""}
             userId={userId}
-            initialTime={data.lessonProgress?.[0]?.lastWatched ?? 0}
-            spriteKey={data.spriteKey}
-            spriteCols={data.spriteCols}
-            spriteRows={data.spriteRows}
-            spriteInterval={data.spriteInterval}
-            spriteWidth={data.spriteWidth}
-            spriteHeight={data.spriteHeight}
-            lowResKey={data.lowResKey}
-            transcriptionUrl={data.transcription?.vttUrl}
+            initialTime={lessonData.lessonProgress?.[0]?.lastWatched ?? 0}
+            spriteKey={lessonData.spriteKey}
+            spriteCols={lessonData.spriteCols}
+            spriteRows={lessonData.spriteRows}
+            spriteInterval={lessonData.spriteInterval}
+            spriteWidth={lessonData.spriteWidth}
+            spriteHeight={lessonData.spriteHeight}
+            lowResKey={lessonData.lowResKey}
+            transcriptionUrl={lessonData.transcription?.vttUrl}
           />
         </div>
 
+        {/* DESKTOP TITLE */}
         <div className="hidden md:block order-3 md:order-2 pt-6 md:pt-3 md:pb-4">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
-            {data.title}
+            {lessonData.title}
           </h1>
         </div>
 
-        {/* MOBILE ONLY: SIMPLIFIED HEADER (Completion Button Left, Description Arrow Right) */}
-        <div className="md:hidden order-2 flex items-center justify-between py-4 bg-background ">
-            <div className="flex items-center gap-2">
-               <Button 
-                  disabled={isPending || isLoadingMCQs || !hasVideo} 
-              onClick={onSubmit} 
-               variant={"outline"}
-                  size="sm"
-                  className={cn(
-                    "gap-2 rounded-full px-5 h-9 font-bold text-xs uppercase tracking-tight shadow-[0_2px_10px_rgba(var(--primary),0.2)]",
-                  )}
-                >
-                  {isLoadingMCQs ? (
-                    <Loader size={16} />
-                  ) : hasVideo ? (
-                    <>
-                      <CheckCircle className="size-4" />
-                      {isCompleted ? "Assessment" : "Start Assessment"}
-                    </>
-                  ) : (
-                    "No Video"
-                  )}
-                </Button>
-           </div>
-
-           <Drawer open={isMobileDescriptionOpen} onOpenChange={setIsMobileDescriptionOpen}>
-              <DrawerTrigger asChild>
-                 <Button variant="ghost" size="icon" className="text-muted-foreground rounded-full bg-muted transition-colors">
-                    <ChevronRight className="size-6 ml-0.5" />
-                 </Button>
-              </DrawerTrigger>
-              <DrawerContent className="max-h-[85vh] bg-background">
-                 <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
-                    {/* Accessibility: DrawerTitle and DrawerDescription are required by vaul */}
-                    <DrawerTitle className="sr-only">Lesson Description</DrawerTitle>
-                    <DrawerDescription className="sr-only">Detailed description for the current lesson</DrawerDescription>
-                    <div className="flex-1 overflow-y-auto px-6 pt-8 pb-12 overscroll-contain" data-lenis-prevent>
-                       <div className="prose prose-sm dark:prose-invert max-w-none">
-                          <h3 className="text-xl font-bold mb-4">{data.title}</h3>
-                          {data.description && <RenderDescription json={JSON.parse(data.description)} />}
-                       </div>
-                    </div>
-                 </div>
-              </DrawerContent>
-           </Drawer>
-        </div>
-
-        <div className="hidden md:flex order-3 md:order-3 items-center justify-between gap-4 px-4 md:px-0 pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
+        {/* MOBILE HEADER */}
+        <div className="md:hidden order-2 flex items-center justify-between py-4 bg-background">
           <div className="flex items-center gap-2">
-            <Button 
-              disabled={isPending || isLoadingMCQs || !hasVideo} 
+            <Button
+              disabled={isPending || isLoadingMCQs || !hasVideo}
               onClick={onSubmit}
-              variant={"outline"}
-              className={cn(
-                "gap-2 rounded-full px-6",
-         
-              )}
+              variant="outline"
+              size="sm"
+              className="gap-2 rounded-full px-5 h-9 font-bold text-xs uppercase tracking-tight shadow-[0_2px_10px_rgba(var(--primary),0.2)]"
             >
               {isLoadingMCQs ? (
-                 <Loader size={16} />
+                <Loader size={16} />
+              ) : hasVideo ? (
+                <>
+                  <CheckCircle className="size-4" />
+                  {isCompleted ? "Assessment" : "Start Assessment"}
+                </>
+              ) : (
+                "No Video"
+              )}
+            </Button>
+          </div>
+
+          <Drawer open={isMobileDescriptionOpen} onOpenChange={setIsMobileDescriptionOpen}>
+            <DrawerTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground rounded-full bg-muted transition-colors"
+              >
+                <ChevronRight className="size-6 ml-0.5" />
+              </Button>
+            </DrawerTrigger>
+            <DrawerContent className="max-h-[85vh] bg-background">
+              <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
+                <DrawerTitle className="sr-only">Lesson Description</DrawerTitle>
+                <DrawerDescription className="sr-only">
+                  Detailed description for the current lesson
+                </DrawerDescription>
+                <div
+                  className="flex-1 overflow-y-auto px-6 pt-8 pb-12 overscroll-contain"
+                  data-lenis-prevent
+                >
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <h3 className="text-xl font-bold mb-4">{lessonData.title}</h3>
+                    {lessonData.description && (
+                      <RenderDescription json={JSON.parse(lessonData.description)} />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </DrawerContent>
+          </Drawer>
+        </div>
+
+        {/* DESKTOP ACTION BAR */}
+        <div className="hidden md:flex order-3 md:order-3 items-center justify-between gap-4 px-4 md:px-0 pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
+          <div className="flex items-center gap-2">
+            <Button
+              disabled={isPending || isLoadingMCQs || !hasVideo}
+              onClick={onSubmit}
+              variant="outline"
+              className="gap-2 rounded-full px-6"
+            >
+              {isLoadingMCQs ? (
+                <Loader size={16} />
               ) : hasVideo ? (
                 <>
                   <CheckCircle className="size-4" />
@@ -849,57 +792,59 @@ const { data: lesson, isLoading } = useQuery({
         </div>
       </div>
 
-      {data.description && isDescriptionOpen && (
+      {/* DESKTOP DESCRIPTION PANEL */}
+      {lessonData.description && isDescriptionOpen && (
         <div className="absolute -bottom-1 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col border border-border shadow-2xl bg-background animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
           <div className="flex items-center justify-between p-5 border-b border-border shrink-0 bg-muted/30">
             <h2 className="font-bold text-lg flex items-center gap-2">
               <IconFileText className="size-5 text-primary" />
               Description
             </h2>
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setIsDescriptionOpen(false)}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              onClick={() => setIsDescriptionOpen(false)}
+            >
               <X className="size-4" />
             </Button>
           </div>
-
           <div
             className="flex-1 min-h-0 overflow-y-auto p-6 overscroll-contain scrollbar-thin scrollbar-thumb-primary/10"
             data-lenis-prevent
           >
-            <h3 className="text-base font-bold mb-4">{data.title}</h3>
-            <RenderDescription json={JSON.parse(data.description!)} />
+            <h3 className="text-base font-bold mb-4">{lessonData.title}</h3>
+            <RenderDescription json={JSON.parse(lessonData.description!)} />
           </div>
         </div>
       )}
 
-
+      {/* ASSESSMENT MODAL */}
       {questions.length > 0 && (
-        <AssessmentModal 
+        <AssessmentModal
           isOpen={isAssessmentOpen}
           onClose={() => setIsAssessmentOpen(false)}
           questions={questions}
-          lessonId={data.id}
-          slug={data.Chapter.Course.slug}
+          lessonId={lessonData.id}
+          slug={lessonData.Chapter.Course.slug}
           initialPassed={quizPassed}
           onSuccess={() => {
             setOptimisticCompleted(true);
             triggerConfetti();
             setIsAssessmentOpen(false);
 
-            // ✅ Invalidate ALL relevant Redis caches immediately
-            const slug = data.Chapter.Course.slug;
+            const slug = lessonData.Chapter.Course.slug;
             const cacheKeys = [
-                `lesson_content_${lessonId}`,
-                `course_sidebar_${slug}`,
-                `user_dashboard_${userId}`,
-                `lesson_mcqs_${lessonId}`,
-                `user_enrolled_courses_${userId}`
+              `lesson_content_${lessonId}`,
+              `course_sidebar_${slug}`,
+              `user_dashboard_${userId}`,
+              `lesson_mcqs_${lessonId}`,
+              `user_enrolled_courses_${userId}`,
             ];
 
-            // 1. Clear LocalStorage
-            cacheKeys.forEach(key => chatCache.invalidate(key, userId));
+            cacheKeys.forEach((key) => chatCache.invalidate(key, userId));
             chatCache.setNeedsSync(userId);
 
-            // 2. Invalidate React Query
             queryClient.invalidateQueries({ queryKey: ["lesson_content", lessonId] });
             queryClient.invalidateQueries({ queryKey: ["course_sidebar", slug] });
             queryClient.invalidateQueries({ queryKey: ["user_dashboard", userId] });

@@ -6,12 +6,11 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { HorizontalCourseCard } from "../_components/HorizontalCourseCard";
 import { Skeleton } from "@/components/ui/skeleton";
-
 import { useSmartSession } from "@/hooks/use-smart-session";
-
 import { useEffect, useState, useRef } from "react";
 
 export function DashboardClient() {
+  console.log('[DEBUG] DashboardClient render');
   const { session, isLoading: sessionLoading } = useSmartSession();
   const userId = session?.user.id;
 

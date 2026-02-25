@@ -14,6 +14,7 @@ export interface FeatureCardProps {
 export interface PhoneNumberDialogProps {
   isOpen: boolean;
   requireName?: boolean; // true for email OTP users without a name
+  onSuccess?: () => void;
 }
 
 export type Section = "home" | "programs" | "testimonials";

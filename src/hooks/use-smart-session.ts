@@ -42,6 +42,8 @@ export function useSmartSession() {
                     chatCache.invalidateAllCourseData();
                     queryClient.invalidateQueries({ queryKey: ["user_dashboard"] });
                     queryClient.invalidateQueries({ queryKey: ["course_detail"] });
+                    queryClient.invalidateQueries({ queryKey: ["enrolled_courses"] });
+                    queryClient.invalidateQueries({ queryKey: ["available_courses"] });
                 }
 
                 chatCache.set(CACHE_KEY, result.data, undefined, result.version, 30 * 24 * 60 * 60 * 1000);

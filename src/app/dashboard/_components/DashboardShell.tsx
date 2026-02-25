@@ -17,6 +17,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   );
 
   const [mounted, setMounted] = useState(false);
+  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -26,10 +27,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      {mounted && session && (
+      {mounted && session && !hasSubmitted && (
         <PhoneNumberDialog
           isOpen={!isComplete}
           requireName={!session.user.name}
+          onSuccess={() => setHasSubmitted(true)}
         />
       )}
 

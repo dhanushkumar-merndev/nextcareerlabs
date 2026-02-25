@@ -7,7 +7,7 @@ import {InputOTP,InputOTPGroup,InputOTPSlot,} from "@/components/ui/input-otp";
 import { authClient } from "@/lib/auth-client";
 import { Loader2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState, useTransition, useEffect, useRef } from "react";
+import { Suspense, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 // If a component reads route params, search params, or may suspend → wrap it in Suspense

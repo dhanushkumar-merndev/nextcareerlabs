@@ -74,7 +74,8 @@ export async function updateEnrollmentStatusAction(
       // On Grant, also invalidate specific user course caches to reflect enrollment status
       if (status === "Granted") {
           invalidations.push(
-              invalidateCache(`course:${enrollment.Course.slug}`)
+              invalidateCache(`course:${enrollment.Course.slug}`),
+              invalidateCache(`global:course:${enrollment.Course.slug}`) // Support both variants
           );
       }
 

@@ -55,7 +55,7 @@ export function PublicCourseCard({ data, enrollmentStatus = null, isPriority = f
         {enrollmentStatus === "Granted" ? (
           <div className="mt-4 flex items-center gap-2">
             <Link
-              href={`/dashboard/${data.slug}`}
+              href={data.firstLessonId ? `/dashboard/${data.slug}/${data.firstLessonId}` : `/dashboard/${data.slug}`}
               className={buttonVariants({ className: "w-1/2" })}
             >
               Watch Now

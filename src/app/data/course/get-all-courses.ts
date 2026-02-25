@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { cache } from "react";
 import {
   getCache,
   setCache,
@@ -15,25 +16,24 @@ type RedisCoursesCache = {
   version: string;
 };
 
-export async function getAllCourses(
+const getAllCoursesInternal = async (
   clientVersion?: string,
   userId?: string,
   cursor?: string | null,
   searchQuery?: string,
   onlyAvailable?: boolean
-): Promise<CoursesServerResult> {
+): Promise<CoursesServerResult> => {
   let currentVersion = await getGlobalVersion(
     GLOBAL_CACHE_KEYS.COURSES_VERSION
   );
 
   // 🔹 If user is logged in, combine global version with user-specific version
   // This ensures enrollment status changes (like deletion or role change) trigger a sync
+  let userVersion = "";
   if (userId) {
-    const userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
+    userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
     currentVersion = `${currentVersion}:${userVersion}`;
   }
-
-
 
   // 🔹 Version short-circuit ONLY for first page
   if (!searchQuery && !cursor && clientVersion && clientVersion === currentVersion) {
@@ -50,7 +50,7 @@ export async function getAllCourses(
   // 🔹 If searching, bypass Redis list and query DB directly for efficiency
   if (searchQuery) {
     console.log(`[getAllCourses] SEARCH: "${searchQuery}" -> DB Query`);
-    allCourses = await prisma.course.findMany({
+    const searchRaw = await prisma.course.findMany({
       where: {
         status: "Published",
         OR: [
@@ -68,15 +68,39 @@ export async function getAllCourses(
         fileKey: true,
         category: true,
         slug: true,
+        chapter: {
+          orderBy: { position: "asc" },
+          take: 1,
+          select: {
+            lesson: {
+              orderBy: { position: "asc" },
+              take: 1,
+              select: { id: true }
+            }
+          }
+        }
       },
     });
+
+    // Transform Search DB Results
+    allCourses = searchRaw.map(c => ({
+      id: c.id,
+      title: c.title,
+      smallDescription: c.smallDescription,
+      duration: c.duration,
+      level: c.level,
+      fileKey: c.fileKey,
+      category: c.category,
+      slug: c.slug,
+      firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
+    }));
     console.log(`[getAllCourses] DB Search took ${Date.now() - startTime}ms`);
   } else if (cached?.data) {
     console.log(`[getAllCourses] REDIS HIT (v${cached.version})`);
     allCourses = cached.data;
   } else {
     console.log(`[getAllCourses] REDIS MISS -> DB Computation`);
-    allCourses = await prisma.course.findMany({
+    const dbRaw = await prisma.course.findMany({
       where: { status: "Published" },
       orderBy: { createdAt: "desc" },
       select: {
@@ -88,8 +112,32 @@ export async function getAllCourses(
         fileKey: true,
         category: true,
         slug: true,
+        chapter: {
+          orderBy: { position: "asc" },
+          take: 1,
+          select: {
+            lesson: {
+              orderBy: { position: "asc" },
+              take: 1,
+              select: { id: true }
+            }
+          }
+        }
       },
     });
+
+    // Transform DB Results
+    allCourses = dbRaw.map(c => ({
+      id: c.id,
+      title: c.title,
+      smallDescription: c.smallDescription,
+      duration: c.duration,
+      level: c.level,
+      fileKey: c.fileKey,
+      category: c.category,
+      slug: c.slug,
+      firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
+    }));
 
     await setCache(
       cacheKey,
@@ -99,36 +147,80 @@ export async function getAllCourses(
     console.log(`[getAllCourses] DB Computation took ${Date.now() - startTime}ms`);
   }
 
-  // 🔹 Enrollment merge (user-specific)
+  // 🔹 Enrollment merge optimization
+  let resultCourses = allCourses;
+
   if (userId) {
     const mergeStart = Date.now();
-    const enrollments = await prisma.enrollment.findMany({
-      where: { userId },
-      select: { courseId: true, status: true },
-    });
+    const enrollCacheKey = `user:enrollment-map:${userId}:${userVersion}`;
+    
+    // Attempt to get enrollment map from Redis
+    let mapValues = await getCache<[string, string][]>(enrollCacheKey);
+    
+    if (!mapValues) {
+      console.log(`[getAllCourses] Enrollment Map MISS for ${userId} -> DB Query`);
+      const enrollments = await prisma.enrollment.findMany({
+        where: { userId },
+        select: { courseId: true, status: true },
+      });
+      mapValues = enrollments.map(e => [e.courseId, e.status] as [string, string]);
+      // Cache for 10 minutes (sufficient for a session, and updateable via versioning if needed)
+      await setCache(enrollCacheKey, mapValues, 600);
+    } else {
+      console.log(`[getAllCourses] Enrollment Map HIT for ${userId}`);
+    }
 
-    const map = new Map(enrollments.map((e) => [e.courseId, e.status]));
-
-    allCourses = allCourses.map((c) => ({
-      ...c,
-      enrollmentStatus: map.get(c.id) ?? null,
-    }));
+    const map = new Map(mapValues);
 
     if (onlyAvailable) {
-      allCourses = allCourses.filter((c) => map.get(c.id) !== "Granted");
+      // Must filter BEFORE slicing if we only want available courses
+      resultCourses = allCourses.filter((c) => map.get(c.id) !== "Granted");
+      
+      // Add enrollment status to filtered results
+      resultCourses = resultCourses.map((c) => ({
+        ...c,
+        enrollmentStatus: map.get(c.id) ?? null,
+      }));
+      
+      console.log(`[getAllCourses] Filtered Enrollment Merge took ${Date.now() - mergeStart}ms`);
+    } else {
+      // OPTIMIZATION: Slice first, then map only for visible items
+      const startIndex = cursor
+        ? allCourses.findIndex((c) => c.id === cursor) + 1
+        : 0;
+      
+      const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
+      
+      resultCourses = page.map((c) => ({
+        ...c,
+        enrollmentStatus: map.get(c.id) ?? null,
+      }));
+      
+      console.log(`[getAllCourses] Optimized Merge (Sliced first) took ${Date.now() - mergeStart}ms`);
+      
+      const nextCursor =
+        startIndex + PAGE_SIZE < allCourses.length
+          ? resultCourses[resultCourses.length - 1]?.id ?? null
+          : null;
+
+      return {
+        status: "data",
+        version: currentVersion,
+        courses: resultCourses,
+        nextCursor,
+      };
     }
-    console.log(`[getAllCourses] Enrollment Merge took ${Date.now() - mergeStart}ms`);
   }
 
-  // 🔹 Cursor pagination (9+9)
+  // 🔹 Default Pagination (for onlyAvailable path or userId absent)
   const startIndex = cursor
-    ? allCourses.findIndex((c) => c.id === cursor) + 1
+    ? resultCourses.findIndex((c) => c.id === cursor) + 1
     : 0;
 
-  const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
+  const page = resultCourses.slice(startIndex, startIndex + PAGE_SIZE);
 
   const nextCursor =
-    startIndex + PAGE_SIZE < allCourses.length
+    startIndex + PAGE_SIZE < resultCourses.length
       ? page[page.length - 1]?.id ?? null
       : null;
 
@@ -138,4 +230,6 @@ export async function getAllCourses(
     courses: page,
     nextCursor,
   };
-}
+};
+
+export const getAllCourses = cache(getAllCoursesInternal);
