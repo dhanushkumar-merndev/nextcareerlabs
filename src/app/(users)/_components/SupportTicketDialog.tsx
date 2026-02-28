@@ -12,7 +12,7 @@ import { sendNotificationAction, checkTicketLimitAction } from "@/app/data/notif
 import { toast } from "sonner";
 import { Loader2, MessageSquarePlus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { chatCache } from "@/lib/chat-cache";
+import { chatCache, getSidebarKey, getSidebarLocalKey } from "@/lib/chat-cache";
 import { TicketResponse } from "@/lib/types/components";
 
 // Support ticket dialog component
@@ -130,7 +130,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
           } else {
             toast.error("Failed to raise ticket. Please try again.");
           }
-          queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+          queryClient.invalidateQueries({ queryKey: getSidebarKey(currentUserId!, false) });
           return;
         }
 
@@ -138,12 +138,12 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
         const finalThreadId = res.notification?.threadId || predictedThreadId;
         
         await queryClient.invalidateQueries({ 
-          queryKey: ["sidebarData", currentUserId],
+          queryKey: getSidebarKey(currentUserId!, false),
           refetchType: 'active' 
         });
         
         if (currentUserId) {
-          chatCache.invalidate("sidebarData", currentUserId);
+          chatCache.invalidate(getSidebarLocalKey(false), currentUserId);
         }
         
         queryClient.invalidateQueries({ queryKey: ["messages", finalThreadId, currentUserId] });
@@ -155,7 +155,7 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
 
       } catch (error) {
         toast.error("Failed to raise ticket. Please try again.");
-        queryClient.invalidateQueries({ queryKey: ["sidebarData", currentUserId] });
+        queryClient.invalidateQueries({ queryKey: getSidebarKey(currentUserId!, false) });
       }
     })();
   };

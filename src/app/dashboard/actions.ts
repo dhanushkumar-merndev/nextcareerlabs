@@ -17,8 +17,8 @@ export async function getUserDashboardData(userId: string, clientVersion?: strin
         return { status: "not-modified", version: currentVersion };
     }
 
-    // Check Redis cache
-    const cacheKey = `user:dashboard:${userId}`;
+    // Check Redis cache (versioned for immediate invalidation)
+    const cacheKey = `user:dashboard:${userId}:${currentVersion}`;
     const startTime = Date.now();
     const cached = await getCache<any>(cacheKey);
     

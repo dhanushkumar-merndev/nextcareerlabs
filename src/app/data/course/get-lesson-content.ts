@@ -21,7 +21,7 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
   }
 
   // ── Tier 2: Redis ─────────────────────────────────────────────────
-  const cacheKey = `user:lesson:${session.id}:${lessonId}`;
+  const cacheKey = `user:lesson:${session.id}:${lessonId}:${currentVersion}`;
   const cached = await getCache<any>(cacheKey);
   if (cached) {
     console.log(`[Lesson] 🔵 REDIS HIT → lesson:${lessonId} (v${currentVersion})`);
@@ -108,7 +108,7 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
   const result = { lesson, questions };
 
   // ✅ Don't await cache write — let it happen in background
-  setCache(cacheKey, result, 1800).catch(console.error);
+  setCache(cacheKey, result,  2592000).catch(console.error);
   console.log(`[Lesson] 💾 CACHED in Redis (30 min) → lesson:${lessonId}`);
 
   return { ...result, version: currentVersion };

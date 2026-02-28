@@ -13,6 +13,10 @@ import {
 } from "@/app/data/course/get-course-sidebar-data";
 import { chatCache } from "@/lib/chat-cache";
 
+type SidebarCourse = Extract<CourseSidebarDataType, { course: NonNullable<any> }>["course"];
+type SidebarCacheData = { course: SidebarCourse };
+// chatCache.get returns: { data: SidebarCacheData, version?: string, timestamp?: number } | null
+
 export function SidebarContainer({
   slug,
   children,
@@ -23,7 +27,7 @@ export function SidebarContainer({
   slug: string;
   children: React.ReactNode;
   userId: string;
-  initialCourseData?: CourseSidebarDataType["course"] | null;
+  initialCourseData?: SidebarCourse | null;
   initialVersion?: string | null;
 }) {
 
@@ -31,52 +35,45 @@ export function SidebarContainer({
   useEffect(() => {
     if (initialCourseData && initialVersion) {
       const cacheKey = `course_sidebar_${slug}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-
+      const cached = chatCache.get<SidebarCacheData>(cacheKey, userId);
       if (!cached || cached.version !== initialVersion) {
-        chatCache.set(
-          cacheKey,
-          { course: initialCourseData },
-          userId,
-          initialVersion
-        );
+        chatCache.set<SidebarCacheData>(cacheKey, { course: initialCourseData }, userId, initialVersion);
       }
     }
   }, [slug, userId, initialCourseData, initialVersion]);
 
   /* ---------------- Query ---------------- */
-  const { data: course, isLoading, isError } = useQuery({
+  const { data: course, isError } = useQuery<SidebarCourse | null>({
     queryKey: ["course_sidebar", slug],
     queryFn: async () => {
       const cacheKey = `course_sidebar_${slug}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
+      const cached = chatCache.get<SidebarCacheData>(cacheKey, userId);
+      const clientVersion = cached?.version; // ✅ read BEFORE early return
 
-      if (cached) {
-        const cacheAge = Date.now() - (cached.timestamp ?? 0);
-        if (cacheAge < 30 * 60 * 1000) {
-          return cached.data.course;
+      // ✅ localStorage hit — return instantly
+      if (cached) return cached.data.course;
+
+      const result = await getCourseSidebarData(slug, clientVersion);
+
+      // not-modified or error status
+      if ("status" in result) {
+        if (result.status === "not-modified") {
+          const refetched = chatCache.get<SidebarCacheData>(cacheKey, userId);
+          if (refetched) {
+            chatCache.touch(cacheKey, userId);
+            return refetched.data.course; // ✅ refetched.data = { course: SidebarCourse }
+          }
         }
+        return null;
       }
 
-      const clientVersion = cached?.version;
-      const result = await getCourseSidebarData(
-        slug,
-        clientVersion
-      ) as any;
-
-      if (result?.status === "not-modified" && cached) {
-        chatCache.touch(cacheKey, userId);
-        return cached.data.course;
-      }
-
-      if (result?.course) {
-        chatCache.set(cacheKey, result, userId, result.version);
-        return result.course;
-      }
-
-      return cached?.data?.course ?? null;
+      // ✅ success branch — result has .course and .version
+      chatCache.set<SidebarCacheData>(cacheKey, { course: result.course }, userId, result.version);
+      return result.course;
     },
     staleTime: 1800000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
     retry: 1,
   });
 
@@ -84,66 +81,42 @@ export function SidebarContainer({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  const {
-    setProgressPercentage,
-    setShowProgress,
-    setCourseTitle,
-  } = useCourseProgressContext();
-
-  const { progressPercentage } = useCourseProgress({
-    courseData: course,
-  });
+  const { setProgressPercentage, setShowProgress, setCourseTitle } = useCourseProgressContext();
+  const { progressPercentage } = useCourseProgress({ courseData: course });
 
   /* ---------------- Effects ---------------- */
-
   useEffect(() => {
     if (!course) return;
-
     setProgressPercentage(progressPercentage);
     setCourseTitle(course.title);
     setShowProgress(true);
-
     return () => {
       setShowProgress(false);
       setCourseTitle("");
     };
-  }, [
-    progressPercentage,
-    course,
-    setProgressPercentage,
-    setShowProgress,
-    setCourseTitle,
-  ]);
+  }, [progressPercentage, course, setProgressPercentage, setShowProgress, setCourseTitle]);
 
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
+  useEffect(() => { setOpen(false); }, [pathname]);
 
   useEffect(() => {
     const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-
     if (isMobile && open) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
-
-    return () => {
-      document.body.style.overflow = "";
-    };
+    return () => { document.body.style.overflow = ""; };
   }, [open]);
 
   const showSkeleton = !course && !isError;
 
   /* ---------------- Render ---------------- */
-
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
 
         {/* DESKTOP SIDEBAR */}
         <div className="hidden md:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
-
           {showSkeleton && (
             <div className="absolute inset-0 z-10 p-4 space-y-6 bg-background">
               <Skeleton className="h-6 w-40" />
@@ -152,7 +125,6 @@ export function SidebarContainer({
               <Skeleton className="h-12 w-full" />
             </div>
           )}
-
           {course && <CourseSidebar course={course} />}
         </div>
 
@@ -164,7 +136,6 @@ export function SidebarContainer({
 
           {/* MOBILE SIDEBAR */}
           <div className="md:hidden border-t border-border pb-12 relative">
-
             {showSkeleton && (
               <div className="absolute inset-0 z-10 p-4 space-y-4 bg-background">
                 <Skeleton className="h-8 w-full" />
@@ -172,7 +143,6 @@ export function SidebarContainer({
                 <Skeleton className="h-16 w-full" />
               </div>
             )}
-
             {course && <CourseSidebar course={course} />}
           </div>
         </div>

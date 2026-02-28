@@ -3,16 +3,13 @@
 import { getLessonContent } from "@/app/data/course/get-lesson-content";
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Button } from "@/components/ui/button";
-import { tryCatch } from "@/hooks/try-catch";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { BookIcon, CheckCircle, ChevronRight, X } from "lucide-react";
-import { markLessonComplete, updateVideoProgress } from "../actions";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { updateVideoProgress, updateMultipleVideoProgress } from "../actions"
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { getSignedVideoUrl } from "@/app/data/course/get-signed-video-url";
+import { getBatchSignedVideoUrls } from "@/app/data/course/get-signed-video-url";
 import { env } from "@/lib/env";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
@@ -78,7 +75,10 @@ function VideoPlayer({
   const thumbnailUrl = constructUrl(thumbnailkey);
   const spriteUrl = constructUrl(spriteKey || "");
   const lowResUrl = constructUrl(lowResKey || "");
+  const queryClient = useQueryClient();
   const [vttCues, setVttCues] = useState<any[]>([]);
+  const lessonIdRef = useRef(lessonId);
+  useEffect(() => { lessonIdRef.current = lessonId; }, [lessonId]);
 
   const spriteMetadata = useMemo(() => {
     // 1. If we have an explicit spriteKey, use it (VTT or Legacy)
@@ -328,10 +328,40 @@ useEffect(() => {
     const response = await updateVideoProgress(targetId, currentPosition, deltaToSync);
 
     if (response.status === "success" && !specificLessonId) {
+      // ✅ Update LOCAL CACHE directly (No invalidation avoids network hit on refresh)
+      const cacheKey = `lesson_content_${lessonId}`;
+      const cached = chatCache.get<any>(cacheKey, userId);
+      if (cached?.data?.lesson) {
+        const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: targetId, lastWatched: 0, actualWatchTime: 0 };
+        progress.lastWatched = currentPosition;
+        progress.actualWatchTime = (progress.actualWatchTime || 0) + deltaToSync;
+        
+        if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
+        cached.data.lesson.lessonProgress[0] = progress;
+        
+        chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
+        queryClient.setQueryData(["lesson_content", lessonId], cached.data);
+      }
+      
       // ✅ Clear local state only after successful sync for current lesson
       clearLocalDelta();
       sessionDeltaRef.current = 0;
     } else if (response.status === "success" && specificLessonId) {
+        // Update specific lesson cache
+        const cacheKey = `lesson_content_${specificLessonId}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        if (cached?.data?.lesson) {
+          const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: specificLessonId, lastWatched: 0, actualWatchTime: 0 };
+          progress.lastWatched = currentPosition;
+          progress.actualWatchTime = (progress.actualWatchTime || 0) + deltaToSync;
+          
+          if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
+          cached.data.lesson.lessonProgress[0] = progress;
+          
+          chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
+          queryClient.setQueryData(["lesson_content", specificLessonId], cached.data);
+        }
+        
         // Clear specific lesson delta
         secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}`);
         const expires = new Date(0).toUTCString();
@@ -362,12 +392,23 @@ useEffect(() => {
       // 2. Global Sync: Find other unsynced deltas in localStorage
       try {
         const keys = secureStorage.keysByPrefix("unsynced-delta-");
+        const updatesToBatch: Array<{ lessonId: string; lastWatched: number; delta: number }> = [];
+
+        // Add current lesson to batch if it has a delta
+        if (previousDelta > 0 || (savedTime && parseFloat(savedTime) > initialTime)) {
+          updatesToBatch.push({
+            lessonId,
+            lastWatched: positionToSync,
+            delta: previousDelta
+          });
+        }
+
         for (const key of keys) {
           if (!key.includes(lessonId)) {
             const otherLessonId = key.replace("unsynced-delta-", "");
             const rawDelta = secureStorage.getItem(key);
             const rawPos = secureStorage.getItem(`video-progress-${otherLessonId}`);
-            // Decrypt the delta (it was double-encrypted)
+            
             let otherDelta = 0;
             try {
               if (rawDelta) {
@@ -378,9 +419,43 @@ useEffect(() => {
             const otherPosition = rawPos ? parseFloat(rawPos) : 0;
             
             if (otherDelta > 0) {
-              console.log(`[Global Sync] Found leftover for ${otherLessonId}`);
-              await syncToDB(otherLessonId, otherDelta, otherPosition);
+              updatesToBatch.push({
+                lessonId: otherLessonId,
+                lastWatched: otherPosition,
+                delta: otherDelta
+              });
             }
+          }
+        }
+
+        if (updatesToBatch.length > 0) {
+          console.log(`[Global Sync] Batch syncing ${updatesToBatch.length} items`);
+          const res = await updateMultipleVideoProgress(updatesToBatch);
+          if (res.status === "success") {
+             // Clear all synced items and update their caches
+             updatesToBatch.forEach(u => {
+                const cacheKey = `lesson_content_${u.lessonId}`;
+                const cached = chatCache.get<any>(cacheKey, userId);
+                if (cached?.data?.lesson) {
+                  const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: u.lessonId, lastWatched: 0, actualWatchTime: 0 };
+                  progress.lastWatched = u.lastWatched;
+                  progress.actualWatchTime = (progress.actualWatchTime || 0) + u.delta;
+                  
+                  if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
+                  cached.data.lesson.lessonProgress[0] = progress;
+                  
+                  chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
+                  queryClient.setQueryData(["lesson_content", u.lessonId], cached.data);
+                }
+                
+                if (u.lessonId === lessonId) {
+                  clearLocalDelta();
+                } else {
+                  secureStorage.removeItemTracked(`unsynced-delta-${u.lessonId}`);
+                  const expires = new Date(0).toUTCString();
+                  document.cookie = `unsynced-delta-${u.lessonId}=; expires=${expires}; path=/; SameSite=Lax`;
+                }
+             });
           }
         }
       } catch (e) {
@@ -450,47 +525,47 @@ useEffect(() => {
       }
 
       // ── Tier 2: Fetch new signed URLs from S3 ────────────────────────
-      console.log("%c[■ Video] 🗄️  FETCH NEW signed URLs from S3", "color: #f97316; font-weight: bold");
-      const urlsToCache: { hls?: string; video?: string; caption?: string } = {};
-
-      // 1. HLS URL
+      console.log("%c[■ Video] 🗄️  FETCH NEW signed URLs from S3 (Batching)", "color: #f97316; font-weight: bold");
+      
       const baseKey = videoKey.startsWith('hls/')
         ? videoKey.split('/')[1]
         : videoKey.replace(/\.[^/.]+$/, "");
       const hlsKey = `hls/${baseKey}/master.m3u8`;
-      const hlsResponse = await getSignedVideoUrl(hlsKey) as any;
-      if (hlsResponse?.status === "success" && hlsResponse.url) {
-        setHlsUrl(hlsResponse.url);
-        urlsToCache.hls = hlsResponse.url;
+      
+      const keysToSign = [hlsKey, videoKey];
+      if (transcriptionUrl && !transcriptionUrl.startsWith('http')) {
+        keysToSign.push(transcriptionUrl);
       }
 
-      // 2. MP4 fallback URL
-      const response = await getSignedVideoUrl(videoKey) as any;
-      if (response?.status === "success" && response.url) {
-        setVideoUrl(response.url);
-        urlsToCache.video = response.url;
-      }
+      const batchResponse = await getBatchSignedVideoUrls(keysToSign) as any;
+      
+      if (batchResponse?.status === "success" && batchResponse.urls) {
+        const urls = batchResponse.urls;
+        const urlsToCache: { hls?: string; video?: string; caption?: string } = {};
 
-      // 3. Caption URL
-      if (transcriptionUrl) {
-        if (transcriptionUrl.startsWith('http')) {
-          setCaptionUrl(transcriptionUrl);
-          urlsToCache.caption = transcriptionUrl;
-        } else {
-          const captionResponse = await getSignedVideoUrl(transcriptionUrl) as any;
-          if (captionResponse?.status === "success" && captionResponse.url) {
-            setCaptionUrl(captionResponse.url);
-            urlsToCache.caption = captionResponse.url;
+        if (urls[hlsKey]) {
+          setHlsUrl(urls[hlsKey]);
+          urlsToCache.hls = urls[hlsKey];
+        }
+        if (urls[videoKey]) {
+          setVideoUrl(urls[videoKey]);
+          urlsToCache.video = urls[videoKey];
+        }
+        
+        if (transcriptionUrl) {
+          if (transcriptionUrl.startsWith('http')) {
+            setCaptionUrl(transcriptionUrl);
+            urlsToCache.caption = transcriptionUrl;
+          } else if (urls[transcriptionUrl]) {
+            setCaptionUrl(urls[transcriptionUrl]);
+            urlsToCache.caption = urls[transcriptionUrl];
           }
         }
-      } else {
-        setCaptionUrl(undefined);
-        urlsToCache.caption = "";
-      }
 
-      // ── Store in local cache (28 min TTL) ───────────────────────────
-      chatCache.set(urlCacheKey, urlsToCache, userId, undefined, VIDEO_URL_TTL);
-      console.log("%c[■ Video] 💾 CACHED signed URLs locally (28 min)", "color: #8b5cf6");
+        // ── Store in local cache (28 min TTL) ───────────────────────────
+        chatCache.set(urlCacheKey, urlsToCache, userId, undefined, VIDEO_URL_TTL);
+        console.log("%c[■ Video] 💾 CACHED signed URLs locally (28 min)", "color: #8b5cf6");
+      }
     };
 
     fetchUrls();
@@ -598,7 +673,7 @@ useEffect(() => {
     </div>
   );
 }
-export function CourseContent({ lessonId, userId, initialLesson, initialVersion }: iAppProps) {
+export function CourseContent({ lessonId, userId}: iAppProps) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
@@ -607,13 +682,7 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
 
-  // ✅ Sync initial data into cache
-  useEffect(() => {
-    if (initialLesson && initialVersion) {
-      const cacheKey = `lesson_content_${lessonId}`;
-      chatCache.set(cacheKey, { lesson: initialLesson }, userId, initialVersion, PERMANENT_TTL);
-    }
-  }, [lessonId, userId, initialLesson, initialVersion]);
+
 
   const { data: lesson, isLoading } = useQuery({
     queryKey: ["lesson_content", lessonId],
@@ -621,10 +690,15 @@ export function CourseContent({ lessonId, userId, initialLesson, initialVersion 
       const cacheKey = `lesson_content_${lessonId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
       if (cached) return cached.data;
-      const result = await getLessonContent(lessonId);
+      const result = (await getLessonContent(lessonId)) as any;
+      if (result && result.status !== "error") {
+        chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
+      }
       return result;
     },
     staleTime: 1800000,
+    refetchOnWindowFocus: false, 
+    refetchOnMount: false, 
   });
 
   const rawData = lesson as any;

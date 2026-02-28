@@ -35,20 +35,19 @@ export async function getAuthSessionAction(clientVersion?: string) {
 
     console.log(`[AuthAction] Cache MISS or MISMATCH (Client: ${clientVersion || 'None'}, Server: ${currentVersion}). Fetching...`);
 
-    // 3. Fetch Fresh Session
-    console.log(`[AuthAction] Fetching session. Session Cookie present: ${hasSessionCookie}`);
-
+    // 4. Fetch Fresh Session (Only if version mismatch)
+    console.log(`[AuthAction] Fetching fresh session. Session Cookie present: ${hasSessionCookie}`);
     const session = await auth.api.getSession({
         headers: headersList,
     });
 
-    // 4. Cleanup side-effect (Non-blocking)
+    // 5. Cleanup side-effect (Non-blocking)
     if (session) {
         clearOtherSessionsOnce(session.user.id, session.session.id)
             .catch(e => console.error("[AuthAction] Cleanup failed:", e));
     }
 
-    // 5. Return Data and Server Version
+    // 6. Return Data and Server Version
     return {
         data: session,
         version: currentVersion

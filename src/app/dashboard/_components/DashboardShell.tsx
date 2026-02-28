@@ -8,20 +8,43 @@ import { SidebarInset } from "@/components/ui/sidebar";
 import { SiteHeader } from "@/components/sidebar/site-header";
 import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 
-export function DashboardShell({ children }: { children: React.ReactNode }) {
+export function DashboardShell({ 
+  children,
+  isEnrolledHint
+}: { 
+  children: React.ReactNode;
+  isEnrolledHint?: boolean;
+}) {
   const { session, isLoading: sessionLoading } = useSmartSession();
 
-  const { isEnrolled } = useEnrolledCourses(
+  const { data: enrolledCourses, isLoading: enrolledLoading } = useEnrolledCourses(
     session?.user?.id,
     sessionLoading
   );
 
+  // HYDRATION FIX: Use state initialized from server hint to ensure initial render match
+  const [isEnrolled, setIsEnrolled] = useState(isEnrolledHint ?? false);
   const [mounted, setMounted] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Sync state after mount
+  useEffect(() => {
+    if (mounted && enrolledCourses !== undefined) {
+      const actualEnrollment = enrolledCourses.length > 0;
+      if (actualEnrollment !== isEnrolled) {
+        setIsEnrolled(actualEnrollment);
+        
+        // PERSISTENCE FIX: Sync the cookie from the client too
+        if (typeof document !== 'undefined') {
+          document.cookie = `is_enrolled=${actualEnrollment}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
+        }
+      }
+    }
+  }, [mounted, enrolledCourses, enrolledLoading, isEnrolled]);
 
   const isComplete = !!session?.user?.phoneNumber;
 

@@ -1,18 +1,11 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
-import { getEnrolledCourses } from "@/app/data/user/get-enrolled-courses";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 
-export function useEnrolledCourses(
-  userId?: string,
-  sessionLoading?: boolean
-) {
+export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
   const getCached = () => {
     if (typeof window === "undefined" || !userId) return undefined;
-    return (
-      chatCache.get<any>(`user_enrolled_courses_${userId}`, userId) ??
-      undefined
-    );
+    return chatCache.get<any>(`user_enrolled_courses_${userId}`, userId) ?? undefined;
   };
 
   const query = useQuery({
@@ -24,18 +17,30 @@ export function useEnrolledCourses(
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      const result = await getEnrolledCourses(clientVersion);
+      try {
+        const response = await fetch(
+          `/api/user/enrolled-courses${clientVersion ? `?version=${clientVersion}` : ""}`
+        );
+        if (!response.ok) throw new Error("Failed to fetch enrolled courses");
 
-      if (result && (result as any).status === "not-modified" && cached?.data) {
-        chatCache.touch(cacheKey, userId);
-        chatCache.clearSync(userId);
-        return cached.data.enrollments;
-      }
+        const result = await response.json();
 
-      if (result && result.enrollments) {
-        chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
-        chatCache.clearSync(userId);
-        return result.enrollments;
+        // NOT_MODIFIED -> use localStorage
+        if (result.status === "not-modified") {
+          console.log(`%c[EnrolledCourses] NOT_MODIFIED. Using cache.`, "color: #eab308; font-weight: bold");
+          chatCache.touch(cacheKey, userId);
+          return cached?.data?.enrollments ?? [];
+        }
+
+        // Fresh data -> update localStorage
+        if (result.enrollments) {
+          console.log(`%c[EnrolledCourses] NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
+          chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
+          chatCache.clearSync(userId);
+          return result.enrollments;
+        }
+      } catch (error) {
+        console.error("[useEnrolledCourses] Fetch error:", error);
       }
 
       return cached?.data?.enrollments ?? [];
@@ -43,8 +48,14 @@ export function useEnrolledCourses(
     enabled: !!userId && !sessionLoading,
     initialData: () => getCached()?.data?.enrollments,
     initialDataUpdatedAt: () => getCached()?.timestamp,
-    staleTime: 1800000,
+    staleTime: (() => {
+      // If user just enrolled or has any pending approval, check version on every mount/focus
+      if (userId && (chatCache.needsSync(userId) || chatCache.hasAnyPending(userId))) return 0;
+      return 1800000; // 30 mins
+    })(),
+    refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
+    refetchOnMount: true
   });
 
   return {

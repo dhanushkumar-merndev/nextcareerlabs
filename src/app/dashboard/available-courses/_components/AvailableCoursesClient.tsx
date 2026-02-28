@@ -1,6 +1,5 @@
 "use client";
 
-import { useInfiniteQuery } from "@tanstack/react-query";
 import { getAllCoursesAction } from "@/app/(users)/courses/actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
@@ -10,7 +9,7 @@ import { useInView } from "react-intersection-observer";
 import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
-
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 type CoursesPage = {
   courses: PublicCourseType[];
   nextCursor: string | null;
@@ -20,7 +19,7 @@ type CoursesPage = {
 export function AvailableCoursesClient() {
   const { session, isLoading: sessionLoading } = useSmartSession();
   const safeUserId = session?.user.id ?? undefined;
-
+ const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
   const [mounted, setMounted] = useState(false);
@@ -33,16 +32,7 @@ export function AvailableCoursesClient() {
 
   useEffect(() => {
     setMounted(true);
-
-    if (!hasLogged.current && safeUserId) {
-      const cacheKey = `available_courses_${safeUserId || 'guest'}`;
-      const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
-      if (cached) {
-        console.log(`%c[AvailableCourses] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
-      }
-      hasLogged.current = true;
-    }
-  }, [safeUserId]);
+  }, []);
 
   const cacheKey = `available_courses_${safeUserId || 'guest'}`;
   const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
@@ -212,10 +202,17 @@ export function AvailableCoursesClient() {
                 console.log(`%c[AvailableCourses] Status change detected! Triggering broad cache clearance and reload.`, "color: #9333ea; font-weight: bold");
                 chatCache.invalidateUserDashboardData(safeUserId);
                 
-                // Hard refresh to ensure the course list reflects approved/removed pending requests
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
+               queryClient.invalidateQueries({
+    predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key === "user_dashboard" ||
+               key === "my_courses" ||
+               key === "enrolled_courses" ||
+               key === "user_resources" ||
+               key === "chat_sidebar" ||
+               key.startsWith("available_courses");
+    }
+}); 
             }
             chatCache.clearSync(safeUserId); 
         }
@@ -248,8 +245,12 @@ export function AvailableCoursesClient() {
     initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle
         ? chatCache.get<any>(cacheKey, safeUserId)?.timestamp
         : undefined,
-    staleTime: 1800000,
+    staleTime: (() => {
+        if (safeUserId && (chatCache.needsSync(safeUserId) || chatCache.hasAnyPending(safeUserId))) return 0;
+        return 1800000; // 30 mins
+    })(),
     refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 
   const courses = data?.pages.flatMap((p) => p.courses) ?? [];

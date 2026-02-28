@@ -3,8 +3,7 @@
 "use client";
 import { useState } from "react";
 import { SupportTicketDialog } from "./SupportTicketDialog";
-import { getEnrolledCoursesAction } from "@/app/data/notifications/actions";
-import { useQuery } from "@tanstack/react-query";
+import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 import { toast } from "sonner";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
@@ -13,12 +12,7 @@ export function SupportFooterLink() {
   const [open, setOpen] = useState(false);
   const { session, isLoading: isPending } = useSmartSession();
   const isAuthenticated = !!session?.user?.id;
-  const { data: enrolledCourses } = useQuery({
-    queryKey: ["enrolledCourses"],
-    queryFn: getEnrolledCoursesAction,
-    staleTime: 24 * 60 * 60 * 1000,
-    enabled: open && isAuthenticated,
-  });
+  const { data: enrolledCourses } = useEnrolledCourses(session?.user?.id, isPending);
 
   // Handle open
   const handleOpen = () => {
@@ -29,6 +23,9 @@ export function SupportFooterLink() {
     }
     setOpen(true);
   };
+
+  // Map enrollments to courses if needed
+  const coursesList = enrolledCourses?.map((e: any) => e.Course) || [];
 
   return (
     <>
@@ -41,7 +38,7 @@ export function SupportFooterLink() {
             return;
           }
           setOpen(nextOpen);
-        }} courses={Array.isArray(enrolledCourses) ? enrolledCourses : []}/>
+        }} courses={coursesList}/>
     </>
   );
 }

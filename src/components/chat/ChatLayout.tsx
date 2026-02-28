@@ -137,13 +137,15 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
     return undefined;
   },
 
-    initialDataUpdatedAt: typeof window !== "undefined"
-      ? chatCache.get<any>(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId)?.timestamp
-      : undefined,
+    initialDataUpdatedAt: () => {
+  if (typeof window === "undefined") return undefined;
+  return chatCache.get<any>(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId)?.timestamp;
+},
     // 30-minute version check (Heartbeat)
     staleTime: 1800000, 
     refetchInterval: 1800000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false, // fix
+    refetchOnMount: false, 
   });
 
    const threads = (sidebarData as any)?.threads || [];
@@ -186,7 +188,7 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
          <div className={`w-full md:w-[350px] border-r flex flex-col h-full min-h-0 overflow-hidden ${selectedThread ? 'hidden md:flex' : 'flex'}`}>
             {/* Sidebar Header with New Ticket Action for Users */}
             {!isAdmin && (
-               <div className="p-4 border-b bg-muted/20 shrink-0">
+               <div className="p-3.5 border-b bg-muted/20 shrink-0">
                   <Button className="w-full gap-2" onClick={() => setIsNewTicketOpen(true)}>
                      <MessageSquarePlus className="h-4 w-4" />
                      New Support Ticket

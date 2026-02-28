@@ -27,12 +27,6 @@ export function useSignOut() {
           // 3. Refresh the page
           router.refresh();
           
-          // Use window.location.reload to force a full hard page reload 
-          // to completely clear memory states and hydration mismatches
-          setTimeout(() => {
-              window.location.reload();
-          }, 100);
-          
           toast.success("Signed out successfully");
         },
       },

@@ -3,7 +3,8 @@
 import { prisma as db } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
-import { invalidateCache, incrementGlobalVersion } from '@/lib/redis';
+import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from '@/lib/redis';
+import { QUIZ_PASS_THRESHOLD } from '@/lib/constants';
 
 /**
  * Submit quiz answers and validate
@@ -55,7 +56,7 @@ export async function submitQuiz(
       if (isCorrect) score++;
     }
 
-    const passed = score >= 15; // 75% threshold
+  const passed = score >= QUIZ_PASS_THRESHOLD;
 
     // Create QuizAttempt record
     await db.quizAttempt.create({
@@ -91,12 +92,11 @@ export async function submitQuiz(
       });
 
       // Invalidate progress caches
-      await Promise.all([
-        invalidateCache(`user:${session.user.id}:progress`),
-        invalidateCache(`lesson:${lessonId}:progress:${session.user.id}`),
-        invalidateCache(`course:progress:${session.user.id}`),
-
-      ]);
+  await Promise.all([
+  invalidateCache(`user:dashboard:${session.user.id}`),
+  invalidateCache(`user:lesson:${session.user.id}:${lessonId}`),
+  incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.user.id)),
+]);
     }
 
     return {

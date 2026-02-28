@@ -15,7 +15,7 @@ import { CoursesProps } from "@/lib/types/course";
 export function PublicCourseCard({ data, enrollmentStatus = null, isPriority = false }: CoursesProps & { isPriority?: boolean }) {
   const thumbnaiUrl = constructUrl(data.fileKey || "");
   return (
-    <Card className="group relative py-0 gap-0">
+    <Card className="group relative py-0 gap-0 shadow-lg border border-border/50 rounded-lg">
       {/* Badge */}
       <Badge className="absolute top-2 right-2 z-10">
         <CrownIcon className="size-2" />

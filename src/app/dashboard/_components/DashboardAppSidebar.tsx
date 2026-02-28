@@ -135,7 +135,9 @@ export function AppSidebar({ isEnrolled, ...props }: React.ComponentProps<typeof
       }
       return { ...item, isActive: pathname === item.url };
   }).filter(item => {
-    if (item.title === "Resources") return isMounted ? isEnrolled : false;
+    if (item.title === "Resources") {
+      return isEnrolled;
+    }
     return true;
   });
 

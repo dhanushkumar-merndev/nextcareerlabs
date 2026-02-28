@@ -26,7 +26,7 @@ export function CourseSearch() {
     if (urlValue !== value && !isPending) {
       setValue(urlValue);
     }
-  }, [searchParams]);
+  }, [searchParams, value, isPending]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

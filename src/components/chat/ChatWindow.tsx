@@ -116,6 +116,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         getNextPageParam: (lastPage: any) => lastPage.nextCursor,
         staleTime: 1800000, // 30 mins
         gcTime: 100 * 365 * 24 * 60 * 60 * 1000, // Permanent
+        refetchOnWindowFocus: false, // fix
+        refetchOnMount: false, 
     });
 
     const messages = useMemo(() => data?.pages.flatMap((page: any) => page.messages) || [], [data?.pages]);

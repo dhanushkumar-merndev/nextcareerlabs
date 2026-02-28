@@ -3,8 +3,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { Toaster } from "sonner";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 
 import { Providers } from "@/components/Providers";
 import { SmoothScroll } from "@/components/SmoothScroll";
@@ -17,6 +15,7 @@ export const metadata: Metadata = {
 };
 
 import NextTopLoader from "nextjs-toploader";
+
 
 export default function RootLayout({
   children,
@@ -68,6 +67,7 @@ export default function RootLayout({
           crawl={true}
           height={3}
           initialPosition={0.08}
+          color="var(--scrollbar-thumb)"
         />
         <Providers>
           <ThemeProvider

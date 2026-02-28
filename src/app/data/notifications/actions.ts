@@ -666,26 +666,14 @@ export async function getPublishedCoursesAction() {
   });
 }
 
+import { getEnrolledCourses } from "@/app/data/user/get-enrolled-courses";
+
 export async function getEnrolledCoursesAction() {
     const session = await getSession();
     if (!session) return [];
 
-    const enrollments = await prisma.enrollment.findMany({
-        where: { 
-            userId: session.user.id,
-            status: "Granted"
-        },
-        include: {
-            Course: {
-                select: {
-                    id: true,
-                    title: true
-                }
-            }
-        }
-    });
-
-    return enrollments.map(e => e.Course);
+    const result = await getEnrolledCourses();
+    return result.enrollments.map((e: any) => e.Course);
 }
 
 

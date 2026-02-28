@@ -71,7 +71,7 @@ export const GLOBAL_CACHE_KEYS = {
   ADMIN_CHAT_SIDEBAR: "global:admin:chat_sidebar",
   ADMIN_USERS_LIST: "admin:users:list",
   ADMIN_USERS_VERSION: "global:version:admin:users",
-  USER_ENROLLMENTS: (userId: string) => `user:enrollments:${userId}`,
+  USER_ENROLLMENTS: (userId: string, version?: string) => version ? `user:enrollments:${userId}:${version}` : `user:enrollments:${userId}`,
   USER_VERSION: (userId: string) => `user:version:${userId}`,
   ADMIN_TASK_STATUS: "global:admin:task_status",
   ADMIN_DASHBOARD_ALL: "global:admin:dashboard:all",
@@ -209,4 +209,23 @@ export async function invalidateAllAdminCache() {
 
     await Promise.all(invalidations);
     console.log("[Redis] Global Admin Cache Invalidated.");
+}
+
+/**
+ * Optimized user-specific invalidation
+ */
+export async function invalidateUserEnrollmentCache(userId: string) {
+    if (!redis) return;
+
+    // 1. Invalidate version-agnostic keys
+    await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(userId)),
+        invalidateCache(`user:enrolled:${userId}`), // Legacy key used in route.ts
+        invalidateCache(`user:enrollment-map:${userId}`),
+        // Increment version to rotate all versioned keys
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
+    ]);
+    
+    console.log(`[Redis] User Enrollment Cache Invalidated for userId=${userId}`);
 }

@@ -64,7 +64,9 @@
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
-  --scrollbar-thumb: #18829c;
+  --loader-start: #18829c;
+  --loader-mid: oklch(0.62 0.19 260);
+  --loader-end: #18829c;
 }
 
 .dark {
@@ -125,7 +127,9 @@
   --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1),
     0 8px 10px -1px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
-  --scrollbar-thumb: oklch(0.5541 0.2134 268.5328);
+    --loader-start: oklch(0.5541 0.2134 268.5328);
+  --loader-mid: oklch(0.62 0.19 260);
+  --loader-end: oklch(0.5541 0.2134 268.5328);
 }
 
 @theme inline {
@@ -250,7 +254,12 @@ html.lenis body {
 
 /* NextTopLoader Theme Overrides */
 #nprogress .bar {
-  background: linear-gradient(to right, #3b82f6, #4b64ee, #3b82f6) !important;
+   background: linear-gradient(
+    to right,
+    var(--loader-start),
+    var(--loader-mid),
+    var(--loader-end)
+  ) !important;
   height: 2.5px !important;
   opacity: 0.9;
   border-radius: 5px !important;

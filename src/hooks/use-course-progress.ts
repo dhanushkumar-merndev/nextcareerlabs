@@ -26,17 +26,16 @@ export function useCourseProgress({
       };
     }
 
-    courseData.chapter.forEach((chapter: any) => {
-      chapter.lesson.forEach((lesson: any) => {
-        totalLessons++;
+   courseData.chapter.forEach((chapter: any) => {
+  chapter.lesson?.forEach((lesson: any) => {
+    totalLessons++;
 
-        const isCompleted = lesson.lessonProgress.some(
-          (p: any) => p.completed
-        );
+    const isCompleted =
+      lesson.lessonProgress?.some((p: any) => p.completed) ?? false;
 
-        if (isCompleted) completedLessons++;
-      });
-    });
+    if (isCompleted) completedLessons++;
+  });
+});
 
     const progressPercentage =
       totalLessons > 0

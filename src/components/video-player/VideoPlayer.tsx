@@ -1287,14 +1287,24 @@ export function VideoPlayer({
             onTouchEnd={handleSeekbarTouchEnd}
           >
             {hoverPosition && (() => {
-              const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
-              const snapTime = spritePos?.startTime ?? hoverPosition.time;
+            const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
+            const snapTime = spritePos?.startTime ?? hoverPosition.time;
 
-              return (
-                <div
-                  className="absolute bottom-full mb-1 sm:mb-1.5 -translate-x-1/2 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
-                  style={{ left: `${(snapTime / duration) * 100}%` }}
-                >
+            // Clamp so preview never overflows left/right
+           const scale = window.innerWidth < 640 ? 0.45 : window.innerWidth < 768 ? 0.55 : 0.90;
+            const hw = ((spritePos?.width ?? 128) * scale) / 2;
+            const sw = seekbarRef.current?.getBoundingClientRect().width ?? 600;
+            const clampedLeft = Math.min(Math.max((snapTime / duration) * sw, hw), sw - hw);
+
+            return (
+              <div
+                className="absolute bottom-full mb-1 sm:mb-1.5 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
+                style={{ 
+                  left: `${clampedLeft}px`,   // ← px instead of %
+                  transform: 'translateX(-50%)'
+                }}
+              >
+                {/* ...rest unchanged... */}
                   {spriteMetadata ? (
                     spritePos ? (
                       <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">

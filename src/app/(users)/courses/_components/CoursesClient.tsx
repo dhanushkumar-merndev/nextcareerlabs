@@ -16,6 +16,7 @@ import { useInView } from "react-intersection-observer";
 import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
+import { usePendingDetection } from "@/hooks/use-pending-detection";
 
 // Each page returned by React Query
 type CoursesPage = {
@@ -28,6 +29,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   const { session, isLoading: isSessionPending } = useSmartSession();
   const queryClient = useQueryClient();
   const currentUserId = session?.user?.id;
+  const { triggerIfStatusChanged } = usePendingDetection(currentUserId);
 
   // Read search param (?title=...)
   const searchParams = useSearchParams();
@@ -68,8 +70,9 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   // 30m otherwise.
   // This ensures we check Redis on page open for pending users, but avoid hits on instant hard refresh.
   const hasPending = safeUserId ? chatCache.hasAnyPending(safeUserId) : false;
+  const needsSync = safeUserId ? chatCache.needsSync(safeUserId) : false;
   
-  const dynamicStaleTime = hasPending ? 0 : 30 * 60 * 1000;
+  const dynamicStaleTime = (hasPending || needsSync) ? 0 : 30 * 60 * 1000;
 
   
   const {
@@ -238,15 +241,26 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
         // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change (e.g. Approved)
         if (safeUserId) {
-            const oldData = cached?.data?.data || [];
+            const oldData = currentCache?.data?.data || [];
+triggerIfStatusChanged(oldData, result.courses);
             const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
             const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
             
-            if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
-                console.log(`%c[Courses] Status change detected! Triggering broad cache clearance.`, "color: #9333ea; font-weight: bold");
-                chatCache.invalidateUserDashboardData(safeUserId);
-                // No longer need to setNeedsSync because we cleared the storage
-            }
+           if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
+    chatCache.invalidateUserDashboardData(currentUserId);
+    
+    // ✅ ADD — triggers React Query refetch on dashboard/my-courses/resources
+    queryClient.invalidateQueries({
+        predicate: (query) => {
+            const key = query.queryKey[0] as string;
+            return key === "user_dashboard" ||
+                   key === "my_courses" ||
+                   key === "enrolled_courses" ||
+                   key === "user_resources" ||
+                   key === "chat_sidebar";
+        }
+    });
+}
             chatCache.clearSync(safeUserId); 
         }
       }
@@ -277,7 +291,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   // Infinite scroll observer trigger
   useEffect(() => {
     // Only fetch next page if we aren't already fetching (including background revalidation)
-    if (inView && hasNextPage && !isFetching && !isFetchingNextPage) {
+    if (inView && hasNextPage && !isFetchingNextPage && !isLoading) {
       fetchNextPage();
     }
   }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage]);

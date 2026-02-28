@@ -38,6 +38,7 @@ export function EnrollmentButton({
   }, [status]);
 
   function onSubmit() {
+    if (isPending || currentStatus === "Pending") return;
     if (!session) {
       window.location.href = "/login?reason=enroll";
       return;
@@ -59,9 +60,12 @@ export function EnrollmentButton({
         const uid = session?.user?.id;
         if (uid) {
           // 🔹 BROAD INVALIDATION: Clear ALL user-facing caches using standardized logic
-          // Handles hashed keys and registry-safe deletion
+          chatCache.setNeedsSync(uid); // 🔹 NEW: Force immediate re-fetch on all dashboard pages
           chatCache.invalidateUserDashboardData(uid);
           chatCache.invalidateAllCourseData();
+          chatCache.invalidate(`user_enrolled_courses_${uid}`, uid);
+          chatCache.invalidate(`available_courses_${uid}`, uid);
+          chatCache.invalidate(`my_courses_${uid}`, uid);
           
           if (slug) {
             chatCache.invalidate(`course_${slug}`, uid);
@@ -74,11 +78,15 @@ export function EnrollmentButton({
             queryClient.invalidateQueries({
                 predicate: (query) => {
                     const key = query.queryKey[0] as string;
+                    // ✅ ADD missing query keys:
                     return key === "all_courses" || 
                            key.startsWith("available_courses") ||
                            key === "enrolled_courses" ||
                            key === "user_dashboard" ||
-                           key === "chat_sidebar";
+                           key === "chat_sidebar" ||
+                            key === "my_courses" ||
+                            key === "user_resources" ||
+                            key === "user_resources_access";
                 }
             });
 
@@ -99,7 +107,7 @@ export function EnrollmentButton({
     // Button component with loading states
     <Button
       onClick={onSubmit}
-      disabled={isPending || currentStatus === "Pending" || currentStatus === "Rejected" || currentStatus === "Revoked"}
+      disabled={isPending || isActuallyPending|| currentStatus === "Pending" || currentStatus === "Rejected" || currentStatus === "Revoked"}
       className="w-full"
       variant={
         currentStatus === "Pending" ? "outline" : 

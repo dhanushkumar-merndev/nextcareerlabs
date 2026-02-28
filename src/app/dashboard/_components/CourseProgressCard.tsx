@@ -1,6 +1,5 @@
 "use client";
 
-import { EnrolledCoursesType } from "@/app/data/user/get-enrolled-courses";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,8 +10,19 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCourseProgress } from "@/hooks/use-course-progress";
 
+// CourseProgressCard - fix interface
 interface iAppProps {
-  data: EnrolledCoursesType;
+  data: {
+    Course: {
+      id: string;
+      title: string;
+      fileKey: string;
+      level: any;
+      smallDescription: string;
+      slug: string;
+      chapter: any[];
+    }
+  };
   isPriority?: boolean;
 }
 

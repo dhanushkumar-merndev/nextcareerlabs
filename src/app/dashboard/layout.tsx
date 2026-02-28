@@ -1,12 +1,15 @@
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardShell } from "./_components/DashboardShell";
+import { cookies } from "next/headers";
 
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const cookieStore = await cookies();
+  const isEnrolledHeader = cookieStore.get("is_enrolled")?.value === "true";
+
   return (
     <SidebarProvider
         style={
@@ -16,7 +19,7 @@ export default function DashboardLayout({
           } as React.CSSProperties
         }
       >
-        <DashboardShell>
+        <DashboardShell isEnrolledHint={isEnrolledHeader}>
             {children}
         </DashboardShell>
       </SidebarProvider>

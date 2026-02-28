@@ -22,8 +22,6 @@ export default async function LessonContentPage({
       <CourseContent 
         lessonId={lessonId} 
         userId={user.id} 
-        initialLesson={undefined} 
-        initialVersion={null}
       />
     </Suspense>
   );

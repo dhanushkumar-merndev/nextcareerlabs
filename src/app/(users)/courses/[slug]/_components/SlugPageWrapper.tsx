@@ -31,6 +31,9 @@ import { SlugPageSkeleton } from "./SlugPageSkeleton";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+// ✅ ADD import
+import { usePendingDetection } from "@/hooks/use-pending-detection";
+
 
 export function SlugPageWrapper({
   slug,
@@ -38,9 +41,10 @@ export function SlugPageWrapper({
   slug: string;
 }) {
   const { session } = useSmartSession();
-  const queryClient = useQueryClient();
   const currentUserId = session?.user?.id;
   const router = useRouter();
+  // ✅ ADD inside SlugPageWrapper component
+const { triggerIfSingleStatusChanged } = usePendingDetection(currentUserId);
   // Used to avoid hydration mismatch
   const [mounted, setMounted] = useState(false);
   const hasLogged = useRef<string | null>(null);
@@ -62,120 +66,80 @@ export function SlugPageWrapper({
         hasLogged.current = logKey;
     }
   }, [slug, currentUserId]);
+// SlugPageWrapper.tsx — Fixed useQuery block
 
-  // UseQuery to fetch course data
-  const { data, isLoading } = useQuery({
-    queryKey: ["course_detail", slug, currentUserId],
-    queryFn: async () => {
-      const cacheKey = `course_${slug}`;
-      
-      // 🔹 TRY USER-SPECIFIC FIRST, FALLBACK TO GUEST
-      let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
-      if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
-      
-      const clientVersion = cached?.version;
+// ✅ Extract cache ONCE before useQuery
+const cacheKey = `course_${slug}`;
+const cachedEntry = typeof window !== "undefined"
+  ? (currentUserId
+      ? chatCache.get<any>(cacheKey, currentUserId) ?? chatCache.get<any>(cacheKey, undefined)
+      : chatCache.get<any>(cacheKey, undefined))
+  : null;
 
-      const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
+const { data, isLoading } = useQuery({
+  queryKey: ["course_detail", slug, currentUserId],
+  queryFn: async () => {
+    // Use already-resolved cachedEntry instead of re-reading storage
+    const clientVersion = cachedEntry?.version;
 
-      if (result && (result as any).status === "not-modified" && cached) {
-        console.log(`%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
-        chatCache.touch(cacheKey, currentUserId);
-        if (currentUserId) chatCache.clearSync(currentUserId);
-        return cached.data;
+    const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
+
+    if (result && (result as any).status === "not-modified" && cachedEntry) {
+      console.log(`%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
+      chatCache.touch(cacheKey, currentUserId);
+      if (currentUserId) chatCache.clearSync(currentUserId);
+      return cachedEntry.data;
+    }
+
+    const isData = result && !(result as any).status;
+    if (isData) {
+      console.log(`%c[SlugPage] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
+
+      if (currentUserId) {
+        const oldStatus = cachedEntry?.data?.enrollmentStatus;
+        const newStatus = (result as any).enrollmentStatus;
+       if (oldStatus === "Pending" && newStatus !== "Pending") {
+    chatCache.invalidateUserDashboardData(currentUserId);
+    triggerIfSingleStatusChanged(
+        oldStatus,
+        newStatus
+    );
+    setTimeout(() => router.refresh(), 500);
+}
       }
 
-      const isData = result && !(result as any).status;
-      if (isData) {
-        console.log(`%c[SlugPage] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
-        
-        // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change
-        if (currentUserId) {
-            const oldStatus = cached?.data?.enrollmentStatus;
-            const newStatus = (result as any).enrollmentStatus;
-            if (oldStatus === "Pending" && newStatus !== "Pending") {
-                console.log(`%c[SlugPage] Status change detected! Triggering broad cache clearance and reload.`, "color: #9333ea; font-weight: bold");
-                chatCache.invalidateUserDashboardData(currentUserId);
-                
-                // Hard refresh to ensure UI reflects the new enrollment status (Granted/Revoked)
-                setTimeout(() => {
-                    window.location.reload();
-                }, 500);
-            }
-        }
+      chatCache.set(cacheKey, result, currentUserId, (result as any).version, PERMANENT_TTL);
+      if (currentUserId) chatCache.clearSync(currentUserId);
+    }
 
-        chatCache.set(cacheKey, result, currentUserId, (result as any).version, PERMANENT_TTL);
-        if (currentUserId) chatCache.clearSync(currentUserId);
-      }
-      return result;
-    },
-    initialData: () => {
-        if (typeof window === "undefined") return undefined;
-        const cacheKey = `course_${slug}`;
-        let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
-        if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
-        return cached?.data;
-    },
-    initialDataUpdatedAt: typeof window !== "undefined"
-      ? (currentUserId 
-          ? chatCache.get<any>(`course_${slug}`, currentUserId)?.timestamp 
-          : chatCache.get<any>(`course_${slug}`, undefined)?.timestamp)
-      : undefined,
-    staleTime: (() => {
-        // Strict Cache Control: If we have a local hit that is less than 30m old, don't even talk to the server.
-        const cacheKey = `course_${slug}`;
-        const cached = typeof window !== "undefined" 
-            ? (currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : chatCache.get<any>(cacheKey, undefined))
-            : null;
-        
-        if (cached) {
-            const age = Date.now() - (cached.timestamp || 0);
-            
-            // 🔹 If THIS course is pending, or ANY course is pending, sync immediately.
-            const isPending = cached.data?.enrollmentStatus === "Pending";
-            const hasAnyPending = currentUserId ? chatCache.hasAnyPending(currentUserId) : false;
-            
-            if (isPending || hasAnyPending) return 0;
-            
-            // If it's less than 30m old, it's NOT stale.
-            if (age < 1800000) return 1800000 - age;
-        }
+    return result;
+  },
 
+  initialData: () => cachedEntry?.data,                    // ✅ single read
+  initialDataUpdatedAt: cachedEntry?.timestamp ?? undefined, // ✅ single read
 
-        return 0; // Default to stale if no cache
-    })(),
-    // Use cached data for instant initial paint
-    placeholderData: (previousData) => {
-        if (previousData) return previousData;
-        
-        const cacheKey = `course_${slug}`;
+  staleTime: (() => {
+    if (!cachedEntry) return 0;
+    const age = Date.now() - (cachedEntry.timestamp || 0);
+    const isPending = cachedEntry.data?.enrollmentStatus === "Pending";
+    const needsSync = currentUserId ? (chatCache.needsSync(currentUserId) || chatCache.hasAnyPending(currentUserId)) : false;
+    const hasAnyPending = currentUserId ? chatCache.hasAnyPending(currentUserId) : false;
+    if (isPending || hasAnyPending || needsSync) return 0;
+    if (age < 1800000) return 1800000 - age;
+    return 0;
+  })(),
 
-        // 🔹 DURING HYDRATION / SESSION LOADING:
-        // Try to find ANY cache for this slug (User or Guest)
-        if (typeof window !== "undefined") {
-            let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
-            if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
-
-            if (cached) {
-                return cached.data;
-            }
-        }
-        return undefined;
-    },
-  });
+  placeholderData: (previousData) => previousData ?? cachedEntry?.data, 
+  refetchOnWindowFocus: true,
+  refetchOnMount: true,
+});
 
 
   // 🔹 INSTANT DATA LOOKUP (DURING RENDER)
   // This allows us to render the page immediately on the client if cache exists,
   // even before hydration completes.
-  const syncCache = (() => {
-      if (typeof window === "undefined") return null;
-      const cacheKey = `course_${slug}`;
-      let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
-      if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
-      return cached;
-  })();
 
-  const rawData = (data as any) || syncCache?.data;
+ const rawData = (data as any) || cachedEntry?.data;
   // Resiliency: Handle new format {course, enrollmentStatus...} or old raw course object
   const course = rawData?.course || (rawData?.id ? rawData : null);
   const enrollmentStatus = rawData?.enrollmentStatus || null;
@@ -352,7 +316,7 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
         </div>
         {/* Course Sidebar */}
         <div className="order-2 lg:col-span-1">
-          <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))] overflow-y-auto  pb-4 md:pb-0 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
+          <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))]  pb-4 md:pb-0 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
             <div className="relative">
               <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
                 <CardContent className="p-6 space-y-8">

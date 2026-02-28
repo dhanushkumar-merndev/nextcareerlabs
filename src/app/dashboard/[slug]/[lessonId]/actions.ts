@@ -6,6 +6,7 @@ import { ApiResponse } from "@/lib/types/auth";
 import { revalidatePath } from "next/cache";
 
 import { invalidateCache, GLOBAL_CACHE_KEYS, incrementGlobalVersion } from "@/lib/redis";
+import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
 
 /**
  * Mark a lesson as completed
@@ -122,9 +123,6 @@ export async function updateVideoProgress(
     // ✅ Invalidate caches so refresh/sidebar reflects new progress
     // We only do this for the specific lesson and sidebar to keep it light
     await Promise.all([
-        invalidateCache(`user:sidebar:${session.id}:${lessonId}`), // Note: sidebar usually needs slug, but searching by lesson might be hard here without course slug. 
-        // Wait, sidebar cache key is `user:sidebar:${session.id}:${slug}`. We don't have slug here.
-        // However, invalidating the lesson cache is critical.
         invalidateCache(`user:lesson:${session.id}:${lessonId}`),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
     ]);
@@ -139,6 +137,62 @@ export async function updateVideoProgress(
       status: "error", 
       message: "Failed to update progress" 
     };
+  }
+}
+
+/**
+ * Update multiple video progresses in a single transaction
+ */
+export async function updateMultipleVideoProgress(
+  updates: Array<{ lessonId: string; lastWatched: number; delta: number }>
+): Promise<ApiResponse> {
+  const session = await requireUser();
+
+  if (!updates || updates.length === 0) {
+    return { status: "success", message: "No updates to process" };
+  }
+
+  try {
+    // Process all updates in a single transaction
+    await prisma.$transaction(
+      updates.map((update) =>
+        prisma.lessonProgress.upsert({
+          where: {
+            userId_lessonId: {
+              userId: session.id,
+              lessonId: update.lessonId,
+            },
+          },
+          create: {
+            userId: session.id,
+            lessonId: update.lessonId,
+            lastWatched: update.lastWatched,
+            actualWatchTime: Math.round(update.delta),
+          },
+          update: {
+            lastWatched: update.lastWatched,
+            actualWatchTime: {
+              increment: Math.round(update.delta),
+            },
+          },
+        })
+      )
+    );
+
+    // Invalidate caches for all affected lessons
+    const cacheInvalidations = updates.flatMap((u) => [
+      invalidateCache(`user:lesson:${session.id}:${u.lessonId}`),
+    ]);
+
+    await Promise.all([
+      ...cacheInvalidations,
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+    ]);
+
+    return { status: "success", message: `Updated ${updates.length} items` };
+  } catch (error) {
+    console.error("Error updating multiple video progresses:", error);
+    return { status: "error", message: "Failed to update progress batch" };
   }
 }
 /**
@@ -171,7 +225,7 @@ export async function submitQuizAttempt(
       }
     });
 
-    const passed = score >= 15;
+   const passed = score >= QUIZ_PASS_THRESHOLD;
 
     // 3. Save attempt and update progress state
     await prisma.$transaction(async (tx) => {

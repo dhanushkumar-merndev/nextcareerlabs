@@ -1,10 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { chatCache } from "@/lib/chat-cache";
-import { getAuthSessionAction } from "@/app/actions/auth-session";
+import { getAuthSessionAction } from "@/app/(auth)/auth-session";
 
 const CACHE_KEY = "auth_session";
-const HEARTBEAT_INTERVAL = 10 * 60 * 1000; // 10 minutes
+const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
 /**
  * A "Smart" session hook that:
@@ -12,7 +12,7 @@ const HEARTBEAT_INTERVAL = 10 * 60 * 1000; // 10 minutes
  * 2. Background Heartbeat every 30 mins (via Server Action)
  * 3. Minimizes data transfer using Versioning
  */
-export function useSmartSession() {
+export function useSmartSession(initialDataFromServer?: any) {
     const queryClient = useQueryClient();
     const [isMounted, setIsMounted] = useState(false);
 
@@ -35,10 +35,14 @@ export function useSmartSession() {
             if (result.data !== undefined) {
                 console.log(`[Auth] 🛰️ Sync: New session data received (v${result.version})`);
                 
-                // 🔹 If version MISMATCH and it's not the first load (cached exists), 
-                // it means a global change (like course deletion) happened.
                 if (clientVersion && clientVersion !== result.version) {
-                    console.warn(`[Auth] Global version mismatch detected! Invalidating course caches.`);
+                    console.warn(`%c[Auth] Global version mismatch detected! Syncing...`, "color: #ef4444; font-weight: bold");
+                    
+                    const uid = result.data?.user?.id || cached?.data?.user?.id;
+                    if (uid) {
+                        chatCache.invalidateUserDashboardData(uid);
+                    }
+                    
                     chatCache.invalidateAllCourseData();
                     queryClient.invalidateQueries({ queryKey: ["user_dashboard"] });
                     queryClient.invalidateQueries({ queryKey: ["course_detail"] });
@@ -56,7 +60,7 @@ export function useSmartSession() {
             if (typeof window === "undefined") return undefined;
             const cached = chatCache.get<any>(CACHE_KEY);
             if (cached?.data) {
-                console.log(`[Auth] � Instant Hydration from LocalStorage`);
+                console.log(`[Auth] ⚡ Instant Hydration from LocalStorage`);
                 return cached.data;
             }
             return undefined;
@@ -67,8 +71,8 @@ export function useSmartSession() {
         },
         staleTime: HEARTBEAT_INTERVAL,
         refetchInterval: HEARTBEAT_INTERVAL,
-        refetchOnWindowFocus: false,
-        refetchOnMount: false,
+        refetchOnWindowFocus: true,
+        refetchOnMount: true,
     });
 
     useEffect(() => {
@@ -89,7 +93,7 @@ export function useSmartSession() {
     return {
         session,
         user: session?.user || null,
-        isLoading: (isLoading && !session) || (!isMounted && !session),
+        isLoading: (isLoading && !session) || (!isMounted && !session && !initialDataFromServer),
         isSyncing: isLoading,
         refetch
     };

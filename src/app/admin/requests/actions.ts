@@ -6,7 +6,7 @@ import { ApiResponse } from "@/lib/types/auth";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { EnrollmentStatus } from "@/generated/prisma";
-import { invalidateCache, CHAT_CACHE_KEYS, GLOBAL_CACHE_KEYS, incrementGlobalVersion, incrementChatVersion, invalidateAllAdminCache } from "@/lib/redis";
+import { invalidateCache, CHAT_CACHE_KEYS, GLOBAL_CACHE_KEYS, incrementGlobalVersion, incrementChatVersion, invalidateAllAdminCache, invalidateUserEnrollmentCache } from "@/lib/redis";
 
 export async function getRequestsAction(
   skip: number,
@@ -44,6 +44,10 @@ export async function updateEnrollmentStatusAction(
     const updateDuration = Date.now() - updateStartTime;
     console.log(`[updateEnrollmentStatusAction] DB Update + Fetch took ${updateDuration}ms`);
     
+    // NOTE: We don't set the cookie here because this is an ADMIN action. 
+    // The user's browser will sync its own cookie via DashboardShell when it 
+    // detects the new enrollment via the client-side API/fetch.
+
     if (enrollment) {
       // Find course group for participants invalidation
       const courseGroup = await prisma.chatGroup.findFirst({
@@ -59,23 +63,19 @@ export async function updateEnrollmentStatusAction(
           // Admin Keys (Centralized Invalidation)
           invalidateAllAdminCache(),
 
-          // Support for User Synchronicity
-          invalidateCache(`user:dashboard:${enrollment.userId}`),
-          invalidateCache(`user:enrollments:${enrollment.userId}`),
-          invalidateCache(`available_courses_${enrollment.userId}`),
-          invalidateCache(`user_dashboard_${enrollment.userId}`), 
-
+          // Support for User Synchronicity (Unified)
+          invalidateUserEnrollmentCache(enrollment.userId),
+          
           // Versions (The triggers)
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION), // Force global list refresh
           incrementChatVersion(enrollment.userId),
       ];
 
       // On Grant, also invalidate specific user course caches to reflect enrollment status
       if (status === "Granted") {
           invalidations.push(
-              invalidateCache(`course:${enrollment.Course.slug}`),
-              invalidateCache(`global:course:${enrollment.Course.slug}`) // Support both variants
+              invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(enrollment.Course.slug)), // Use standardized key
+              invalidateCache(`course:${enrollment.Course.slug}`) // Support older variant
           );
       }
 
@@ -84,9 +84,11 @@ export async function updateEnrollmentStatusAction(
 
     revalidatePath("/admin/requests");
     revalidatePath("/dashboard", "layout");
-    revalidatePath("/my-courses");
-    revalidatePath("/available-courses");
+    revalidatePath("/dashboard/my-courses");
+    revalidatePath("/dashboard/available-courses");
+    revalidatePath("/dashboard/resources");
     revalidatePath("/resources");
+    revalidatePath(`/courses/${enrollment.Course.slug}`);
 
     return {
       status: "success",
@@ -121,21 +123,17 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
     await Promise.all([
       invalidateAllAdminCache(),
       
-      // User specific invalidation
-      invalidateCache(`user:dashboard:${userId}`),
-      invalidateCache(`user:enrollments:${userId}`),
-      invalidateCache(`available_courses_${userId}`),
+      // User specific invalidation (Unified)
+      invalidateUserEnrollmentCache(userId),
       
       // Versions (The triggers)
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
       incrementChatVersion(userId),
     ]);
 
     revalidatePath("/admin/requests");
     revalidatePath("/dashboard", "layout");
-    revalidatePath("/my-courses");
-    revalidatePath("/available-courses");
+    revalidatePath("/dashboard/my-courses");
+    revalidatePath("/dashboard/available-courses");
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/analytics");
     revalidatePath("/resources");
@@ -166,24 +164,20 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
     await Promise.all([
       invalidateAllAdminCache(),
       
-      // User specific invalidation
-      invalidateCache(`user:dashboard:${userId}`),
-      invalidateCache(`user:enrollments:${userId}`),
-      invalidateCache(`available_courses_${userId}`),
+      // User specific invalidation (Unified)
+      invalidateUserEnrollmentCache(userId),
   
       // Versions (The triggers)
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
       incrementChatVersion(userId),
     ]);
 
     revalidatePath("/admin/requests");
     revalidatePath("/dashboard", "layout");
-    revalidatePath("/my-courses");
-    revalidatePath("/available-courses");
-    revalidatePath("/resources");
+    revalidatePath("/dashboard/my-courses");
+    revalidatePath("/dashboard/available-courses");
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/analytics");
+    revalidatePath("/resources");
     return {
       status: "success",
       message: "User has been unbanned",
@@ -220,9 +214,9 @@ export async function updateUserDetailsAction(
     revalidatePath("/dashboard", "layout");
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/analytics");
-    revalidatePath("/my-courses");
-    revalidatePath("/available-courses");
-    revalidatePath("/resources");
+    revalidatePath("/dashboard/my-courses");
+    revalidatePath("/dashboard/available-courses");
+    revalidatePath("/admin/resources");
     return {
       status: "success",
       message: "User details updated successfully",
@@ -268,24 +262,20 @@ export async function deleteEnrollmentAction(
     await Promise.all([
       invalidateAllAdminCache(),
       
-      // User invalidation
-      invalidateCache(`user_enrolled_courses_${enrollment.userId}`),
-      invalidateCache(`available_courses_${enrollment.userId}`),
-      invalidateCache(`user:dashboard:${enrollment.userId}`),
-      invalidateCache(`course:${enrollment.Course.slug}`),
+      // User invalidation (Unified)
+      invalidateUserEnrollmentCache(enrollment.userId),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(enrollment.Course.slug)),
 
       // Versions (The triggers)
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(enrollment.userId)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION),
       incrementChatVersion(enrollment.userId),
     ]);
 
     revalidatePath("/admin/requests");
     revalidatePath("/dashboard", "layout");
-    revalidatePath("/my-courses");
-    revalidatePath("/available-courses");
-    revalidatePath("/resources");
+    revalidatePath("/dashboard/my-courses");
+    revalidatePath("/dashboard/available-courses");
     revalidatePath("/dashboard/resources");
+    revalidatePath("/resources");
     revalidatePath("/admin/analytics");
 
     return {

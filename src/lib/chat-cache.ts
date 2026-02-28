@@ -82,19 +82,21 @@ export const chatCache = {
   invalidateUserDashboardData: (userId: string) => {
     if (typeof window === "undefined") return;
     
-    // Use registry-safe prefix invalidation
-    const prefix = `${STORAGE_PREFIX}${userId}_`;
-    const keysToClear = [
-        `${prefix}user_dashboard_${userId}`,
-        `${prefix}user_enrolled_courses_${userId}`,
-        `${prefix}available_courses_${userId}`,
-        `${prefix}user_needs_sync`
+    // ✅ chatCache.invalidate builds the storage key internally
+    const keys = [
+        `user_dashboard_${userId}`,
+        `user_enrolled_courses_${userId}`,
+        `available_courses_${userId}`,
+        `user_needs_sync`,
+        `all_courses`,
+        `my_courses_${userId}`,
+        `user_resources_${userId}`,
+        `user_resources_access_${userId}`,
+        `enrolled_courses_${userId}`,
+        `user_chat_sidebar`,
     ];
-    
-    keysToClear.forEach(key => secureStorage.removeItemTracked(key));
-    
-    console.log(`%c[chatCache] BROAD INVALIDATION: Cleared Dashboard and Course indexes for ${userId}`, "color: #ef4444; font-weight: bold");
-  },
+    keys.forEach(key => chatCache.invalidate(key, userId));
+},
 
   invalidateAllCourseData: () => {
     if (typeof window === "undefined") return;
@@ -153,18 +155,30 @@ export const chatCache = {
   hasAnyPending: (userId: string): boolean => {
     if (typeof window === "undefined") return false;
     
-    // Check all possible course list caches for a 'Pending' status
-    const caches = ["all_courses", `available_courses_${userId}`];
-    
-    for (const key of caches) {
+    // 1. Check known list caches
+    const knownLists = ["all_courses", `available_courses_${userId}`];
+    for (const key of knownLists) {
         const cached = chatCache.get<any>(key, userId);
-        const data = cached?.data?.data || cached?.data; // Supports both {data:[]} and [] structures
+        const data = cached?.data?.data || cached?.data;
         if (Array.isArray(data) && data.some((c: any) => c.enrollmentStatus === "Pending")) {
             return true;
         }
     }
     
-    // Also check current slug page if stored? No, keep it simple.
+    // 2. Scan all slug-specific course caches
+    const allKeys = secureStorage.keysByPrefix(STORAGE_PREFIX);
+    for (const origKey of allKeys) {
+        if (origKey.includes(`course_`) && origKey.includes(userId)) {
+            const item = secureStorage.getItem(origKey);
+            if (item) {
+                try {
+                    const entry = JSON.parse(item);
+                    if (entry.data?.enrollmentStatus === "Pending") return true;
+                } catch(e) {}
+            }
+        }
+    }
+    
     return false;
   },
 };

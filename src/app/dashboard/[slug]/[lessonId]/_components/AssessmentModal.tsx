@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { submitQuizAttempt } from "../actions";
 import { toast } from "sonner";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
 
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
@@ -165,7 +166,7 @@ export function AssessmentModal({
           if (resolved[i] === sQ.correctIdx) score++;
         });
         
-        const isPracticePass = score >= 15;
+        const isPracticePass = score >= QUIZ_PASS_THRESHOLD;
         setResult({ score, passed: isPracticePass });
         setScreen("review");
         setCurrentIndex(0);

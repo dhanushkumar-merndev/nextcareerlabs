@@ -10,7 +10,6 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 import { useEffect, useState, useRef } from "react";
 
 export function DashboardClient() {
-  console.log('[DEBUG] DashboardClient render');
   const { session, isLoading: sessionLoading } = useSmartSession();
   const userId = session?.user.id;
 
@@ -19,16 +18,7 @@ export function DashboardClient() {
 
   useEffect(() => {
     setMounted(true);
-    
-    if (!hasLogged.current && userId) {
-        const cacheKey = `user_dashboard_${userId}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        if (cached) {
-            console.log(`%c[Dashboard] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
-        }
-        hasLogged.current = true;
-    }
-  }, [userId]);
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["user_dashboard", userId],
@@ -70,9 +60,13 @@ export function DashboardClient() {
     initialDataUpdatedAt: typeof window !== "undefined" && userId 
       ? chatCache.get<any>(`user_dashboard_${userId}`, userId)?.timestamp 
       : undefined,
-    staleTime: 1800000, 
+    staleTime: (() => {
+      if (userId && (chatCache.needsSync(userId) || chatCache.hasAnyPending(userId))) return 0;
+      return 1800000; // 30 mins
+    })(),
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
+    refetchOnMount: true
   });
 
   if (!mounted || sessionLoading || (isLoading && !data)) {

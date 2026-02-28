@@ -13,7 +13,7 @@ import { getIndividualCourse } from "@/app/data/course/get-course";
 import { checkIfCourseBought } from "@/app/data/user/user-is-enrolled";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { GLOBAL_CACHE_KEYS, incrementGlobalVersion, invalidateCache } from "@/lib/redis";
+import { GLOBAL_CACHE_KEYS, incrementGlobalVersion, invalidateCache, invalidateUserEnrollmentCache } from "@/lib/redis";
 
 // Get Individual Course Action
 export async function getIndividualCourseAction(slug: string, clientVersion?: string) {
@@ -54,16 +54,6 @@ export async function getSlugPageDataAction(slug: string, clientVersion?: string
     }
 
     if (course && "id" in course) {
-        console.log(`[SlugAction] Found course ${course.id}. Fetching enrollment...`);
-        
-        let finalUserId = userId;
-        if (!finalUserId) {
-            const session = await auth.api.getSession({
-                headers: await headers()
-            });
-            finalUserId = session?.user?.id;
-        }
-
         let enrollmentStatus = null;
         if (finalUserId) {
             enrollmentStatus = await checkIfCourseBought((course as any).id, finalUserId);
@@ -179,13 +169,13 @@ export async function enrollInCourseAction(
     // Invalidate caches to show updated status immediately (Admin & User side)
     await Promise.all([
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(user.id)), // 🔹 CRITICAL: Invalidate user's enrollment map
+      invalidateUserEnrollmentCache(user.id), // 🔹 UNIFIED: Invalidate all user enrollment related keys
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
-      invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(user.id)),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),
     ]);
     
     // Invalidate Local Storage Keys (Next.js server-side can't directly manipulate localStorage, 
@@ -193,8 +183,12 @@ export async function enrollInCourseAction(
     
     revalidatePath(`/courses`);
     revalidatePath(`/dashboard`);
+    revalidatePath(`/dashboard/my-courses`);
+    revalidatePath(`/dashboard/available-courses`);
     revalidatePath(`/courses/${course.slug}`);
+    revalidatePath(`/dashboard/resources`);
     revalidatePath("/admin/requests");
+    revalidatePath("/admin/resources");
 
     return {
       status: "success",

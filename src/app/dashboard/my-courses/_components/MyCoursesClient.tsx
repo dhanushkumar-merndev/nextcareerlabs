@@ -5,24 +5,19 @@ import { CourseProgressCard } from "../../_components/CourseProgressCard";
 import { EmptyState } from "@/components/general/EmptyState";
 import { useState, useEffect, useRef } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSmartSession } from "@/hooks/use-smart-session";
 
 export function MyCoursesClient() {
+  const { session, isLoading: sessionLoading } = useSmartSession();
   const { 
     data: enrolledCourses, 
     isLoading, 
-  } = useEnrolledCourses();
+  } = useEnrolledCourses(session?.user?.id, sessionLoading);
 
   const [mounted, setMounted] = useState(false);
-  const hasLogged = useRef(false);
-
   useEffect(() => {
     setMounted(true);
-    
-    if (!hasLogged.current && enrolledCourses && enrolledCourses.length > 0) {
-        console.log(`%c[MyCourses] LOCAL HIT (${enrolledCourses.length} courses). Rendering from storage.`, "color: #eab308; font-weight: bold");
-        hasLogged.current = true;
-    }
-  }, [enrolledCourses]);
+  }, []);
 
   if (!mounted || (isLoading && !enrolledCourses)) {
     return (
