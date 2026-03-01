@@ -90,7 +90,8 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         fetchNextPage,
         hasNextPage,
         isFetchingNextPage,
-        isLoading: loading,
+        isLoading,
+        isPending,
         refetch,
     } = useInfiniteQuery({
         queryKey: ["messages", threadId, currentUserId],
@@ -102,8 +103,10 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             }
             return result;
         },
+        enabled: !!currentUserId,
         initialPageParam: undefined as string | undefined,
         initialData: () => {
+            if (!currentUserId) return undefined;
             const cached = chatCache.get<any>(`messages_${threadId}`, currentUserId);
             if (cached) {
                 return {
@@ -113,12 +116,19 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
             }
             return undefined;
         },
+        initialDataUpdatedAt: () => {
+            if (!currentUserId) return undefined;
+            return chatCache.get<any>(`messages_${threadId}`, currentUserId)?.timestamp;
+        },
         getNextPageParam: (lastPage: any) => lastPage.nextCursor,
-        staleTime: 1800000, // 30 mins
-        gcTime: 100 * 365 * 24 * 60 * 60 * 1000, // Permanent
-        refetchOnWindowFocus: false, // fix
-        refetchOnMount: false, 
+        staleTime: 1800000,
+        retry: 2,
+        refetchOnWindowFocus: true,
+        refetchOnMount: true,
     });
+
+    // Show loading skeletons when query is loading OR pending (waiting for currentUserId)
+    const loading = isLoading || (isPending && !data);
 
     const messages = useMemo(() => data?.pages.flatMap((page: any) => page.messages) || [], [data?.pages]);
     const threadState = useMemo(() => data?.pages[0]?.state as any, [data?.pages]);
@@ -207,6 +217,10 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
     const handleSendMessage = async () => {
         if (!inputText.trim() && !imageUrl && !fileUrl) return;
+        if (!currentUserId) {
+            toast.error("Still identifying your session. Try again in a second.");
+            return;
+        }
 
         const textToSend = inputText.trim() === "" ? " " : inputText;
         const imgToSend = imageUrl;
@@ -241,7 +255,12 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
 
         // OPTIMISTIC UPDATE via Query Data
         queryClient.setQueryData(["messages", threadId, currentUserId], (oldData: any) => {
-            if (!oldData) return oldData;
+            if (!oldData) {
+                return {
+                    pages: [{ messages: [optimisticMessage], state: "unknown" }],
+                    pageParams: [undefined]
+                };
+            }
             const newPages = [...oldData.pages];
             // Add to the first page (latest messages)
             newPages[0] = {
@@ -837,13 +856,18 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                  throw new Error(res.error || "Failed to delete");
             }
 
-            // Only invalidate local caches — do NOT refetch messages from server here.
+            // Only invalidate local caches — do NOT refetch messages from server IMMEDIATELY.
             // The optimistic update already removed the message from the UI.
-            // Refetching would cause a race condition when rapidly deleting multiple messages
-            // (the server may not have processed the next delete yet, so it reappears briefly).
+            // We use a deferred invalidation to ensure the local cache is refreshed
+            // for hard-refresh resilience, while avoiding race conditions during rapid deletes.
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
             chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
             queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
+
+            // Deferred: Refresh messages cache after a short delay so rapid deletes don't flash
+            setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
+            }, 1500);
 
             // Invalidate analytics "Shared Resources" on delete (file may have been removed)
             chatCache.invalidate("admin_analytics");
