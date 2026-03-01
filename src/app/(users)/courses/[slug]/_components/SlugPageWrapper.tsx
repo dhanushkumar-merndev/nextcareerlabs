@@ -43,6 +43,7 @@ export function SlugPageWrapper({
   const { session } = useSmartSession();
   const currentUserId = session?.user?.id;
   const router = useRouter();
+  const queryClient = useQueryClient();
   // ✅ ADD inside SlugPageWrapper component
 const { triggerIfSingleStatusChanged } = usePendingDetection(currentUserId);
   // Used to avoid hydration mismatch
@@ -98,14 +99,28 @@ const { data, isLoading } = useQuery({
       if (currentUserId) {
         const oldStatus = cachedEntry?.data?.enrollmentStatus;
         const newStatus = (result as any).enrollmentStatus;
-       if (oldStatus === "Pending" && newStatus !== "Pending") {
-    chatCache.invalidateUserDashboardData(currentUserId);
-    triggerIfSingleStatusChanged(
-        oldStatus,
-        newStatus
-    );
-    setTimeout(() => router.refresh(), 500);
-}
+        if (oldStatus === "Pending" && newStatus !== "Pending") {
+            chatCache.invalidateUserDashboardData(currentUserId);
+            
+            // ✅ BROAD SYNC: Wake up all other dashboard queries
+            queryClient.invalidateQueries({
+                predicate: (query) => {
+                    const key = query.queryKey[0] as string;
+                    return key === "user_dashboard" ||
+                           key === "my_courses" ||
+                           key === "all_courses" ||
+                           key === "enrolled_courses" ||
+                           key === "user_resources_access" ||
+                           key === "chat_sidebar";
+                }
+            });
+
+            triggerIfSingleStatusChanged(
+                oldStatus,
+                newStatus
+            );
+            setTimeout(() => router.refresh(), 500);
+        }
       }
 
       chatCache.set(cacheKey, result, currentUserId, (result as any).version, PERMANENT_TTL);

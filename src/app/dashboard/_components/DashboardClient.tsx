@@ -60,10 +60,7 @@ export function DashboardClient() {
     initialDataUpdatedAt: typeof window !== "undefined" && userId 
       ? chatCache.get<any>(`user_dashboard_${userId}`, userId)?.timestamp 
       : undefined,
-    staleTime: (() => {
-      if (userId && (chatCache.needsSync(userId) || chatCache.hasAnyPending(userId))) return 0;
-      return 1800000; // 30 mins
-    })(),
+    staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
     refetchOnMount: true

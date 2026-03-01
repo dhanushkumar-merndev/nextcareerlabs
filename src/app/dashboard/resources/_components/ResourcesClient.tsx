@@ -53,7 +53,13 @@ export function ResourcesClient() {
             if (typeof window === "undefined" || !userId) return undefined;
             return chatCache.get<boolean>(`user_resources_access_${userId}`, userId)?.data;
         },
-        staleTime: 1800000, // 30 mins
+        initialDataUpdatedAt: typeof window !== "undefined" && userId 
+      ? chatCache.get<boolean>(`user_resources_access_${userId}`, userId)?.timestamp 
+      : undefined,
+    staleTime: 1800000, // 30 mins
+    refetchInterval: 1800000, // 30 mins
+    refetchOnWindowFocus: true,
+    refetchOnMount: true
     });
 
     if (!mounted || sessionLoading || checkingAccess) {

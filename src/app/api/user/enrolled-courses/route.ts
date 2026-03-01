@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/session";
 import { NextResponse } from "next/server";
 import { getEnrolledCourses } from "@/app/data/user/get-enrolled-courses";
+import { prisma } from "@/lib/db";
 import { getCache, setCache, getGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
 
 export async function GET(req: Request) {
@@ -31,14 +32,50 @@ export async function GET(req: Request) {
     }
 
     // DB fetch
-    const data = await getEnrolledCourses();
-    const isEnrolled = data.enrollments.length > 0;
+    const [enrollments, allProgress] = await Promise.all([
+      prisma.enrollment.findMany({
+        where: { userId: user.id, status: "Granted" },
+        select: {
+          Course: {
+            select: {
+              id: true,
+              smallDescription: true,
+              title: true,
+              fileKey: true,
+              level: true,
+              slug: true,
+              duration: true,
+              chapter: {
+                select: {
+                  id: true,
+                  lesson: {
+                    select: {
+                      id: true,
+                      lessonProgress: {
+                        where: { userId: user.id },
+                        select: { completed: true }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }),
+      prisma.lessonProgress.findMany({
+        where: { userId: user.id },
+        select: { lessonId: true, completed: true }
+      })
+    ]);
+
+    const isEnrolled = enrollments.length > 0;
 
     // Cache in Redis 30 days
-    await setCache(redisCacheKey, data.enrollments, 2592000);
+    await setCache(redisCacheKey, enrollments, 2592000);
 
     const response = NextResponse.json(
-      { enrollments: data.enrollments, version: currentVersion },
+      { enrollments, version: currentVersion },
     );
 
     response.cookies.set("is_enrolled", isEnrolled.toString(), {

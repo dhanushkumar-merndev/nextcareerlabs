@@ -256,7 +256,7 @@ triggerIfStatusChanged(oldData, result.courses);
             return key === "user_dashboard" ||
                    key === "my_courses" ||
                    key === "enrolled_courses" ||
-                   key === "user_resources" ||
+                   key === "user_resources_access" ||
                    key === "chat_sidebar";
         }
     });

@@ -48,11 +48,7 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
     enabled: !!userId && !sessionLoading,
     initialData: () => getCached()?.data?.enrollments,
     initialDataUpdatedAt: () => getCached()?.timestamp,
-    staleTime: (() => {
-      // If user just enrolled or has any pending approval, check version on every mount/focus
-      if (userId && (chatCache.needsSync(userId) || chatCache.hasAnyPending(userId))) return 0;
-      return 1800000; // 30 mins
-    })(),
+    staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
     refetchOnMount: true

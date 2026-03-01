@@ -696,9 +696,9 @@ export function CourseContent({ lessonId, userId}: iAppProps) {
       }
       return result;
     },
-    staleTime: 1800000,
-    refetchOnWindowFocus: false, 
-    refetchOnMount: false, 
+    staleTime: 1800000, // 30 mins
+    refetchOnWindowFocus: true, 
+    refetchOnMount: true, 
   });
 
   const rawData = lesson as any;
