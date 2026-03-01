@@ -361,6 +361,14 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                 queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
                 queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
 
+                // Invalidate analytics "Shared Resources" if a file or image was sent
+                if (imgToSend || fUrl) {
+                    chatCache.invalidate("admin_analytics");
+                    chatCache.invalidate("admin_static_analytics");
+                    queryClient.invalidateQueries({ queryKey: ["admin_static_analytics"] });
+                    queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+                }
+
             } catch (error) {
                 toast.error("Failed to send message");
                 // Revert on catch
@@ -808,6 +816,9 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
     };
 
     const handleDelete = async (id: string) => {
+        // Cancel any in-flight message refetches to prevent race conditions
+        await queryClient.cancelQueries({ queryKey: ["messages", threadId, currentUserId] });
+
         // Optimistic delete
         queryClient.setQueryData(["messages", threadId, currentUserId], (old: any) => {
             if (!old || !old.pages) return old;
@@ -826,10 +837,19 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
                  throw new Error(res.error || "Failed to delete");
             }
 
+            // Only invalidate local caches — do NOT refetch messages from server here.
+            // The optimistic update already removed the message from the UI.
+            // Refetching would cause a race condition when rapidly deleting multiple messages
+            // (the server may not have processed the next delete yet, so it reappears briefly).
             chatCache.invalidate(`messages_${threadId}`, currentUserId);
             chatCache.invalidate(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId);
             queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
-            queryClient.invalidateQueries({ queryKey: ["messages", threadId, currentUserId] });
+
+            // Invalidate analytics "Shared Resources" on delete (file may have been removed)
+            chatCache.invalidate("admin_analytics");
+            chatCache.invalidate("admin_static_analytics");
+            queryClient.invalidateQueries({ queryKey: ["admin_static_analytics"] });
+            queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
 
 
             // SYNC SIDEBAR: Find the next latest message to show as preview

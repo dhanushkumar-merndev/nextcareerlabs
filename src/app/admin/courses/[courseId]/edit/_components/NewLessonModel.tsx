@@ -23,6 +23,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, Plus } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { useQueryClient } from "@tanstack/react-query";
 import { createLesson } from "../actions";
 import { toast } from "sonner";
 import { chatCache } from "@/lib/chat-cache";
@@ -37,8 +38,8 @@ export function NewLessonModel({
   onSuccess?: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
-
   const [isPending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
 
   const form = useForm<LessonSchemaType>({
     resolver: zodResolver(lessonSchema),
@@ -58,6 +59,28 @@ export function NewLessonModel({
       }
       if (result.status === "success") {
         toast.success(result.message);
+
+        // Client-side cache invalidation
+        chatCache.invalidate("admin_analytics");
+        chatCache.invalidate("admin_static_analytics");
+        chatCache.invalidate("admin_dashboard_stats");
+        chatCache.invalidate("admin_dashboard_all");
+        chatCache.invalidate("admin_dashboard_recent_courses");
+        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidate("all_courses");
+        chatCache.invalidate("admin_chat_sidebar");
+
+        queryClient.invalidateQueries({ queryKey: ["admin_static_analytics"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_analytics_growth"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_success_rate"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_stats"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
+        queryClient.invalidateQueries({ queryKey: ["all_courses"] });
+        queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
+
         onSuccess?.();
         form.reset();
         setIsOpen(false);

@@ -48,6 +48,7 @@ import {
   deleteEnrollmentAction
 } from "../actions";
 import { useState, useTransition, useCallback, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
 import { cn } from "@/lib/utils";
 import { secureStorage } from "@/lib/secure-storage";
@@ -99,6 +100,7 @@ interface Request {
 const BATCH_SIZE = 10;
 
 export function RequestsTable({ initialData, totalCount: initialTotalCount, version: initialVersion }: { initialData: Request[], totalCount: number, version?: string }) {
+  const queryClient = useQueryClient();
   const [data, setData] = useState<Request[]>(initialData);
   const [totalCount, setTotalCount] = useState(initialTotalCount);
   const [version, setVersion] = useState<string | null>(initialVersion || null);
@@ -133,27 +135,57 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
 
 
   const clearLocalCache = useCallback((userId?: string) => {
+    // 1. Clear enrollment request local storage
     secureStorage.removeItemTracked("admin_enrollment_requests");
     secureStorage.removeItemTracked("admin_enrollment_version");
     secureStorage.removeItemTracked("admin_enrollment_last_sync");
 
-    // If we have a userId (Admin = User testing), clear their specific pages too
+    // 2. If we have a userId, clear their specific pages too
     if (userId) {
       secureStorage.removeItemTracked(`chat_cache_${userId}_user_enrolled_courses_${userId}`);
       secureStorage.removeItemTracked(`chat_cache_${userId}_available_courses_${userId}`);
       secureStorage.removeItemTracked(`chat_cache_${userId}_user_dashboard_${userId}`);
     }
 
-    // 4. Invalidate all Admin Caches (Dashboard, Analytics, Resource Page)
+    // 3. Invalidate all Admin Local Caches (Dashboard, Analytics, Resource Page)
     chatCache.invalidateAdminData();
 
-    console.log(`[RequestsTable] Local cache cleared ${userId ? 'including user pages ' : ''}after admin action.`);
+    // 4. Invalidate granular chatCache keys (dashboard sub-sections, courses, etc.)
+    chatCache.invalidate("admin_dashboard_stats");
+    chatCache.invalidate("admin_dashboard_enrollments");
+    chatCache.invalidate("admin_dashboard_recent_courses");
+    chatCache.invalidate("admin_courses_list");
+    chatCache.invalidate("all_courses");
 
-    // Hard refresh to apply changes globally across all admin modules
-    setTimeout(() => {
-        window.location.reload();
-    }, 500);
-  }, []);
+    if (userId) {
+      chatCache.invalidate(`all_courses_${userId}`);
+      chatCache.invalidate(`available_courses_${userId}`);
+      chatCache.invalidate(`all_courses_${userId}`, userId);
+      chatCache.invalidate(`available_courses_${userId}`, userId);
+      chatCache.invalidate("all_courses", userId);
+      chatCache.invalidate("available_courses", userId);
+    }
+
+    // Always invalidate guest versions
+    chatCache.invalidate("available_courses_guest");
+    chatCache.invalidate("all_courses_guest");
+
+    // 5. Invalidate React Query caches (triggers live refetch on open pages)
+    queryClient.invalidateQueries({ queryKey: ["admin_dashboard_stats"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_dashboard_enrollments"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_static_analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_analytics_growth"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_success_rate"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
+    queryClient.invalidateQueries({ queryKey: ["all_courses"] });
+    queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
+    queryClient.invalidateQueries({ queryKey: ["admin_resource_page"] });
+
+    console.log(`[RequestsTable] Local + React Query caches cleared ${userId ? 'including user pages ' : ''}after admin action.`);
+  }, [queryClient]);
 
   const handleStatusUpdate = (id: string, request: Request, status: "Granted" | "Revoked" | "Pending") => {
     startTransition(async () => {

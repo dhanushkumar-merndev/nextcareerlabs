@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { Loader2, Trash2 } from "lucide-react";
 import { useState, useTransition } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { deleteChapter } from "../actions";
 import { toast } from "sonner";
 import { chatCache } from "@/lib/chat-cache";
@@ -27,6 +28,7 @@ export function DeleteChapter({
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const queryClient = useQueryClient();
 
   async function handleDelete() {
     startTransition(async () => {
@@ -39,6 +41,26 @@ export function DeleteChapter({
       }
       if (result.status === "success") {
         toast.success(result.message);
+
+        // Client-side cache invalidation
+        chatCache.invalidate("admin_analytics");
+        chatCache.invalidate("admin_static_analytics");
+        chatCache.invalidate("admin_dashboard_stats");
+        chatCache.invalidate("admin_dashboard_all");
+        chatCache.invalidate("admin_dashboard_recent_courses");
+        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidate("all_courses");
+
+        queryClient.invalidateQueries({ queryKey: ["admin_static_analytics"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_analytics_growth"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_success_rate"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_stats"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
+        queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
+        queryClient.invalidateQueries({ queryKey: ["all_courses"] });
+
         onSuccess?.();
         setOpen(false);
       } else if (result.status === "error") {

@@ -92,6 +92,8 @@ export async function updateEnrollmentStatusAction(
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/resources");
     revalidatePath(`/courses/${enrollment.Course.slug}`);
+    revalidatePath(`/admin/analytics`);
+    revalidatePath(`/admin/dashboard`);
 
     return {
       status: "success",
@@ -141,6 +143,7 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/analytics");
     revalidatePath("/admin/resources");
+    revalidatePath(`/admin/dashboard`);
     return {
       status: "success",
       message: "User has been banned",
@@ -183,6 +186,7 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/analytics");
     revalidatePath("/admin/resources");
+    revalidatePath(`/admin/dashboard`);
     return {
       status: "success",
       message: "User has been unbanned",
@@ -223,6 +227,7 @@ export async function updateUserDetailsAction(
     revalidatePath("/dashboard/my-courses");
     revalidatePath("/dashboard/available-courses");
     revalidatePath("/admin/resources");
+    revalidatePath(`/admin/dashboard`);
     return {
       status: "success",
       message: "User details updated successfully",
@@ -292,6 +297,7 @@ export async function deleteEnrollmentAction(
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/resources");
     revalidatePath("/admin/analytics");
+    revalidatePath(`/admin/dashboard`);
 
     return {
       status: "success",
