@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion, invalidateCache } from "@/lib/redis";
 
 export async function getAdminAnalytics(startDate?: Date, endDate?: Date, clientVersion?: string) {
+    console.log(`[AdminAnalyticsAction] Fetching analytics (Range: ${startDate || 'default'} to ${endDate || 'default'}, ClientVersion: ${clientVersion || 'none'})`);
     await requireAdmin();
 
     const isCustomRange = !!startDate || !!endDate;
@@ -114,6 +115,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
  * Highly cached and NOT date-range dependent for the Growth Chart
  */
 export async function getAdminStaticAnalytics(clientVersion?: string) {
+    console.log(`[AdminAnalyticsAction] Fetching static analytics (ClientVersion: ${clientVersion || 'none'})`);
     await requireAdmin();
 
     let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
@@ -138,7 +140,8 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
             recentUsers,
             enrollmentStats,
             courseEnrollment,
-            totalResources,
+            totalImages,
+            totalPdfs,
             totalChapters,
         ] = await Promise.all([
             prisma.user.count(),
@@ -167,6 +170,9 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
                 _count: { _all: true },
                 orderBy: { _count: { courseId: "desc" } },
                 take: 5,
+            }),
+            prisma.notification.count({
+                where: { imageUrl: { not: null } }
             }),
             prisma.notification.count({
                 where: { fileUrl: { not: null } }
@@ -201,7 +207,8 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
             totalEnrollments,
             totalLessons,
             totalChapters,
-            totalResources,
+            totalImages,
+            totalPdfs,
             enrollRatio,
             recentUsers,
             enrollmentChartData,
@@ -223,6 +230,7 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
  * Isolated because it's CPU-intensive and cached for 24h
  */
 export async function getAdminSuccessRate() {
+  console.log(`[AdminAnalyticsAction] Calculating platform success rate`);
   await requireAdmin();
   return await getAverageProgressCached();
 }
@@ -295,6 +303,7 @@ async function getAverageProgressCached() {
 import { getUserDashboardData } from "@/app/dashboard/actions";
 
 export async function getUserAnalyticsAdmin(userId: string, clientVersion?: string) {
+    console.log(`[AdminAnalyticsAction] Fetching user analytics for ${userId} (ClientVersion: ${clientVersion || 'none'})`);
     await requireAdmin();
     try {
         const [userVersion, globalCoursesVersion] = await Promise.all([
@@ -349,6 +358,7 @@ export async function getUserAnalyticsAdmin(userId: string, clientVersion?: stri
 }
 
 export async function getUserCourseDetailedProgress(userId: string, courseId: string) {
+    console.log(`[AdminAnalyticsAction] Fetching detailed course progress (User: ${userId}, Course: ${courseId})`);
     await requireAdmin();
     try {
         const startTime = Date.now();
@@ -388,6 +398,7 @@ export async function getUserCourseDetailedProgress(userId: string, courseId: st
 }
 
 export async function getAllUsers(search?: string, page: number = 1, limit: number = 100, roleFilter?: string, clientVersion?: string, enrolledOnly?: boolean) {
+    console.log(`[AdminAnalyticsAction] Fetching user list (Search: ${search || 'none'}, Page: ${page}, Role: ${roleFilter || 'all'}, EnrolledOnly: ${enrolledOnly})`);
     await requireAdmin();
     try {
         const isDefaultFetch = page === 1 && limit === 100 && !search && (roleFilter === 'user' || roleFilter === 'admin');
@@ -513,6 +524,7 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
 }
 
 export async function updateUserRole(userId: string, newRole: string) {
+    console.log(`[AdminAnalyticsAction] Updating user role for ${userId} to ${newRole}`);
     await requireAdmin();
     try {
         await prisma.user.update({

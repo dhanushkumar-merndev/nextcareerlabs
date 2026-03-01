@@ -23,6 +23,7 @@ export async function saveMCQs(
   count?: number;
   error?: string;
 }> {
+  console.log(`[MCQAction] Saving MCQs for lesson ${lessonId}`);
   try {
     const session = await auth.api.getSession({
       headers: await headers(),
@@ -111,6 +112,7 @@ export async function getLessonMCQs(lessonId: string): Promise<{
   }>;
   error?: string;
 }> {
+  console.log(`[MCQAction] Getting MCQs for lesson ${lessonId}`);
   try {
     const cacheKey = `lesson:questions:${lessonId}`;
     
@@ -167,6 +169,7 @@ export async function deleteLessonMCQs(lessonId: string): Promise<{
   success: boolean;
   error?: string;
 }> {
+  console.log(`[MCQAction] Deleting MCQs for lesson ${lessonId}`);
   try {
     const session = await auth.api.getSession({
       headers: await headers(),

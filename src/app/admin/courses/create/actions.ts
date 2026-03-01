@@ -16,6 +16,7 @@ const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 export async function CreateCourse(
   values: CourseSchemaType
 ): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Creating course: ${values.title} (Slug: ${values.slug})`);
   const session = await requireAdmin();
   try {
     const req = await request();
@@ -95,7 +96,6 @@ export async function CreateCourse(
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),

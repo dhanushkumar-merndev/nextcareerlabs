@@ -17,7 +17,7 @@ import {
 interface SectionCardsProps {
   stats: {
     totalUsers: number;
-    enrolledUsers: number;
+    totalSubscriptions: number;
     totalCourses: number;
     totalLessons: number;
   };
@@ -32,7 +32,7 @@ interface SimpleCardProps {
 }
 
 export function SectionCards({ stats }: SectionCardsProps) {
-  const { totalUsers, enrolledUsers, totalCourses, totalLessons } = stats;
+  const { totalUsers, totalSubscriptions, totalCourses, totalLessons } = stats;
 
   return (
     <div className="grid grid-cols-2 gap-6 px-4 md:grid-cols-2 lg:grid-cols-4 lg:px-6">
@@ -44,9 +44,9 @@ export function SectionCards({ stats }: SectionCardsProps) {
       />
 
       <SimpleStatCard
-        title="Total Subscribers"
-        value={enrolledUsers}
-        description="Users who have enrolled in courses"
+        title="Total Subscriptions"
+        value={totalSubscriptions}
+        description="Total active course enrollments"
         icon={UsersIcon}
       />
 

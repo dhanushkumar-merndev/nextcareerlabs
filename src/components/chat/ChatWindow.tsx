@@ -137,6 +137,25 @@ export function ChatWindow({ threadId, title, avatarUrl, isGroup, isAdmin, curre
         }
     }, [threadId]);
 
+    // Cross-Tab Sync: Listen for storage changes from other tabs (participants)
+    useEffect(() => {
+        const handleStorageChange = (e: StorageEvent) => {
+            const cacheKey = `participants_${threadId}`;
+            if (e.key?.includes(cacheKey)) {
+                console.log(`[ChatWindow] Participants updated in another tab (Storage: ${e.key}). Refetching...`);
+                // Clear the metadata sync check (so it doesn't think it's fresh)
+                secureStorage.removeItemTracked(`chat_cache_${currentUserId}_${cacheKey}_sync`);
+                
+                // If currently showing info, refetch it
+                if (showGroupInfo) {
+                    handleShowGroupInfo();
+                }
+            }
+        };
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
+    }, [threadId, showGroupInfo, currentUserId]);
+
     // Read status is now updated during message fetch in getThreadMessagesAction
 
 

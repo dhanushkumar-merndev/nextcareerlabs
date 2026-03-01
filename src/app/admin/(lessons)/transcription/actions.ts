@@ -19,6 +19,7 @@ export async function storeTranscription(
   transcriptionId?: string;
   error?: string;
 }> {
+  console.log(`[TranscriptionAction] Storing transcription for lesson ${lessonId} (VideoKey: ${videoKey || 'none'})`);
   try {
     // Verify admin authorization
     const session = await auth.api.getSession({
@@ -93,6 +94,7 @@ export async function getTranscription(lessonId: string): Promise<{
   };
   error?: string;
 }> {
+  console.log(`[TranscriptionAction] Fetching transcription for lesson ${lessonId}`);
   try {
     const startTime = Date.now();
     const [transcription, questionCount] = await Promise.all([
@@ -141,6 +143,7 @@ export async function deleteTranscription(lessonId: string): Promise<{
   success: boolean;
   error?: string;
 }> {
+  console.log(`[TranscriptionAction] Deleting transcription for lesson ${lessonId}`);
   try {
     const session = await auth.api.getSession({
       headers: await headers(),

@@ -15,6 +15,7 @@ export async function getRequestsAction(
   search?: string,
   clientVersion?: string
 ) {
+  console.log(`[AdminRequestAction] Fetching requests (Status: ${status}, Search: ${search}, ClientVersion: ${clientVersion || 'none'})`);
   return await adminGetEnrollmentRequests(skip, take, status, search, clientVersion);
 }
 
@@ -22,6 +23,7 @@ export async function updateEnrollmentStatusAction(
   enrollmentId: string,
   status: "Granted" | "Revoked" | "Pending"
 ): Promise<ApiResponse> {
+  console.log(`[AdminRequestAction] Updating enrollment ${enrollmentId} to status ${status}`);
   await requireAdmin();
 
   try {
@@ -61,7 +63,8 @@ export async function updateEnrollmentStatusAction(
           courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
           
           // Admin Keys (Centralized Invalidation)
-          invalidateAllAdminCache(),
+        invalidateAllAdminCache(),
+          
 
           // Support for User Synchronicity (Unified)
           invalidateUserEnrollmentCache(enrollment.userId),
@@ -87,7 +90,7 @@ export async function updateEnrollmentStatusAction(
     revalidatePath("/dashboard/my-courses");
     revalidatePath("/dashboard/available-courses");
     revalidatePath("/dashboard/resources");
-    revalidatePath("/resources");
+    revalidatePath("/admin/resources");
     revalidatePath(`/courses/${enrollment.Course.slug}`);
 
     return {
@@ -103,6 +106,7 @@ export async function updateEnrollmentStatusAction(
 }
 
 export async function banUserAction(userId: string): Promise<ApiResponse> {
+  console.log(`[AdminRequestAction] Banning user ${userId}`);
   await requireAdmin();
 
   try {
@@ -136,7 +140,7 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
     revalidatePath("/dashboard/available-courses");
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/analytics");
-    revalidatePath("/resources");
+    revalidatePath("/admin/resources");
     return {
       status: "success",
       message: "User has been banned",
@@ -150,6 +154,7 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
 }
 
 export async function unbanUserAction(userId: string): Promise<ApiResponse> {
+  console.log(`[AdminRequestAction] Unbanning user ${userId}`);
   await requireAdmin();
 
   try {
@@ -177,7 +182,7 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
     revalidatePath("/dashboard/available-courses");
     revalidatePath("/dashboard/resources");
     revalidatePath("/admin/analytics");
-    revalidatePath("/resources");
+    revalidatePath("/admin/resources");
     return {
       status: "success",
       message: "User has been unbanned",
@@ -194,6 +199,7 @@ export async function updateUserDetailsAction(
   userId: string,
   data: { email?: string; phoneNumber?: string }
 ): Promise<ApiResponse> {
+  console.log(`[AdminRequestAction] Updating user details for ${userId}: ${JSON.stringify(data)}`);
   await requireAdmin();
 
   try {
@@ -232,6 +238,7 @@ export async function updateUserDetailsAction(
 export async function deleteEnrollmentAction(
   enrollmentId: string
 ): Promise<ApiResponse> {
+  console.log(`[AdminRequestAction] Deleting enrollment ${enrollmentId}`);
   await requireAdmin();
 
   try {
@@ -242,6 +249,7 @@ export async function deleteEnrollmentAction(
       where: { id: enrollmentId },
       select: { 
         userId: true,
+        courseId: true,
         Course: { select: { slug: true } }
       }
     });
@@ -253,6 +261,12 @@ export async function deleteEnrollmentAction(
         };
     }
 
+    // Find course group for participants invalidation
+    const courseGroup = await prisma.chatGroup.findFirst({
+        where: { courseId: enrollment.courseId },
+        select: { id: true }
+    });
+
     await prisma.enrollment.delete({
       where: { id: enrollmentId },
     });
@@ -261,6 +275,7 @@ export async function deleteEnrollmentAction(
     // Smart Sync Invalidation (Centralized Admin + User Specific)
     await Promise.all([
       invalidateAllAdminCache(),
+      courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
       
       // User invalidation (Unified)
       invalidateUserEnrollmentCache(enrollment.userId),
@@ -275,7 +290,7 @@ export async function deleteEnrollmentAction(
     revalidatePath("/dashboard/my-courses");
     revalidatePath("/dashboard/available-courses");
     revalidatePath("/dashboard/resources");
-    revalidatePath("/resources");
+    revalidatePath("/admin/resources");
     revalidatePath("/admin/analytics");
 
     return {

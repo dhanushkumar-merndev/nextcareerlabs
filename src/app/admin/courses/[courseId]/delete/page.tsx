@@ -24,6 +24,7 @@ export default function DeleteCourseRoute() {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { courseId } = useParams<{ courseId: string }>();
+  console.log(`[AdminPage] Accessing Delete Course Page: ${courseId}`);
   const { user } = useSmartSession();
   const router = useRouter();
 

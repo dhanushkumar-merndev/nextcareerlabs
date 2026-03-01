@@ -10,6 +10,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 export default async function AdminRequestsPage() {
+  console.log("[AdminPage] Accessing Enrollment Requests Page");
   // Client Shell: No server-side data fetch to avoid redundant Redis/DB hits.
   // The RequestsTable component will hydrate from LocalStorage or fetch on mount.
 

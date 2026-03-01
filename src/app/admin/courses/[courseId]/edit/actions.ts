@@ -24,6 +24,7 @@ export async function editCourse(
   data: CourseSchemaType,
   courseId: string
 ): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Editing course ${courseId}: ${data.title}`);
   const user = await requireAdmin();
   try {
     const req = await request();
@@ -97,7 +98,6 @@ export async function editCourse(
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
         invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
@@ -133,6 +133,7 @@ export async function reorderLessons(
   lesson: { id: string; position: number }[],
   courseId: string
 ): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Reordering lessons in chapter ${chapterId} (Course: ${courseId})`);
   try {
     if (!lesson || lesson.length === 0) {
       return {
@@ -185,6 +186,7 @@ export async function reorderChapters(
   courseId: string,
   chapters: { id: string; position: number }[]
 ): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Reordering chapters in course ${courseId}`);
   await requireAdmin();
   try {
     if (!chapters || chapters.length === 0) {
@@ -236,6 +238,7 @@ export async function reorderChapters(
 export async function createChapter(
   data: ChapterSchemaType
 ): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Creating chapter: ${data.name} (Course: ${data.courseId})`);
   await requireAdmin();
   try {
     const result = chapterSchema.safeParse(data);
@@ -272,7 +275,6 @@ export async function createChapter(
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
         invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
@@ -298,6 +300,7 @@ export async function createChapter(
 export async function createLesson(
   data: LessonSchemaType
 ): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Creating lesson: ${data.name} (Chapter: ${data.chapterId}, Course: ${data.courseId})`);
   await requireAdmin();
   try {
     const result = lessonSchema.safeParse(data);
@@ -340,7 +343,6 @@ export async function createLesson(
         invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS), // Crucial for progress bars
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
 
         // 2. Increment Versions (This triggers the yellow "UPDATE FOUND" on the client)
@@ -373,6 +375,7 @@ export async function deleteLesson({
   courseId: string;
   lessonId: string;
 }): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Deleting lesson ${lessonId} from chapter ${chapterId} (Course: ${courseId})`);
   await requireAdmin();
   try {
     const startTime = Date.now();
@@ -445,7 +448,6 @@ export async function deleteLesson({
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
         invalidateCache(`lesson:${lessonId}`),
         invalidateCache(`lesson:questions:${lessonId}`),
@@ -478,6 +480,7 @@ export async function deleteChapter({
   chapterId: string;
   courseId: string;
 }): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Deleting chapter ${chapterId} (Course: ${courseId})`);
   await requireAdmin();
 
   try {
@@ -546,7 +549,6 @@ export async function deleteChapter({
     await Promise.all([
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
         invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
@@ -579,6 +581,7 @@ export async function editChapter({
   courseId: string;
   name: string;
 }): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Renaming chapter ${chapterId} to "${name}" (Course: ${courseId})`);
   await requireAdmin();
 
   try {

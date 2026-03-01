@@ -66,8 +66,6 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
        return () => window.removeEventListener('storage', handleStorageChange);
    }, [currentUserId, isAdmin, queryClient]);
 
-   const getTime = () => new Date().toLocaleTimeString();
-
    // Centralized Data Fetch (Threads + Courses + Version)
     const { data: sidebarData, isLoading } = useQuery({
   queryKey: getSidebarKey(currentUserId, isAdmin),
@@ -137,14 +135,13 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
     return undefined;
   },
 
-    initialDataUpdatedAt: () => {
-  if (typeof window === "undefined") return undefined;
-  return chatCache.get<any>(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId)?.timestamp;
-},
+    initialDataUpdatedAt: typeof window !== "undefined"
+          ? chatCache.get<any>(getSidebarLocalKey(isAdmin), isAdmin ? undefined : currentUserId)?.timestamp
+          : undefined,
     // 30-minute version check (Heartbeat)
     staleTime: 1800000, 
     refetchInterval: 1800000,
-    refetchOnWindowFocus: false, // fix
+    refetchOnWindowFocus: false, 
     refetchOnMount: false, 
   });
 

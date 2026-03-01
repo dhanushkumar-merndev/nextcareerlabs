@@ -14,7 +14,7 @@ import { FileTextIcon } from "@/components/ui/file-text";
 import { UserIcon } from "@/components/ui/user";
 import { CircleCheckIcon } from "@/components/ui/circle-check";
 import { ClipboardCheckIcon } from "@/components/ui/clipboard-check";
-import { BookOpen, CheckCircle, Clock, GraduationCap, Layers } from "lucide-react";
+import { BookOpen, CheckCircle, Clock, GraduationCap, Image as ImageIcon, Layers } from "lucide-react";
 
 const ICON_MAP = {
   users: UsersIcon,
@@ -29,6 +29,7 @@ const ICON_MAP = {
   "graduation-cap": GraduationCap,
   layers: Layers,
   clock: Clock,
+  image: ImageIcon,
 } as const;
 
 export type IconName = keyof typeof ICON_MAP;

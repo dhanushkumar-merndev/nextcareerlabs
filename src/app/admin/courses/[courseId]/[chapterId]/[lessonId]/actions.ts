@@ -10,6 +10,7 @@ export async function updateLesson(
   values: LessonSchemaType,
   lessonId: string
 ): Promise<ApiResponse> {
+  console.log(`[AdminLessonAction] Updating lesson ${lessonId}: ${values.name}`);
   await requireAdmin();
 
   try {

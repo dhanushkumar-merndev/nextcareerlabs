@@ -4,6 +4,7 @@ import { AdminCoursesClient } from "./_components/AdminCoursesClient";
 import { AdminCourseSearch } from "./_components/AdminCourseSearch";
 
 export default function CoursePage() {
+  console.log("[AdminPage] Accessing Courses Management Page");
   return (
     <div className="px-4 lg:px-6 lg:py-3">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mt-3 mb-10 gap-4">

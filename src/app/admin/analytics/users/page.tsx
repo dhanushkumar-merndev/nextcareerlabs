@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic';
 export default async function AdminUsersPage(props: PageProps) {
     const searchParams = await props.searchParams;
     const search = searchParams.search || "";
+    console.log(`[AdminPage] Accessing User Management List (Search: ${search || 'none'})`);
 
     return (
         <div className="flex flex-col gap-6 p-6">

@@ -9,6 +9,7 @@ type Params = Promise<{
 
 export default async function LessonIdPage({ params }: { params: Params }) {
   const { courseId, chapterId, lessonId } = await params;
+  console.log(`[AdminPage] Accessing Lesson Edit Page: ${lessonId} (Chapter: ${chapterId}, Course: ${courseId})`);
   const lesson = await adminGetLesson(lessonId);
 
   return (

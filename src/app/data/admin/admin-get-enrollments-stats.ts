@@ -48,7 +48,7 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   const rawEnrollments = await prisma.$queryRaw`
     SELECT DATE_TRUNC('day', "createdAt") as date, count(*)::int as count
     FROM "Enrollment"
-    WHERE "createdAt" >= ${startDate}
+    WHERE "createdAt" >= ${startDate} AND "status" = 'Granted'
     GROUP BY DATE_TRUNC('day', "createdAt")
     ORDER BY date ASC
   `;

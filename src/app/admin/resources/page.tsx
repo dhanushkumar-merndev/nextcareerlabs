@@ -8,6 +8,7 @@ import { ChatLayoutLoader } from "@/components/chat/ChatLayoutLoader";
 export const dynamic = 'force-dynamic';
 
 export default async function AdminNotificationsPage() {
+  console.log("[AdminPage] Accessing Resources/Chat Management");
   return (
     <div className="flex flex-col -mt-6 md:mt-0 md:-mb-1 px-4 lg:px-6 h-[calc(100dvh-1.5rem)] md:h-[calc(100dvh-4.5rem)]  overflow-hidden">
       <Card className="flex-1 min-h-0 border-0 shadow-none bg-transparent">

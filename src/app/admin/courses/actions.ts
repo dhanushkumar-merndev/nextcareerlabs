@@ -7,5 +7,6 @@ export async function adminGetCoursesAction(
     cursor?: string | null,
     searchQuery?: string
 ) {
+    console.log(`[AdminCourseAction] Fetching courses (Search: ${searchQuery || 'none'}, Cursor: ${cursor || 'none'}, ClientVersion: ${clientVersion || 'none'})`);
     return await adminGetCourses(clientVersion, cursor, searchQuery);
 }

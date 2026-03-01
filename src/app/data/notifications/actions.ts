@@ -137,7 +137,10 @@ export async function sendNotificationAction(
         (isAdmin || data.type === "SUPPORT_TICKET") && invalidateAdminsCache(),
         // Invalidate dashboard for the user
         !isAdmin && invalidateCache(`user:dashboard:${senderId}`),
-        !isAdmin && incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(senderId))
+        !isAdmin && incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(senderId)),
+        // Analytics invalidation for resources
+        (data.fileUrl || data.imageUrl) && invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+        (data.fileUrl || data.imageUrl) && incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
     ]);
   }
 
@@ -196,7 +199,9 @@ export async function replyToTicketAction(data: {
       invalidateCache(CHAT_CACHE_KEYS.THREADS(data.recipientId)),
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(data.threadId)),
       incrementChatVersion(data.recipientId),
-      invalidateAdminsCache() // Update global admin cache
+      invalidateAdminsCache(), // Update global admin cache
+      (data.fileUrl) && invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+      (data.fileUrl) && incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
   ]);
 
   // Mark all messages in thread as read for admin? Or just specific ones?
@@ -767,7 +772,9 @@ export async function deleteMessageAction(id: string) {
       message.recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(message.recipientId)),
       message.recipientId && incrementChatVersion(message.recipientId),
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(message.threadId || "")),
-      isAdmin && invalidateAdminsCache()
+      isAdmin && invalidateAdminsCache(),
+      (message.imageUrl || message.fileUrl) && invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+      (message.imageUrl || message.fileUrl) && incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
   ]);
 
   revalidatePath("/admin/resources");

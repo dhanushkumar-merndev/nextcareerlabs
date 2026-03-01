@@ -11,6 +11,7 @@ import { PageProps } from "@/lib/types/analytic";
 
 export default async function UserCourseDetailedAnalyticsPage({ params }: PageProps) {
     const { userId, courseId } = await params;
+    console.log(`[AdminPage] Accessing Detailed Course Progress: ${courseId} for User: ${userId}`);
     const data = await getUserCourseDetailedProgress(userId, courseId);
 
     if (!data) {

@@ -4,13 +4,34 @@ import { chatCache } from "@/lib/chat-cache";
 import { getAuthSessionAction } from "@/app/(auth)/auth-session";
 
 const CACHE_KEY = "auth_session";
-const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 minutes
+const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 mins
+const LOCAL_TTL = 100 * 365 * 24 * 60 * 60 * 1000; // ∞ forever
+const REDIS_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const VERSION_CHECK_LS_KEY = "auth_session_last_check"; // plain LS, no encryption overhead
+
+// ── 30-min gate helpers ───────────────────────────────────────────────────────
+function shouldRunVersionCheck(): boolean {
+    if (typeof window === "undefined") return true;
+    const last = localStorage.getItem(VERSION_CHECK_LS_KEY);
+    if (!last) return true;
+    return Date.now() - parseInt(last) >= HEARTBEAT_INTERVAL;
+}
+function markVersionChecked() {
+    localStorage.setItem(VERSION_CHECK_LS_KEY, Date.now().toString());
+}
+
+// ── Call on ANY mutation (create/update/delete) ───────────────────────────────
+export function invalidateAuthSessionCache(queryClient: ReturnType<typeof useQueryClient>) {
+    chatCache.invalidate(CACHE_KEY);               // wipe localStorage (secureStorage)
+    localStorage.removeItem(VERSION_CHECK_LS_KEY); // reset 30-min timer
+    queryClient.invalidateQueries({ queryKey: [CACHE_KEY] }); // force fresh fetch
+    console.log("[Auth] 🗑️ Mutation: localStorage + Redis keys invalidated");
+}
 
 /**
- * A "Smart" session hook that:
- * 1. Loads instantly from LocalStorage on mount (Instant UI)
- * 2. Background Heartbeat every 30 mins (via Server Action)
- * 3. Minimizes data transfer using Versioning
+ * Flow:
+ * localStorage (∞) → version check every 30 mins (ONE call) → Redis (30d)
+ * On mutation → invalidateAuthSessionCache() nukes both stores
  */
 export function useSmartSession(initialDataFromServer?: any) {
     const queryClient = useQueryClient();
@@ -20,29 +41,33 @@ export function useSmartSession(initialDataFromServer?: any) {
         queryKey: [CACHE_KEY],
         queryFn: async () => {
             const cached = chatCache.get<any>(CACHE_KEY);
-            const clientVersion = cached?.version;
 
-            // Call our "Smart" Server Action
-            const result = await getAuthSessionAction(clientVersion);
-
-            // Handle server "not-modified" response
-            if (result.status === "not-modified" && cached?.data) {
-                console.log(`[Auth] 💓 Heartbeat: Version Match. Using cache.`);
+            // ✅ RULE: localStorage hit + within 30-min window → NO server call at all
+            if (!shouldRunVersionCheck() && cached?.data) {
+                console.log(`[Auth] ⚡ <30min window: Serving from localStorage, skipping network`);
                 return cached.data;
             }
 
-            // Fresh data received -> Update LocalStorage
+            // ✅ 30 mins passed → ONE version check via server action (hits Redis)
+            const clientVersion = cached?.version;
+            const result = await getAuthSessionAction(clientVersion);
+            markVersionChecked(); // stamp immediately so concurrent calls don't double-fire
+
+            // Version match → touch localStorage, return cached (no data transfer)
+            if (result.status === "not-modified" && cached?.data) {
+                console.log(`[Auth] 💓 Heartbeat: Version match. localStorage is fresh.`);
+                chatCache.touch(CACHE_KEY); // refresh timestamp, keep data intact
+                return cached.data;
+            }
+
+            // Fresh data from Redis/DB → update localStorage (∞) 
             if (result.data !== undefined) {
-                console.log(`[Auth] 🛰️ Sync: New session data received (v${result.version})`);
-                
+                console.log(`[Auth] 🛰️ Sync: New session received (v${result.version})`);
+
                 if (clientVersion && clientVersion !== result.version) {
-                    console.warn(`%c[Auth] Global version mismatch detected! Syncing...`, "color: #ef4444; font-weight: bold");
-                    
+                    console.warn(`%c[Auth] Version mismatch! Busting all caches...`, "color: #ef4444; font-weight: bold");
                     const uid = result.data?.user?.id || cached?.data?.user?.id;
-                    if (uid) {
-                        chatCache.invalidateUserDashboardData(uid);
-                    }
-                    
+                    if (uid) chatCache.invalidateUserDashboardData(uid);
                     chatCache.invalidateAllCourseData();
                     queryClient.invalidateQueries({ queryKey: ["user_dashboard"] });
                     queryClient.invalidateQueries({ queryKey: ["course_detail"] });
@@ -50,38 +75,46 @@ export function useSmartSession(initialDataFromServer?: any) {
                     queryClient.invalidateQueries({ queryKey: ["available_courses"] });
                 }
 
-                chatCache.set(CACHE_KEY, result.data, undefined, result.version, 30 * 24 * 60 * 60 * 1000);
+                // localStorage = ∞, Redis TTL managed server-side (30 days)
+                chatCache.set(CACHE_KEY, result.data, undefined, result.version, LOCAL_TTL);
                 return result.data;
             }
 
-            return null;
+            return cached?.data ?? null;
         },
+
+        // ✅ Instant hydration: sync localStorage read before first render
         initialData: () => {
-            if (typeof window === "undefined") return undefined;
+            if (typeof window === "undefined") return initialDataFromServer ?? undefined;
             const cached = chatCache.get<any>(CACHE_KEY);
             if (cached?.data) {
-                console.log(`[Auth] ⚡ Instant Hydration from LocalStorage`);
+                console.log(`[Auth] ⚡ Instant Hydration from localStorage`);
                 return cached.data;
             }
-            return undefined;
+            return initialDataFromServer ?? undefined;
         },
+
+        // ✅ CRITICAL: must point to last VERSION CHECK time, not cache write time
+        // This makes React Query's staleTime clock align with your 30-min gate
         initialDataUpdatedAt: () => {
             if (typeof window === "undefined") return undefined;
-            return chatCache.get<any>(CACHE_KEY)?.timestamp;
+            const lastCheck = localStorage.getItem(VERSION_CHECK_LS_KEY);
+            return lastCheck ? parseInt(lastCheck) : chatCache.get<any>(CACHE_KEY)?.timestamp;
         },
-        staleTime: HEARTBEAT_INTERVAL,
-        refetchInterval: HEARTBEAT_INTERVAL,
-        refetchOnWindowFocus: true,
-        refetchOnMount: true,
+
+        staleTime: HEARTBEAT_INTERVAL,       // RQ won't call queryFn within 30 mins
+        refetchInterval: HEARTBEAT_INTERVAL, // background heartbeat every 30 mins
+        refetchOnWindowFocus: false,         // ✅ FIXED: was bypassing 30-min gate on tab switch
+        refetchOnMount: false,               // ✅ FIXED: was bypassing 30-min gate on every mount
     });
 
     useEffect(() => {
         setIsMounted(true);
 
-        // Cross-tab Synchronization
+        // Cross-tab: listen for mutation signal (VERSION_CHECK_LS_KEY removal = mutation happened)
         const handleStorage = (e: StorageEvent) => {
-            if (e.key?.includes(CACHE_KEY)) {
-                console.log(`[Auth] 🔄 Cross-tab Sync: Invalidation detected`);
+            if (e.key === VERSION_CHECK_LS_KEY && e.newValue === null) {
+                console.log(`[Auth] 🔄 Cross-tab: Mutation detected, re-syncing`);
                 queryClient.invalidateQueries({ queryKey: [CACHE_KEY] });
             }
         };
@@ -95,6 +128,6 @@ export function useSmartSession(initialDataFromServer?: any) {
         user: session?.user || null,
         isLoading: (isLoading && !session) || (!isMounted && !session && !initialDataFromServer),
         isSyncing: isLoading,
-        refetch
+        refetch,
     };
-}  
+}

@@ -192,9 +192,10 @@ export async function invalidateAllAdminCache() {
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST}:enrolled`),
         invalidateCache("admin:admins:list"),
         invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:chart`),
 
         // 2. Increment Version Triggers
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),

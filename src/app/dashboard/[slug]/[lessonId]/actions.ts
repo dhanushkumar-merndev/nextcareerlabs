@@ -65,7 +65,6 @@ export async function markLessonComplete(
         invalidateCache(`user:dashboard:${session.id}`),
         invalidateCache(`user:sidebar:${session.id}:${slug}`),
         invalidateCache(`user:lesson:${session.id}:${lessonId}`),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
     ]);
@@ -283,7 +282,6 @@ export async function submitQuizAttempt(
       invalidateCache(`user:dashboard:${session.id}`),
       invalidateCache(`user:sidebar:${session.id}:${slug}`),
       invalidateCache(`user:lesson:${session.id}:${lessonId}`),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
     ]);

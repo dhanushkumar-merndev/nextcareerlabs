@@ -18,11 +18,13 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
+import { useRouter } from "next/navigation";
 
 
 export function AdminDashboardClient() {
     const [mounted, setMounted] = useState(false);
     const hasLogged = useRef(false);
+    const router=useRouter()
     
     useEffect(() => {
         setMounted(true);
@@ -42,7 +44,7 @@ export function AdminDashboardClient() {
         const handleStorageChange = (e: StorageEvent) => {
             if (e.key?.includes("admin_dashboard_all")) {
                 console.log(`[Dashboard] Cross-Tab Sync: LocalStorage updated. Refreshing...`);
-                window.location.reload();
+                router.refresh()
             }
         };
         window.addEventListener('storage', handleStorageChange);

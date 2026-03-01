@@ -37,9 +37,9 @@ export async function adminGetDashboardStats(clientVersion?: string) {
   console.log(`[adminGetDashboardStats] Redis Cache MISS. Fetching from Prisma DB...`);
   const startTime = Date.now();
   
-  const [totalUsers, enrolledUsers, totalCourses, totalLessons] = await Promise.all([
+  const [totalUsers, totalSubscriptions, totalCourses, totalLessons] = await Promise.all([
     prisma.user.count(),
-    prisma.user.count({ where: { enrollment: { some: {} } } }),
+    prisma.enrollment.count({ where: { status: 'Granted' } }),
     prisma.course.count(),
     prisma.lesson.count(),
   ]);
@@ -49,7 +49,7 @@ export async function adminGetDashboardStats(clientVersion?: string) {
 
   const stats = {
     totalUsers,
-    enrolledUsers,
+    totalSubscriptions,
     totalCourses,
     totalLessons,
   };

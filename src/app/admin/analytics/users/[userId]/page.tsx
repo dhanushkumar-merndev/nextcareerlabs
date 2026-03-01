@@ -8,6 +8,7 @@ interface PageProps {
 
 export default async function UserAnalyticsPage({ params }: PageProps) {
     const { userId } = await params;
+    console.log(`[AdminPage] Accessing User Analytics Profile: ${userId}`);
     
     return (
         <UserAnalyticsClient 

@@ -70,6 +70,10 @@ export const chatCache = {
     if (typeof window === "undefined") return;
     const adminKeys = [
       "admin_analytics",
+      "admin_static_analytics",
+      "admin_analytics_growth",
+      "admin_success_rate",
+      "admin_analytics_version",
       "admin_dashboard_all",
       "admin_recent_courses",
       "admin_courses_list",
@@ -77,7 +81,16 @@ export const chatCache = {
       "admin_resource_page",
     ];
     adminKeys.forEach((key) => chatCache.invalidate(key));
-    console.log("[chatCache] Admin data invalidated from local storage.");
+
+    // Clear all participant caches as well
+    const allKeys = secureStorage.keysByPrefix(STORAGE_PREFIX);
+    allKeys.forEach(origKey => {
+        if (origKey.includes("participants_")) {
+            secureStorage.removeItemTracked(origKey);
+        }
+    });
+
+    console.log("[chatCache] Admin data and participants invalidated from local storage.");
   },
   invalidateUserDashboardData: (userId: string) => {
     if (typeof window === "undefined") return;

@@ -26,10 +26,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
 import Loader from "@/components/ui/Loader";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
+import { useRouter } from "next/navigation";
 
 // Analytics Client Component
 export function AnalyticsClient() {
-
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const hasLogged = useRef(false);
 
@@ -46,14 +47,15 @@ export function AnalyticsClient() {
 
     // Cross-Tab Sync
     const handleStorageChange = (e: StorageEvent) => {
-        if (e.key?.includes("admin_analytics")) {
-            console.log(`[Analytics] Cross-Tab Sync: Updating dashboard...`);
-            window.location.reload();
+        const syncKeys = ["admin_analytics", "admin_static_analytics", "admin_analytics_growth", "admin_success_rate"];
+        if (syncKeys.some(key => e.key?.includes(key))) {
+            console.log(`[Analytics] Cross-Tab Sync: Updating dashboard via router.refresh()...`);
+            router.refresh(); // Server-side refresh
         }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+  }, [router]);
 
   const getTime = () => new Date().toLocaleTimeString();
 
@@ -128,7 +130,9 @@ export function AnalyticsClient() {
       if (typeof window === "undefined") return undefined;
       return chatCache.get<any>("admin_success_rate")?.data;
     },
-    staleTime: 3600000,
+    staleTime: 1800000,
+    refetchInterval: 1800000, 
+    refetchOnWindowFocus: true,
   });
 
   const successRate = successRateRaw as { value: number; lastUpdated: string } | null;
@@ -180,9 +184,9 @@ export function AnalyticsClient() {
         />
         <AnalyticsCard
           title="Shared Resources"
-          value={`${staticData.totalResources}`}
+          value={`${staticData.totalPdfs} & ${staticData.totalImages}`}
           icon="file-text"
-          description="Total PDF & file uploads shared"
+          description="Total PDF & Images shared in chats"
         />
       </div>
        {/* Growth Chart */}

@@ -216,7 +216,6 @@ export function AdminCoursesClient() {
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     staleTime: 1800000, 
     refetchInterval: 1800000, 
-    refetchOnWindowFocus: true,
   });
 
   const courses = data?.pages.flatMap((p) => p.courses) || [];

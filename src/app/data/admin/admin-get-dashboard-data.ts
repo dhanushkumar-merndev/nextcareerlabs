@@ -68,13 +68,13 @@ export async function adminGetDashboardData(clientVersions?: AdminDashboardVersi
     }
 
     const dbStart = Date.now();
-    const [totalUsers, enrolledUsers, totalCourses, totalLessons] = await Promise.all([
+    const [totalUsers, totalSubscriptions, totalCourses, totalLessons] = await Promise.all([
       prisma.user.count(),
-      prisma.user.count({ where: { enrollment: { some: {} } } }),
+      prisma.enrollment.count({ where: { status: 'Granted' } }),
       prisma.course.count(),
       prisma.lesson.count(),
     ]);
-    const data = { totalUsers, enrolledUsers, totalCourses, totalLessons };
+    const data = { totalUsers, totalSubscriptions, totalCourses, totalLessons };
     console.log(`[Dashboard] Stats: DB Fetch took ${Date.now() - dbStart}ms (v${finalV.stats})`);
     
     await setCache(cacheKey, data, 2592000);
@@ -98,7 +98,7 @@ export async function adminGetDashboardData(clientVersions?: AdminDashboardVersi
     const raw: any[] = await prisma.$queryRaw`
       SELECT DATE_TRUNC('day', "createdAt") as date, count(*)::int as count
       FROM "Enrollment"
-      WHERE "createdAt" >= ${startDate}
+      WHERE "createdAt" >= ${startDate} AND "status" = 'Granted'
       GROUP BY DATE_TRUNC('day', "createdAt")
       ORDER BY date ASC
     `;
