@@ -97,18 +97,21 @@ export const chatCache = {
     
     // ✅ chatCache.invalidate builds the storage key internally
     const keys = [
-        `user_dashboard_${userId}`,
-        `user_enrolled_courses_${userId}`,
-        `available_courses_${userId}`,
-        `user_needs_sync`,
-        `all_courses`,
-        `my_courses_${userId}`,
-        `user_resources_${userId}`,
-        `user_resources_access_${userId}`,
-        `enrolled_courses_${userId}`,
-        `user_chat_sidebar`,
+        "user_dashboard",
+        "user_enrolled_courses",
+        "available_courses",
+        "user_needs_sync",
+        "all_courses",
+        "my_courses",
+        "user_resources",
+        "user_resources_access",
+        "enrolled_courses",
     ];
-    keys.forEach(key => chatCache.invalidate(key, userId));
+    keys.forEach(key => {
+        // "all_courses" is generic (no userId prefix)
+        if (key === "all_courses") chatCache.invalidate(key);
+        else chatCache.invalidate(key, userId);
+    });
 },
 
   invalidateAllCourseData: () => {

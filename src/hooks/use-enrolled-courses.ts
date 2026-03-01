@@ -5,7 +5,7 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
   const getCached = () => {
     if (typeof window === "undefined" || !userId) return undefined;
-    return chatCache.get<any>(`user_enrolled_courses_${userId}`, userId) ?? undefined;
+    return chatCache.get<any>("user_enrolled_courses", userId) ?? undefined;
   };
 
   const query = useQuery({
@@ -13,7 +13,7 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
     queryFn: async () => {
       if (!userId) return [];
 
-      const cacheKey = `user_enrolled_courses_${userId}`;
+      const cacheKey = "user_enrolled_courses";
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
@@ -47,11 +47,12 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
     },
     enabled: !!userId && !sessionLoading,
     initialData: () => getCached()?.data?.enrollments,
-    initialDataUpdatedAt: () => getCached()?.timestamp,
+    initialDataUpdatedAt: typeof window !== "undefined" && userId 
+      ? chatCache.get<any>("user_enrolled_courses", userId)?.timestamp 
+      : undefined,
     staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
-    refetchOnMount: true
   });
 
   return {

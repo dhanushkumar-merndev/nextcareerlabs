@@ -23,7 +23,7 @@ export function ResourcesClient() {
         queryFn: async () => {
             if (!userId) return false;
 
-            const cacheKey = `user_resources_access_${userId}`;
+            const cacheKey = "user_resources_access";
             const cached = chatCache.get<boolean>(cacheKey, userId);
             
             // Tiered Fetch
@@ -51,15 +51,14 @@ export function ResourcesClient() {
         enabled: !!userId,
         initialData: () => {
             if (typeof window === "undefined" || !userId) return undefined;
-            return chatCache.get<boolean>(`user_resources_access_${userId}`, userId)?.data;
+            return chatCache.get<boolean>("user_resources_access", userId)?.data;
         },
         initialDataUpdatedAt: typeof window !== "undefined" && userId 
-      ? chatCache.get<boolean>(`user_resources_access_${userId}`, userId)?.timestamp 
-      : undefined,
-    staleTime: 1800000, // 30 mins
-    refetchInterval: 1800000, // 30 mins
-    refetchOnWindowFocus: true,
-    refetchOnMount: true
+            ? chatCache.get<boolean>("user_resources_access", userId)?.timestamp 
+            : undefined,
+        staleTime: 1800000, // 30 mins
+        refetchInterval: 1800000, // 30 mins
+        refetchOnWindowFocus: true,
     });
 
     if (!mounted || sessionLoading || checkingAccess) {
@@ -70,7 +69,7 @@ export function ResourcesClient() {
         );
     }
 
-    if (hasAccess === false) {
+    if (hasAccess === false && !checkingAccess && mounted) {
         redirect("/dashboard");
     }
 

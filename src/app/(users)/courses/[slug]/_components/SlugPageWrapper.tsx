@@ -110,7 +110,9 @@ const { data, isLoading } = useQuery({
                            key === "my_courses" ||
                            key === "all_courses" ||
                            key === "enrolled_courses" ||
+                           key === "user_enrolled_courses" ||
                            key === "user_resources_access" ||
+                           key === "user_resources" ||
                            key === "chat_sidebar";
                 }
             });

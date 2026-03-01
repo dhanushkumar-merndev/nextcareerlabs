@@ -109,8 +109,9 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
       // 🔹 Surgical Sync: Only clear Dashboard if enrollment actually changed 
       // or if another component explicitly requested a sync (needsSync)
       if (currentUserId && (enrollmentChanged || chatCache.needsSync(currentUserId))) {
+        console.log("[Chat] Enrollment change or sync requested. Invalidating dashboard data...");
         chatCache.invalidateUserDashboardData(currentUserId);
-        chatCache.clearSync(currentUserId); // Reset the needsSync flag
+        chatCache.clearSync(currentUserId); 
       }
       return result;
     }
@@ -142,7 +143,6 @@ export function ChatLayout({ isAdmin: propIsAdmin, currentUserId: propCurrentUse
     staleTime: 1800000, 
     refetchInterval: 1800000,
     refetchOnWindowFocus: false, 
-    refetchOnMount: false, 
   });
 
    const threads = (sidebarData as any)?.threads || [];

@@ -158,7 +158,6 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
     // Fetch function (handles search + pagination)
     queryFn: async ({ pageParam }) => {
-
       // SEARCH MODE → no cache optimization
       if (searchTitle) {
         const result = await getAllCoursesAction(
@@ -179,13 +178,9 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       }
 
       // NORMAL MODE → cache + cursor support
-      const cached = chatCache.get<any>(
-        "all_courses",
-        safeUserId
-      );
+      const cached = chatCache.get<any>("all_courses", safeUserId);
 
       // Send version only for first page
-      // chatCache.get returns { data, version, timestamp }
       const clientVersion = pageParam ? undefined : (cached?.version);
 
       console.info(`%c[Courses] SYNC CHECK: Version ${clientVersion || 'NONE'}`, "color: #eab308; font-weight: bold");
@@ -212,18 +207,13 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       // Persist merged courses + cursor
       if (!searchTitle) {
         const currentCache = chatCache.get<CoursesCacheWithCursor>("all_courses", safeUserId);
-        
         let mergedCourses: PublicCourseType[] = [];
         
         if (pageParam) {
-            // APPENDING: Only append if the cursor exists in our current list to avoid gaps
             const existingIds = new Set((currentCache?.data.data ?? []).map(c => c.id));
             const newUniqueCourses = result.courses.filter(c => !existingIds.has(c.id));
-            
             mergedCourses = [...(currentCache?.data.data ?? []), ...newUniqueCourses];
         } else {
-            // FIRST PAGE FETCH: 
-            // If the server gave us FRESH 'data' for page 1, we reset the scroll to be safe.
             mergedCourses = result.courses;
         }
 
@@ -239,36 +229,40 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
           PERMANENT_TTL
         );
 
-        // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change (e.g. Approved)
+        // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change
         if (safeUserId) {
             const oldData = currentCache?.data?.data || [];
-triggerIfStatusChanged(oldData, result.courses);
+            if (typeof triggerIfStatusChanged === 'function') {
+                triggerIfStatusChanged(oldData, result.courses);
+            }
+            
             const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
             const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
             
-           if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
-    chatCache.invalidateUserDashboardData(currentUserId);
-    
-    // ✅ ADD — triggers React Query refetch on dashboard/my-courses/resources
-    queryClient.invalidateQueries({
-        predicate: (query) => {
-            const key = query.queryKey[0] as string;
-            return key === "user_dashboard" ||
-                   key === "my_courses" ||
-                   key === "enrolled_courses" ||
-                   key === "user_resources_access" ||
-                   key === "chat_sidebar";
-        }
-    });
-}
-            chatCache.clearSync(safeUserId); 
+            if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
+                chatCache.invalidateUserDashboardData(safeUserId);
+                queryClient.invalidateQueries({
+                    predicate: (query) => {
+                        const key = query.queryKey[0] as string;
+                        return key === "user_dashboard" ||
+                               key === "my_courses" ||
+                               key === "all_courses" ||
+                               key === "enrolled_courses" ||
+                               key === "user_enrolled_courses" ||
+                               key === "user_resources_access" ||
+                               key === "user_resources" ||
+                               key === "chat_sidebar";
+                    }
+                });
+                chatCache.clearSync(safeUserId); 
+            }
         }
       }
 
       return {
         courses: result.courses,
         nextCursor: result.nextCursor,
-      };
+      } as CoursesPage;
     },
 
     // First page cursor

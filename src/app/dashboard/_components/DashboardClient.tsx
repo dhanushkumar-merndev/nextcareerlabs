@@ -24,7 +24,7 @@ export function DashboardClient() {
     queryKey: ["user_dashboard", userId],
     queryFn: async () => {
       if (!userId) return null;
-      const cacheKey = `user_dashboard_${userId}`;
+      const cacheKey = "user_dashboard";
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
@@ -52,18 +52,14 @@ export function DashboardClient() {
     },
     initialData: () => {
       if (typeof window === "undefined" || !userId) return undefined;
-
-      const cacheKey = `user_dashboard_${userId}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-      return cached?.data;
+      return chatCache.get<any>("user_dashboard", userId)?.data;
     },
     initialDataUpdatedAt: typeof window !== "undefined" && userId 
-      ? chatCache.get<any>(`user_dashboard_${userId}`, userId)?.timestamp 
+      ? chatCache.get<any>("user_dashboard", userId)?.timestamp 
       : undefined,
     staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
-    refetchOnMount: true
   });
 
   if (!mounted || sessionLoading || (isLoading && !data)) {

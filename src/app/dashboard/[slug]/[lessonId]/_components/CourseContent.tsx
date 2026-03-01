@@ -698,7 +698,7 @@ export function CourseContent({ lessonId, userId}: iAppProps) {
     },
     staleTime: 1800000, // 30 mins
     refetchOnWindowFocus: true, 
-    refetchOnMount: true, 
+    refetchOnMount: false, // Trust source page
   });
 
   const rawData = lesson as any;
