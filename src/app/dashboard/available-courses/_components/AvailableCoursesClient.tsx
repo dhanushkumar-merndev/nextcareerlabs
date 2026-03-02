@@ -19,11 +19,10 @@ type CoursesPage = {
 export function AvailableCoursesClient() {
   const { session, isLoading: sessionLoading } = useSmartSession();
   const safeUserId = session?.user.id ?? undefined;
- const queryClient = useQueryClient();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
   const [mounted, setMounted] = useState(false);
-  const hasLogged = useRef(false);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.5,
@@ -52,63 +51,63 @@ export function AvailableCoursesClient() {
     string | null
   >({
     queryKey: [cacheKey, searchTitle],
-    
+
     placeholderData: (previousData) => {
-        // 🔹 1. Local filtering of previous search results for instant feel
-        if (previousData && searchTitle) {
-            const q = searchTitle.toLowerCase();
-            const filteredPages = previousData.pages.map(page => ({
-                ...page,
-                courses: page.courses.filter((c: any) => 
-                    c.title.toLowerCase().includes(q) || 
-                    (c.smallDescription?.toLowerCase().includes(q))
-                )
-            }));
-            
-            const hasMatches = filteredPages.some(p => p.courses.length > 0);
-            if (hasMatches) {
-                return {
-                    ...previousData,
-                    pages: filteredPages
-                } as InfiniteData<CoursesPage, string | null>;
-            }
+      // 🔹 1. Local filtering of previous search results for instant feel
+      if (previousData && searchTitle) {
+        const q = searchTitle.toLowerCase();
+        const filteredPages = previousData.pages.map(page => ({
+          ...page,
+          courses: page.courses.filter((c: any) =>
+            c.title.toLowerCase().includes(q) ||
+            (c.smallDescription?.toLowerCase().includes(q))
+          )
+        }));
+
+        const hasMatches = filteredPages.some(p => p.courses.length > 0);
+        if (hasMatches) {
+          return {
+            ...previousData,
+            pages: filteredPages
+          } as InfiniteData<CoursesPage, string | null>;
         }
+      }
 
-        if (previousData) return previousData;
-        if (!mounted || sessionLoading) return undefined;
+      if (previousData) return previousData;
+      if (!mounted || sessionLoading) return undefined;
 
-        // 🔹 2. Local filtering of global cache for first paint search
-        if (searchTitle && cached) {
-            const q = searchTitle.toLowerCase();
-            const filtered = cached.data.data.filter((c: any) => 
-                c.title.toLowerCase().includes(q)
-            );
-            
-            if (filtered.length > 0) {
-                return {
-                    pages: [{
-                        courses: filtered.slice(0, 9),
-                        nextCursor: null,
-                        total: filtered.length
-                    }],
-                    pageParams: [null]
-                } as InfiniteData<CoursesPage, string | null>;
-            }
+      // 🔹 2. Local filtering of global cache for first paint search
+      if (searchTitle && cached) {
+        const q = searchTitle.toLowerCase();
+        const filtered = cached.data.data.filter((c: any) =>
+          c.title.toLowerCase().includes(q)
+        );
+
+        if (filtered.length > 0) {
+          return {
+            pages: [{
+              courses: filtered.slice(0, 9),
+              nextCursor: null,
+              total: filtered.length
+            }],
+            pageParams: [null]
+          } as InfiniteData<CoursesPage, string | null>;
         }
+      }
 
-        // 🔹 3. NORMAL MODE → Show cached first page
-        if (!searchTitle && cached) {
-            return {
-                pages: [{
-                    courses: cached.data.data.slice(0, 9),
-                    nextCursor: cached.data.nextCursor,
-                    total: cached.data.data.length
-                }],
-                pageParams: [null]
-            };
-        }
+      // 🔹 3. NORMAL MODE → Show cached first page
+      if (!searchTitle && cached) {
+        return {
+          pages: [{
+            courses: cached.data.data.slice(0, 9),
+            nextCursor: cached.data.nextCursor,
+            total: cached.data.data.length
+          }],
+          pageParams: [null]
+        };
+      }
 
-        return undefined;
+      return undefined;
     },
 
 
@@ -168,12 +167,12 @@ export function AvailableCoursesClient() {
       // Persist merged courses + cursor to local storage
       if (!searchTitle) {
         let mergedCourses: PublicCourseType[] = [];
-        
+
         if (pageParam) {
           // APPENDING: Only append if the cursor exists in our current list to avoid gaps
           const existingIds = new Set((currentCache?.data.data ?? []).map(c => c.id));
           const newUniqueCourses = result.courses.filter(c => !existingIds.has(c.id));
-          
+
           mergedCourses = [...(currentCache?.data.data ?? []), ...newUniqueCourses];
         } else {
           // FIRST PAGE FETCH: Reset with fresh data
@@ -194,27 +193,27 @@ export function AvailableCoursesClient() {
 
         // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change (e.g. Approved)
         if (safeUserId) {
-            const oldData = currentCache?.data?.data || [];
-            const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
-            const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
-            
-            if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
-                console.log(`%c[AvailableCourses] Status change detected! Triggering broad cache clearance and reload.`, "color: #9333ea; font-weight: bold");
-                chatCache.invalidateUserDashboardData(safeUserId);
-                
-               queryClient.invalidateQueries({
-    predicate: (query) => {
-        const key = query.queryKey[0] as string;
-        return key === "user_dashboard" ||
-               key === "my_courses" ||
-               key === "enrolled_courses" ||
-               key === "user_resources" ||
-               key === "chat_sidebar" ||
-               key.startsWith("available_courses");
-    }
-}); 
-            }
-            chatCache.clearSync(safeUserId); 
+          const oldData = currentCache?.data?.data || [];
+          const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
+          const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
+
+          if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
+            console.log(`%c[AvailableCourses] Status change detected! Triggering broad cache clearance and reload.`, "color: #9333ea; font-weight: bold");
+            chatCache.invalidateUserDashboardData(safeUserId);
+
+            queryClient.invalidateQueries({
+              predicate: (query) => {
+                const key = query.queryKey[0] as string;
+                return key === "user_dashboard" ||
+                  key === "my_courses" ||
+                  key === "enrolled_courses" ||
+                  key === "user_resources" ||
+                  key === "chat_sidebar" ||
+                  key.startsWith("available_courses");
+              }
+            });
+          }
+          chatCache.clearSync(safeUserId);
         }
       }
 
@@ -227,27 +226,27 @@ export function AvailableCoursesClient() {
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     initialData: () => {
-        if (!searchTitle && typeof window !== "undefined") {
-            const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
-            if (cached) {
-                return {
-                    pages: [{
-                        courses: cached.data.data,
-                        nextCursor: cached.data.nextCursor || null,
-                        total: cached.data.data.length
-                    }],
-                    pageParams: [null]
-                };
-            }
+      if (!searchTitle && typeof window !== "undefined") {
+        const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);
+        if (cached) {
+          return {
+            pages: [{
+              courses: cached.data.data,
+              nextCursor: cached.data.nextCursor || null,
+              total: cached.data.data.length
+            }],
+            pageParams: [null]
+          };
         }
-        return undefined;
+      }
+      return undefined;
     },
     initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle
-        ? chatCache.get<any>(cacheKey, safeUserId)?.timestamp
-        : undefined,
+      ? chatCache.get<any>(cacheKey, safeUserId)?.timestamp
+      : undefined,
     staleTime: (() => {
-        if (safeUserId && (chatCache.needsSync(safeUserId) || chatCache.hasAnyPending(safeUserId))) return 0;
-        return 1800000; // 30 mins
+      if (safeUserId && (chatCache.needsSync(safeUserId) || chatCache.hasAnyPending(safeUserId))) return 0;
+      return 1800000; // 30 mins
     })(),
     refetchOnWindowFocus: true,
     refetchOnMount: true,

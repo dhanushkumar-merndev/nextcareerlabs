@@ -59,7 +59,7 @@ export async function adminGetEnrollmentRequests(
 
   // Redis Search Cache (5 min TTL)
   const searchCacheKey = search ? `admin:enrollments:search:${search.toLowerCase()}:${status || 'All'}:${skip}:${take}` : null;
-  
+
   if (searchCacheKey) {
     const cached = await getCache<{ data: any[], totalCount: number }>(searchCacheKey);
     if (cached) {

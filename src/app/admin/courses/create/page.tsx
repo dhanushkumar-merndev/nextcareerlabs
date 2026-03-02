@@ -94,7 +94,7 @@ export default function CourseCreationPage() {
         if (user?.id) {
           chatCache.invalidate(`all_courses_${user.id}`);
           chatCache.invalidate(`available_courses_${user.id}`);
-          
+
           // Also invalidate the base keys with userId prefix (handled by chatCache helper)
           chatCache.invalidate("all_courses", user.id);
           chatCache.invalidate("available_courses", user.id);
@@ -103,7 +103,7 @@ export default function CourseCreationPage() {
           chatCache.invalidate(`available_courses_${user.id}`, user.id);
           chatCache.invalidate(`all_courses_${user.id}`, user.id);
         }
-        
+
         // Always invalidate guest versions
         chatCache.invalidate("all_courses");
         chatCache.invalidate("available_courses");

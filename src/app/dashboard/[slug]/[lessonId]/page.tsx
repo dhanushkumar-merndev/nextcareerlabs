@@ -19,9 +19,9 @@ export default async function LessonContentPage({
 
   return (
     <Suspense fallback={<LessonContentSkeleton />}>
-      <CourseContent 
-        lessonId={lessonId} 
-        userId={user.id} 
+      <CourseContent
+        lessonId={lessonId}
+        userId={user.id}
       />
     </Suspense>
   );

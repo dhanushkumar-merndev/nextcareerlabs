@@ -10,7 +10,7 @@ export function LessonContentSkeleton() {
           <div className="aspect-video relative md:rounded-lg rounded-none overflow-hidden bg-muted border md:border-border border-transparent">
             <Skeleton className="w-full h-full" />
             <div className="absolute inset-0 flex items-center justify-center">
-                <Loader size={32} />
+              <Loader size={32} />
             </div>
           </div>
         </div>
@@ -22,8 +22,8 @@ export function LessonContentSkeleton() {
 
         {/* Mobile Header Buttons */}
         <div className="md:hidden order-2 flex items-center justify-between py-4 bg-background px-4">
-           <Skeleton className="h-9 w-32 rounded-full" />
-           <Skeleton className="size-10 rounded-full" />
+          <Skeleton className="h-9 w-32 rounded-full" />
+          <Skeleton className="size-10 rounded-full" />
         </div>
 
         {/* Action Buttons Row */}

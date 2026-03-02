@@ -34,7 +34,7 @@ export function ChapterExpansion({ chapter, children }: ChapterExpansionProps) {
                             </p>
                         </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-3">
                         <div className="px-2.5 py-1 rounded-md bg-muted/5 border border-border/10 hidden sm:block">
                             <span className="text-[10px] font-bold text-muted-foreground/60">
@@ -47,7 +47,7 @@ export function ChapterExpansion({ chapter, children }: ChapterExpansionProps) {
                     </div>
                 </div>
             </CollapsibleTrigger>
-            
+
             <CollapsibleContent>
                 <div className="px-5 pb-5 flex flex-col gap-2">
                     <div className="h-px bg-border/5 mb-2" />

@@ -1,5 +1,6 @@
-"use client";
+/* This component is used to navigate to user dashboard or admin dashboard based on role */
 
+"use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";

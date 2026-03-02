@@ -1,8 +1,8 @@
-"use client";
+/* This component is used to display the testimonials */
 
+"use client";
 import { useState } from "react";
 import Image from "next/image";
-
 import { Testimonial } from "@/lib/types/components";
 
 /* ================= DATA ================= */
@@ -146,9 +146,8 @@ export default function TestimonialMasonry() {
         {/* ── Grid ── */}
         <div className="relative">
           <div
-            className={`columns-1 sm:columns-2 lg:columns-3 gap-6 transition-[max-height] duration-500 ${
-              !showAll ? "max-h-[540px] md:max-h-[860px] overflow-hidden" : ""
-            }`}
+            className={`columns-1 sm:columns-2 lg:columns-3 gap-6 transition-[max-height] duration-500 ${!showAll ? "max-h-[540px] md:max-h-[860px] overflow-hidden" : ""
+              }`}
           >
             {testimonials.map((t) => (
               <TestimonialCard key={t.id} t={t} />

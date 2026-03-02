@@ -13,14 +13,15 @@ import { Search, Loader2, X } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
+// This component is used to search for courses for user
 export function CourseSearch() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-
   const [value, setValue] = useState(searchParams.get("title") || "");
 
+  // This useEffect is used to update the search value when the URL query param changes
   useEffect(() => {
     const urlValue = searchParams.get("title") || "";
     if (urlValue !== value && !isPending) {
@@ -28,6 +29,7 @@ export function CourseSearch() {
     }
   }, [searchParams, value, isPending]);
 
+  // This useEffect is used to update the search value when the URL query param changes
   useEffect(() => {
     const timer = setTimeout(() => {
       const currentTitle = searchParams.get("title") || "";
@@ -51,13 +53,16 @@ export function CourseSearch() {
     return () => clearTimeout(timer);
   }, [value, router, pathname, searchParams]);
 
+  // This function is used to clear the search value
   const onClear = () => {
     setValue("");
   };
 
   return (
     <div className="relative w-full md:w-[320px] group">
+      {/* This is the search input for courses */}
       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+      {/* This is the input for courses */}
       <Input
         type="text"
         placeholder="Search courses..."

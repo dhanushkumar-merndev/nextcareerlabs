@@ -1,5 +1,6 @@
-"use client";
+/* This component is used to display the home page */
 
+"use client";
 import dynamic from "next/dynamic";
 
 /* Client-only lazy components */

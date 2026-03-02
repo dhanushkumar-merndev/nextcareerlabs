@@ -50,10 +50,10 @@ export async function POST(request: Request) {
     const results = await Promise.all(
       items.map(async (item) => {
         const { fileName, contentType, size, isKeyDirect, customKey, prefix, isImage } = item;
-        
+
         // Generate the base filename
         const baseFileName = `${uuidv4()}-${fileName}`;
-        
+
         // Construct the full key: folder/prefix + baseFileName
         let key = isKeyDirect && customKey ? customKey : baseFileName;
         if (!isKeyDirect && prefix) {
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
           key = `${cleanPrefix}/${baseFileName}`;
         }
 
-        const bucketName = isImage 
-          ? env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES 
+        const bucketName = isImage
+          ? env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES
           : env.S3_BUCKET_NAME;
 
         const command = new PutObjectCommand({

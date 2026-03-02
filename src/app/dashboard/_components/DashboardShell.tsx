@@ -8,10 +8,10 @@ import { SidebarInset } from "@/components/ui/sidebar";
 import { SiteHeader } from "@/components/sidebar/site-header";
 import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 
-export function DashboardShell({ 
+export function DashboardShell({
   children,
   isEnrolledHint
-}: { 
+}: {
   children: React.ReactNode;
   isEnrolledHint?: boolean;
 }) {
@@ -37,7 +37,7 @@ export function DashboardShell({
       const actualEnrollment = enrolledCourses.length > 0;
       if (actualEnrollment !== isEnrolled) {
         setIsEnrolled(actualEnrollment);
-        
+
         // PERSISTENCE FIX: Sync the cookie from the client too
         if (typeof document !== 'undefined') {
           document.cookie = `is_enrolled=${actualEnrollment}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;

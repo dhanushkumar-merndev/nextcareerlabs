@@ -48,11 +48,11 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
     const logKey = `all_courses_${safeUserId || 'guest'}`;
     if (hasLogged.current !== logKey) {
-        const cached = chatCache.get<any>("all_courses", safeUserId);
-        if (cached) {
-            console.log(`%c[Courses] LOCAL HIT (v${cached.version || cached.data?.version}) from storage`, "color: #eab308; font-weight: bold");
-        }
-        hasLogged.current = logKey;
+      const cached = chatCache.get<any>("all_courses", safeUserId);
+      if (cached) {
+        console.log(`%c[Courses] LOCAL HIT (v${cached.version || cached.data?.version}) from storage`, "color: #eab308; font-weight: bold");
+      }
+      hasLogged.current = logKey;
     }
   }, [safeUserId]);
 
@@ -71,10 +71,10 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   // This ensures we check Redis on page open for pending users, but avoid hits on instant hard refresh.
   const hasPending = safeUserId ? chatCache.hasAnyPending(safeUserId) : false;
   const needsSync = safeUserId ? chatCache.needsSync(safeUserId) : false;
-  
+
   const dynamicStaleTime = (hasPending || needsSync) ? 0 : 30 * 60 * 1000;
 
-  
+
   const {
     data,
     isLoading,
@@ -94,67 +94,67 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
     // Seed data from cache for instant refresh (background revalidation)
     placeholderData: (previousData) => {
-        if (previousData) return previousData;
-        
-        // 🔹 SEARCH MODE → Try to show whatever we have in cache first
-        if (searchTitle && cached) {
-            const q = searchTitle.toLowerCase();
-            const filtered = cached.data.data.filter((c: any) => 
-                c.title.toLowerCase().includes(q)
-            ).slice(0, 9);
-            
-            return {
-                pages: [{
-                    courses: filtered,
-                    nextCursor: null
-                }],
-                pageParams: [null]
-            };
-        }
+      if (previousData) return previousData;
 
-        // 🔹 NORMAL MODE → Show cached first page
-        if (!searchTitle && cached) {
-            return {
-                pages: [{
-                    courses: cached.data.data || cached.data,
-                    nextCursor: cached.data.nextCursor || null
-                }],
-                pageParams: [null]
-            };
-        }
+      // 🔹 SEARCH MODE → Try to show whatever we have in cache first
+      if (searchTitle && cached) {
+        const q = searchTitle.toLowerCase();
+        const filtered = cached.data.data.filter((c: any) =>
+          c.title.toLowerCase().includes(q)
+        ).slice(0, 9);
 
-        return undefined;
+        return {
+          pages: [{
+            courses: filtered,
+            nextCursor: null
+          }],
+          pageParams: [null]
+        };
+      }
+
+      // 🔹 NORMAL MODE → Show cached first page
+      if (!searchTitle && cached) {
+        return {
+          pages: [{
+            courses: cached.data.data || cached.data,
+            nextCursor: cached.data.nextCursor || null
+          }],
+          pageParams: [null]
+        };
+      }
+
+      return undefined;
     },
 
     // 🔹 USES SERVER DATA FOR FIRST PAINT (if guest or no cache)
     initialData: () => {
-        if (!searchTitle && initialData && initialData.status === "data") {
-            console.log(`[Courses] SERVER HIT (First Load)`);
-            return {
-                pages: [{
-                    courses: initialData.courses,
-                    nextCursor: initialData.nextCursor,
-                }],
-                pageParams: [null]
-            };
-        }
-        
-        // Fallback to cache even in initialData to prevent flickering
-        if (!searchTitle && typeof window !== "undefined" && cached) {
-            return {
-                pages: [{
-                    courses: cached.data.data || cached.data,
-                    nextCursor: cached.data.nextCursor || null
-                }],
-                pageParams: [null]
-            };
-        }
-        return undefined;
+      if (!searchTitle && initialData && initialData.status === "data") {
+        console.log(`[Courses] SERVER HIT (First Load)`);
+        return {
+          pages: [{
+            courses: initialData.courses,
+            nextCursor: initialData.nextCursor,
+          }],
+          pageParams: [null]
+        };
+      }
+
+      // Fallback to cache even in initialData to prevent flickering
+      if (!searchTitle && typeof window !== "undefined" && cached) {
+        return {
+          pages: [{
+            courses: cached.data.data || cached.data,
+            nextCursor: cached.data.nextCursor || null
+          }],
+          pageParams: [null]
+        };
+      }
+      return undefined;
     },
 
     initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle
-        ? cached?.timestamp
-        : undefined,
+      ? cached?.timestamp
+      : undefined,
 
     // Fetch function (handles search + pagination)
     queryFn: async ({ pageParam }) => {
@@ -208,13 +208,13 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       if (!searchTitle) {
         const currentCache = chatCache.get<CoursesCacheWithCursor>("all_courses", safeUserId);
         let mergedCourses: PublicCourseType[] = [];
-        
+
         if (pageParam) {
-            const existingIds = new Set((currentCache?.data.data ?? []).map(c => c.id));
-            const newUniqueCourses = result.courses.filter(c => !existingIds.has(c.id));
-            mergedCourses = [...(currentCache?.data.data ?? []), ...newUniqueCourses];
+          const existingIds = new Set((currentCache?.data.data ?? []).map(c => c.id));
+          const newUniqueCourses = result.courses.filter(c => !existingIds.has(c.id));
+          mergedCourses = [...(currentCache?.data.data ?? []), ...newUniqueCourses];
         } else {
-            mergedCourses = result.courses;
+          mergedCourses = result.courses;
         }
 
         chatCache.set(
@@ -231,31 +231,31 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
 
         // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change
         if (safeUserId) {
-            const oldData = currentCache?.data?.data || [];
-            if (typeof triggerIfStatusChanged === 'function') {
-                triggerIfStatusChanged(oldData, result.courses);
-            }
-            
-            const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
-            const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
-            
-            if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
-                chatCache.invalidateUserDashboardData(safeUserId);
-                queryClient.invalidateQueries({
-                    predicate: (query) => {
-                        const key = query.queryKey[0] as string;
-                        return key === "user_dashboard" ||
-                               key === "my_courses" ||
-                               key === "all_courses" ||
-                               key === "enrolled_courses" ||
-                               key === "user_enrolled_courses" ||
-                               key === "user_resources_access" ||
-                               key === "user_resources" ||
-                               key === "chat_sidebar";
-                    }
-                });
-                chatCache.clearSync(safeUserId); 
-            }
+          const oldData = currentCache?.data?.data || [];
+          if (typeof triggerIfStatusChanged === 'function') {
+            triggerIfStatusChanged(oldData, result.courses);
+          }
+
+          const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
+          const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
+
+          if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
+            chatCache.invalidateUserDashboardData(safeUserId);
+            queryClient.invalidateQueries({
+              predicate: (query) => {
+                const key = query.queryKey[0] as string;
+                return key === "user_dashboard" ||
+                  key === "my_courses" ||
+                  key === "all_courses" ||
+                  key === "enrolled_courses" ||
+                  key === "user_enrolled_courses" ||
+                  key === "user_resources_access" ||
+                  key === "user_resources" ||
+                  key === "chat_sidebar";
+              }
+            });
+            chatCache.clearSync(safeUserId);
+          }
         }
       }
 

@@ -1,10 +1,10 @@
 import { RequestsTable } from "./_components/RequestsTable";
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from "@/components/ui/card";
 
 export const dynamic = 'force-dynamic';

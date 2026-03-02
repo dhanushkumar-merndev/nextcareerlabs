@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { 
+import {
     adminGetDashboardDataAction,
 } from "../actions";
 
@@ -24,17 +24,17 @@ import { useRouter } from "next/navigation";
 export function AdminDashboardClient() {
     const [mounted, setMounted] = useState(false);
     const hasLogged = useRef(false);
-    const router=useRouter()
-    
+    const router = useRouter()
+
     useEffect(() => {
         setMounted(true);
-        
+
         if (!hasLogged.current) {
             const cached = chatCache.get<any>("admin_dashboard_all");
             if (cached) {
                 let statsV = "0";
                 if (cached?.version) {
-                    try { statsV = JSON.parse(cached.version).stats; } catch(e) {}
+                    try { statsV = JSON.parse(cached.version).stats; } catch (e) { }
                 }
                 console.log(`%c[AdminDashboard] LOCAL HIT (vStats:${statsV}). Rendering from storage.`, "color: #eab308; font-weight: bold");
             }
@@ -60,7 +60,7 @@ export function AdminDashboardClient() {
             const cached = chatCache.get<any>("admin_dashboard_all");
             let clientVersions: any;
             if (cached?.version) {
-                try { clientVersions = JSON.parse(cached.version); } catch(e) {}
+                try { clientVersions = JSON.parse(cached.version); } catch (e) { }
             }
 
             if (!cached) console.log(`[${getTime()}] [Dashboard] Cache MISS. Fetching all...`);
@@ -75,7 +75,7 @@ export function AdminDashboardClient() {
             if (result && (result as any).data) {
                 console.log(`[${getTime()}] [Dashboard] Result received. Updating cache.`);
                 // Store serialized versions in the single 'version' slot
-                chatCache.set("admin_dashboard_all", result.data, undefined, JSON.stringify(result.versions), PERMANENT_TTL); 
+                chatCache.set("admin_dashboard_all", result.data, undefined, JSON.stringify(result.versions), PERMANENT_TTL);
                 return result.data;
             }
             return cached?.data || null;
@@ -86,10 +86,10 @@ export function AdminDashboardClient() {
             return cached?.data;
         },
         initialDataUpdatedAt: typeof window !== "undefined"
-          ? chatCache.get<any>("admin_dashboard_all")?.timestamp
-          : undefined,
-        staleTime: 1800000, 
-        refetchInterval: 1800000, 
+            ? chatCache.get<any>("admin_dashboard_all")?.timestamp
+            : undefined,
+        staleTime: 1800000,
+        refetchInterval: 1800000,
         refetchOnWindowFocus: true,
     });
 
@@ -127,9 +127,9 @@ export function AdminDashboardClient() {
                 <div className="flex items-center gap-3">
 
 
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
+                    <Button
+                        variant="outline"
+                        size="sm"
                         className="gap-2 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all font-bold uppercase tracking-widest text-[10px] h-9"
                         onClick={handleManualRefresh}
                         disabled={isInteractionDisabled}
@@ -170,7 +170,7 @@ export function AdminDashboardClient() {
 
                     {(!mounted || (isLoading && !coursesData)) ? (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                           {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video w-full rounded-xl" />)}
+                            {[1, 2, 3].map(i => <Skeleton key={i} className="aspect-video w-full rounded-xl" />)}
                         </div>
                     ) : coursesData?.length === 0 ? (
                         <EmptyState

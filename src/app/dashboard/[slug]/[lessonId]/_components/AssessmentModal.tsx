@@ -1,19 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogDescription
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { 
-  ChevronRight, 
-  ChevronLeft, 
-  CheckCircle2, 
-  XCircle, 
+import {
+  ChevronRight,
+  ChevronLeft,
+  CheckCircle2,
+  XCircle,
   HelpCircle,
   Trophy,
   RefreshCw,
@@ -85,7 +85,7 @@ export function AssessmentModal({
   // Initialize shuffled questions and options
   const initializeQuiz = (qs: Question[]) => {
     if (qs.length === 0) return;
-    
+
     const shuffled = shuffleArray(qs.map((q, qIdx) => ({
       ...q,
       originalIndex: qIdx,
@@ -94,7 +94,7 @@ export function AssessmentModal({
         originalIndex: oIdx
       })))
     })));
-    
+
     setShuffledQuestions(shuffled);
     setCurrentIndex(0);
     setDirection(0);
@@ -165,14 +165,14 @@ export function AssessmentModal({
         shuffledQuestions.forEach((sQ, i) => {
           if (resolved[i] === sQ.correctIdx) score++;
         });
-        
+
         const isPracticePass = score >= QUIZ_PASS_THRESHOLD;
         setResult({ score, passed: isPracticePass });
         setScreen("review");
         setCurrentIndex(0);
         setDirection(0);
         setShowAnswers(true);
-        
+
         toast.success(`Practice complete! You got ${score} out of ${questions.length} correct.`, {
           duration: 3000,
         });
@@ -218,7 +218,7 @@ export function AssessmentModal({
   // In review mode, determine per-option correctness
   const getOptionReviewState = (shuffledOptionIdx: number) => {
     if (!currentQuestion) return "neutral";
-    
+
     // In Quiz mode (Practice), hide answers if toggle is off
     if (!isReviewMode && (result?.passed || initialPassed) && !showAnswers) return "neutral";
 
@@ -243,7 +243,7 @@ export function AssessmentModal({
 
   const isReviewMode = screen === "review";
   const canShowAnswerToggle = !isReviewMode && (result?.passed || initialPassed);
-  const reviewHeader = result 
+  const reviewHeader = result
     ? `${result.score}/${questions.length} Correct`
     : "";
 
@@ -260,7 +260,7 @@ export function AssessmentModal({
         <div className="flex flex-col h-full w-full">
           {/* Progress Bar */}
           <div className="h-1 w-full bg-muted overflow-hidden">
-            <motion.div 
+            <motion.div
               className={cn("h-full", isReviewMode && result?.passed ? "bg-green-500" : isReviewMode ? "bg-red-500" : "bg-primary")}
               initial={{ width: 0 }}
               animate={{ width: isReviewMode ? "100%" : `${progress}%` }}
@@ -315,7 +315,7 @@ export function AssessmentModal({
             {/* Question Content Container */}
             <div className="flex-1 flex flex-col md:justify-center px-6 pb-30 pt-0 overflow-hidden">
               <AnimatePresence mode="wait" custom={direction}>
-                <motion.div 
+                <motion.div
                   key={`${screen}-${currentIndex}`}
                   custom={direction}
                   variants={{
@@ -406,11 +406,11 @@ export function AssessmentModal({
                   <div className="hidden md:grid grid-cols-3 items-center mt-12">
                     {/* Left: Back */}
                     <div className="flex justify-start">
-                      <Button 
+                      <Button
                         onClick={handleBack}
                         disabled={currentIndex === 0}
                         className="h-12 px-6 rounded-full flex items-center gap-1 bg-transparent hover:bg-transparent focus-visible:ring-0 shadow-none cursor-pointer"
-                      > 
+                      >
                         <span className="w-9 h-9 flex items-center justify-center rounded-full transition-colors">
                           <ChevronLeft className="size-8" />
                         </span>
@@ -463,7 +463,7 @@ export function AssessmentModal({
                             </Button>
                           </div>
                         ) : (
-                          <Button 
+                          <Button
                             onClick={handleSubmit}
                             disabled={selectedAnswers.includes(-1) || isSubmitting}
                             className="gap-2 rounded-full px-10 h-12 font-bold uppercase tracking-tight text-xs"
@@ -493,8 +493,8 @@ export function AssessmentModal({
 
           {/* FOOTER ACTIONS - Mobile only */}
           <div className="p-4 border-t border-border bg-muted/20 flex items-center justify-between md:hidden gap-2">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={handleBack}
               disabled={currentIndex === 0}
               className="gap-1 rounded-full font-bold uppercase tracking-tight text-xs px-3"
@@ -545,7 +545,7 @@ export function AssessmentModal({
                   </Button>
                 </div>
               ) : (
-                <Button 
+                <Button
                   onClick={handleSubmit}
                   disabled={selectedAnswers.includes(-1) || isSubmitting}
                   className="gap-2 rounded-full px-8 font-bold uppercase tracking-tight text-xs shadow-lg shadow-primary/20"
@@ -555,7 +555,7 @@ export function AssessmentModal({
                 </Button>
               )
             ) : (
-              <Button 
+              <Button
                 onClick={handleNext}
                 disabled={!isReviewMode && selectedAnswers[currentIndex] === -1}
                 className="gap-2 rounded-full px-8 font-bold uppercase tracking-tight text-xs"
@@ -566,7 +566,7 @@ export function AssessmentModal({
             )}
           </div>
         </div>
-        
+
       </DialogContent>
     </Dialog>
   );

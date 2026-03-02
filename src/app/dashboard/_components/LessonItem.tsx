@@ -30,11 +30,11 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
 
         // Normal
         !isActive &&
-          "bg-card/50 hover:bg-accent border-transparent hover:border-border/50",
+        "bg-card/50 hover:bg-accent border-transparent hover:border-border/50",
 
         // Active
         isActive &&
-          "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20",
+        "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20",
 
         // Completed (subtle indicator)
         completed && !isActive && "opacity-80"
@@ -59,7 +59,7 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
             )}
             loading="lazy"
           />
-          
+
           {/* Active Overlay */}
           {isActive && (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -69,7 +69,7 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
             </div>
           )}
 
-          
+
         </div>
 
         {/* TEXT CONTENT */}
@@ -88,12 +88,12 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
             <span className="text-[10px] md:text-xs text-muted-foreground font-medium flex items-center gap-1">
               Lesson {lesson.position}
             </span>
-            
+
             {lesson.duration && (
               <>
                 <span className="text-[10px] text-muted-foreground/40">•</span>
                 <span className="text-[10px] md:text-xs text-muted-foreground font-medium flex items-center gap-1">
-                   {lesson.duration}m
+                  {lesson.duration}m
                 </span>
               </>
             )}

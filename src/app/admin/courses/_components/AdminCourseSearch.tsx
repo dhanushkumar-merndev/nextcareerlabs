@@ -17,7 +17,7 @@ export function AdminCourseSearch() {
     // 🔹 1. Update internal state if URL changes externally (e.g. back button)
     const urlValue = searchParams.get("title") || "";
     if (urlValue !== value && !isPending) {
-        setValue(urlValue);
+      setValue(urlValue);
     }
   }, [searchParams]);
 

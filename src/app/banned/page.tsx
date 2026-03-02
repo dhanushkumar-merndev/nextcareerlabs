@@ -16,7 +16,7 @@ export default function BannedPage() {
 
       <Card className="w-full max-w-md bg-zinc-900/80 backdrop-blur-xl border-red-900/30 shadow-2xl relative z-10 overflow-hidden">
         <div className="absolute top-0 inset-x-0 h-1 bg-linear-to-r from-red-600 via-red-500 to-red-600" />
-        
+
         <CardHeader className="text-center pb-2">
           <div className="mx-auto bg-red-500/10 border border-red-500/20 p-4 rounded-full w-fit mb-6 shadow-lg shadow-red-900/20 ring-1 ring-red-500/20">
             <ShieldBan className="size-10 text-red-500" />
@@ -32,18 +32,18 @@ export default function BannedPage() {
 
         <CardContent className="text-center space-y-4 pt-6 px-8">
           <p className="text-zinc-400 text-sm leading-relaxed">
-            Your account has been flagged for violating our community guidelines or terms of service. 
+            Your account has been flagged for violating our community guidelines or terms of service.
             As a result, your access to the platform has been temporarily or permanently restricted.
           </p>
-         
+
         </CardContent>
 
         <CardFooter className="flex flex-col gap-3 pb-8 px-8">
-     
-          
-          <Button 
-            asChild 
-            variant="ghost" 
+
+
+          <Button
+            asChild
+            variant="ghost"
             className="w-full text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50"
           >
             <Link href="/" className="flex items-center gap-2">

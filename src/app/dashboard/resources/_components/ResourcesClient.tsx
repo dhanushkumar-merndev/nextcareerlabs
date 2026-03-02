@@ -25,14 +25,14 @@ export function ResourcesClient() {
 
             const cacheKey = "user_resources_access";
             const cached = chatCache.get<boolean>(cacheKey, userId);
-            
+
             // Tiered Fetch
             try {
                 const res = await fetch(`/api/user/resources-access?version=${cached?.version || ""}`);
                 if (!res.ok) return cached?.data ?? false;
-                
+
                 const result = await res.json();
-                
+
                 if (result.status === "not-modified") {
                     chatCache.touch(cacheKey, userId);
                     return cached?.data ?? false;
@@ -45,7 +45,7 @@ export function ResourcesClient() {
             } catch (e) {
                 console.error("[Resources] Access check failed", e);
             }
-            
+
             return cached?.data ?? false;
         },
         enabled: !!userId,
@@ -53,8 +53,8 @@ export function ResourcesClient() {
             if (typeof window === "undefined" || !userId) return undefined;
             return chatCache.get<boolean>("user_resources_access", userId)?.data;
         },
-        initialDataUpdatedAt: typeof window !== "undefined" && userId 
-            ? chatCache.get<boolean>("user_resources_access", userId)?.timestamp 
+        initialDataUpdatedAt: typeof window !== "undefined" && userId
+            ? chatCache.get<boolean>("user_resources_access", userId)?.timestamp
             : undefined,
         staleTime: 1800000, // 30 mins
         refetchInterval: 1800000, // 30 mins

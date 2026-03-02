@@ -7,7 +7,7 @@ interface iAppProps {
 }
 export default async function CourseSulgPage({ params }: iAppProps) {
   const { slug } = await params;
-  
+
   // Targeted query to find the first lesson for redirect, rather than fetching full sidebar data
   const firstLesson = await prisma.lesson.findFirst({
     where: {

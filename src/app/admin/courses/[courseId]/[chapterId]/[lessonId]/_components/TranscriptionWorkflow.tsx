@@ -153,7 +153,7 @@ export function TranscriptionWorkflow({
 
       // Read file content
       const content = await file.text();
-      
+
       if (!content.trim().startsWith('WEBVTT')) {
         toast.error("Invalid VTT file: must start with WEBVTT header");
         setStatus("idle");
@@ -164,7 +164,7 @@ export function TranscriptionWorkflow({
 
       // Save to S3
       const result = await storeTranscription(lessonId, content, videoKey);
-      
+
       if (!result.success) {
         throw new Error(result.error || "Failed to save transcription");
       }
@@ -174,7 +174,7 @@ export function TranscriptionWorkflow({
         // Fetch new VTT URL (or we could return it from storeTranscription)
         const check = await getTranscription(lessonId);
         if (check.success && check.transcription?.vttUrl) {
-           onTranscriptionUpload?.(check.transcription.vttUrl);
+          onTranscriptionUpload?.(check.transcription.vttUrl);
         }
       }
 
@@ -207,7 +207,7 @@ export function TranscriptionWorkflow({
 
     try {
       setIsSavingMCQs(true);
-      
+
       const validation = validateMCQJSON(pastedJson);
       if (!validation.valid) {
         toast.error(validation.error || "Invalid JSON format");
@@ -215,7 +215,7 @@ export function TranscriptionWorkflow({
       }
 
       const result = await saveMCQs(lessonId, JSON.stringify(validation.questions));
-      
+
       if (result.success) {
         toast.success(`Saved ${result.count} MCQs!`);
         setPastedJson("");
@@ -282,7 +282,7 @@ export function TranscriptionWorkflow({
             Upload a .vtt transcript and generate MCQ questions
           </p>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {(status === "idle" || status === "error") && (
             <>
@@ -326,10 +326,10 @@ export function TranscriptionWorkflow({
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button 
-                    type="button" 
-                    size="sm" 
-                    variant="ghost" 
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
                     className="text-xs text-destructive/50 hover:text-destructive hover:bg-destructive/10 cursor-pointer"
                     disabled={isDeleting}
                   >
@@ -366,10 +366,10 @@ export function TranscriptionWorkflow({
               <Sparkles className="size-3 text-amber-500" />
               MCQ Generation
             </h5>
-            <Button 
+            <Button
               type="button"
-              size="sm" 
-              variant="outline" 
+              size="sm"
+              variant="outline"
               className="h-7 text-xs gap-1.5 cursor-pointer"
               onClick={handleCopyPrompt}
             >
@@ -387,7 +387,7 @@ export function TranscriptionWorkflow({
               <li>Paste it below and save</li>
             </ol>
           </div>
-          
+
           <div className="space-y-2">
             <label className="text-[10px] font-medium text-muted-foreground">
               PASTE AI JSON OUTPUT (EXACTLY 20 QUESTIONS)
@@ -398,9 +398,9 @@ export function TranscriptionWorkflow({
               onChange={(e) => setPastedJson(e.target.value)}
               className="min-h-[120px] text-xs font-mono"
             />
-            <Button 
+            <Button
               type="button"
-              size="sm" 
+              size="sm"
               className="w-full h-8 text-xs gap-1.5"
               onClick={handleSaveMCQs}
               disabled={isSavingMCQs || !pastedJson.trim()}
@@ -420,10 +420,10 @@ export function TranscriptionWorkflow({
             <p className="text-xs text-muted-foreground">The lesson assessment is now updated.</p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm" 
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setStatus("complete");
               }}
@@ -431,10 +431,10 @@ export function TranscriptionWorkflow({
               <Sparkles className="size-4 mr-2 text-amber-500" />
               Update Questions
             </Button>
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="sm" 
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={() => {
                 setStatus("idle");
                 setVttContent(null);
@@ -446,10 +446,10 @@ export function TranscriptionWorkflow({
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   className="text-destructive hover:text-destructive hover:bg-destructive/10"
                   disabled={isDeleting}
                 >

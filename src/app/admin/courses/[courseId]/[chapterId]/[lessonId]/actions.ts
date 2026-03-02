@@ -69,21 +69,21 @@ export async function updateLesson(
         if (existingLesson?.videoKey) {
           const { deleteS3File } = await import("@/lib/s3-delete-utils");
           // Non-blocking cleanup (don't await to avoid slowing down the response)
-          deleteS3File(existingLesson.videoKey).catch(err => 
+          deleteS3File(existingLesson.videoKey).catch(err =>
             console.error("[Cleanup Error] Failed to delete old video assets:", err)
           );
         }
       }
     });
     console.log(`[updateLesson] Transaction took ${Date.now() - updateStartTime}ms`);
-    
+
     // Invalidate caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
-        invalidateCache(`lesson:${lessonId}`),
-        invalidateCache(`lesson:questions:${lessonId}`),
-        invalidateCache(`lesson:content:${lessonId}`),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
+      invalidateCache(`lesson:${lessonId}`),
+      invalidateCache(`lesson:questions:${lessonId}`),
+      invalidateCache(`lesson:content:${lessonId}`),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
 
     return {

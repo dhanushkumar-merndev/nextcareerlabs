@@ -20,7 +20,7 @@ import { SimpleBarChart, SimplePieChart } from "@/components/analytics/Charts";
 import { GrowthChartWithFilter } from "@/components/analytics/GrowthChartWithFilter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
@@ -36,22 +36,22 @@ export function AnalyticsClient() {
 
   useEffect(() => {
     setMounted(true);
-    
+
     if (!hasLogged.current) {
-        const cached = chatCache.get<any>("admin_analytics");
-        if (cached) {
-            console.log(`%c[Analytics] LOCAL HIT (v${cached.version}). Rendering from device storage.`, "color: #eab308; font-weight: bold");
-        }
-        hasLogged.current = true;
+      const cached = chatCache.get<any>("admin_analytics");
+      if (cached) {
+        console.log(`%c[Analytics] LOCAL HIT (v${cached.version}). Rendering from device storage.`, "color: #eab308; font-weight: bold");
+      }
+      hasLogged.current = true;
     }
 
     // Cross-Tab Sync
     const handleStorageChange = (e: StorageEvent) => {
-        const syncKeys = ["admin_analytics", "admin_static_analytics", "admin_analytics_growth", "admin_success_rate"];
-        if (syncKeys.some(key => e.key?.includes(key))) {
-            console.log(`[Analytics] Cross-Tab Sync: Updating dashboard via router.refresh()...`);
-            router.refresh(); // Server-side refresh
-        }
+      const syncKeys = ["admin_analytics", "admin_static_analytics", "admin_analytics_growth", "admin_success_rate"];
+      if (syncKeys.some(key => e.key?.includes(key))) {
+        console.log(`[Analytics] Cross-Tab Sync: Updating dashboard via router.refresh()...`);
+        router.refresh(); // Server-side refresh
+      }
     };
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
@@ -65,7 +65,7 @@ export function AnalyticsClient() {
     queryFn: async () => {
       const cached = chatCache.get<any>("admin_static_analytics");
       const result = await getAdminStaticAnalytics(cached?.version);
-      
+
       if (result?.status === "not-modified" && cached) {
         return cached.data;
       }
@@ -119,7 +119,7 @@ export function AnalyticsClient() {
     queryFn: async () => {
       const cached = chatCache.get<any>("admin_success_rate");
       const result = await getAdminSuccessRate();
-      
+
       if (result) {
         chatCache.set("admin_success_rate", result, undefined, result.lastUpdated, PERMANENT_TTL);
         return result;
@@ -131,7 +131,7 @@ export function AnalyticsClient() {
       return chatCache.get<any>("admin_success_rate")?.data;
     },
     staleTime: 1800000,
-    refetchInterval: 1800000, 
+    refetchInterval: 1800000,
     refetchOnWindowFocus: true,
   });
 
@@ -189,7 +189,7 @@ export function AnalyticsClient() {
           description="Total PDF & Images shared in chats"
         />
       </div>
-       {/* Growth Chart */}
+      {/* Growth Chart */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-1 md:col-span-2 lg:col-span-4">
           <GrowthChartWithFilter initialData={growthData.chartData} />
@@ -205,7 +205,7 @@ export function AnalyticsClient() {
           </CardContent>
         </Card>
       </div>
-      {/* Popular Courses Chart */} 
+      {/* Popular Courses Chart */}
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-7">
         <Card className="col-span-1 md:col-span-2 lg:col-span-4">
           <CardHeader>

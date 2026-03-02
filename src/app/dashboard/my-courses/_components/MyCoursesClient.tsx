@@ -9,9 +9,9 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 
 export function MyCoursesClient() {
   const { session, isLoading: sessionLoading } = useSmartSession();
-  const { 
-    data: enrolledCourses, 
-    isLoading, 
+  const {
+    data: enrolledCourses,
+    isLoading,
   } = useEnrolledCourses(session?.user?.id, sessionLoading);
 
   const [mounted, setMounted] = useState(false);

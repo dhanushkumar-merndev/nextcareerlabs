@@ -16,7 +16,7 @@ export async function markLessonComplete(
   slug: string
 ): Promise<ApiResponse> {
   const session = await requireUser();
-  
+
   try {
     // 1. Check if the lesson has any MCQs
     const questionsCount = await prisma.question.count({
@@ -59,20 +59,20 @@ export async function markLessonComplete(
         completed: true,
       },
     });
-    
+
     // ✅ Invalidate ALL relevant Redis caches
     await Promise.all([
-        invalidateCache(`user:dashboard:${session.id}`),
-        invalidateCache(`user:sidebar:${session.id}:${slug}`),
-        invalidateCache(`user:lesson:${session.id}:${lessonId}`),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
+      invalidateCache(`user:dashboard:${session.id}`),
+      invalidateCache(`user:sidebar:${session.id}:${slug}`),
+      invalidateCache(`user:lesson:${session.id}:${lessonId}`),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
     ]);
 
     // Revalidate the entire course dashboard to ensure everything is fresh
     revalidatePath(`/dashboard/${slug}`, "layout");
     revalidatePath(`/dashboard/${slug}/${lessonId}`);
-    
+
     return {
       status: "success",
       message: "Lesson marked as complete",
@@ -122,19 +122,19 @@ export async function updateVideoProgress(
     // ✅ Invalidate caches so refresh/sidebar reflects new progress
     // We only do this for the specific lesson and sidebar to keep it light
     await Promise.all([
-        invalidateCache(`user:lesson:${session.id}:${lessonId}`),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
+      invalidateCache(`user:lesson:${session.id}:${lessonId}`),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
     ]);
 
-    return { 
-      status: "success", 
-      message: "Progress updated" 
+    return {
+      status: "success",
+      message: "Progress updated"
     };
   } catch (error) {
     console.error("Error updating video progress:", error);
-    return { 
-      status: "error", 
-      message: "Failed to update progress" 
+    return {
+      status: "error",
+      message: "Failed to update progress"
     };
   }
 }
@@ -224,7 +224,7 @@ export async function submitQuizAttempt(
       }
     });
 
-   const passed = score >= QUIZ_PASS_THRESHOLD;
+    const passed = score >= QUIZ_PASS_THRESHOLD;
 
     // 3. Save attempt and update progress state
     await prisma.$transaction(async (tx) => {
@@ -268,12 +268,12 @@ export async function submitQuizAttempt(
 
       // If they were already passed, we ensure the status remains 'true'
       if (currentProgress && (currentProgress.quizPassed || currentProgress.completed)) {
-          if (!passed) {
-              await tx.lessonProgress.update({
-                  where: { userId_lessonId: { userId: session.id, lessonId } },
-                  data: { quizPassed: true, completed: true }
-              });
-          }
+        if (!passed) {
+          await tx.lessonProgress.update({
+            where: { userId_lessonId: { userId: session.id, lessonId } },
+            data: { quizPassed: true, completed: true }
+          });
+        }
       }
     });
 

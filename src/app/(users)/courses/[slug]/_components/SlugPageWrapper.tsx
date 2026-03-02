@@ -12,10 +12,10 @@
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import {Collapsible, CollapsibleContent, CollapsibleTrigger} from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {IconBook, IconCategory, IconChartBar, IconChevronDown, IconClock, IconPlayerPlay} from "@tabler/icons-react";
+import { IconBook, IconCategory, IconChartBar, IconChevronDown, IconClock, IconPlayerPlay } from "@tabler/icons-react";
 import { CheckIcon, TimerIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -45,7 +45,7 @@ export function SlugPageWrapper({
   const router = useRouter();
   const queryClient = useQueryClient();
   // ✅ ADD inside SlugPageWrapper component
-const { triggerIfSingleStatusChanged } = usePendingDetection(currentUserId);
+  const { triggerIfSingleStatusChanged } = usePendingDetection(currentUserId);
   // Used to avoid hydration mismatch
   const [mounted, setMounted] = useState(false);
   const hasLogged = useRef<string | null>(null);
@@ -57,106 +57,106 @@ const { triggerIfSingleStatusChanged } = usePendingDetection(currentUserId);
     // 🔹 PERSISTENT LOGGING (SPA COMPATIBLE)
     const logKey = `${slug}_${currentUserId || 'guest'}`;
     if (hasLogged.current !== logKey) {
-        const cacheKey = `course_${slug}`;
-        let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
-        if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+      const cacheKey = `course_${slug}`;
+      let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+      if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
 
-        if (cached) {
-            console.log(`%c[SlugPage] LOCAL HIT (v${cached.version}) detected for ${slug}`, "color: #eab308; font-weight: bold");
-        }
-        hasLogged.current = logKey;
+      if (cached) {
+        console.log(`%c[SlugPage] LOCAL HIT (v${cached.version}) detected for ${slug}`, "color: #eab308; font-weight: bold");
+      }
+      hasLogged.current = logKey;
     }
   }, [slug, currentUserId]);
-// SlugPageWrapper.tsx — Fixed useQuery block
+  // SlugPageWrapper.tsx — Fixed useQuery block
 
-// ✅ Extract cache ONCE before useQuery
-const cacheKey = `course_${slug}`;
-const cachedEntry = typeof window !== "undefined"
-  ? (currentUserId
+  // ✅ Extract cache ONCE before useQuery
+  const cacheKey = `course_${slug}`;
+  const cachedEntry = typeof window !== "undefined"
+    ? (currentUserId
       ? chatCache.get<any>(cacheKey, currentUserId) ?? chatCache.get<any>(cacheKey, undefined)
       : chatCache.get<any>(cacheKey, undefined))
-  : null;
+    : null;
 
-const { data, isLoading } = useQuery({
-  queryKey: ["course_detail", slug, currentUserId],
-  queryFn: async () => {
-    // Use already-resolved cachedEntry instead of re-reading storage
-    const clientVersion = cachedEntry?.version;
+  const { data, isLoading } = useQuery({
+    queryKey: ["course_detail", slug, currentUserId],
+    queryFn: async () => {
+      // Use already-resolved cachedEntry instead of re-reading storage
+      const clientVersion = cachedEntry?.version;
+      // Fetches the course data from the server
+      const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
+      // Checks if the course data is not modified
+      if (result && (result as any).status === "not-modified" && cachedEntry) {
+        console.log(`%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
+        chatCache.touch(cacheKey, currentUserId);
+        if (currentUserId) chatCache.clearSync(currentUserId);
+        return cachedEntry.data;
+      }
 
-    const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
+      const isData = result && !(result as any).status;
+      if (isData) {
+        console.log(`%c[SlugPage] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
 
-    if (result && (result as any).status === "not-modified" && cachedEntry) {
-      console.log(`%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
-      chatCache.touch(cacheKey, currentUserId);
-      if (currentUserId) chatCache.clearSync(currentUserId);
-      return cachedEntry.data;
-    }
-
-    const isData = result && !(result as any).status;
-    if (isData) {
-      console.log(`%c[SlugPage] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
-
-      if (currentUserId) {
-        const oldStatus = cachedEntry?.data?.enrollmentStatus;
-        const newStatus = (result as any).enrollmentStatus;
-        if (oldStatus === "Pending" && newStatus !== "Pending") {
+        if (currentUserId) {
+          const oldStatus = cachedEntry?.data?.enrollmentStatus;
+          const newStatus = (result as any).enrollmentStatus;
+          if (oldStatus === "Pending" && newStatus !== "Pending") {
             chatCache.invalidateUserDashboardData(currentUserId);
-            
+
             // ✅ BROAD SYNC: Wake up all other dashboard queries
             queryClient.invalidateQueries({
-                predicate: (query) => {
-                    const key = query.queryKey[0] as string;
-                    return key === "user_dashboard" ||
-                           key === "my_courses" ||
-                           key === "all_courses" ||
-                           key === "enrolled_courses" ||
-                           key === "user_enrolled_courses" ||
-                           key === "user_resources_access" ||
-                           key === "user_resources" ||
-                           key === "chat_sidebar";
-                }
+              predicate: (query) => {
+                const key = query.queryKey[0] as string;
+                return key === "user_dashboard" ||
+                  key === "my_courses" ||
+                  key === "all_courses" ||
+                  key === "enrolled_courses" ||
+                  key === "user_enrolled_courses" ||
+                  key === "user_resources_access" ||
+                  key === "user_resources" ||
+                  key === "chat_sidebar";
+              }
             });
 
             triggerIfSingleStatusChanged(
-                oldStatus,
-                newStatus
+              oldStatus,
+              newStatus
             );
             setTimeout(() => router.refresh(), 500);
+          }
         }
+
+        chatCache.set(cacheKey, result, currentUserId, (result as any).version, PERMANENT_TTL);
+        if (currentUserId) chatCache.clearSync(currentUserId);
       }
 
-      chatCache.set(cacheKey, result, currentUserId, (result as any).version, PERMANENT_TTL);
-      if (currentUserId) chatCache.clearSync(currentUserId);
-    }
+      return result;
+    },
 
-    return result;
-  },
+    initialData: () => cachedEntry?.data,                    // ✅ single read
+    initialDataUpdatedAt: cachedEntry?.timestamp ?? undefined, // ✅ single read
 
-  initialData: () => cachedEntry?.data,                    // ✅ single read
-  initialDataUpdatedAt: cachedEntry?.timestamp ?? undefined, // ✅ single read
+    staleTime: (() => {
+      if (!cachedEntry) return 0;
+      const age = Date.now() - (cachedEntry.timestamp || 0);
+      const isPending = cachedEntry.data?.enrollmentStatus === "Pending";
+      const needsSync = currentUserId ? (chatCache.needsSync(currentUserId) || chatCache.hasAnyPending(currentUserId)) : false;
+      const hasAnyPending = currentUserId ? chatCache.hasAnyPending(currentUserId) : false;
+      if (isPending || hasAnyPending || needsSync) return 0;
+      if (age < 1800000) return 1800000 - age;
+      return 0;
+    })(),
 
-  staleTime: (() => {
-    if (!cachedEntry) return 0;
-    const age = Date.now() - (cachedEntry.timestamp || 0);
-    const isPending = cachedEntry.data?.enrollmentStatus === "Pending";
-    const needsSync = currentUserId ? (chatCache.needsSync(currentUserId) || chatCache.hasAnyPending(currentUserId)) : false;
-    const hasAnyPending = currentUserId ? chatCache.hasAnyPending(currentUserId) : false;
-    if (isPending || hasAnyPending || needsSync) return 0;
-    if (age < 1800000) return 1800000 - age;
-    return 0;
-  })(),
-
-  placeholderData: (previousData) => previousData ?? cachedEntry?.data, 
-  refetchOnWindowFocus: true,
-  refetchOnMount: true,
-});
+    placeholderData: (previousData) => previousData ?? cachedEntry?.data,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
+  });
 
 
   // 🔹 INSTANT DATA LOOKUP (DURING RENDER)
   // This allows us to render the page immediately on the client if cache exists,
   // even before hydration completes.
 
- const rawData = (data as any) || cachedEntry?.data;
+  const rawData = (data as any) || cachedEntry?.data;
   // Resiliency: Handle new format {course, enrollmentStatus...} or old raw course object
   const course = rawData?.course || (rawData?.id ? rawData : null);
   const enrollmentStatus = rawData?.enrollmentStatus || null;
@@ -166,279 +166,279 @@ const { data, isLoading } = useQuery({
   }
 
   return (
-    <SlugPageContent 
-        course={course} 
-        enrollmentStatus={enrollmentStatus} 
-        slug={slug}
-        router={router}
+    <SlugPageContent
+      course={course}
+      enrollmentStatus={enrollmentStatus}
+      slug={slug}
+      router={router}
     />
   );
 }
 
-function SlugPageContent({ course, enrollmentStatus, slug, router }: { 
-    course: any, 
-    enrollmentStatus: string | null, 
-    slug: string,
-    router: any
+function SlugPageContent({ course, enrollmentStatus, slug, router }: {
+  course: any,
+  enrollmentStatus: string | null,
+  slug: string,
+  router: any
 }) {
-    const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
 
-    if (!course) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
-                <h2 className="text-2xl font-bold">Course Not Found</h2>
-                <p className="text-muted-foreground">The course you are looking for might have been moved or deleted.</p>
-                <Link href="/courses" className={buttonVariants()}>Go Back to Courses</Link>
-            </div>
-        );
-    }
+  if (!course) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+        <h2 className="text-2xl font-bold">Course Not Found</h2>
+        <p className="text-muted-foreground">The course you are looking for might have been moved or deleted.</p>
+        <Link href="/courses" className={buttonVariants()}>Go Back to Courses</Link>
+      </div>
+    );
+  }
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
 
-        <div className="order-1 lg:col-span-2">
-          <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg bg-accent">
-            {!imageLoaded && (
-                <Skeleton className="absolute inset-0 z-10" />
+      <div className="order-1 lg:col-span-2">
+        <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg bg-accent">
+          {!imageLoaded && (
+            <Skeleton className="absolute inset-0 z-10" />
+          )}
+          <Image
+            src={constructUrl(course.fileKey)}
+            alt="Thumbnail"
+            fill
+            className={cn(
+              "object-cover transition-opacity duration-500",
+              imageLoaded ? "opacity-100" : "opacity-0"
             )}
-            <Image
-              src={constructUrl(course.fileKey)}
-              alt="Thumbnail"
-              fill
-              className={cn(
-                "object-cover transition-opacity duration-500",
-                imageLoaded ? "opacity-100" : "opacity-0"
-              )}
-              priority
-              crossOrigin="anonymous"
-              onLoad={() => setImageLoaded(true)}
-            />
-            <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent"></div>
+            priority
+            crossOrigin="anonymous"
+            onLoad={() => setImageLoaded(true)}
+          />
+          <div className="absolute inset-0 bg-linear-to-t from-black/20 to-transparent"></div>
+        </div>
+        {/* Course Details */}
+        <div className="mt-8 space-y-6">
+          <div className="space-y-4">
+            <h1 className="text-4xl font-semibold tracking-tight">
+              {course.title}
+            </h1>
+            <p className="text-lg text-muted-foreground leading-6 line-clamp-2">
+              {course.smallDescription}
+            </p>
           </div>
-          {/* Course Details */}
-          <div className="mt-8 space-y-6">
-            <div className="space-y-4">
-              <h1 className="text-4xl font-semibold tracking-tight">
-                {course.title}
-              </h1>
-              <p className="text-lg text-muted-foreground leading-6 line-clamp-2">
-                {course.smallDescription}
-              </p>
-            </div>
-            {/* Course Badges */}
-            <div className="flex flex-wrap gap-3">
-              <Badge>
-                <IconChartBar className="size-4" />
-                <span>{course.level}</span>
-              </Badge>
-              <Badge>
-                <TimerIcon className="size-4" />
-                <span>{course.duration} hours</span>
-              </Badge>
-            </div>
+          {/* Course Badges */}
+          <div className="flex flex-wrap gap-3">
+            <Badge>
+              <IconChartBar className="size-4" />
+              <span>{course.level}</span>
+            </Badge>
+            <Badge>
+              <TimerIcon className="size-4" />
+              <span>{course.duration} hours</span>
+            </Badge>
           </div>
-          <Separator className="my-8" />
-          <div className="space-y-6">
+        </div>
+        <Separator className="my-8" />
+        <div className="space-y-6">
+          <h2 className="text-3xl font-semibold tracking-tight">
+            Course Description
+          </h2>
+          {/* Course Description */}
+          <div>
+            <RenderDescription json={course.description ? JSON.parse(course.description) : null} />
+          </div>
+        </div>
+        <Separator className="mt-8 mb-6" />
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
             <h2 className="text-3xl font-semibold tracking-tight">
-              Course Description
+              Course Content
             </h2>
-            {/* Course Description */}
+            {/* Course Content Summary */}
             <div>
-              <RenderDescription json={course.description ? JSON.parse(course.description) : null} />
+              <span className="text-primary">{course.chapter.length}</span>{" "}
+              chapters |{" "}
+              <span className="text-primary">
+                {course.chapter.reduce(
+                  (total: number, chapter: any) => total + chapter.lesson.length,
+                  0
+                ) || 0}
+              </span>{" "}
+              Lessons
             </div>
           </div>
-          <Separator className="mt-8 mb-6" />
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-3xl font-semibold tracking-tight">
-                Course Content
-              </h2>
-              {/* Course Content Summary */}
-              <div>
-                <span className="text-primary">{course.chapter.length}</span>{" "}
-                chapters |{" "}
-                <span className="text-primary">
-                  {course.chapter.reduce(
-                    (total: number, chapter: any) => total + chapter.lesson.length,
-                    0
-                  ) || 0}
-                </span>{" "}
-                Lessons
-              </div>
-            </div>
-            {/* Course Chapters */}
-            <div className="space-y-4">
-              {course.chapter.map((chapter: any, index: number) => (
-                <Collapsible key={chapter.id} defaultOpen={index === 0}>
-                  <Card className="p-0 overflow-hidden border-2 transition-all duration-200 hover:shadow-md gap-0">
-                    <CollapsibleTrigger className="w-full">
-                      <CardContent className="p-6 hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <p className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
-                              {index + 1}
+          {/* Course Chapters */}
+          <div className="space-y-4">
+            {course.chapter.map((chapter: any, index: number) => (
+              <Collapsible key={chapter.id} defaultOpen={index === 0}>
+                <Card className="p-0 overflow-hidden border-2 transition-all duration-200 hover:shadow-md gap-0">
+                  <CollapsibleTrigger className="w-full">
+                    <CardContent className="p-6 hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <p className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary font-semibold">
+                            {index + 1}
+                          </p>
+                          <div>
+                            <h3 className="text-xl font-semibold text-left">
+                              {chapter.title}
+                            </h3>
+                            <p className="text-sm text-muted-foreground mt-1 text-left">
+                              {chapter.lesson.length} Lesson
+                              {chapter.lesson.length > 1 ? "s" : ""}
                             </p>
-                            <div>
-                              <h3 className="text-xl font-semibold text-left">
-                                {chapter.title}
-                              </h3>
-                              <p className="text-sm text-muted-foreground mt-1 text-left">
-                                {chapter.lesson.length} Lesson
-                                {chapter.lesson.length > 1 ? "s" : ""}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge
+                            variant={"outline"}
+                            className="hidden md:block text-sm rounded-sm "
+                          >
+                            {chapter.lesson.length} Lesson
+                            {chapter.lesson.length > 1 ? "s" : ""}
+                          </Badge>
+                          <IconChevronDown className="size-5 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {/* Course Lessons */}
+                    <div className="border-t bg-muted/20">
+                      <div className="p-6 pt-4 space-y-3">
+                        {chapter.lesson.map((lesson: any, lessonIndex: number) => (
+                          <div
+                            key={lesson.id}
+                            className="flex items-center gap-4 rounded-lg p-3 hover:bg-accent transition-colors group"
+                          >
+                            <div className="flex size-8 items-center justify-center rounded-full bg-background border-2 border-primary/20">
+                              <IconPlayerPlay className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-medium text-sm">
+                                {lesson.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Lesson {lessonIndex + 1}
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <Badge
-                              variant={"outline"}
-                              className="hidden md:block text-sm rounded-sm "
-                            >
-                              {chapter.lesson.length} Lesson
-                              {chapter.lesson.length > 1 ? "s" : ""}
-                            </Badge>
-                            <IconChevronDown className="size-5 text-muted-foreground" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      {/* Course Lessons */}
-                      <div className="border-t bg-muted/20">
-                        <div className="p-6 pt-4 space-y-3">
-                          {chapter.lesson.map((lesson: any, lessonIndex: number) => (
-                            <div
-                              key={lesson.id}
-                              className="flex items-center gap-4 rounded-lg p-3 hover:bg-accent transition-colors group"
-                            >
-                              <div className="flex size-8 items-center justify-center rounded-full bg-background border-2 border-primary/20">
-                                <IconPlayerPlay className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">
-                                  {lesson.title}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Lesson {lessonIndex + 1}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        ))}
                       </div>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-              ))}
-            </div>
-          </div>
-        </div>
-        {/* Course Sidebar */}
-        <div className="order-2 lg:col-span-1">
-          <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))]  pb-4 md:pb-0 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
-            <div className="relative">
-              <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
-                <CardContent className="p-6 space-y-8">
-                  {/* Benefits / Course Meta */}
-                  <div className="rounded-xl bg-muted/40 p-5 border border-border/40 space-y-5">
-                    <h4 className="font-semibold text-base">What you will get</h4>
-                  
-                    <div className="flex flex-col gap-4">
-                      <FeatureRow
-                        icon={<IconClock className="size-4" />}
-                        title="Duration"
-                        value={`${course.duration} hours`}
-                      />
-
-                      <FeatureRow
-                        icon={<IconChartBar className="size-4" />}
-                        title="Level"
-                        value={course.level}
-                      />
-
-                      <FeatureRow
-                        icon={<IconCategory className="size-4" />}
-                        title="Category"
-                        value={course.category}
-                      />
-
-                      <FeatureRow
-                        icon={<IconBook className="size-4" />}
-                        title="Total Chapters"
-                        value={`${course.chapter.length} Chapters`}
-                      />
-
-                      <FeatureRow
-                        icon={<IconBook className="size-4" />}
-                        title="Total Lessons"
-                        value={`${course.chapter.reduce(
-                          (total: number, chapter: any) => total + chapter.lesson.length,
-                          0
-                        )} Lessons`}
-                      />
                     </div>
-                  </div>
-
-                  {/* Course Includes */}
-                  <div className="space-y-4">
-                    <h4 className="font-semibold text-base">
-                      This course includes:
-                    </h4>
-
-                    <ul className="space-y-3">
-                      {[
-                        "Full lifetime access",
-                        "Access on mobile and desktop",
-                        "Certificate of completion",
-                      ].map((item) => (
-                        <li
-                          key={item}
-                          className="flex items-center gap-3 text-sm"
-                        >
-                          <div className="rounded-full bg-green-500/10 text-green-600 p-1.5">
-                            <CheckIcon className="size-3" />
-                          </div>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div>
-                    {/* Enrollment Button */}
-                    {enrollmentStatus === "Granted" ? (
-                      <Link
-                        className={buttonVariants({ className: "w-full" })}
-                        href={(() => {
-                          const firstLesson = course.chapter
-                            ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
-                            ?.[0]?.lesson
-                            ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
-                            ?.[0];
-                          return firstLesson
-                            ? `/dashboard/${course.slug}/${firstLesson.id}`
-                            : `/dashboard/${course.slug}`;
-                        })()}
-                      >
-                        Watch Course
-                      </Link>
-                    ) : (
-                      <EnrollmentButton
-                        courseId={course.id}
-                        slug={slug}
-                        status={enrollmentStatus}
-                      />
-                    )}
-                     <Button
-                      onClick={() => router.back()}
-                      variant="outline"
-                      className="w-full mt-4"
-                    >
-                      Go Back
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  </CollapsibleContent>
+                </Card>
+              </Collapsible>
+            ))}
           </div>
         </div>
+      </div>
+      {/* Course Sidebar */}
+      <div className="order-2 lg:col-span-1">
+        <div className="sticky top-20 h-fit max-h-[calc(100vh-(--spacing(24)))]  pb-4 md:pb-0 scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent hover:scrollbar-thumb-primary/20 transition-colors">
+          <div className="relative">
+            <Card className="py-0 shadow-lg border border-border/50 rounded-xl">
+              <CardContent className="p-6 space-y-8">
+                {/* Benefits / Course Meta */}
+                <div className="rounded-xl bg-muted/40 p-5 border border-border/40 space-y-5">
+                  <h4 className="font-semibold text-base">What you will get</h4>
+
+                  <div className="flex flex-col gap-4">
+                    <FeatureRow
+                      icon={<IconClock className="size-4" />}
+                      title="Duration"
+                      value={`${course.duration} hours`}
+                    />
+
+                    <FeatureRow
+                      icon={<IconChartBar className="size-4" />}
+                      title="Level"
+                      value={course.level}
+                    />
+
+                    <FeatureRow
+                      icon={<IconCategory className="size-4" />}
+                      title="Category"
+                      value={course.category}
+                    />
+
+                    <FeatureRow
+                      icon={<IconBook className="size-4" />}
+                      title="Total Chapters"
+                      value={`${course.chapter.length} Chapters`}
+                    />
+
+                    <FeatureRow
+                      icon={<IconBook className="size-4" />}
+                      title="Total Lessons"
+                      value={`${course.chapter.reduce(
+                        (total: number, chapter: any) => total + chapter.lesson.length,
+                        0
+                      )} Lessons`}
+                    />
+                  </div>
+                </div>
+
+                {/* Course Includes */}
+                <div className="space-y-4">
+                  <h4 className="font-semibold text-base">
+                    This course includes:
+                  </h4>
+
+                  <ul className="space-y-3">
+                    {[
+                      "Full lifetime access",
+                      "Access on mobile and desktop",
+                      "Certificate of completion",
+                    ].map((item) => (
+                      <li
+                        key={item}
+                        className="flex items-center gap-3 text-sm"
+                      >
+                        <div className="rounded-full bg-green-500/10 text-green-600 p-1.5">
+                          <CheckIcon className="size-3" />
+                        </div>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  {/* Enrollment Button */}
+                  {enrollmentStatus === "Granted" ? (
+                    <Link
+                      className={buttonVariants({ className: "w-full" })}
+                      href={(() => {
+                        const firstLesson = course.chapter
+                          ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
+                          ?.[0]?.lesson
+                          ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
+                          ?.[0];
+                        return firstLesson
+                          ? `/dashboard/${course.slug}/${firstLesson.id}`
+                          : `/dashboard/${course.slug}`;
+                      })()}
+                    >
+                      Watch Course
+                    </Link>
+                  ) : (
+                    <EnrollmentButton
+                      courseId={course.id}
+                      slug={slug}
+                      status={enrollmentStatus}
+                    />
+                  )}
+                  <Button
+                    onClick={() => router.back()}
+                    variant="outline"
+                    className="w-full mt-4"
+                  >
+                    Go Back
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

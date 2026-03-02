@@ -79,33 +79,33 @@ export async function CreateCourse(
     // Auto-create Broadcast Group if Published on creation
     if (validation.data.status === "Published") {
       await prisma.chatGroup.create({
-          data: {
-              name: `${validation.data.title} Group`,
-              courseId: createdCourse.id,
-              imageUrl: validation.data.fileKey 
-          }
+        data: {
+          name: `${validation.data.title} Group`,
+          courseId: createdCourse.id,
+          imageUrl: validation.data.fileKey
+        }
       });
     }
 
     // Invalidate global courses and analytics cache
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(createdCourse.slug)),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(createdCourse.id)),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(createdCourse.slug)),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(createdCourse.id)),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
     ]);
 
     revalidatePath("/courses");

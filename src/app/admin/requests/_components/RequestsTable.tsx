@@ -18,11 +18,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  MoreVertical, 
-  CheckCircle, 
-  XCircle, 
-  ShieldAlert, 
+import {
+  MoreVertical,
+  CheckCircle,
+  XCircle,
+  ShieldAlert,
   ShieldCheck,
   Copy,
   Mail,
@@ -39,10 +39,10 @@ import {
   RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
-import { 
-  updateEnrollmentStatusAction, 
-  banUserAction, 
-  unbanUserAction, 
+import {
+  updateEnrollmentStatusAction,
+  banUserAction,
+  unbanUserAction,
   getRequestsAction,
   updateUserDetailsAction,
   deleteEnrollmentAction
@@ -57,17 +57,17 @@ import { chatCache } from "@/lib/chat-cache";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
 import { EnrollmentStatus } from "@/generated/prisma";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -120,7 +120,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
     open: false,
     title: "",
     description: "",
-    onConfirm: () => {},
+    onConfirm: () => { },
     actionText: "",
   });
 
@@ -204,15 +204,15 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
     setConfirmConfig({
       open: true,
       title: isBanned ? "Unban User?" : "Ban User?",
-      description: isBanned 
-        ? "This will restore the user's access to the platform." 
+      description: isBanned
+        ? "This will restore the user's access to the platform."
         : "This will immediately revoke the user's access to all courses and features.",
       actionText: isBanned ? "Unban User" : "Ban User",
       isDestructive: !isBanned,
       onConfirm: () => {
         startTransition(async () => {
-          const result = isBanned 
-            ? await unbanUserAction(userId) 
+          const result = isBanned
+            ? await unbanUserAction(userId)
             : await banUserAction(userId);
           if (result.status === "success") {
             toast.success(result.message);
@@ -229,19 +229,19 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
 
   const handleEditSave = async () => {
     if (!editingUser) return;
-    
+
     startTransition(async () => {
       const result = await updateUserDetailsAction(editingUser.id, {
         email: editEmail,
         phoneNumber: editPhone,
       });
-      
+
       if (result.status === "success") {
         toast.success(result.message);
         clearLocalCache(editingUser.id);
-        setData(prev => prev.map(item => 
-          item.User.id === editingUser.id 
-            ? { ...item, User: { ...item.User, email: editEmail, phoneNumber: editPhone } } 
+        setData(prev => prev.map(item =>
+          item.User.id === editingUser.id
+            ? { ...item, User: { ...item.User, email: editEmail, phoneNumber: editPhone } }
             : item
         ));
         setEditingUser(null);
@@ -292,22 +292,22 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
 
   const syncWithServer = useCallback(async (currentV: string | null) => {
     startTransition(async () => {
-         const result = await getRequestsAction(0, BATCH_SIZE, "All", undefined, currentV || undefined);
-         
-         if (result.status === "not-modified") {
-             console.log(`[RequestsTable] Smart Sync: Server version matches (${currentV}). Cache is fresh.`);
-         } else {
-             console.log(`[RequestsTable] Smart Sync: Server version mismatch or Cache Miss. Syncing ${result.data.length} items.`);
-             setData(result.data as Request[]);
-             setTotalCount(result.totalCount);
-             setVersion(result.version);
-             
-             // Persist to secureStorage
-             secureStorage.setItemTracked("admin_enrollment_requests", JSON.stringify({ data: result.data, totalCount: result.totalCount }));
-             secureStorage.setItemTracked("admin_enrollment_version", result.version);
-         }
-         secureStorage.setItemTracked("admin_enrollment_last_sync", Date.now().toString());
-         setHasHydrated(true);
+      const result = await getRequestsAction(0, BATCH_SIZE, "All", undefined, currentV || undefined);
+
+      if (result.status === "not-modified") {
+        console.log(`[RequestsTable] Smart Sync: Server version matches (${currentV}). Cache is fresh.`);
+      } else {
+        console.log(`[RequestsTable] Smart Sync: Server version mismatch or Cache Miss. Syncing ${result.data.length} items.`);
+        setData(result.data as Request[]);
+        setTotalCount(result.totalCount);
+        setVersion(result.version);
+
+        // Persist to secureStorage
+        secureStorage.setItemTracked("admin_enrollment_requests", JSON.stringify({ data: result.data, totalCount: result.totalCount }));
+        secureStorage.setItemTracked("admin_enrollment_version", result.version);
+      }
+      secureStorage.setItemTracked("admin_enrollment_last_sync", Date.now().toString());
+      setHasHydrated(true);
     });
   }, [BATCH_SIZE]);
 
@@ -329,55 +329,55 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
 
     // 1. Initial Load from LocalStorage (if not searching)
     if (debouncedSearch === "") {
-        const cached = secureStorage.getItem(STORAGE_KEY);
-        const cachedVersion = secureStorage.getItem(VERSION_KEY);
-        const lastSync = secureStorage.getItem(SYNC_TIMESTAMP_KEY);
+      const cached = secureStorage.getItem(STORAGE_KEY);
+      const cachedVersion = secureStorage.getItem(VERSION_KEY);
+      const lastSync = secureStorage.getItem(SYNC_TIMESTAMP_KEY);
 
-        if (cached && cachedVersion) {
-            if (!hasLogged.current) {
-                console.log(`%c[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`, "color: #eab308; font-weight: bold");
-                hasLogged.current = true;
-            }
-            
-            if (!hasHydrated) {
-                const parsed = JSON.parse(cached);
-                setData(parsed.data);
-                setTotalCount(parsed.totalCount);
-                setVersion(cachedVersion);
-                setHasHydrated(true);
-            }
-
-            // 2. Determine if background revalidation is needed
-            const now = Date.now();
-            if (!lastSync || (now - parseInt(lastSync)) > SYNC_WINDOW) {
-                if (!isInitialized.current) {
-                    console.log(`[RequestsTable] Revalidation Window Open (>30m). Syncing...`);
-                    isInitialized.current = true;
-                    syncWithServer(cachedVersion);
-                }
-            }
-        } else {
-            if (!hasHydrated && !isInitialized.current) {
-                 console.log(`[RequestsTable] No Local Cache. Triggering Initial Sync...`);
-                 isInitialized.current = true;
-                 syncWithServer(null);
-            }
+      if (cached && cachedVersion) {
+        if (!hasLogged.current) {
+          console.log(`%c[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`, "color: #eab308; font-weight: bold");
+          hasLogged.current = true;
         }
+
+        if (!hasHydrated) {
+          const parsed = JSON.parse(cached);
+          setData(parsed.data);
+          setTotalCount(parsed.totalCount);
+          setVersion(cachedVersion);
+          setHasHydrated(true);
+        }
+
+        // 2. Determine if background revalidation is needed
+        const now = Date.now();
+        if (!lastSync || (now - parseInt(lastSync)) > SYNC_WINDOW) {
+          if (!isInitialized.current) {
+            console.log(`[RequestsTable] Revalidation Window Open (>30m). Syncing...`);
+            isInitialized.current = true;
+            syncWithServer(cachedVersion);
+          }
+        }
+      } else {
+        if (!hasHydrated && !isInitialized.current) {
+          console.log(`[RequestsTable] No Local Cache. Triggering Initial Sync...`);
+          isInitialized.current = true;
+          syncWithServer(null);
+        }
+      }
     }
 
     // 3. Cross-Tab Sync: Listen for storage changes from other tabs
     const handleStorageChange = (e: StorageEvent) => {
-        if (debouncedSearch !== "") return; // Don't sync while searching
-        
-        if (e.key === STORAGE_KEY && e.newValue) {
-            const parsed = JSON.parse(e.newValue);
-            setData(parsed.data);
-            setTotalCount(parsed.totalCount);
-            console.log(`[RequestsTable] Cross-Tab Sync: Data updated from another tab.`);
-        }
-        if (e.key === VERSION_KEY && e.newValue) {
-            setVersion(e.newValue);
-        }
+      if (debouncedSearch !== "") return; // Don't sync while searching
+
+      if (e.key === STORAGE_KEY && e.newValue) {
+        const parsed = JSON.parse(e.newValue);
+        setData(parsed.data);
+        setTotalCount(parsed.totalCount);
+        console.log(`[RequestsTable] Cross-Tab Sync: Data updated from another tab.`);
+      }
+      if (e.key === VERSION_KEY && e.newValue) {
+        setVersion(e.newValue);
+      }
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -401,10 +401,10 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
   const loadMore = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     setLoadingMore(true);
-    
+
     const result = await getRequestsAction(data.length, BATCH_SIZE, "All", debouncedSearch);
     const newData = result.data as Request[];
-    
+
     setData(prev => [...prev, ...newData]);
     setHasMore(data.length + newData.length < result.totalCount);
     setLoadingMore(false);
@@ -420,43 +420,43 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
         {/* Search Bar - Responsive */}
         <div className="relative w-full sm:max-w-md group">
-           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-           <Input 
-             placeholder="Search by name, ID or email..." 
-             className="pl-10 pr-10 h-11 bg-muted/30 border-2 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium py-2"
-             value={search}
-             onChange={(e) => setSearch(e.target.value)}
-           />
-           <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
-             {isPending && <Loader2 className="size-4 animate-spin text-muted-foreground/60" />}
-             {search && !isPending && (
-               <button 
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+          <Input
+            placeholder="Search by name, ID or email..."
+            className="pl-10 pr-10 h-11 bg-muted/30 border-2 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium py-2"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+            {isPending && <Loader2 className="size-4 animate-spin text-muted-foreground/60" />}
+            {search && !isPending && (
+              <button
                 onClick={() => setSearch("")}
                 className="hover:bg-muted/60 p-1 rounded-full text-muted-foreground/60 hover:text-foreground transition-colors"
-               >
-                 <XCircle className="size-4" />
-               </button>
-             )}
-           </div>
+              >
+                <XCircle className="size-4" />
+              </button>
+            )}
+          </div>
         </div>
 
-         {/* Info Badge & Refresh - Responsive */}
-         <div className="flex items-center gap-2 w-full sm:w-auto">
-             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted/30 px-5 h-11 flex-1 sm:flex-initial rounded-xl border border-border/40 shadow-sm shrink-0 justify-center">
-                  <Filter className="size-3 text-primary/60" />
-                  <span>Showing {data.length} of {totalCount} Records</span>
-             </div>
-             <Button
-               variant="outline"
-               size="icon"
-               className="h-11 w-11 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all shadow-sm"
-               onClick={manualRefresh}
-               disabled={refreshing || isPending}
-               title="Sync with Server"
-             >
-                <RefreshCw className={cn("size-4", (refreshing || isPending) && "animate-spin text-primary")} />
-             </Button>
-         </div>
+        {/* Info Badge & Refresh - Responsive */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground bg-muted/30 px-5 h-11 flex-1 sm:flex-initial rounded-xl border border-border/40 shadow-sm shrink-0 justify-center">
+            <Filter className="size-3 text-primary/60" />
+            <span>Showing {data.length} of {totalCount} Records</span>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-11 w-11 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all shadow-sm"
+            onClick={manualRefresh}
+            disabled={refreshing || isPending}
+            title="Sync with Server"
+          >
+            <RefreshCw className={cn("size-4", (refreshing || isPending) && "animate-spin text-primary")} />
+          </Button>
+        </div>
       </div>
 
       {/* --- DESKTOP VIEW --- */}
@@ -504,7 +504,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
                             <Badge variant="destructive" className="h-4 px-1 text-[8px] uppercase tracking-tighter font-black">Banned</Badge>
                           )}
                         </div>
-                        <button 
+                        <button
                           onClick={() => copyToClipboard(request.User.id, "User ID")}
                           className="flex items-center gap-1.5 text-[9px] text-muted-foreground/60 hover:text-primary transition-colors uppercase tracking-widest font-medium"
                         >
@@ -515,7 +515,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <button 
+                    <button
                       onClick={() => copyToClipboard(request.User.email, "Email")}
                       className="inline-flex items-center gap-1.5 text-xs text-foreground/70 hover:text-primary transition-colors font-medium cursor-pointer"
                     >
@@ -525,7 +525,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
                   </TableCell>
                   <TableCell className="text-center">
                     {request.User.phoneNumber ? (
-                      <button 
+                      <button
                         onClick={() => copyToClipboard(request.User.phoneNumber!, "Phone")}
                         className="inline-flex items-center gap-1.5 text-xs text-foreground/70 hover:text-primary transition-colors font-medium cursor-pointer"
                       >
@@ -542,12 +542,12 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
                     </span>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Badge 
+                    <Badge
                       className={cn(
                         "rounded-full px-4 py-1 text-[10px] font-black uppercase tracking-tighter",
-                        request.status === "Granted" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : 
-                        request.status === "Pending" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" : 
-                        "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                        request.status === "Granted" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                          request.status === "Pending" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" :
+                            "bg-rose-500/10 text-rose-600 border-rose-500/20"
                       )}
                       variant="outline"
                     >
@@ -565,11 +565,11 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
                     </span>
                   </TableCell>
                   <TableCell className="text-right pr-6">
-                    <ActionMenu 
-                      request={request} 
-                      isPending={isPending} 
-                      onStatusUpdate={(id: string, status: any) => handleStatusUpdate(id, request, status)} 
-                      onBanToggle={handleBanToggle} 
+                    <ActionMenu
+                      request={request}
+                      isPending={isPending}
+                      onStatusUpdate={(id: string, status: any) => handleStatusUpdate(id, request, status)}
+                      onBanToggle={handleBanToggle}
                       onDelete={handleDelete}
                       onEditOpen={(user) => {
                         setEditingUser(user);
@@ -596,17 +596,17 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
             <div key={request.id} className="bg-card/40 backdrop-blur-md border border-border/40 rounded-3xl p-5 shadow-xl space-y-5 relative overflow-hidden group transition-all">
               {/* Status Ribbon/Badge */}
               <div className="absolute top-0 right-0 p-4">
-                 <Badge 
-                    className={cn(
-                      "rounded-full text-[9px] font-black uppercase tracking-tighter px-3 h-6",
-                      request.status === "Granted" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : 
-                      request.status === "Pending" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" : 
-                      "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                    )}
-                    variant="outline"
-                  >
-                    {request.status}
-                  </Badge>
+                <Badge
+                  className={cn(
+                    "rounded-full text-[9px] font-black uppercase tracking-tighter px-3 h-6",
+                    request.status === "Granted" ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" :
+                      request.status === "Pending" ? "bg-amber-500/10 text-amber-600 border-amber-500/20" :
+                        "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                  )}
+                  variant="outline"
+                >
+                  {request.status}
+                </Badge>
               </div>
 
               {/* User Section */}
@@ -622,7 +622,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
                     {request.User.name}
                     {request.User.banned && <Badge variant="destructive" className="h-3 px-1 text-[7px] font-black">BANNED</Badge>}
                   </h3>
-                  <button 
+                  <button
                     onClick={() => copyToClipboard(request.User.id, "User ID")}
                     className="text-[9px] text-muted-foreground font-black uppercase tracking-widest flex items-center gap-1 mt-1 font-mono opacity-50 active:opacity-100 transition-opacity"
                   >
@@ -642,11 +642,11 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
 
               {/* Mobile Actions */}
               <div className="pt-2 flex items-center justify-end">
-                <ActionMenu 
-                  request={request} 
-                  isPending={isPending} 
-                  onStatusUpdate={(id: string, status: any) => handleStatusUpdate(id, request, status)} 
-                  onBanToggle={handleBanToggle} 
+                <ActionMenu
+                  request={request}
+                  isPending={isPending}
+                  onStatusUpdate={(id: string, status: any) => handleStatusUpdate(id, request, status)}
+                  onBanToggle={handleBanToggle}
                   onDelete={handleDelete}
                   onEditOpen={(user) => {
                     setEditingUser(user);
@@ -663,21 +663,21 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
       {/* --- LOAD MORE --- */}
       {hasMore && (
         <div className="flex justify-center pt-4 pb-8">
-           <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="rounded-full px-8 font-black uppercase tracking-widest text-[10px] h-11 border-border/60 hover:bg-muted/50 transition-all hover:scale-105"
             onClick={loadMore}
             disabled={loadingMore}
-           >
-             {loadingMore ? (
-               <>
-                 <Loader2 className="mr-2 size-3 animate-spin" />
-                 Loading...
-               </>
-             ) : (
-               "Load More"
-             )}
-           </Button>
+          >
+            {loadingMore ? (
+              <>
+                <Loader2 className="mr-2 size-3 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              "Load More"
+            )}
+          </Button>
         </div>
       )}
 
@@ -693,15 +693,15 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
               Update {editingUser?.name}'s contact information.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-6 py-6">
             <div className="space-y-3">
               <Label htmlFor="email" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Email Address</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40" />
-                <Input 
-                  id="email" 
-                  value={editEmail} 
+                <Input
+                  id="email"
+                  value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   className="pl-10 h-11 bg-muted/30 border-2 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium"
                 />
@@ -711,9 +711,9 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
               <Label htmlFor="phone" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Phone Number</Label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/40" />
-                <Input 
-                  id="phone" 
-                  value={editPhone} 
+                <Input
+                  id="phone"
+                  value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
                   placeholder="+1 234 567 890"
                   className="pl-10 h-11 bg-muted/30 border-2 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium"
@@ -721,7 +721,7 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
               </div>
             </div>
           </div>
-          
+
           <DialogFooter className="gap-2 sm:gap-0 pt-2">
             <Button variant="ghost" onClick={() => setEditingUser(null)} className="font-bold uppercase tracking-widest text-[10px] h-11 rounded-xl">
               Cancel
@@ -744,15 +744,15 @@ export function RequestsTable({ initialData, totalCount: initialTotalCount, vers
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
             <AlertDialogCancel className="font-bold uppercase tracking-widest text-[10px] h-11 rounded-xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault();
                 confirmConfig.onConfirm();
               }}
               className={cn(
                 "font-bold uppercase tracking-widest text-[10px] h-11 px-8 rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]",
-                confirmConfig.isDestructive 
-                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-destructive/20" 
+                confirmConfig.isDestructive
+                  ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 shadow-destructive/20"
                   : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
               )}
             >
@@ -772,8 +772,8 @@ function DetailRow({ icon: Icon, label, value, onCopy }: { icon: any, label: str
         <Icon className="size-3.5" />
         <span>{label}</span>
       </div>
-      <button 
-        disabled={!onCopy} 
+      <button
+        disabled={!onCopy}
         onClick={onCopy}
         className={cn("font-bold text-foreground text-right tracking-tight truncate ml-4", onCopy && "active:text-primary transition-all flex flex-row-reverse items-center gap-1.5")}
       >
@@ -784,17 +784,17 @@ function DetailRow({ icon: Icon, label, value, onCopy }: { icon: any, label: str
   );
 }
 
-function ActionMenu({ 
-  request, 
-  isPending, 
-  onStatusUpdate, 
+function ActionMenu({
+  request,
+  isPending,
+  onStatusUpdate,
   onBanToggle,
   onDelete,
   onEditOpen
-}: { 
-  request: Request, 
-  isPending: boolean, 
-  onStatusUpdate: any, 
+}: {
+  request: Request,
+  isPending: boolean,
+  onStatusUpdate: any,
   onBanToggle: any,
   onDelete: (id: string) => void,
   onEditOpen: (user: Request["User"]) => void
@@ -808,7 +808,7 @@ function ActionMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56 p-2 rounded-2xl border-2 border-border/40 bg-card/95 backdrop-blur-xl shadow-2xl">
         <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 p-3">Manage Profile</DropdownMenuLabel>
-        
+
         <DropdownMenuItem onClick={() => onEditOpen(request.User)} className="rounded-xl p-3 focus:bg-primary/5 group cursor-pointer border border-transparent focus:border-primary/10 transition-all mb-1">
           <Edit className="mr-3 h-4 w-4 text-primary opacity-60 group-hover:opacity-100 transition-opacity" />
           <span className="font-bold text-xs uppercase tracking-tight">Edit Details</span>
@@ -816,14 +816,14 @@ function ActionMenu({
 
         <DropdownMenuSeparator className="bg-border/20 my-2" />
         <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 p-3">Grant Access</DropdownMenuLabel>
-        
+
         {request.status !== "Granted" && (
           <DropdownMenuItem onClick={() => onStatusUpdate(request.id, "Granted")} className="rounded-xl p-3 focus:bg-emerald-500/5 group cursor-pointer border border-transparent focus:border-emerald-500/10 transition-all mb-1">
             <CheckCircle className="mr-3 h-4 w-4 text-emerald-600 opacity-60 group-hover:opacity-100 transition-opacity" />
             <span className="font-bold text-xs uppercase tracking-tight">Approve Request</span>
           </DropdownMenuItem>
         )}
-        
+
         {request.status !== "Revoked" && (
           <DropdownMenuItem onClick={() => onStatusUpdate(request.id, "Revoked")} className="rounded-xl p-3 focus:bg-rose-500/5 group cursor-pointer border border-transparent focus:border-rose-500/10 transition-all mb-1">
             <XCircle className="mr-3 h-4 w-4 text-rose-600 opacity-60 group-hover:opacity-100 transition-opacity" />
@@ -833,7 +833,7 @@ function ActionMenu({
 
         <DropdownMenuSeparator className="bg-border/20 my-2" />
         <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 p-3">User Safety</DropdownMenuLabel>
-        
+
         {request.User.banned ? (
           <DropdownMenuItem onClick={() => onBanToggle(request.User.id, true)} className="rounded-xl p-3 focus:bg-blue-500/5 group cursor-pointer border border-transparent focus:border-blue-500/10 transition-all">
             <ShieldCheck className="mr-3 h-4 w-4 text-blue-600 opacity-60 group-hover:opacity-100 transition-opacity" />
@@ -848,7 +848,7 @@ function ActionMenu({
 
         <DropdownMenuSeparator className="bg-border/20 my-2" />
         <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 p-3">Danger Zone</DropdownMenuLabel>
-        
+
         <DropdownMenuItem onClick={() => onDelete(request.id)} className="rounded-xl p-3 text-destructive focus:bg-destructive/5 group cursor-pointer border border-transparent focus:border-destructive/10 transition-all">
           <Trash2 className="mr-3 h-4 w-4 opacity-60 group-hover:opacity-100 transition-opacity" />
           <span className="font-bold text-xs uppercase tracking-tight">Delete Request</span>

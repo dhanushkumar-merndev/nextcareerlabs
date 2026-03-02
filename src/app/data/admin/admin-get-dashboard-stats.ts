@@ -30,13 +30,13 @@ export async function adminGetDashboardStats(clientVersion?: string) {
   const cached = await getCache<any>(cacheKey);
 
   if (cached) {
-     console.log(`[adminGetDashboardStats] Redis Cache HIT. Returning data.`);
-     return { data: cached, version: currentVersion };
+    console.log(`[adminGetDashboardStats] Redis Cache HIT. Returning data.`);
+    return { data: cached, version: currentVersion };
   }
 
   console.log(`[adminGetDashboardStats] Redis Cache MISS. Fetching from Prisma DB...`);
   const startTime = Date.now();
-  
+
   const [totalUsers, totalSubscriptions, totalCourses, totalLessons] = await Promise.all([
     prisma.user.count(),
     prisma.enrollment.count({ where: { status: 'Granted' } }),

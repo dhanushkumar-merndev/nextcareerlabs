@@ -30,8 +30,8 @@ export async function adminGetRecentCourses(clientVersion?: string) {
   const cached = await getCache<any[]>(cacheKey);
 
   if (cached) {
-     console.log(`[adminGetRecentCourses] Redis Cache HIT. Returning data.`);
-     return { data: cached, version: currentVersion };
+    console.log(`[adminGetRecentCourses] Redis Cache HIT. Returning data.`);
+    return { data: cached, version: currentVersion };
   }
 
   console.log(`[adminGetRecentCourses] Redis Cache MISS. Fetching from Prisma DB...`);

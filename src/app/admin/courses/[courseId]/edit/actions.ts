@@ -69,47 +69,47 @@ export async function editCourse(
 
     // Sync or Auto-create Chat Group
     const existingGroup = await prisma.chatGroup.findFirst({
-        where: { courseId: courseId }
+      where: { courseId: courseId }
     });
 
     if (existingGroup) {
-        await prisma.chatGroup.update({
-            where: { id: existingGroup.id },
-            data: {
-                name: `${result.data.title} Group`,
-                imageUrl: result.data.fileKey 
-            }
-        });
+      await prisma.chatGroup.update({
+        where: { id: existingGroup.id },
+        data: {
+          name: `${result.data.title} Group`,
+          imageUrl: result.data.fileKey
+        }
+      });
     } else if (result.data.status === "Published") {
-        await prisma.chatGroup.create({
-            data: {
-                name: `${result.data.title} Group`,
-                courseId: courseId,
-                imageUrl: result.data.fileKey 
-            }
-        });
+      await prisma.chatGroup.create({
+        data: {
+          name: `${result.data.title} Group`,
+          courseId: courseId,
+          imageUrl: result.data.fileKey
+        }
+      });
     }
 
     // Invalidate global courses and analytics cache
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(result.data.slug)),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-        invalidateAdminsCache()
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(result.data.slug)),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      invalidateAdminsCache()
     ]);
 
     revalidatePath("/courses");
@@ -155,18 +155,18 @@ export async function reorderLessons(
     const startTime = Date.now();
     await prisma.$transaction(updates);
     console.log(`[reorderLessons] Transaction took ${Date.now() - startTime}ms`);
-    
+
     // Invalidate caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -209,17 +209,17 @@ export async function reorderChapters(
     const startTime = Date.now();
     await prisma.$transaction(updates);
     console.log(`[reorderChapters] Transaction took ${Date.now() - startTime}ms`);
-    
+
     // Invalidate caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -273,16 +273,16 @@ export async function createChapter(
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);
 
     revalidatePath(`/admin/courses/${result.data.courseId}/edit`);
@@ -340,25 +340,25 @@ export async function createLesson(
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
-        // 1. Invalidate Actual Data
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      // 1. Invalidate Actual Data
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
 
-        // 2. Increment Versions (This triggers the yellow "UPDATE FOUND" on the client)
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
+      // 2. Increment Versions (This triggers the yellow "UPDATE FOUND" on the client)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
     ]);
 
     revalidatePath(`/admin/courses/${result.data.courseId}/edit`);
@@ -454,19 +454,19 @@ export async function deleteLesson({
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        invalidateCache(`lesson:${lessonId}`),
-        invalidateCache(`lesson:questions:${lessonId}`),
-        invalidateCache(`lesson:content:${lessonId}`),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      invalidateCache(`lesson:${lessonId}`),
+      invalidateCache(`lesson:questions:${lessonId}`),
+      invalidateCache(`lesson:content:${lessonId}`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -556,16 +556,16 @@ export async function deleteChapter({
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -616,15 +616,15 @@ export async function editChapter({
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);
 
     // Revalidate the edit page
@@ -643,6 +643,6 @@ export async function editChapter({
 }
 
 export async function adminGetCourseAction(id: string, clientVersion?: string) {
-    await requireAdmin();
-    return await adminGetCourse(id, clientVersion);
+  await requireAdmin();
+  return await adminGetCourse(id, clientVersion);
 }

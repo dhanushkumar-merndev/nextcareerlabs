@@ -13,7 +13,7 @@ export const requireAdmin = cache(async () => {
   if (!session) {
     redirect("/login?auth_failure=true");
   }
-  
+
   const user = session.user;
   if (user.banned) {
     redirect("/banned");

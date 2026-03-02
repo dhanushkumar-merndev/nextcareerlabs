@@ -11,7 +11,6 @@
 
 import { CoursesClient } from "./_components/CoursesClient";
 import { CourseSearch } from "./_components/CourseSearch";
-import { getAllCoursesAction } from "./actions";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { Suspense } from "react";

@@ -7,14 +7,14 @@ import { getAllUsers, updateUserRole } from "@/app/admin/analytics/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {DropdownMenu,DropdownMenuContent,DropdownMenuItem,DropdownMenuLabel,DropdownMenuSeparator,DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, UserListProps } from "@/lib/types/analytic";
 import { cn, formatIST } from "@/lib/utils";
 import { InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy,Loader2,Mail,Phone,Search,ShieldCheck,User as UserIcon, RefreshCw} from "lucide-react";
+import { Check, Copy, Loader2, Mail, Phone, Search, ShieldCheck, User as UserIcon, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
@@ -52,14 +52,14 @@ export function UserList({
 
   useEffect(() => {
     setIsMounted(true);
-    
+
     if (!hasLogged.current) {
-        const storedData = secureStorage.getItem(STORAGE_KEY);
-        const storedVersion = secureStorage.getItem(VERSION_KEY);
-        if (storedData) {
-            console.log(`%c[UserList] LOCAL HIT (${storedVersion || 'v0'}). Rendering from storage.`, "color: #eab308; font-weight: bold");
-        }
-        hasLogged.current = true;
+      const storedData = secureStorage.getItem(STORAGE_KEY);
+      const storedVersion = secureStorage.getItem(VERSION_KEY);
+      if (storedData) {
+        console.log(`%c[UserList] LOCAL HIT (${storedVersion || 'v0'}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+      }
+      hasLogged.current = true;
     }
   }, [STORAGE_KEY, VERSION_KEY]);
 
@@ -112,7 +112,7 @@ export function UserList({
     queryFn: async ({ pageParam = 1 }) => {
       // Map tab to role filter expected by action
       const roleFilter = activeTab === "admins" ? "admin" : "user";
-      
+
       // Pass client version only for page 1 default fetch
       const isFirstPageDefault = pageParam === 1 && !debouncedSearch && (activeTab === "users" || activeTab === "admins");
 
@@ -127,11 +127,11 @@ export function UserList({
               const parsed = JSON.parse(storedData);
               if (parsed && Array.isArray(parsed.users)) {
                 console.log(`[UserList] CLIENT SKIP: Data is fresh (<30m). Bypassing server.`);
-                return { 
-                    users: parsed.users, 
-                    hasNextPage: parsed.hasNextPage, 
-                    totalUsers: parsed.totalUsers, 
-                    version: secureStorage.getItem(VERSION_KEY) || version 
+                return {
+                  users: parsed.users,
+                  hasNextPage: parsed.hasNextPage,
+                  totalUsers: parsed.totalUsers,
+                  version: secureStorage.getItem(VERSION_KEY) || version
                 } as UsersPage;
               }
             } catch (e) {
@@ -146,26 +146,26 @@ export function UserList({
       console.log(`[UserList] FETCH: Page ${pageParam} (Tab: ${activeTab}). Version Check: ${clientV || 'None (Force Refresh)'}`);
 
       const result = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, clientV || undefined, enrolledOnly);
-      
+
       let finalResult = result as any;
 
       if ("status" in result && result.status === "not-modified") {
         console.log(`[UserList] Smart Sync: Server version matches. Cache is fresh.`);
-        secureStorage.setItemTracked(LAST_CHECK_KEY, Date.now().toString()); 
-        
+        secureStorage.setItemTracked(LAST_CHECK_KEY, Date.now().toString());
+
         const existingData = queryClient.getQueryData<InfiniteData<UsersPage>>(queryKey);
         if (existingData?.pages[0]?.users?.length) {
-            return existingData.pages[0];
+          return existingData.pages[0];
         }
 
         const storedData = secureStorage.getItem(STORAGE_KEY);
         if (storedData) {
-            try {
-                const parsed = JSON.parse(storedData);
-                if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
-                    return { users: parsed.users, hasNextPage: parsed.hasNextPage, totalUsers: parsed.totalUsers } as UsersPage;
-                }
-            } catch (e) {}
+          try {
+            const parsed = JSON.parse(storedData);
+            if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
+              return { users: parsed.users, hasNextPage: parsed.hasNextPage, totalUsers: parsed.totalUsers } as UsersPage;
+            }
+          } catch (e) { }
         }
 
         console.log(`[UserList] NOT_MODIFIED but local data missing. Forcing recovery fetch...`);
@@ -174,14 +174,14 @@ export function UserList({
 
       if (isFirstPageDefault && finalResult && finalResult.users) {
         console.log(`[UserList] PERSIST: Saving default list to secureStorage (${finalResult.users.length} users, v:${finalResult.version})`);
-        secureStorage.setItemTracked(STORAGE_KEY, JSON.stringify({ 
-            users: finalResult.users, 
-            totalUsers: finalResult.totalUsers, 
-            hasNextPage: finalResult.hasNextPage 
+        secureStorage.setItemTracked(STORAGE_KEY, JSON.stringify({
+          users: finalResult.users,
+          totalUsers: finalResult.totalUsers,
+          hasNextPage: finalResult.hasNextPage
         }));
         if (finalResult.version) {
-            secureStorage.setItemTracked(VERSION_KEY, finalResult.version);
-            setVersion(finalResult.version);
+          secureStorage.setItemTracked(VERSION_KEY, finalResult.version);
+          setVersion(finalResult.version);
         }
         secureStorage.setItemTracked(LAST_CHECK_KEY, Date.now().toString());
       }
@@ -206,7 +206,7 @@ export function UserList({
               pageParams: [1]
             } as InfiniteData<UsersPage>;
           }
-        } catch (e) {}
+        } catch (e) { }
       }
       return undefined;
     },
@@ -240,7 +240,7 @@ export function UserList({
   // Handle role update
   const handleRoleUpdate = async (userId: string, newRole: string) => {
     toast.loading("Updating role...");
-    
+
     // Calculate target query key for cross-tab optimistic update
     const targetTab = activeTab === "users" ? "admins" : "users";
     const targetQueryKey = ["users", debouncedSearch, targetTab, enrolledOnly];
@@ -310,15 +310,15 @@ export function UserList({
       // 3. Clear secure storage for both tabs to ensure next fetch brings fresh data
       secureStorage.removeItemTracked(LAST_CHECK_KEY);
       secureStorage.removeItemTracked(STORAGE_KEY);
-      
+
       const targetPrefixData = targetTab === "admins" ? "admin_admins_list_data" : "admin_users_list_data";
       const targetPrefixCheck = targetTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check";
-      
+
       secureStorage.removeItemTracked(`${targetPrefixData}${enrolledOnly ? ":enrolled" : ""}`);
       secureStorage.removeItemTracked(`${targetPrefixCheck}${enrolledOnly ? ":enrolled" : ""}`);
       secureStorage.removeItemTracked(`${targetPrefixData}${!enrolledOnly ? ":enrolled" : ""}`);
       secureStorage.removeItemTracked(`${targetPrefixCheck}${!enrolledOnly ? ":enrolled" : ""}`);
-      
+
       // 4. Invalidate queries to sync with server in background
       queryClient.invalidateQueries({ queryKey: ["users"] });
       queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
@@ -339,8 +339,8 @@ export function UserList({
     try {
       // Nuclear clear for manual refresh - Keep LAST_CHECK_KEY removal to bypass 30m skip
       // but keep VERSION_KEY so we can still benefit from NOT_MODIFIED (Smart Sync)
-      secureStorage.removeItemTracked(LAST_CHECK_KEY); 
-      
+      secureStorage.removeItemTracked(LAST_CHECK_KEY);
+
       await refetch();
     } finally {
       setIsRefreshing(false);
@@ -366,30 +366,30 @@ export function UserList({
 
           {/* Search Input */}
           <div className="flex gap-2">
-              <div className="relative w-full sm:w-[300px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/60" />
-            <Input
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-10 bg-muted/30 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium text-[13px]"
-            />
+            <div className="relative w-full sm:w-[300px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground/60" />
+              <Input
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-10 bg-muted/30 border-border/40 rounded-xl focus:border-primary/50 transition-all font-medium text-[13px]"
+              />
+            </div>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing || isLoading}
+              className="h-10 w-10 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all shadow-sm"
+              title="Sync with Server"
+            >
+              <RefreshCw className={cn("size-4", (isRefreshing || isLoading) && "animate-spin text-primary")} />
+            </Button>
           </div>
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleManualRefresh}
-            disabled={isRefreshing || isLoading}
-            className="h-10 w-10 rounded-xl border-border/40 bg-card/40 backdrop-blur-sm hover:bg-muted/50 transition-all shadow-sm"
-            title="Sync with Server"
-          >
-            <RefreshCw className={cn("size-4", (isRefreshing || isLoading) && "animate-spin text-primary")} />
-          </Button>
         </div>
 
-          </div>
-        
         {/* --- DESKTOP VIEW --- */}
         <div className="hidden lg:block rounded-2xl border bg-card/40 backdrop-blur-md overflow-hidden border-border/40 shadow-xl">
           <Table>

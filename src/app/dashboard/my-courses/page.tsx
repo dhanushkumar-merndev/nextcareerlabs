@@ -14,7 +14,7 @@ export default function MyCoursesPage() {
       <Suspense fallback={
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
-             <Skeleton key={i} className="aspect-video w-full rounded-xl" />
+            <Skeleton key={i} className="aspect-video w-full rounded-xl" />
           ))}
         </div>
       }>

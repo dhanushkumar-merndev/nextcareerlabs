@@ -83,31 +83,31 @@ function VideoPlayer({
   const spriteMetadata = useMemo(() => {
     // 1. If we have an explicit spriteKey, use it (VTT or Legacy)
     if (spriteKey) {
-       return {
-          url: spriteUrl,
-          lowResUrl: lowResUrl,
-          cols: spriteCols ?? 0,
-          rows: spriteRows ?? 0,
-          interval: spriteInterval ?? 0,
-          width: spriteWidth ?? 0,
-          height: spriteHeight ?? 0,
-       };
+      return {
+        url: spriteUrl,
+        lowResUrl: lowResUrl,
+        cols: spriteCols ?? 0,
+        rows: spriteRows ?? 0,
+        interval: spriteInterval ?? 0,
+        width: spriteWidth ?? 0,
+        height: spriteHeight ?? 0,
+      };
     }
 
     // 2. Fallback: If no spriteKey but we have a videoKey, infer standard VTT path
     if (videoKey) {
-        const baseKey = videoKey.replace(/\.[^/.]+$/, "");
-        const inferredKey = `sprites/${baseKey}/thumbnails.vtt`;
-        // Sprites stay in the PUBLIC bucket for performance/simplicity
-        const inferredUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredKey}`;
-        const inferredLowKey = `sprites/${baseKey}/preview_low.jpg`;
-        const inferredLowUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredLowKey}`;
-        
-        return {
-           url: inferredUrl,
-           lowResUrl: inferredLowUrl,
-           cols: 0, rows: 0, interval: 0, width: 0, height: 0
-        };
+      const baseKey = videoKey.replace(/\.[^/.]+$/, "");
+      const inferredKey = `sprites/${baseKey}/thumbnails.vtt`;
+      // Sprites stay in the PUBLIC bucket for performance/simplicity
+      const inferredUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredKey}`;
+      const inferredLowKey = `sprites/${baseKey}/preview_low.jpg`;
+      const inferredLowUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredLowKey}`;
+
+      return {
+        url: inferredUrl,
+        lowResUrl: inferredLowUrl,
+        cols: 0, rows: 0, interval: 0, width: 0, height: 0
+      };
     }
 
     return undefined;
@@ -116,54 +116,54 @@ function VideoPlayer({
   // ✅ Prefetch VTT metadata
   useEffect(() => {
     if (!spriteMetadata?.url || !spriteMetadata.url.includes(".vtt")) return;
-    
+
     const fetchVtt = async () => {
-        try {
-            const res = await fetch(spriteMetadata.url);
-            if (!res.ok) return;
-            const text = await res.text();
-            
-            // Simple VTT parser to pre-parse for the player
-            const lines = text.split("\n");
-            const parsedCues: any[] = [];
-            let currentCue: any = {};
-            
-            lines.forEach(line => {
-              line = line.trim();
-              if (line === "WEBVTT" || line === "") return;
-              
-              if (line.includes("-->")) {
-                const [start, end] = line.split("-->").map(t => {
-                  const parts = t.trim().split(":");
-                  let s = 0;
-                  if (parts.length === 3) {
-                    s += parseFloat(parts[0]) * 3600;
-                    s += parseFloat(parts[1]) * 60;
-                    s += parseFloat(parts[2]);
-                  } else {
-                    s += parseFloat(parts[0]) * 60;
-                    s += parseFloat(parts[1]);
-                  }
-                  return s;
-                });
-                currentCue.startTime = start;
-                currentCue.endTime = end;
-              } else if (line.includes("#xywh=")) {
-                const [url, hash] = line.split("#xywh=");
-                const [x, y, w, h] = hash.split(",").map(Number);
-                currentCue.url = url;
-                currentCue.x = x;
-                currentCue.y = y;
-                currentCue.w = w;
-                currentCue.h = h;
-                parsedCues.push(currentCue);
-                currentCue = {};
+      try {
+        const res = await fetch(spriteMetadata.url);
+        if (!res.ok) return;
+        const text = await res.text();
+
+        // Simple VTT parser to pre-parse for the player
+        const lines = text.split("\n");
+        const parsedCues: any[] = [];
+        let currentCue: any = {};
+
+        lines.forEach(line => {
+          line = line.trim();
+          if (line === "WEBVTT" || line === "") return;
+
+          if (line.includes("-->")) {
+            const [start, end] = line.split("-->").map(t => {
+              const parts = t.trim().split(":");
+              let s = 0;
+              if (parts.length === 3) {
+                s += parseFloat(parts[0]) * 3600;
+                s += parseFloat(parts[1]) * 60;
+                s += parseFloat(parts[2]);
+              } else {
+                s += parseFloat(parts[0]) * 60;
+                s += parseFloat(parts[1]);
               }
+              return s;
             });
-            setVttCues(parsedCues);
-        } catch (e) {
-            console.error("[VTT Prefetch] Failed:", e);
-        }
+            currentCue.startTime = start;
+            currentCue.endTime = end;
+          } else if (line.includes("#xywh=")) {
+            const [url, hash] = line.split("#xywh=");
+            const [x, y, w, h] = hash.split(",").map(Number);
+            currentCue.url = url;
+            currentCue.x = x;
+            currentCue.y = y;
+            currentCue.w = w;
+            currentCue.h = h;
+            parsedCues.push(currentCue);
+            currentCue = {};
+          }
+        });
+        setVttCues(parsedCues);
+      } catch (e) {
+        console.error("[VTT Prefetch] Failed:", e);
+      }
     };
     fetchVtt();
   }, [spriteMetadata?.url]);
@@ -178,13 +178,13 @@ function VideoPlayer({
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
   const [captionUrl, setCaptionUrl] = useState<string | undefined>(undefined);
 
-const [resumeTime, setResumeTime] = useState(initialTime);
-useEffect(() => {
-  const localProgress = secureStorage.getItem(`video-progress-${lessonId}`);
-  if (localProgress) {
-    setResumeTime(Math.max(initialTime, parseFloat(localProgress)));
-  }
-}, [lessonId, initialTime]);
+  const [resumeTime, setResumeTime] = useState(initialTime);
+  useEffect(() => {
+    const localProgress = secureStorage.getItem(`video-progress-${lessonId}`);
+    if (localProgress) {
+      setResumeTime(Math.max(initialTime, parseFloat(localProgress)));
+    }
+  }, [lessonId, initialTime]);
 
   const sources = useMemo(() => {
     const list = [];
@@ -265,13 +265,13 @@ useEffect(() => {
   const saveUnsyncedDelta = () => {
     const val = sessionDeltaRef.current;
     if (val === 0) return;
-    
+
     // ✅ SECURE: Encrypt before storing
     const encrypted = CryptoJS.AES.encrypt(
       val.toString(),
       getEncryptionKey(userId)
     ).toString();
-    
+
     secureStorage.setItemTracked(`unsynced-delta-${lessonId}`, encrypted);
     setCookie(`unsynced-delta-${lessonId}`, encrypted);
   };
@@ -280,16 +280,16 @@ useEffect(() => {
     // Check localStorage first, then cookie
     const localData = secureStorage.getItem(`unsynced-delta-${lessonId}`);
     const encryptedData = localData || getCookie(`unsynced-delta-${lessonId}`);
-    
+
     if (!encryptedData) return 0;
-    
+
     try {
       // ✅ SECURE: Decrypt
       const decrypted = CryptoJS.AES.decrypt(
         encryptedData,
         getEncryptionKey(userId)
       ).toString(CryptoJS.enc.Utf8);
-      
+
       return parseFloat(decrypted) || 0;
     } catch (e) {
       // If decryption fails (tampering detected), return 0
@@ -311,7 +311,7 @@ useEffect(() => {
   const syncToDB = async (specificLessonId?: string, delta?: number, position?: number) => {
     const targetId = specificLessonId || lessonId;
     const currentPosition = position !== undefined ? position : lastPositionRef.current;
-    
+
     // Calculate final delta from accumulated video progress
     let deltaToSync = 0;
     if (delta !== undefined) {
@@ -323,7 +323,7 @@ useEffect(() => {
     if (deltaToSync === 0 && position === undefined) return;
 
     console.log(`[Sync] Syncing ${targetId}: Position ${currentPosition}, Delta ${deltaToSync}`);
-    
+
     // ✅ Send consumed video duration to DB
     const response = await updateVideoProgress(targetId, currentPosition, deltaToSync);
 
@@ -335,37 +335,37 @@ useEffect(() => {
         const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: targetId, lastWatched: 0, actualWatchTime: 0 };
         progress.lastWatched = currentPosition;
         progress.actualWatchTime = (progress.actualWatchTime || 0) + deltaToSync;
-        
+
         if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
         cached.data.lesson.lessonProgress[0] = progress;
-        
+
         chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
         queryClient.setQueryData(["lesson_content", lessonId], cached.data);
       }
-      
+
       // ✅ Clear local state only after successful sync for current lesson
       clearLocalDelta();
       sessionDeltaRef.current = 0;
     } else if (response.status === "success" && specificLessonId) {
-        // Update specific lesson cache
-        const cacheKey = `lesson_content_${specificLessonId}`;
-        const cached = chatCache.get<any>(cacheKey, userId);
-        if (cached?.data?.lesson) {
-          const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: specificLessonId, lastWatched: 0, actualWatchTime: 0 };
-          progress.lastWatched = currentPosition;
-          progress.actualWatchTime = (progress.actualWatchTime || 0) + deltaToSync;
-          
-          if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
-          cached.data.lesson.lessonProgress[0] = progress;
-          
-          chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
-          queryClient.setQueryData(["lesson_content", specificLessonId], cached.data);
-        }
-        
-        // Clear specific lesson delta
-        secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}`);
-        const expires = new Date(0).toUTCString();
-        document.cookie = `unsynced-delta-${specificLessonId}=; expires=${expires}; path=/; SameSite=Lax`;
+      // Update specific lesson cache
+      const cacheKey = `lesson_content_${specificLessonId}`;
+      const cached = chatCache.get<any>(cacheKey, userId);
+      if (cached?.data?.lesson) {
+        const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: specificLessonId, lastWatched: 0, actualWatchTime: 0 };
+        progress.lastWatched = currentPosition;
+        progress.actualWatchTime = (progress.actualWatchTime || 0) + deltaToSync;
+
+        if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
+        cached.data.lesson.lessonProgress[0] = progress;
+
+        chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
+        queryClient.setQueryData(["lesson_content", specificLessonId], cached.data);
+      }
+
+      // Clear specific lesson delta
+      secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}`);
+      const expires = new Date(0).toUTCString();
+      document.cookie = `unsynced-delta-${specificLessonId}=; expires=${expires}; path=/; SameSite=Lax`;
     }
   };
 
@@ -381,10 +381,10 @@ useEffect(() => {
       const previousDelta = loadUnsyncedDelta();
       sessionDeltaRef.current = previousDelta; // load into active ref
       lastSavedDeltaRef.current = previousDelta; // sync saving state
-      
+
       const savedTime = secureStorage.getItem(`video-progress-${lessonId}`);
       const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
-      
+
       if (previousDelta > 0 || (savedTime && parseFloat(savedTime) > initialTime)) {
         await syncToDB(lessonId, previousDelta, positionToSync);
       }
@@ -408,16 +408,16 @@ useEffect(() => {
             const otherLessonId = key.replace("unsynced-delta-", "");
             const rawDelta = secureStorage.getItem(key);
             const rawPos = secureStorage.getItem(`video-progress-${otherLessonId}`);
-            
+
             let otherDelta = 0;
             try {
               if (rawDelta) {
                 const decrypted = CryptoJS.AES.decrypt(rawDelta, getEncryptionKey(userId)).toString(CryptoJS.enc.Utf8);
                 otherDelta = parseFloat(decrypted) || 0;
               }
-            } catch {}
+            } catch { }
             const otherPosition = rawPos ? parseFloat(rawPos) : 0;
-            
+
             if (otherDelta > 0) {
               updatesToBatch.push({
                 lessonId: otherLessonId,
@@ -432,30 +432,30 @@ useEffect(() => {
           console.log(`[Global Sync] Batch syncing ${updatesToBatch.length} items`);
           const res = await updateMultipleVideoProgress(updatesToBatch);
           if (res.status === "success") {
-             // Clear all synced items and update their caches
-             updatesToBatch.forEach(u => {
-                const cacheKey = `lesson_content_${u.lessonId}`;
-                const cached = chatCache.get<any>(cacheKey, userId);
-                if (cached?.data?.lesson) {
-                  const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: u.lessonId, lastWatched: 0, actualWatchTime: 0 };
-                  progress.lastWatched = u.lastWatched;
-                  progress.actualWatchTime = (progress.actualWatchTime || 0) + u.delta;
-                  
-                  if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
-                  cached.data.lesson.lessonProgress[0] = progress;
-                  
-                  chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
-                  queryClient.setQueryData(["lesson_content", u.lessonId], cached.data);
-                }
-                
-                if (u.lessonId === lessonId) {
-                  clearLocalDelta();
-                } else {
-                  secureStorage.removeItemTracked(`unsynced-delta-${u.lessonId}`);
-                  const expires = new Date(0).toUTCString();
-                  document.cookie = `unsynced-delta-${u.lessonId}=; expires=${expires}; path=/; SameSite=Lax`;
-                }
-             });
+            // Clear all synced items and update their caches
+            updatesToBatch.forEach(u => {
+              const cacheKey = `lesson_content_${u.lessonId}`;
+              const cached = chatCache.get<any>(cacheKey, userId);
+              if (cached?.data?.lesson) {
+                const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: u.lessonId, lastWatched: 0, actualWatchTime: 0 };
+                progress.lastWatched = u.lastWatched;
+                progress.actualWatchTime = (progress.actualWatchTime || 0) + u.delta;
+
+                if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
+                cached.data.lesson.lessonProgress[0] = progress;
+
+                chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
+                queryClient.setQueryData(["lesson_content", u.lessonId], cached.data);
+              }
+
+              if (u.lessonId === lessonId) {
+                clearLocalDelta();
+              } else {
+                secureStorage.removeItemTracked(`unsynced-delta-${u.lessonId}`);
+                const expires = new Date(0).toUTCString();
+                document.cookie = `unsynced-delta-${u.lessonId}=; expires=${expires}; path=/; SameSite=Lax`;
+              }
+            });
           }
         }
       } catch (e) {
@@ -478,14 +478,14 @@ useEffect(() => {
     // ✅ Equivalent Progress: Track delta in video time
     if (delta > 0 && delta < 2) {
       sessionDeltaRef.current += delta;
-      
+
       // Heartbeat save to storage every 5 video seconds (User Request: EVERY5 SEC)
       if (Math.abs(sessionDeltaRef.current - lastSavedDeltaRef.current) >= 5) {
         saveUnsyncedDelta();
         lastSavedDeltaRef.current = sessionDeltaRef.current;
       }
     }
-    
+
     lastPositionRef.current = currentPos;
   };
 
@@ -526,19 +526,19 @@ useEffect(() => {
 
       // ── Tier 2: Fetch new signed URLs from S3 ────────────────────────
       console.log("%c[■ Video] 🗄️  FETCH NEW signed URLs from S3 (Batching)", "color: #f97316; font-weight: bold");
-      
+
       const baseKey = videoKey.startsWith('hls/')
         ? videoKey.split('/')[1]
         : videoKey.replace(/\.[^/.]+$/, "");
       const hlsKey = `hls/${baseKey}/master.m3u8`;
-      
+
       const keysToSign = [hlsKey, videoKey];
       if (transcriptionUrl && !transcriptionUrl.startsWith('http')) {
         keysToSign.push(transcriptionUrl);
       }
 
       const batchResponse = await getBatchSignedVideoUrls(keysToSign) as any;
-      
+
       if (batchResponse?.status === "success" && batchResponse.urls) {
         const urls = batchResponse.urls;
         const urlsToCache: { hls?: string; video?: string; caption?: string } = {};
@@ -551,7 +551,7 @@ useEffect(() => {
           setVideoUrl(urls[videoKey]);
           urlsToCache.video = urls[videoKey];
         }
-        
+
         if (transcriptionUrl) {
           if (transcriptionUrl.startsWith('http')) {
             setCaptionUrl(transcriptionUrl);
@@ -601,7 +601,7 @@ useEffect(() => {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    
+
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -625,8 +625,8 @@ useEffect(() => {
     return (
       <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border relative group overflow-hidden">
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-6 bg-background/50">
-            <BookIcon className="size-16 text-primary/40 mb-4 animate-pulse" />
-            <p className="text-muted-foreground font-medium">This lesson does not have a video yet</p>
+          <BookIcon className="size-16 text-primary/40 mb-4 animate-pulse" />
+          <p className="text-muted-foreground font-medium">This lesson does not have a video yet</p>
         </div>
       </div>
     );
@@ -635,10 +635,10 @@ useEffect(() => {
   if (!videoUrl && !hlsUrl) {
     console.log('[VideoPlayer] Waiting for video URLs (loading state)');
     return (
-        <div className="aspect-video bg-muted rounded-lg border flex items-center justify-center relative overflow-hidden">
-            <Skeleton className="absolute inset-0 w-full h-full" />
-            <Loader size={40} className="z-10" />
-        </div>
+      <div className="aspect-video bg-muted rounded-lg border flex items-center justify-center relative overflow-hidden">
+        <Skeleton className="absolute inset-0 w-full h-full" />
+        <Loader size={40} className="z-10" />
+      </div>
     );
   }
 
@@ -673,7 +673,7 @@ useEffect(() => {
     </div>
   );
 }
-export function CourseContent({ lessonId, userId}: iAppProps) {
+export function CourseContent({ lessonId, userId }: iAppProps) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { triggerConfetti } = useConfetti2();
@@ -697,7 +697,7 @@ export function CourseContent({ lessonId, userId}: iAppProps) {
       return result;
     },
     staleTime: 1800000, // 30 mins
-    refetchOnWindowFocus: true, 
+    refetchOnWindowFocus: true,
     refetchOnMount: false, // Trust source page
   });
 

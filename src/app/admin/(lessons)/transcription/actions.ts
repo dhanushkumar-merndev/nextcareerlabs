@@ -33,10 +33,10 @@ export async function storeTranscription(
     // Upload VTT to S3. Group with video if videoKey provided.
     let customKey: string | undefined;
     if (videoKey) {
-        const baseKey = videoKey.startsWith('hls/') 
-            ? videoKey.split('/')[1] 
-            : videoKey.replace(/\.[^/.]+$/, "");
-        customKey = `hls/${baseKey}/caption.vtt`;
+      const baseKey = videoKey.startsWith('hls/')
+        ? videoKey.split('/')[1]
+        : videoKey.replace(/\.[^/.]+$/, "");
+      customKey = `hls/${baseKey}/caption.vtt`;
     }
 
     const { key, url } = await uploadTranscriptionToS3(lessonId, vttContent, customKey);
@@ -121,9 +121,9 @@ export async function getTranscription(lessonId: string): Promise<{
       success: true,
       transcription: {
         ...transcription,
-        vttUrl: transcription.vttUrl.startsWith('http') 
-            ? transcription.vttUrl 
-            : `https://${env.S3_BUCKET_NAME}.t3.storage.dev/${transcription.vttUrl}`,
+        vttUrl: transcription.vttUrl.startsWith('http')
+          ? transcription.vttUrl
+          : `https://${env.S3_BUCKET_NAME}.t3.storage.dev/${transcription.vttUrl}`,
         hasMCQs: questionCount > 0,
       },
     };

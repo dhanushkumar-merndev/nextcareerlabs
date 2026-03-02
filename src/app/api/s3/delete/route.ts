@@ -42,7 +42,7 @@ export async function DELETE(request: Request) {
     const baseKey = key.replace(/\.[^/.]+$/, "");
     const hlsPrefix = `hls/${baseKey}/`;
     const spritePrefix = `sprites/${baseKey}/`;
-    
+
     console.log(`Deleting assets for baseKey: ${baseKey}`);
     console.log(`HLS Prefix: ${hlsPrefix}`);
     console.log(`Sprite Prefix: ${spritePrefix}`);

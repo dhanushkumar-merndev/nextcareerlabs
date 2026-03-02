@@ -32,11 +32,12 @@ export function EnrollmentButton({
   const { session } = useSmartSession();
   const [isPending, startTransition] = useTransition();
   const [currentStatus, setCurrentStatus] = useState(status);
- // useEffect to sync status with local state
+  // useEffect to sync status with local state
   useEffect(() => {
     setCurrentStatus(status);
   }, [status]);
 
+  // request access to the course
   function onSubmit() {
     if (isPending || currentStatus === "Pending") return;
     if (!session) {
@@ -56,7 +57,7 @@ export function EnrollmentButton({
       if (result.status === "success") {
         toast.success(result.message);
         setCurrentStatus("Pending");
-        
+
         const uid = session?.user?.id;
         if (uid) {
           // 🔹 BROAD INVALIDATION: Clear ALL user-facing caches using standardized logic
@@ -66,7 +67,7 @@ export function EnrollmentButton({
           chatCache.invalidate(`user_enrolled_courses_${uid}`, uid);
           chatCache.invalidate(`available_courses_${uid}`, uid);
           chatCache.invalidate(`my_courses_${uid}`, uid);
-          
+
           if (slug) {
             chatCache.invalidate(`course_${slug}`, uid);
             chatCache.invalidate(`course_${slug}`, undefined); // guest cache
@@ -75,25 +76,25 @@ export function EnrollmentButton({
 
         // We wrap queryClient in setTimeout to let React finish rendering the current transition
         setTimeout(() => {
-            queryClient.invalidateQueries({
-                predicate: (query) => {
-                    const key = query.queryKey[0] as string;
-                    // ✅ ADD missing query keys:
-                    return key === "all_courses" || 
-                           key.startsWith("available_courses") ||
-                           key === "enrolled_courses" ||
-                           key === "user_dashboard" ||
-                           key === "chat_sidebar" ||
-                            key === "my_courses" ||
-                            key === "user_resources" ||
-                            key === "user_resources_access";
-                }
-            });
-
-            // If slug provided, invalidate specific course detail
-            if (slug && uid) {
-                queryClient.invalidateQueries({ queryKey: ["course_detail", slug, uid] });
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey[0] as string;
+              // ✅ ADD missing query keys:
+              return key === "all_courses" ||
+                key.startsWith("available_courses") ||
+                key === "enrolled_courses" ||
+                key === "user_dashboard" ||
+                key === "chat_sidebar" ||
+                key === "my_courses" ||
+                key === "user_resources" ||
+                key === "user_resources_access";
             }
+          });
+
+          // If slug provided, invalidate specific course detail
+          if (slug && uid) {
+            queryClient.invalidateQueries({ queryKey: ["course_detail", slug, uid] });
+          }
         }, 50);
       } else if (result.status === "error") {
         toast.error(result.message);
@@ -102,17 +103,17 @@ export function EnrollmentButton({
   }
   // Determine button state based on current status
   const isActuallyPending = currentStatus === "Pending";
-// Return button with appropriate state and variant
+  // Return button with appropriate state and variant
   return (
     // Button component with loading states
     <Button
       onClick={onSubmit}
-      disabled={isPending || isActuallyPending|| currentStatus === "Pending" || currentStatus === "Rejected" || currentStatus === "Revoked"}
+      disabled={isPending || isActuallyPending || currentStatus === "Pending" || currentStatus === "Rejected" || currentStatus === "Revoked"}
       className="w-full"
       variant={
-        currentStatus === "Pending" ? "outline" : 
-        (currentStatus === "Rejected" || currentStatus === "Revoked") ? "destructive" : 
-        "default"
+        currentStatus === "Pending" ? "outline" :
+          (currentStatus === "Rejected" || currentStatus === "Revoked") ? "destructive" :
+            "default"
       }
     >
       {isPending ? (

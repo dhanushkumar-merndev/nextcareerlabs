@@ -24,14 +24,14 @@ export function CourseProgressBar({ course }: { course: CourseSidebarDataType["c
             <p className="text-[10px] text-muted-foreground mt-0.5">
               {completedLessons}/{totalLessons} Lessons
             </p>
-          
+
           </div>
         </div>
 
-        <CircularProgress 
-          value={progressPercentage} 
-          size={36} 
-          strokeWidth={3} 
+        <CircularProgress
+          value={progressPercentage}
+          size={36}
+          strokeWidth={3}
           showCircle={false}
           textClassName="text-primary font-bold text-xs"
         />

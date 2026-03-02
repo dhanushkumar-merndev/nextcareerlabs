@@ -63,7 +63,7 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
 
     // 2. Collect all S3 keys to delete
     const keysToDelete = new Set<string>();
-    
+
     // Course thumbnail
     if (course.fileKey) keysToDelete.add(course.fileKey);
 
@@ -104,34 +104,34 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
 
     // Invalidate global courses and analytics cache
     const invalidationPromises: Promise<any>[] = [
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),
-        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
     ];
 
     // Invalidate Chat Caches for all groups associated with this course
     course.chatGroups.forEach(group => {
-        invalidationPromises.push(invalidateCache(CHAT_CACHE_KEYS.MESSAGES(group.id)));
+      invalidationPromises.push(invalidateCache(CHAT_CACHE_KEYS.MESSAGES(group.id)));
     });
 
     // 6. Invalidate caches for all ENROLLED users (Students/Admins in the course)
     const enrolledUserIds = new Set(course.enrollment.map((e) => e.userId));
-    
+
     enrolledUserIds.forEach((userId) => {
       invalidationPromises.push(invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(userId)));
       invalidationPromises.push(incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)));
@@ -141,16 +141,16 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
 
     // 7. Invalidate chat threads for ALL admins (even if not enrolled) to ensure synchronicity
     const admins = await prisma.user.findMany({
-        where: { 
-          role: "admin",
-          NOT: { id: { in: Array.from(enrolledUserIds) } } // Only admins not already covered
-        },
-        select: { id: true }
+      where: {
+        role: "admin",
+        NOT: { id: { in: Array.from(enrolledUserIds) } } // Only admins not already covered
+      },
+      select: { id: true }
     });
 
     admins.forEach(admin => {
-        invalidationPromises.push(invalidateCache(CHAT_CACHE_KEYS.THREADS(admin.id)));
-        invalidationPromises.push(incrementChatVersion(admin.id));
+      invalidationPromises.push(invalidateCache(CHAT_CACHE_KEYS.THREADS(admin.id)));
+      invalidationPromises.push(incrementChatVersion(admin.id));
     });
 
     await Promise.all(invalidationPromises);

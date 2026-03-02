@@ -47,15 +47,15 @@ export function DashboardClient() {
         if (userId) chatCache.clearSync(userId);
         return result.data;
       }
-      
+
       return cached?.data || null;
     },
     initialData: () => {
       if (typeof window === "undefined" || !userId) return undefined;
       return chatCache.get<any>("user_dashboard", userId)?.data;
     },
-    initialDataUpdatedAt: typeof window !== "undefined" && userId 
-      ? chatCache.get<any>("user_dashboard", userId)?.timestamp 
+    initialDataUpdatedAt: typeof window !== "undefined" && userId
+      ? chatCache.get<any>("user_dashboard", userId)?.timestamp
       : undefined,
     staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
@@ -144,17 +144,17 @@ export function DashboardClient() {
 
       <div className="space-y-6 pt-6">
         <div className="flex flex-col gap-1">
-            <h3 className="text-xl font-black tracking-tight text-foreground uppercase">
-                Course Progress
-            </h3>
-            <p className="text-sm text-muted-foreground/60 font-medium">
-                Detailed breakdown of learning progress for each course.
-            </p>
+          <h3 className="text-xl font-black tracking-tight text-foreground uppercase">
+            Course Progress
+          </h3>
+          <p className="text-sm text-muted-foreground/60 font-medium">
+            Detailed breakdown of learning progress for each course.
+          </p>
         </div>
 
         {data.coursesProgress?.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-dashed border-border/20 bg-muted/5">
-             <p className="text-muted-foreground font-medium italic">You are not enrolled in any courses yet.</p>
+            <p className="text-muted-foreground font-medium italic">You are not enrolled in any courses yet.</p>
           </div>
         ) : (
           <div className="flex flex-col gap-4">

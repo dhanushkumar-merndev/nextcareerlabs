@@ -34,7 +34,7 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
     try {
         const IST_TZ = 'Asia/Kolkata';
         const now = new Date();
-        
+
         // Target dates from parameters or default
         const startRaw = startDate ? new Date(startDate) : new Date(new Date().setDate(now.getDate() - 7));
         const endRaw = endDate ? new Date(endDate) : now;
@@ -77,13 +77,13 @@ export async function getAdminAnalytics(startDate?: Date, endDate?: Date, client
 
         const diffTime = Math.abs(normalizedEnd.getTime() - normalizedStart.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         const chartData = [];
         for (let i = 0; i <= diffDays; i++) {
             const d = new Date(normalizedStart);
             d.setDate(normalizedStart.getDate() + i);
             const key = getISTDateKey(d);
-            
+
             if (key <= getISTDateKey(normalizedEnd)) {
                 chartData.push({
                     name: key,
@@ -230,74 +230,73 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
  * Isolated because it's CPU-intensive and cached for 24h
  */
 export async function getAdminSuccessRate() {
-  console.log(`[AdminAnalyticsAction] Calculating platform success rate`);
-  await requireAdmin();
-  return await getAverageProgressCached();
+    console.log(`[AdminAnalyticsAction] Calculating platform success rate`);
+    await requireAdmin();
+    return await getAverageProgressCached();
 }
 
 /**
  * Isolate CPU-intensive Average Progress calculation with 24h caching
  */
 async function getAverageProgressCached() {
-  const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS;
+    const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS;
 
-  // 1️⃣ Check cache first
-  const cached = await getCache<{ value: number; lastUpdated: string }>(cacheKey);
-  if (cached) {
-    return cached;
-  }
+    // 1️⃣ Check cache first
+    const cached = await getCache<{ value: number; lastUpdated: string }>(cacheKey);
+    if (cached) {
+        return cached;
+    }
 
-  const startTime = Date.now();
+    const startTime = Date.now();
 
-  try {
-    // 2️⃣ Run all counts in parallel (faster)
-    const [totalCompleted, totalGrantedEnrollments, totalLessons] =
-      await Promise.all([
-        prisma.lessonProgress.count({
-          where: {
-            completed: true,
-            User: {
-              enrollment: {
-                some: { status: "Granted" }
-              }
-            }
-          }
-        }),
-        prisma.enrollment.count({
-          where: { status: "Granted" }
-        }),
-        prisma.lesson.count()
-      ]);
+    try {
+        // 2️⃣ Run all counts in parallel (faster)
+        const [totalCompleted, totalGrantedEnrollments, totalLessons] =
+            await Promise.all([
+                prisma.lessonProgress.count({
+                    where: {
+                        completed: true,
+                        User: {
+                            enrollment: {
+                                some: { status: "Granted" }
+                            }
+                        }
+                    }
+                }),
+                prisma.enrollment.count({
+                    where: { status: "Granted" }
+                }),
+                prisma.lesson.count()
+            ]);
 
-    const totalPotential = totalLessons * totalGrantedEnrollments;
+        const totalPotential = totalLessons * totalGrantedEnrollments;
 
-    const averageProgress =
-      totalPotential > 0
-        ? Math.round((totalCompleted / totalPotential) * 100)
-        : 0;
+        const averageProgress =
+            totalPotential > 0
+                ? Math.round((totalCompleted / totalPotential) * 100)
+                : 0;
 
-    const result = {
-      value: averageProgress,
-      lastUpdated: new Date().toISOString()
-    };
+        const result = {
+            value: averageProgress,
+            lastUpdated: new Date().toISOString()
+        };
 
-    // 3️⃣ Cache for 24 hours (86400 seconds)
-    await setCache(cacheKey, result, 86400);
+        // 3️⃣ Cache for 24 hours (86400 seconds)
+        await setCache(cacheKey, result, 86400);
 
-    console.log(
-      `[AverageProgress OPTIMIZED] Computed + Cached in ${
-        Date.now() - startTime
-      }ms`
-    );
+        console.log(
+            `[AverageProgress OPTIMIZED] Computed + Cached in ${Date.now() - startTime
+            }ms`
+        );
 
-    return result;
-  } catch (error) {
-    console.error("[getAverageProgressCached Error]", error);
-    return {
-      value: 0,
-      lastUpdated: new Date().toISOString()
-    };
-  }
+        return result;
+    } catch (error) {
+        console.error("[getAverageProgressCached Error]", error);
+        return {
+            value: 0,
+            lastUpdated: new Date().toISOString()
+        };
+    }
 }
 
 import { getUserDashboardData } from "@/app/dashboard/actions";
@@ -310,7 +309,7 @@ export async function getUserAnalyticsAdmin(userId: string, clientVersion?: stri
             getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
             getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
         ]);
-        
+
         const currentVersion = `${userVersion}:${globalCoursesVersion}`;
 
         // Smart Sync
@@ -338,8 +337,8 @@ export async function getUserAnalyticsAdmin(userId: string, clientVersion?: stri
         }
 
         if (!dashboardData.data) {
-             console.error(`[getUserAnalyticsAdmin] Failed: dashboardData.data is missing for ${userId}`, dashboardData);
-             return null;
+            console.error(`[getUserAnalyticsAdmin] Failed: dashboardData.data is missing for ${userId}`, dashboardData);
+            return null;
         }
 
         console.log(`[getUserAnalyticsAdmin] Success: Returning data for ${userId}`);
@@ -409,7 +408,7 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
             currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_USERS_VERSION);
         }
 
-        let cacheKey = roleFilter === 'admin' 
+        let cacheKey = roleFilter === 'admin'
             ? "admin:admins:list" // New key for admins
             : GLOBAL_CACHE_KEYS.ADMIN_USERS_LIST;
 
@@ -437,18 +436,18 @@ export async function getAllUsers(search?: string, page: number = 1, limit: numb
 
         const whereClause: any = {
             AND: []
-            };
+        };
 
-            if (search) {
+        if (search) {
             whereClause.AND.push({
                 OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { email: { contains: search, mode: 'insensitive' } },
-                { id: { contains: search, mode: 'insensitive' } },
-                { phoneNumber: { contains: search, mode: 'insensitive' } },
+                    { name: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } },
+                    { id: { contains: search, mode: 'insensitive' } },
+                    { phoneNumber: { contains: search, mode: 'insensitive' } },
                 ]
             });
-            }
+        }
         // Strict role filtering with case insensitivity
         if (roleFilter === 'admin') {
             whereClause.AND.push({

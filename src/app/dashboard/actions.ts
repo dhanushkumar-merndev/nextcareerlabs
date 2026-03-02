@@ -8,7 +8,7 @@ export async function getUserDashboardData(userId: string, clientVersion?: strin
         getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
         getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
     ]);
-    
+
     const currentVersion = `${userVersion}:${globalCoursesVersion}`;
 
     // Smart Sync
@@ -21,7 +21,7 @@ export async function getUserDashboardData(userId: string, clientVersion?: strin
     const cacheKey = `user:dashboard:${userId}:${currentVersion}`;
     const startTime = Date.now();
     const cached = await getCache<any>(cacheKey);
-    
+
     if (cached) {
         console.log(`[Redis] Cache HIT for dashboard: ${userId}`);
         return { data: cached, version: currentVersion };

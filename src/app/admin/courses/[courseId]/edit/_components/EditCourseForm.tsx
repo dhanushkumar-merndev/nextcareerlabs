@@ -72,7 +72,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
 
   function onSubmit(values: CourseSchemaType, skipRedirect = false) {
     if (!values.fileKey) {
-       if (!skipRedirect) {
+      if (!skipRedirect) {
         form.setError("fileKey", { message: "File must be selected" });
         return;
       }
@@ -101,7 +101,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
         if (user?.id) {
           chatCache.invalidate(`all_courses_${user.id}`);
           chatCache.invalidate(`available_courses_${user.id}`);
-          
+
           // Also invalidate the base keys with userId prefix (handled by chatCache helper)
           chatCache.invalidate("all_courses", user.id);
           chatCache.invalidate("available_courses", user.id);
@@ -121,7 +121,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
-        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] }); 
+        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
         queryClient.invalidateQueries({ queryKey: [`admin_course_${data.id}`] });
         queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
         queryClient.invalidateQueries({ queryKey: ["admin_chat_sidebar"] });
@@ -312,34 +312,34 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                 </FormItem>
               )}
             /> <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-              <FormItem className="w-full">
-                <FormLabel>Status</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select Status" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {courseStatus.map((status) => (
-                      <SelectItem key={status} value={status}>
-                        {status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem className="w-full">
+                  <FormLabel>Status</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {courseStatus.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           </div>
-         
+
           <Button className="cursor-pointer" type="submit" disabled={isPending}>
             {isPending ? (
               <>

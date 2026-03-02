@@ -32,15 +32,15 @@ export async function adminGetCourses(
   // Check Redis cache
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST;
   const cached = await getCache<any[]>(cacheKey);
-  
+
   let allCourses: any[];
 
   if (searchQuery) {
     if (cached) {
       console.log(`[adminGetCourses] Redis Cache filter for "${searchQuery}"...`);
       const q = searchQuery.toLowerCase();
-      allCourses = cached.filter(c => 
-        c.title.toLowerCase().includes(q) || 
+      allCourses = cached.filter(c =>
+        c.title.toLowerCase().includes(q) ||
         (c.smallDescription?.toLowerCase().includes(q)) ||
         c.slug.toLowerCase().includes(q)
       );
@@ -75,22 +75,22 @@ export async function adminGetCourses(
     }
   } else if (cached) {
     console.log(`[adminGetCourses] Redis Cache HIT. Preparing page...`);
-    
+
     // Smart Sync: If no search/cursor, return first page immediately from Redis
     if (!cursor) {
-        const firstPage = cached.slice(0, PAGE_SIZE);
-        const nextCursor = cached.length > PAGE_SIZE ? firstPage[firstPage.length - 1].id : null;
-        
-        return {
-            data: {
-                courses: firstPage,
-                nextCursor,
-                total: cached.length
-            },
-            version: currentVersion
-        };
+      const firstPage = cached.slice(0, PAGE_SIZE);
+      const nextCursor = cached.length > PAGE_SIZE ? firstPage[firstPage.length - 1].id : null;
+
+      return {
+        data: {
+          courses: firstPage,
+          nextCursor,
+          total: cached.length
+        },
+        version: currentVersion
+      };
     }
-    
+
     allCourses = cached;
   } else {
     console.log(`[adminGetCourses] Redis Cache MISS. Fetching from Prisma DB...`);
@@ -126,18 +126,18 @@ export async function adminGetCourses(
 
   const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
 
-  const nextCursor = 
+  const nextCursor =
     startIndex + PAGE_SIZE < allCourses.length
       ? page[page.length - 1]?.id ?? null
       : null;
 
-  return { 
+  return {
     data: {
-        courses: page, 
-        nextCursor,
-        total: allCourses.length 
+      courses: page,
+      nextCursor,
+      total: allCourses.length
     },
-    version: currentVersion, 
+    version: currentVersion,
   };
 }
 

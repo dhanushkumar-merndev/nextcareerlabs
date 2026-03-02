@@ -28,8 +28,8 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   const cached = await getCache<any>(cacheKey);
 
   if (cached) {
-     console.log(`[adminGetEnrollmentsStats] Redis Cache HIT. Returning data.`);
-     return { data: cached, version: currentVersion };
+    console.log(`[adminGetEnrollmentsStats] Redis Cache HIT. Returning data.`);
+    return { data: cached, version: currentVersion };
   }
 
   console.log(`[adminGetEnrollmentsStats] Redis Cache MISS. Fetching from Prisma DB...`);
@@ -43,7 +43,7 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   // For PostgreSQL, we can use a raw query or groupBy if we have a date-only field.
   // Since createdAt is DateTime, we'll use findMany with select but only get count if possible, 
   // or a more optimized approach.
-  
+
   // High performance: Aggregate in DB
   const rawEnrollments = await prisma.$queryRaw`
     SELECT DATE_TRUNC('day', "createdAt") as date, count(*)::int as count
@@ -56,8 +56,8 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   console.log(`[adminGetEnrollmentsStats] DB Aggregation took ${duration}ms.`);
 
   const statsMap = new Map((rawEnrollments as any[]).map(e => [
-      new Date(e.date).toLocaleDateString("en-CA"), 
-      e.count
+    new Date(e.date).toLocaleDateString("en-CA"),
+    e.count
   ]));
 
   // Build fixed 30-day data structure
@@ -66,9 +66,9 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
     const d = new Date(today);
     d.setDate(today.getDate() - i);
     const key = d.toLocaleDateString("en-CA");
-    finalData.push({ 
-        date: key, 
-        enrollments: statsMap.get(key) || 0 
+    finalData.push({
+      date: key,
+      enrollments: statsMap.get(key) || 0
     });
   }
 

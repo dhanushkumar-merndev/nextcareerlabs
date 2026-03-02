@@ -2,7 +2,7 @@ import { getUserCourseDetailedProgress } from "@/app/admin/analytics/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {Calendar, CheckCircle2, Clock, Mail, PlayCircle } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, Mail, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChapterExpansion } from "./_components/ChapterExpansion";
@@ -20,8 +20,8 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
 
     const { user, course } = data;
 
-    const totalCourseSpent = course.chapter.reduce((acc: number, c: any) => 
-        acc + c.lesson.reduce((lAcc: number, l: any) => 
+    const totalCourseSpent = course.chapter.reduce((acc: number, c: any) =>
+        acc + c.lesson.reduce((lAcc: number, l: any) =>
             lAcc + (l.lessonProgress[0]?.actualWatchTime || 0), 0
         ), 0
     );
@@ -30,7 +30,7 @@ export default async function UserCourseDetailedAnalyticsPage({ params }: PagePr
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         const s = Math.floor(seconds % 60);
-        
+
         if (h > 0) return `${h}H ${m}M ${s}S`;
         return `${m}M ${s}S`;
     };

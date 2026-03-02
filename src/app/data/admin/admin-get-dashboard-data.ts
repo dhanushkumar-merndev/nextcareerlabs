@@ -37,10 +37,10 @@ export async function adminGetDashboardData(clientVersions?: AdminDashboardVersi
   };
 
   // 2.5 Early Exit if everything matches
-  if (clientVersions && 
-      clientVersions.stats === finalV.stats && 
-      clientVersions.enrollments === finalV.enrollments && 
-      clientVersions.recentCourses === finalV.recentCourses) {
+  if (clientVersions &&
+    clientVersions.stats === finalV.stats &&
+    clientVersions.enrollments === finalV.enrollments &&
+    clientVersions.recentCourses === finalV.recentCourses) {
     console.log(`[adminGetDashboardData] ALL Versions Match. Returning NOT_MODIFIED.`);
     return { status: "not-modified", versions: finalV };
   }
@@ -76,7 +76,7 @@ export async function adminGetDashboardData(clientVersions?: AdminDashboardVersi
     ]);
     const data = { totalUsers, totalSubscriptions, totalCourses, totalLessons };
     console.log(`[Dashboard] Stats: DB Fetch took ${Date.now() - dbStart}ms (v${finalV.stats})`);
-    
+
     await setCache(cacheKey, data, 2592000);
     return data;
   };

@@ -240,7 +240,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                 )}
               />
               {watchedVideoKey && (
-                <TranscriptionWorkflow 
+                <TranscriptionWorkflow
                   lessonId={data.id}
                   lessonTitle={data.title}
                   videoUrl={`https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${watchedVideoKey}`}

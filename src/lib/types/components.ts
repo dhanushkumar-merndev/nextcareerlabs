@@ -1,3 +1,5 @@
+import { FeatureCardProps } from "./homePage";
+
 export type NotificationDTO = {
   id: string;
   title: string;
@@ -9,19 +11,19 @@ export type NotificationDTO = {
 
 export type TicketResponse =
   | {
-      success: true;
-      notification: NotificationDTO;
-    }
+    success: true;
+    notification: NotificationDTO;
+  }
   | {
-      success: false;
-      code: "TICKET_LIMIT_REACHED";
-      minutesLeft: number;
-    }
+    success: false;
+    code: "TICKET_LIMIT_REACHED";
+    minutesLeft: number;
+  }
   | {
-      success: false;
-      code: "UNKNOWN_ERROR";
-      error: string;
-    };
+    success: false;
+    code: "UNKNOWN_ERROR";
+    error: string;
+  };
 
 
 export type Testimonial = {
@@ -33,3 +35,7 @@ export type Testimonial = {
   avatar: string;
   image?: string;
 };
+
+export interface FeaturesSectionProps {
+  features: Omit<FeatureCardProps, "isExpanded" | "onToggle">[];
+}

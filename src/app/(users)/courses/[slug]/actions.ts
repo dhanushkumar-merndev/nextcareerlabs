@@ -3,7 +3,6 @@
  */
 
 "use server";
-import { requireUser } from "@/app/data/user/require-user";
 import arcjet, { fixedWindow } from "@/lib/arcjet";
 import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types/auth";
@@ -17,58 +16,58 @@ import { GLOBAL_CACHE_KEYS, incrementGlobalVersion, invalidateCache, invalidateU
 
 // Get Individual Course Action
 export async function getIndividualCourseAction(slug: string, clientVersion?: string) {
-    const session = await auth.api.getSession({
-        headers: await headers()
-    });
-    return await getIndividualCourse(slug, clientVersion, session?.user?.id);
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+  return await getIndividualCourse(slug, clientVersion, session?.user?.id);
 }
 
 // Get Slug Page Data Action
 export async function getSlugPageDataAction(slug: string, clientVersion?: string, userId?: string) {
-    console.log(`[SlugAction] Fetching data for: ${slug} (Client version: ${clientVersion || 'none'}, UserId: ${userId || 'none'})`);
-    
-    let finalUserId = userId;
-    if (!finalUserId) {
-        const session = await auth.api.getSession({
-            headers: await headers()
-        });
-        finalUserId = session?.user?.id;
-    }
+  console.log(`[SlugAction] Fetching data for: ${slug} (Client version: ${clientVersion || 'none'}, UserId: ${userId || 'none'})`);
 
-    const result = await getIndividualCourse(slug, clientVersion, finalUserId);
-    
-    if (!result) {
-        console.error(`[SlugAction] getIndividualCourse returned null for ${slug}`);
-        return null;
-    }
+  let finalUserId = userId;
+  if (!finalUserId) {
+    const session = await auth.api.getSession({
+      headers: await headers()
+    });
+    finalUserId = session?.user?.id;
+  }
 
-    if ((result as any).status === "not-modified") {
-        console.log(`[SlugAction] Version match for ${slug}`);
-        return { status: "not-modified", version: result.version };
-    }
+  const result = await getIndividualCourse(slug, clientVersion, finalUserId);
 
-    const course = (result as any).course || ((result as any).id ? result : null);
-    if (!course || !(course as any).id) {
-        console.error(`[SlugAction] Could not find course in result for ${slug}`, result);
-        return null;
-    }
-
-    if (course && "id" in course) {
-        let enrollmentStatus = null;
-        if (finalUserId) {
-            enrollmentStatus = await checkIfCourseBought((course as any).id, finalUserId);
-        }
-
-        return {
-            course: (result as any).course || result, 
-            enrollmentStatus,
-            isProfileComplete: true,
-            requireName: false,
-            version: (result as any).version || (result as any).currentVersion,
-            instantSync: (result as any).instantSync ?? false
-        };
-    }
+  if (!result) {
+    console.error(`[SlugAction] getIndividualCourse returned null for ${slug}`);
     return null;
+  }
+
+  if ((result as any).status === "not-modified") {
+    console.log(`[SlugAction] Version match for ${slug}`);
+    return { status: "not-modified", version: result.version };
+  }
+
+  const course = (result as any).course || ((result as any).id ? result : null);
+  if (!course || !(course as any).id) {
+    console.error(`[SlugAction] Could not find course in result for ${slug}`, result);
+    return null;
+  }
+
+  if (course && "id" in course) {
+    let enrollmentStatus = null;
+    if (finalUserId) {
+      enrollmentStatus = await checkIfCourseBought((course as any).id, finalUserId);
+    }
+
+    return {
+      course: (result as any).course || result,
+      enrollmentStatus,
+      isProfileComplete: true,
+      requireName: false,
+      version: (result as any).version || (result as any).currentVersion,
+      instantSync: (result as any).instantSync ?? false
+    };
+  }
+  return null;
 }
 
 
@@ -177,10 +176,10 @@ export async function enrollInCourseAction(
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),
     ]);
-    
+
     // Invalidate Local Storage Keys (Next.js server-side can't directly manipulate localStorage, 
     // but we can increment the COURSE_VERSION which forces a re-fetch, and use revalidatePath)
-    
+
     revalidatePath(`/courses`);
     revalidatePath(`/dashboard`);
     revalidatePath(`/dashboard/my-courses`);

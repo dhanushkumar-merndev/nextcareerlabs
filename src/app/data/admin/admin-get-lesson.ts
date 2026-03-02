@@ -54,12 +54,12 @@ export async function adminGetLesson(id: string) {
     ...data,
     transcription: data.transcription
       ? {
-          ...data.transcription,
-          vttUrl: data.transcription.vttUrl.startsWith("http")
-            ? data.transcription.vttUrl
-            : `https://${process.env.S3_BUCKET_NAME}.t3.storage.dev/${data.transcription.vttUrl}`,
-          hasMCQs: data._count.questions > 0,
-        }
+        ...data.transcription,
+        vttUrl: data.transcription.vttUrl.startsWith("http")
+          ? data.transcription.vttUrl
+          : `https://${process.env.S3_BUCKET_NAME}.t3.storage.dev/${data.transcription.vttUrl}`,
+        hasMCQs: data._count.questions > 0,
+      }
       : null,
   };
 

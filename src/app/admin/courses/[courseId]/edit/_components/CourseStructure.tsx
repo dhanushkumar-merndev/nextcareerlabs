@@ -65,35 +65,35 @@ interface SortableItemProps {
 }
 
 
-  function SortableItem({ children, id, className, data }: SortableItemProps) {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id, data });
+function SortableItem({ children, id, className, data }: SortableItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id, data });
 
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        className={cn(
-          className,
-          isDragging ? "relative z-50 pointer-events-none" : ""
-        )}
-      >
-        {children(listeners)}
-      </div>
-    );
-  }
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className={cn(
+        className,
+        isDragging ? "relative z-50 pointer-events-none" : ""
+      )}
+    >
+      {children(listeners)}
+    </div>
+  );
+}
 
 export function CourseStructure({ data, setDirty }: iAppProps) {
   const queryClient = useQueryClient();
@@ -110,27 +110,27 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       })),
     })) || [];
   }, [data]);
- const invalidateAdminCaches = () => {
-  const keys = [
-    "admin_dashboard_stats",
-    "admin_dashboard_enrollments",
-    "admin_dashboard_recent_courses",
-    "admin_analytics",
-    "admin_dashboard_all"
-  ];
+  const invalidateAdminCaches = () => {
+    const keys = [
+      "admin_dashboard_stats",
+      "admin_dashboard_enrollments",
+      "admin_dashboard_recent_courses",
+      "admin_analytics",
+      "admin_dashboard_all"
+    ];
 
-  keys.forEach((key) => {
-    chatCache.invalidate(key); // localStorage
-    queryClient.invalidateQueries({ queryKey: [key] });
-  });
+    keys.forEach((key) => {
+      chatCache.invalidate(key); // localStorage
+      queryClient.invalidateQueries({ queryKey: [key] });
+    });
 
-  // Specifically invalidate the current course detail
-  if (data?.id) {
-    const courseKey = `admin_course_${data.id}`;
-    chatCache.invalidate(courseKey);
-    queryClient.invalidateQueries({ queryKey: [courseKey] });
-  }
-};
+    // Specifically invalidate the current course detail
+    if (data?.id) {
+      const courseKey = `admin_course_${data.id}`;
+      chatCache.invalidate(courseKey);
+      queryClient.invalidateQueries({ queryKey: [courseKey] });
+    }
+  };
   const [items, setItems] = useState(initialItems);
 
 
@@ -389,11 +389,11 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                           </SortableContext>
 
                           <div className="pt-2">
-                             <NewLessonModel
-                               courseId={data.id}
-                               chapterId={item.id}
-                               onSuccess={invalidateAdminCaches}
-                             />
+                            <NewLessonModel
+                              courseId={data.id}
+                              chapterId={item.id}
+                              onSuccess={invalidateAdminCaches}
+                            />
                           </div>
                         </div>
                       </CollapsibleContent>

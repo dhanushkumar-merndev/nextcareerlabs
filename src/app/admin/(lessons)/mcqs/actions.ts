@@ -115,7 +115,7 @@ export async function getLessonMCQs(lessonId: string): Promise<{
   console.log(`[MCQAction] Getting MCQs for lesson ${lessonId}`);
   try {
     const cacheKey = `lesson:questions:${lessonId}`;
-    
+
     // ── Tier 2: Redis ───────────────────────────────────────────────
     const cachedQuestions = await getCache<any[]>(cacheKey);
     if (cachedQuestions) {
