@@ -360,11 +360,11 @@ export function AssessmentModal({
                             // Quiz mode defaults
                             !isReviewMode && reviewState === "neutral" && (isSelected
                               ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
-                              : "border-white/10 hover:border-primary/50 hover:bg-muted/30"),
+                              : "border-border hover:border-primary/50 hover:bg-muted/30"),
                             // Review or Show Answers in Quiz
                             reviewState === "correct" && "border-green-500 bg-green-500/10",
                             reviewState === "wrong" && "border-red-500 bg-red-500/10",
-                            isReviewMode && reviewState === "neutral" && "border-white/10 opacity-50",
+                            isReviewMode && reviewState === "neutral" && "border-border opacity-50",
                           )}
                         >
                           <div className={cn(
@@ -409,7 +409,7 @@ export function AssessmentModal({
                       <Button
                         onClick={handleBack}
                         disabled={currentIndex === 0}
-                        className="h-12 px-6 rounded-full flex items-center gap-1 bg-transparent hover:bg-transparent focus-visible:ring-0 shadow-none cursor-pointer"
+                        className="h-12 px-6 rounded-full flex items-center gap-1 bg-transparent hover:bg-transparent focus-visible:ring-0 shadow-none cursor-pointer text-foreground"
                       >
                         <span className="w-9 h-9 flex items-center justify-center rounded-full transition-colors">
                           <ChevronLeft className="size-8" />
@@ -476,7 +476,7 @@ export function AssessmentModal({
                         <Button
                           onClick={handleNext}
                           disabled={!isReviewMode && selectedAnswers[currentIndex] === -1}
-                          className="h-12 px-6 rounded-full flex items-center gap-1 bg-transparent hover:bg-transparent focus-visible:ring-0 shadow-none cursor-pointer"
+                          className="h-12 px-6 rounded-full flex items-center gap-1 bg-transparent hover:bg-transparent focus-visible:ring-0 shadow-none cursor-pointer text-foreground"
                         >
                           <span className="text-sm">Next</span>
                           <span className="w-9 h-9 flex items-center justify-center rounded-full transition-colors">

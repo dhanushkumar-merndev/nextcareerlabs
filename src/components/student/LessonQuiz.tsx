@@ -99,8 +99,8 @@ export function LessonQuiz({
   }
 
   return (
-<Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-4xl max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-yellow-500" />
@@ -123,8 +123,8 @@ export function LessonQuiz({
                   {Math.round((Object.keys(answers).length / questions.length) * 100)}%
                 </span>
               </div>
-              <Progress 
-                value={(Object.keys(answers).length / questions.length) * 100} 
+              <Progress
+                value={(Object.keys(answers).length / questions.length) * 100}
                 className="h-2"
               />
             </div>
@@ -149,11 +149,11 @@ export function LessonQuiz({
                   >
                     {question.options.map((option, optIndex) => (
                       <div key={optIndex} className="flex items-center space-x-2">
-                        <RadioGroupItem 
-                          value={optIndex.toString()} 
+                        <RadioGroupItem
+                          value={optIndex.toString()}
                           id={`q${qIndex}-opt${optIndex}`}
                         />
-                        <Label 
+                        <Label
                           htmlFor={`q${qIndex}-opt${optIndex}`}
                           className="cursor-pointer flex-1 py-2"
                         >
@@ -200,11 +200,10 @@ export function LessonQuiz({
           /* Results */
           <div className="space-y-6">
             {/* Score header */}
-            <div className={`text-center p-6 rounded-lg ${
-              result.passed 
-                ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' 
+            <div className={`text-center p-6 rounded-lg ${result.passed
+                ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
                 : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'
-            } border-2`}>
+              } border-2`}>
               {result.passed ? (
                 <>
                   <Trophy className="h-16 w-16 mx-auto mb-4 text-green-600" />
@@ -238,15 +237,14 @@ export function LessonQuiz({
                 {questions.map((question, idx) => {
                   const isCorrect = result.correctAnswers[idx];
                   const userAnswer = answers[idx];
-                  
+
                   return (
-                    <div 
-                      key={question.id} 
-                      className={`p-3 rounded-lg border-2 ${
-                        isCorrect 
-                          ? 'bg-green-50/50 dark:bg-green-950/10 border-green-200 dark:border-green-800' 
+                    <div
+                      key={question.id}
+                      className={`p-3 rounded-lg border-2 ${isCorrect
+                          ? 'bg-green-50/50 dark:bg-green-950/10 border-green-200 dark:border-green-800'
                           : 'bg-red-50/50 dark:bg-red-950/10 border-red-200 dark:border-red-800'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-start gap-2">
                         {isCorrect ? (

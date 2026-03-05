@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { format } from "date-fns";
 import { Calendar as CalendarIcon, XCircle, Loader2 } from "lucide-react";
 import { DateRange } from "react-day-picker";
@@ -33,6 +33,22 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
     const [tempDate, setTempDate] = useState<DateRange | undefined>();
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
+    const [months, setMonths] = useState(2);
+
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth < 768) {
+                setMonths(1); // mobile
+            } else {
+                setMonths(2); // desktop
+            }
+        };
+
+        handleResize();
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
 
     const handleApplyFilter = () => {
         setIsPopoverOpen(false);
@@ -93,14 +109,14 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
                                 )}
                             </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 rounded-2xl border-2 border-border/40 shadow-2xl overflow-hidden backdrop-blur-xl bg-card/95 flex flex-col" align="end">
+                        <PopoverContent className="ml-10 w-auto p-0 rounded-2xl border-2 border-border/40 shadow-2xl overflow-hidden backdrop-blur-xl bg-card/95 flex flex-col" align="end">
                             <Calendar
-                                initialFocus
+                                autoFocus
                                 mode="range"
                                 defaultMonth={date?.from}
                                 selected={tempDate}
                                 onSelect={setTempDate}
-                                numberOfMonths={2}
+                                numberOfMonths={months}
                                 disabled={{ after: new Date() }}
                                 className="p-4"
                             />
@@ -129,7 +145,7 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="relative">
+                <div className="relative ">
                     {isPending && (
                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-sm rounded-lg">
                             <Loader2 className="h-8 w-8 animate-spin text-primary" />

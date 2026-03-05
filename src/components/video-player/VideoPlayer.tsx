@@ -283,16 +283,16 @@ export function VideoPlayer({
       trackList.on('addtrack', updateCaptionsStatus);
       trackList.on('removetrack', updateCaptionsStatus);
       const onTrackChange = () => {
-         // Sync UI state if changed elsewhere
-         let isAnyShowing = false;
-         const tracks = trackList as any;
-         for (let i = 0; i < tracks.length; i++) {
-           if ((tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') && tracks[i].mode === 'showing') {
-             isAnyShowing = true;
-             break;
-           }
-         }
-         setCaptionsEnabled(isAnyShowing);
+        // Sync UI state if changed elsewhere
+        let isAnyShowing = false;
+        const tracks = trackList as any;
+        for (let i = 0; i < tracks.length; i++) {
+          if ((tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') && tracks[i].mode === 'showing') {
+            isAnyShowing = true;
+            break;
+          }
+        }
+        setCaptionsEnabled(isAnyShowing);
       };
       trackList.on('change', onTrackChange);
 
@@ -386,7 +386,7 @@ export function VideoPlayer({
       };
 
       window.addEventListener("keydown", handleKeyDown);
-      
+
       player.on("dispose", () => {
         window.removeEventListener("keydown", handleKeyDown);
         trackList.off('addtrack', updateCaptionsStatus);
@@ -1102,6 +1102,7 @@ export function VideoPlayer({
     display: flex !important;
     justify-content: center !important;
     pointer-events: none !important;
+    z-index: 10 !important;
   }
 
   .video-js .vjs-text-track-display div {
@@ -1188,10 +1189,10 @@ export function VideoPlayer({
                         animationDelay: `${visualIndex * 60}ms`,
                         opacity: 0.3 + visualIndex * 0.35,
                         filter: `blur(${visualIndex === 2
-                            ? 0
-                            : visualIndex === 1
-                              ? 0.4
-                              : 0.8
+                          ? 0
+                          : visualIndex === 1
+                            ? 0.4
+                            : 0.8
                           }px)`
                       }}
                     />
@@ -1287,24 +1288,24 @@ export function VideoPlayer({
             onTouchEnd={handleSeekbarTouchEnd}
           >
             {hoverPosition && (() => {
-            const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
-            const snapTime = spritePos?.startTime ?? hoverPosition.time;
+              const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
+              const snapTime = spritePos?.startTime ?? hoverPosition.time;
 
-            // Clamp so preview never overflows left/right
-           const scale = window.innerWidth < 640 ? 0.45 : window.innerWidth < 768 ? 0.55 : 0.90;
-            const hw = ((spritePos?.width ?? 128) * scale) / 2;
-            const sw = seekbarRef.current?.getBoundingClientRect().width ?? 600;
-            const clampedLeft = Math.min(Math.max((snapTime / duration) * sw, hw), sw - hw);
+              // Clamp so preview never overflows left/right
+              const scale = window.innerWidth < 640 ? 0.45 : window.innerWidth < 768 ? 0.55 : 0.90;
+              const hw = ((spritePos?.width ?? 128) * scale) / 2;
+              const sw = seekbarRef.current?.getBoundingClientRect().width ?? 600;
+              const clampedLeft = Math.min(Math.max((snapTime / duration) * sw, hw), sw - hw);
 
-            return (
-              <div
-                className="absolute bottom-full mb-1 sm:mb-1.5 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
-                style={{ 
-                  left: `${clampedLeft}px`,   // ← px instead of %
-                  transform: 'translateX(-50%)'
-                }}
-              >
-                {/* ...rest unchanged... */}
+              return (
+                <div
+                  className="absolute bottom-full mb-1 sm:mb-1.5 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
+                  style={{
+                    left: `${clampedLeft}px`,   // ← px instead of %
+                    transform: 'translateX(-50%)'
+                  }}
+                >
+                  {/* ...rest unchanged... */}
                   {spriteMetadata ? (
                     spritePos ? (
                       <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">

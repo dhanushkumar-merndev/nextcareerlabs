@@ -51,9 +51,9 @@ export function SimpleLineChart({ data, className }: ChartProps) {
         accessibilityLayer
         data={data}
         margin={{
-          left: 12,
-          right: 12,
-          top: 20
+          left: -40,
+          right: 20,
+          top: 15
         }}
       >
         <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
@@ -62,7 +62,7 @@ export function SimpleLineChart({ data, className }: ChartProps) {
           tickLine={false}
           axisLine={false}
           tickMargin={8}
-          tickFormatter={(value) => value.split("-").slice(2).join("/")} 
+          tickFormatter={(value) => value.split("-").slice(2).join("/")}
           tick={{ fill: "var(--muted-foreground)" }}
         />
         <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)" }} />
@@ -129,50 +129,50 @@ export function SimpleBarChart({ data, className }: ChartProps) {
 
 // 3. Pie Chart for Enrollment Distribution
 const enrollmentConfig = {
-    value: {
-        label: "Count",
-    },
-    Granted: { label: "Granted", color: "var(--chart-1)" },
-    Pending: { label: "Pending", color: "var(--chart-2)" },
-    Rejected: { label: "Rejected", color: "var(--chart-3)" },
-    Revoked: { label: "Revoked", color: "var(--chart-5)" },
+  value: {
+    label: "Count",
+  },
+  Granted: { label: "Granted", color: "var(--chart-1)" },
+  Pending: { label: "Pending", color: "var(--chart-2)" },
+  Rejected: { label: "Rejected", color: "var(--chart-3)" },
+  Revoked: { label: "Revoked", color: "var(--chart-5)" },
 } satisfies ChartConfig;
 
 export function SimplePieChart({ data, className }: ChartProps) {
-    // Safety check: handle undefined or empty data
-    if (!data || !Array.isArray(data) || data.length === 0) {
-        return (
-            <div className="flex items-center justify-center h-[250px] text-muted-foreground">
-                No enrollment data available
-            </div>
-        );
-    }
-
-    const chartData = data.map((item) => {
-        const configKey = item.name as keyof typeof enrollmentConfig;
-        const color = (enrollmentConfig[configKey] as any)?.color || "var(--primary)";
-        return {
-            ...item,
-            fill: color,
-        };
-    });
-
+  // Safety check: handle undefined or empty data
+  if (!data || !Array.isArray(data) || data.length === 0) {
     return (
-        <ChartContainer 
-            config={enrollmentConfig} 
-            className={cn("mx-auto aspect-square max-h-[250px]", className)}
-        >
-            <PieChart>
-                <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
-                <Pie 
-                    data={chartData} 
-                    dataKey="value" 
-                    nameKey="name" 
-                    strokeWidth={5}
-                    innerRadius={60}
-                    outerRadius={85}
-                />
-            </PieChart>
-        </ChartContainer>
+      <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+        No enrollment data available
+      </div>
     );
+  }
+
+  const chartData = data.map((item) => {
+    const configKey = item.name as keyof typeof enrollmentConfig;
+    const color = (enrollmentConfig[configKey] as any)?.color || "var(--primary)";
+    return {
+      ...item,
+      fill: color,
+    };
+  });
+
+  return (
+    <ChartContainer
+      config={enrollmentConfig}
+      className={cn("mx-auto aspect-square max-h-[250px]", className)}
+    >
+      <PieChart>
+        <ChartTooltip cursor={false} content={<ChartTooltipContent hideLabel />} />
+        <Pie
+          data={chartData}
+          dataKey="value"
+          nameKey="name"
+          strokeWidth={5}
+          innerRadius={60}
+          outerRadius={85}
+        />
+      </PieChart>
+    </ChartContainer>
+  );
 }
