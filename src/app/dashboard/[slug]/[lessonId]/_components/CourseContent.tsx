@@ -65,6 +65,7 @@ function VideoPlayer({
   transcriptionUrl,
   isCompleted,
   setOptimisticCompleted,
+  initialActualTime = 0,
 }: {
   thumbnailkey: string;
   videoKey: string;
@@ -81,6 +82,7 @@ function VideoPlayer({
   transcriptionUrl?: string | null;
   isCompleted?: boolean;
   setOptimisticCompleted: (val: boolean) => void;
+  initialActualTime?: number;
 }) {
   console.log("[DEBUG] VideoPlayer render", { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
@@ -826,7 +828,7 @@ function VideoPlayer({
           className="w-full h-full"
           noDownload
           restrictSeeking={!isCompleted}
-          initialMaxTime={resumeTime}
+          initialMaxTime={initialActualTime}
         />
       )}
       {/* Transparent overlay — blocks native browser video context menu on mobile */}
@@ -924,6 +926,9 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             transcriptionUrl={lessonData.transcription?.vttUrl}
             isCompleted={isCompleted}
             setOptimisticCompleted={setOptimisticCompleted}
+            initialActualTime={
+              lessonData.lessonProgress?.[0]?.actualWatchTime ?? 0
+            }
           />
         </div>
 

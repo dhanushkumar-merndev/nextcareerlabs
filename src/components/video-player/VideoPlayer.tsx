@@ -170,10 +170,9 @@ export function VideoPlayer({
   const lastToggleTimeRef = useRef<number>(0);
   const pendingPlayRef = useRef<Promise<void> | null>(null);
 
-  // Furthest point reached during this session or previous one
-  const [maxWatchedTime, setMaxWatchedTime] = useState(
-    Math.max(initialTime, initialMaxTime),
-  );
+  // Furthest point reached during this session or previous one (now based on content watched)
+  const [maxWatchedTime, setMaxWatchedTime] = useState(initialMaxTime);
+  const lastTimeRef = useRef<number>(initialTime);
 
   const [hasCaptions, setHasCaptions] = useState(!!captionUrl);
 
@@ -294,8 +293,14 @@ export function VideoPlayer({
           });
           onTimeUpdate?.(time); // Original precision for parent tracking
 
-          // ✅ Update maxWatchedTime as we play forward
-          setMaxWatchedTime((prev) => Math.max(prev, time));
+          // ✅ Update maxWatchedTime based on "Actual Watch Time" (delta logic)
+          const delta = time - lastTimeRef.current;
+          if (delta > 0 && delta < 2.5) {
+            setMaxWatchedTime((prev) =>
+              Math.min(player.duration() || 0, prev + delta),
+            );
+          }
+          lastTimeRef.current = time;
         }
       });
       player.on("loadedmetadata", () => {
