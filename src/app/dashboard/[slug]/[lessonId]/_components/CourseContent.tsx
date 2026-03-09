@@ -6,9 +6,16 @@ import { Button } from "@/components/ui/button";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { BookIcon, CheckCircle, ChevronRight, X } from "lucide-react";
-import { updateVideoProgress, updateMultipleVideoProgress } from "../actions"
+import { updateVideoProgress, updateMultipleVideoProgress } from "../actions";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { getBatchSignedVideoUrls } from "@/app/data/course/get-signed-video-url";
 import { env } from "@/lib/env";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -71,14 +78,16 @@ function VideoPlayer({
   lowResKey?: string | null;
   transcriptionUrl?: string | null;
 }) {
-  console.log('[DEBUG] VideoPlayer render', { lessonId, videoKey: !!videoKey });
+  console.log("[DEBUG] VideoPlayer render", { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
   const spriteUrl = constructUrl(spriteKey || "");
   const lowResUrl = constructUrl(lowResKey || "");
   const queryClient = useQueryClient();
   const [vttCues, setVttCues] = useState<any[]>([]);
   const lessonIdRef = useRef(lessonId);
-  useEffect(() => { lessonIdRef.current = lessonId; }, [lessonId]);
+  useEffect(() => {
+    lessonIdRef.current = lessonId;
+  }, [lessonId]);
 
   const spriteMetadata = useMemo(() => {
     // 1. If we have an explicit spriteKey, use it (VTT or Legacy)
@@ -106,12 +115,25 @@ function VideoPlayer({
       return {
         url: inferredUrl,
         lowResUrl: inferredLowUrl,
-        cols: 0, rows: 0, interval: 0, width: 0, height: 0
+        cols: 0,
+        rows: 0,
+        interval: 0,
+        width: 0,
+        height: 0,
       };
     }
 
     return undefined;
-  }, [spriteUrl, spriteKey, videoKey, spriteCols, spriteRows, spriteInterval, spriteWidth, spriteHeight]);
+  }, [
+    spriteUrl,
+    spriteKey,
+    videoKey,
+    spriteCols,
+    spriteRows,
+    spriteInterval,
+    spriteWidth,
+    spriteHeight,
+  ]);
 
   // ✅ Prefetch VTT metadata
   useEffect(() => {
@@ -128,12 +150,12 @@ function VideoPlayer({
         const parsedCues: any[] = [];
         let currentCue: any = {};
 
-        lines.forEach(line => {
+        lines.forEach((line) => {
           line = line.trim();
           if (line === "WEBVTT" || line === "") return;
 
           if (line.includes("-->")) {
-            const [start, end] = line.split("-->").map(t => {
+            const [start, end] = line.split("-->").map((t) => {
               const parts = t.trim().split(":");
               let s = 0;
               if (parts.length === 3) {
@@ -205,19 +227,22 @@ function VideoPlayer({
     // No-op for now as CustomPlayer handles seeking initially
   }, []);
 
-  const onTimeUpdate = useCallback((currentTime: number) => {
-    // ✅ Track coverage
-    trackCoverage(currentTime);
+  const onTimeUpdate = useCallback(
+    (currentTime: number) => {
+      // ✅ Track coverage
+      trackCoverage(currentTime);
 
-    // Save position for resume (every 5 seconds)
-    const lastSavedTime = parseFloat(
-      secureStorage.getItem(`video-progress-${lessonId}`) || "0"
-    );
+      // Save position for resume (every 5 seconds)
+      const lastSavedTime = parseFloat(
+        secureStorage.getItem(`video-progress-${lessonId}`) || "0",
+      );
 
-    if (Math.abs(currentTime - lastSavedTime) > 5) {
-      saveProgress(currentTime);
-    }
-  }, [lessonId]);
+      if (Math.abs(currentTime - lastSavedTime) > 5) {
+        saveProgress(currentTime);
+      }
+    },
+    [lessonId],
+  );
 
   const onPlay = useCallback(() => {
     // Starting position is already tracked by onTimeUpdate
@@ -259,7 +284,7 @@ function VideoPlayer({
   ============================================================ */
   const getEncryptionKey = (userId: string) => {
     // Use first 16 chars of userId as encryption key
-    return userId.substring(0, 16).padEnd(16, '0');
+    return userId.substring(0, 16).padEnd(16, "0");
   };
 
   const saveUnsyncedDelta = () => {
@@ -269,7 +294,7 @@ function VideoPlayer({
     // ✅ SECURE: Encrypt before storing
     const encrypted = CryptoJS.AES.encrypt(
       val.toString(),
-      getEncryptionKey(userId)
+      getEncryptionKey(userId),
     ).toString();
 
     secureStorage.setItemTracked(`unsynced-delta-${lessonId}`, encrypted);
@@ -287,13 +312,13 @@ function VideoPlayer({
       // ✅ SECURE: Decrypt
       const decrypted = CryptoJS.AES.decrypt(
         encryptedData,
-        getEncryptionKey(userId)
+        getEncryptionKey(userId),
       ).toString(CryptoJS.enc.Utf8);
 
       return parseFloat(decrypted) || 0;
     } catch (e) {
       // If decryption fails (tampering detected), return 0
-      console.warn('[Security] Failed to decrypt delta, possible tampering');
+      console.warn("[Security] Failed to decrypt delta, possible tampering");
       return 0;
     }
   };
@@ -308,9 +333,14 @@ function VideoPlayer({
   /* ============================================================
      SYNC TO DATABASE
   ============================================================ */
-  const syncToDB = async (specificLessonId?: string, delta?: number, position?: number) => {
+  const syncToDB = async (
+    specificLessonId?: string,
+    delta?: number,
+    position?: number,
+  ) => {
     const targetId = specificLessonId || lessonId;
-    const currentPosition = position !== undefined ? position : lastPositionRef.current;
+    const currentPosition =
+      position !== undefined ? position : lastPositionRef.current;
 
     // Calculate final delta from accumulated video progress
     let deltaToSync = 0;
@@ -322,24 +352,44 @@ function VideoPlayer({
 
     if (deltaToSync === 0 && position === undefined) return;
 
-    console.log(`[Sync] Syncing ${targetId}: Position ${currentPosition}, Delta ${deltaToSync}`);
+    console.log(
+      `[Sync] Syncing ${targetId}: Position ${currentPosition}, Delta ${deltaToSync}`,
+    );
 
     // ✅ Send consumed video duration to DB
-    const response = await updateVideoProgress(targetId, currentPosition, deltaToSync);
+    const response = await updateVideoProgress(
+      targetId,
+      currentPosition,
+      deltaToSync,
+    );
 
     if (response.status === "success" && !specificLessonId) {
       // ✅ Update LOCAL CACHE directly (No invalidation avoids network hit on refresh)
       const cacheKey = `lesson_content_${lessonId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
       if (cached?.data?.lesson) {
-        const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: targetId, lastWatched: 0, actualWatchTime: 0 };
+        const progress = cached.data.lesson.lessonProgress?.[0] || {
+          completed: false,
+          quizPassed: false,
+          lessonId: targetId,
+          lastWatched: 0,
+          actualWatchTime: 0,
+        };
         progress.lastWatched = currentPosition;
-        progress.actualWatchTime = (progress.actualWatchTime || 0) + deltaToSync;
+        progress.actualWatchTime =
+          (progress.actualWatchTime || 0) + deltaToSync;
 
-        if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
+        if (!cached.data.lesson.lessonProgress)
+          cached.data.lesson.lessonProgress = [];
         cached.data.lesson.lessonProgress[0] = progress;
 
-        chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
+        chatCache.set(
+          cacheKey,
+          cached.data,
+          userId,
+          cached.version,
+          PERMANENT_TTL,
+        );
         queryClient.setQueryData(["lesson_content", lessonId], cached.data);
       }
 
@@ -351,15 +401,32 @@ function VideoPlayer({
       const cacheKey = `lesson_content_${specificLessonId}`;
       const cached = chatCache.get<any>(cacheKey, userId);
       if (cached?.data?.lesson) {
-        const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: specificLessonId, lastWatched: 0, actualWatchTime: 0 };
+        const progress = cached.data.lesson.lessonProgress?.[0] || {
+          completed: false,
+          quizPassed: false,
+          lessonId: specificLessonId,
+          lastWatched: 0,
+          actualWatchTime: 0,
+        };
         progress.lastWatched = currentPosition;
-        progress.actualWatchTime = (progress.actualWatchTime || 0) + deltaToSync;
+        progress.actualWatchTime =
+          (progress.actualWatchTime || 0) + deltaToSync;
 
-        if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
+        if (!cached.data.lesson.lessonProgress)
+          cached.data.lesson.lessonProgress = [];
         cached.data.lesson.lessonProgress[0] = progress;
 
-        chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
-        queryClient.setQueryData(["lesson_content", specificLessonId], cached.data);
+        chatCache.set(
+          cacheKey,
+          cached.data,
+          userId,
+          cached.version,
+          PERMANENT_TTL,
+        );
+        queryClient.setQueryData(
+          ["lesson_content", specificLessonId],
+          cached.data,
+        );
       }
 
       // Clear specific lesson delta
@@ -385,21 +452,31 @@ function VideoPlayer({
       const savedTime = secureStorage.getItem(`video-progress-${lessonId}`);
       const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
 
-      if (previousDelta > 0 || (savedTime && parseFloat(savedTime) > initialTime)) {
+      if (
+        previousDelta > 0 ||
+        (savedTime && parseFloat(savedTime) > initialTime)
+      ) {
         await syncToDB(lessonId, previousDelta, positionToSync);
       }
 
       // 2. Global Sync: Find other unsynced deltas in localStorage
       try {
         const keys = secureStorage.keysByPrefix("unsynced-delta-");
-        const updatesToBatch: Array<{ lessonId: string; lastWatched: number; delta: number }> = [];
+        const updatesToBatch: Array<{
+          lessonId: string;
+          lastWatched: number;
+          delta: number;
+        }> = [];
 
         // Add current lesson to batch if it has a delta
-        if (previousDelta > 0 || (savedTime && parseFloat(savedTime) > initialTime)) {
+        if (
+          previousDelta > 0 ||
+          (savedTime && parseFloat(savedTime) > initialTime)
+        ) {
           updatesToBatch.push({
             lessonId,
             lastWatched: positionToSync,
-            delta: previousDelta
+            delta: previousDelta,
           });
         }
 
@@ -407,45 +484,69 @@ function VideoPlayer({
           if (!key.includes(lessonId)) {
             const otherLessonId = key.replace("unsynced-delta-", "");
             const rawDelta = secureStorage.getItem(key);
-            const rawPos = secureStorage.getItem(`video-progress-${otherLessonId}`);
+            const rawPos = secureStorage.getItem(
+              `video-progress-${otherLessonId}`,
+            );
 
             let otherDelta = 0;
             try {
               if (rawDelta) {
-                const decrypted = CryptoJS.AES.decrypt(rawDelta, getEncryptionKey(userId)).toString(CryptoJS.enc.Utf8);
+                const decrypted = CryptoJS.AES.decrypt(
+                  rawDelta,
+                  getEncryptionKey(userId),
+                ).toString(CryptoJS.enc.Utf8);
                 otherDelta = parseFloat(decrypted) || 0;
               }
-            } catch { }
+            } catch {}
             const otherPosition = rawPos ? parseFloat(rawPos) : 0;
 
             if (otherDelta > 0) {
               updatesToBatch.push({
                 lessonId: otherLessonId,
                 lastWatched: otherPosition,
-                delta: otherDelta
+                delta: otherDelta,
               });
             }
           }
         }
 
         if (updatesToBatch.length > 0) {
-          console.log(`[Global Sync] Batch syncing ${updatesToBatch.length} items`);
+          console.log(
+            `[Global Sync] Batch syncing ${updatesToBatch.length} items`,
+          );
           const res = await updateMultipleVideoProgress(updatesToBatch);
           if (res.status === "success") {
             // Clear all synced items and update their caches
-            updatesToBatch.forEach(u => {
+            updatesToBatch.forEach((u) => {
               const cacheKey = `lesson_content_${u.lessonId}`;
               const cached = chatCache.get<any>(cacheKey, userId);
               if (cached?.data?.lesson) {
-                const progress = cached.data.lesson.lessonProgress?.[0] || { completed: false, quizPassed: false, lessonId: u.lessonId, lastWatched: 0, actualWatchTime: 0 };
+                const progress = cached.data.lesson.lessonProgress?.[0] || {
+                  completed: false,
+                  quizPassed: false,
+                  lessonId: u.lessonId,
+                  lastWatched: 0,
+                  actualWatchTime: 0,
+                };
                 progress.lastWatched = u.lastWatched;
-                progress.actualWatchTime = (progress.actualWatchTime || 0) + u.delta;
+                progress.actualWatchTime =
+                  (progress.actualWatchTime || 0) + u.delta;
 
-                if (!cached.data.lesson.lessonProgress) cached.data.lesson.lessonProgress = [];
+                if (!cached.data.lesson.lessonProgress)
+                  cached.data.lesson.lessonProgress = [];
                 cached.data.lesson.lessonProgress[0] = progress;
 
-                chatCache.set(cacheKey, cached.data, userId, cached.version, PERMANENT_TTL);
-                queryClient.setQueryData(["lesson_content", u.lessonId], cached.data);
+                chatCache.set(
+                  cacheKey,
+                  cached.data,
+                  userId,
+                  cached.version,
+                  PERMANENT_TTL,
+                );
+                queryClient.setQueryData(
+                  ["lesson_content", u.lessonId],
+                  cached.data,
+                );
               }
 
               if (u.lessonId === lessonId) {
@@ -515,33 +616,45 @@ function VideoPlayer({
 
     const fetchUrls = async () => {
       // ── Tier 1: Local Cache (chatCache) ─────────────────────────────
-      const cachedUrls = chatCache.get<{ hls?: string; video?: string; caption?: string }>(urlCacheKey, userId);
+      const cachedUrls = chatCache.get<{
+        hls?: string;
+        video?: string;
+        caption?: string;
+      }>(urlCacheKey, userId);
       if (cachedUrls) {
-        console.log("%c[■ Video] 🟡 LOCAL HIT → using cached signed URLs (no S3 call)", "color: #eab308; font-weight: bold");
+        console.log(
+          "%c[■ Video] 🟡 LOCAL HIT → using cached signed URLs (no S3 call)",
+          "color: #eab308; font-weight: bold",
+        );
         if (cachedUrls.data.hls) setHlsUrl(cachedUrls.data.hls);
         if (cachedUrls.data.video) setVideoUrl(cachedUrls.data.video);
-        if (cachedUrls.data.caption !== undefined) setCaptionUrl(cachedUrls.data.caption || undefined);
+        if (cachedUrls.data.caption !== undefined)
+          setCaptionUrl(cachedUrls.data.caption || undefined);
         return;
       }
 
       // ── Tier 2: Fetch new signed URLs from S3 ────────────────────────
-      console.log("%c[■ Video] 🗄️  FETCH NEW signed URLs from S3 (Batching)", "color: #f97316; font-weight: bold");
+      console.log(
+        "%c[■ Video] 🗄️  FETCH NEW signed URLs from S3 (Batching)",
+        "color: #f97316; font-weight: bold",
+      );
 
-      const baseKey = videoKey.startsWith('hls/')
-        ? videoKey.split('/')[1]
+      const baseKey = videoKey.startsWith("hls/")
+        ? videoKey.split("/")[1]
         : videoKey.replace(/\.[^/.]+$/, "");
       const hlsKey = `hls/${baseKey}/master.m3u8`;
 
       const keysToSign = [hlsKey, videoKey];
-      if (transcriptionUrl && !transcriptionUrl.startsWith('http')) {
+      if (transcriptionUrl && !transcriptionUrl.startsWith("http")) {
         keysToSign.push(transcriptionUrl);
       }
 
-      const batchResponse = await getBatchSignedVideoUrls(keysToSign) as any;
+      const batchResponse = (await getBatchSignedVideoUrls(keysToSign)) as any;
 
       if (batchResponse?.status === "success" && batchResponse.urls) {
         const urls = batchResponse.urls;
-        const urlsToCache: { hls?: string; video?: string; caption?: string } = {};
+        const urlsToCache: { hls?: string; video?: string; caption?: string } =
+          {};
 
         if (urls[hlsKey]) {
           setHlsUrl(urls[hlsKey]);
@@ -553,7 +666,7 @@ function VideoPlayer({
         }
 
         if (transcriptionUrl) {
-          if (transcriptionUrl.startsWith('http')) {
+          if (transcriptionUrl.startsWith("http")) {
             setCaptionUrl(transcriptionUrl);
             urlsToCache.caption = transcriptionUrl;
           } else if (urls[transcriptionUrl]) {
@@ -563,14 +676,22 @@ function VideoPlayer({
         }
 
         // ── Store in local cache (28 min TTL) ───────────────────────────
-        chatCache.set(urlCacheKey, urlsToCache, userId, undefined, VIDEO_URL_TTL);
-        console.log("%c[■ Video] 💾 CACHED signed URLs locally (28 min)", "color: #8b5cf6");
+        chatCache.set(
+          urlCacheKey,
+          urlsToCache,
+          userId,
+          undefined,
+          VIDEO_URL_TTL,
+        );
+        console.log(
+          "%c[■ Video] 💾 CACHED signed URLs locally (28 min)",
+          "color: #8b5cf6",
+        );
       }
     };
 
     fetchUrls();
   }, [videoKey]);
-
 
   /* ============================================================
      ON UNMOUNT: Sync to DB
@@ -615,25 +736,25 @@ function VideoPlayer({
     secureStorage.setItemTracked(`video-progress-${lessonId}`, time.toString());
   };
 
-
-
   /* ============================================================
      UI STATES
   ============================================================ */
   if (!videoKey) {
-    console.log('[VideoPlayer] No videoKey, showing placeholder');
+    console.log("[VideoPlayer] No videoKey, showing placeholder");
     return (
       <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border relative group overflow-hidden">
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-6 bg-background/50">
           <BookIcon className="size-16 text-primary/40 mb-4 animate-pulse" />
-          <p className="text-muted-foreground font-medium">This lesson does not have a video yet</p>
+          <p className="text-muted-foreground font-medium">
+            This lesson does not have a video yet
+          </p>
         </div>
       </div>
     );
   }
 
   if (!videoUrl && !hlsUrl) {
-    console.log('[VideoPlayer] Waiting for video URLs (loading state)');
+    console.log("[VideoPlayer] Waiting for video URLs (loading state)");
     return (
       <div className="aspect-video bg-muted rounded-lg border flex items-center justify-center relative overflow-hidden">
         <Skeleton className="absolute inset-0 w-full h-full" />
@@ -641,7 +762,6 @@ function VideoPlayer({
       </div>
     );
   }
-
 
   /* ============================================================
      PLAYER RENDER (with download prevention)
@@ -682,8 +802,6 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
 
-
-
   const { data: lesson, isLoading } = useQuery({
     queryKey: ["lesson_content", lessonId],
     queryFn: async () => {
@@ -715,9 +833,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     optimisticCompleted ||
     lessonData?.lessonProgress?.some((p: any) => p.completed);
 
-  const quizPassed = lessonData?.lessonProgress?.some(
-    (p: any) => p.quizPassed
-  );
+  const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
 
   const hasVideo = Boolean(lessonData?.videoKey);
 
@@ -747,11 +863,10 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   }
 
   return (
-    <div className="relative flex flex-col md:flex-row bg-background md:h-full overflow-hidden md:border-l border-border">
-      <div className="flex-1 flex flex-col md:pl-6 md:overflow-y-auto">
-
+    <div className="relative flex flex-col min-[1025px]:flex-row bg-background min-[1025px]:h-full overflow-hidden min-[1025px]:border-l border-border">
+      <div className="flex-1 flex flex-col min-[1025px]:pl-6 min-[1025px]:overflow-y-auto">
         {/* VIDEO */}
-        <div className="order-1 md:order-1 w-full relative">
+        <div className="order-1 min-[1025px]:order-1 w-full relative">
           <VideoPlayer
             thumbnailkey={lessonData.thumbnailKey ?? ""}
             videoKey={lessonData.videoKey ?? ""}
@@ -770,14 +885,14 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         </div>
 
         {/* DESKTOP TITLE */}
-        <div className="hidden md:block order-3 md:order-2 pt-6 md:pt-3 md:pb-4">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground truncate">
+        <div className="hidden min-[1025px]:block order-3 min-[1025px]:order-2 pt-6 min-[1025px]:pt-3 min-[1025px]:pb-4">
+          <h1 className="text-2xl min-[1025px]:text-3xl font-bold tracking-tight text-foreground truncate">
             {lessonData.title}
           </h1>
         </div>
 
         {/* MOBILE HEADER */}
-        <div className="md:hidden order-2 flex items-center justify-between py-4 bg-background">
+        <div className="min-[1025px]:hidden order-2 flex items-center justify-between py-4 bg-background">
           <div className="flex items-center gap-2">
             <Button
               disabled={isPending || isLoadingMCQs || !hasVideo}
@@ -799,7 +914,10 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             </Button>
           </div>
 
-          <Drawer open={isMobileDescriptionOpen} onOpenChange={setIsMobileDescriptionOpen}>
+          <Drawer
+            open={isMobileDescriptionOpen}
+            onOpenChange={setIsMobileDescriptionOpen}
+          >
             <DrawerTrigger asChild>
               <Button
                 variant="ghost"
@@ -811,7 +929,9 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             </DrawerTrigger>
             <DrawerContent className="max-h-[85vh] bg-background">
               <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
-                <DrawerTitle className="sr-only">Lesson Description</DrawerTitle>
+                <DrawerTitle className="sr-only">
+                  Lesson Description
+                </DrawerTitle>
                 <DrawerDescription className="sr-only">
                   Detailed description for the current lesson
                 </DrawerDescription>
@@ -820,9 +940,13 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
                   data-lenis-prevent
                 >
                   <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <h3 className="text-xl font-bold mb-4">{lessonData.title}</h3>
+                    <h3 className="text-xl font-bold mb-4">
+                      {lessonData.title}
+                    </h3>
                     {lessonData.description && (
-                      <RenderDescription json={JSON.parse(lessonData.description)} />
+                      <RenderDescription
+                        json={JSON.parse(lessonData.description)}
+                      />
                     )}
                   </div>
                 </div>
@@ -832,7 +956,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         </div>
 
         {/* DESKTOP ACTION BAR */}
-        <div className="hidden md:flex order-3 md:order-3 items-center justify-between gap-4 px-4 md:px-0 pt-6 md:pt-6 md:pb-0 md:border-t mb-0">
+        <div className="hidden min-[1025px]:flex order-3 min-[1025px]:order-3 items-center justify-between gap-4 px-4 min-[1025px]:px-0 pt-6 min-[1025px]:pt-6 min-[1025px]:pb-0 min-[1025px]:border-t mb-0">
           <div className="flex items-center gap-2">
             <Button
               disabled={isPending || isLoadingMCQs || !hasVideo}
@@ -868,7 +992,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
 
       {/* DESKTOP DESCRIPTION PANEL */}
       {lessonData.description && isDescriptionOpen && (
-        <div className="absolute -bottom-1 left-6 right-0 h-[85vh] z-30 hidden md:flex flex-col border border-border shadow-2xl bg-background animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
+        <div className="absolute -bottom-1 left-6 right-0 h-[85vh] z-30 hidden min-[1025px]:flex flex-col border border-border shadow-2xl bg-background animate-in slide-in-from-bottom duration-500 overflow-hidden rounded-t-3xl">
           <div className="flex items-center justify-between p-5 border-b border-border shrink-0 bg-muted/30">
             <h2 className="font-bold text-lg flex items-center gap-2">
               <IconFileText className="size-5 text-primary" />
@@ -919,10 +1043,18 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             cacheKeys.forEach((key) => chatCache.invalidate(key, userId));
             chatCache.setNeedsSync(userId);
 
-            queryClient.invalidateQueries({ queryKey: ["lesson_content", lessonId] });
-            queryClient.invalidateQueries({ queryKey: ["course_sidebar", slug] });
-            queryClient.invalidateQueries({ queryKey: ["user_dashboard", userId] });
-            queryClient.invalidateQueries({ queryKey: ["enrolled_courses", userId] });
+            queryClient.invalidateQueries({
+              queryKey: ["lesson_content", lessonId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["course_sidebar", slug],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["user_dashboard", userId],
+            });
+            queryClient.invalidateQueries({
+              queryKey: ["enrolled_courses", userId],
+            });
           }}
         />
       )}

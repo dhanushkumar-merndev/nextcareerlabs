@@ -13,7 +13,10 @@ import {
 } from "@/app/data/course/get-course-sidebar-data";
 import { chatCache } from "@/lib/chat-cache";
 
-type SidebarCourse = Extract<CourseSidebarDataType, { course: NonNullable<any> }>["course"];
+type SidebarCourse = Extract<
+  CourseSidebarDataType,
+  { course: NonNullable<any> }
+>["course"];
 type SidebarCacheData = { course: SidebarCourse };
 // chatCache.get returns: { data: SidebarCacheData, version?: string, timestamp?: number } | null
 
@@ -30,14 +33,18 @@ export function SidebarContainer({
   initialCourseData?: SidebarCourse | null;
   initialVersion?: string | null;
 }) {
-
   /* ---------------- Cache Hydration ---------------- */
   useEffect(() => {
     if (initialCourseData && initialVersion) {
       const cacheKey = `course_sidebar_${slug}`;
       const cached = chatCache.get<SidebarCacheData>(cacheKey, userId);
       if (!cached || cached.version !== initialVersion) {
-        chatCache.set<SidebarCacheData>(cacheKey, { course: initialCourseData }, userId, initialVersion);
+        chatCache.set<SidebarCacheData>(
+          cacheKey,
+          { course: initialCourseData },
+          userId,
+          initialVersion,
+        );
       }
     }
   }, [slug, userId, initialCourseData, initialVersion]);
@@ -68,7 +75,12 @@ export function SidebarContainer({
       }
 
       // ✅ success branch — result has .course and .version
-      chatCache.set<SidebarCacheData>(cacheKey, { course: result.course }, userId, result.version);
+      chatCache.set<SidebarCacheData>(
+        cacheKey,
+        { course: result.course },
+        userId,
+        result.version,
+      );
       return result.course;
     },
     staleTime: 1800000,
@@ -81,7 +93,8 @@ export function SidebarContainer({
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  const { setProgressPercentage, setShowProgress, setCourseTitle } = useCourseProgressContext();
+  const { setProgressPercentage, setShowProgress, setCourseTitle } =
+    useCourseProgressContext();
   const { progressPercentage } = useCourseProgress({ courseData: course });
 
   /* ---------------- Effects ---------------- */
@@ -94,18 +107,29 @@ export function SidebarContainer({
       setShowProgress(false);
       setCourseTitle("");
     };
-  }, [progressPercentage, course, setProgressPercentage, setShowProgress, setCourseTitle]);
-
-  useEffect(() => { setOpen(false); }, [pathname]);
+  }, [
+    progressPercentage,
+    course,
+    setProgressPercentage,
+    setShowProgress,
+    setCourseTitle,
+  ]);
 
   useEffect(() => {
-    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-    if (isMobile && open) {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const isMobileBreakpoint =
+      typeof window !== "undefined" && window.innerWidth < 1025;
+    if (isMobileBreakpoint && open) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
-    return () => { document.body.style.overflow = ""; };
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [open]);
 
   const showSkeleton = !course && !isError;
@@ -114,9 +138,8 @@ export function SidebarContainer({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
-
         {/* DESKTOP SIDEBAR */}
-        <div className="hidden md:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
+        <div className="hidden min-[1025px]:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
           {showSkeleton && (
             <div className="absolute inset-0 z-10 p-4 space-y-6 bg-background">
               <Skeleton className="h-6 w-40" />
@@ -130,12 +153,10 @@ export function SidebarContainer({
 
         {/* PAGE CONTENT */}
         <div className="flex-1 overflow-y-auto min-h-0 bg-background">
-          <div className="max-w-screen-7xl mx-auto w-full">
-            {children}
-          </div>
+          <div className="max-w-screen-7xl mx-auto w-full">{children}</div>
 
           {/* MOBILE SIDEBAR */}
-          <div className="md:hidden border-t border-border pb-12 relative">
+          <div className="min-[1025px]:hidden border-t border-border pb-12 relative">
             {showSkeleton && (
               <div className="absolute inset-0 z-10 p-4 space-y-4 bg-background">
                 <Skeleton className="h-8 w-full" />

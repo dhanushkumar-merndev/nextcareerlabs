@@ -19,7 +19,7 @@ export default async function CourseLayout({ children, params }: iAppProps) {
   //   🟡 localStorage (instant) → 🔵 Redis (30 min) → 🗄️ DB (on miss)
   // Fetching here would hit Redis on EVERY navigation with no benefit.
   return (
-    <div className="px-4 lg:px-6 h-full flex flex-col flex-1">
+    <div className="px-4 min-[1025px]:px-6 h-full flex flex-col flex-1">
       <SidebarContainer
         slug={slug}
         userId={user.id}

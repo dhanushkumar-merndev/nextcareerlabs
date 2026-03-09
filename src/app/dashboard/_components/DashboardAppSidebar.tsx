@@ -98,13 +98,13 @@ const data = {
       ],
     },
   ],
-  navSecondary: [
-
-
-  ],
+  navSecondary: [],
 };
 
-export function AppSidebar({ isEnrolled, ...props }: React.ComponentProps<typeof Sidebar> & { isEnrolled: boolean }) {
+export function AppSidebar({
+  isEnrolled,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & { isEnrolled: boolean }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
   const [isMounted, setIsMounted] = React.useState(false);
@@ -119,27 +119,30 @@ export function AppSidebar({ isEnrolled, ...props }: React.ComponentProps<typeof
     }
   };
 
-  const filteredNavMain = data.navMain.map(item => {
-    // Logic to keep "My Courses" active when viewing a specific course (e.g. /dashboard/salesforce)
-    // but NOT when viewing other main sections like /dashboard/resources, /dashboard/available-courses
-    if (item.title === "My Courses") {
-      const isCoursePage = pathname.startsWith("/dashboard/") &&
-        pathname !== "/dashboard" &&
-        pathname !== "/dashboard/available-courses" &&
-        pathname !== "/dashboard/resources" &&
-        pathname !== "/dashboard/my-courses"; // my-courses handled by strict match usually, but good to include context? No, strictly strictly.
+  const filteredNavMain = data.navMain
+    .map((item) => {
+      // Logic to keep "My Courses" active when viewing a specific course (e.g. /dashboard/salesforce)
+      // but NOT when viewing other main sections like /dashboard/resources, /dashboard/available-courses
+      if (item.title === "My Courses") {
+        const isCoursePage =
+          pathname.startsWith("/dashboard/") &&
+          pathname !== "/dashboard" &&
+          pathname !== "/dashboard/available-courses" &&
+          pathname !== "/dashboard/resources" &&
+          pathname !== "/dashboard/my-courses"; // my-courses handled by strict match usually, but good to include context? No, strictly strictly.
 
-      if (isCoursePage || pathname === item.url) {
-        return { ...item, isActive: true };
+        if (isCoursePage || pathname === item.url) {
+          return { ...item, isActive: true };
+        }
       }
-    }
-    return { ...item, isActive: pathname === item.url };
-  }).filter(item => {
-    if (item.title === "Resources") {
-      return isEnrolled;
-    }
-    return true;
-  });
+      return { ...item, isActive: pathname === item.url };
+    })
+    .filter((item) => {
+      if (item.title === "Resources") {
+        return isEnrolled;
+      }
+      return true;
+    });
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>

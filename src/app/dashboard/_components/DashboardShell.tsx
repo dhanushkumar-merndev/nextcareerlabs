@@ -10,17 +10,15 @@ import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 
 export function DashboardShell({
   children,
-  isEnrolledHint
+  isEnrolledHint,
 }: {
   children: React.ReactNode;
   isEnrolledHint?: boolean;
 }) {
   const { session, isLoading: sessionLoading } = useSmartSession();
 
-  const { data: enrolledCourses, isLoading: enrolledLoading } = useEnrolledCourses(
-    session?.user?.id,
-    sessionLoading
-  );
+  const { data: enrolledCourses, isLoading: enrolledLoading } =
+    useEnrolledCourses(session?.user?.id, sessionLoading);
 
   // HYDRATION FIX: Use state initialized from server hint to ensure initial render match
   const [isEnrolled, setIsEnrolled] = useState(isEnrolledHint ?? false);
@@ -39,7 +37,7 @@ export function DashboardShell({
         setIsEnrolled(actualEnrollment);
 
         // PERSISTENCE FIX: Sync the cookie from the client too
-        if (typeof document !== 'undefined') {
+        if (typeof document !== "undefined") {
           document.cookie = `is_enrolled=${actualEnrollment}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
         }
       }
@@ -64,7 +62,7 @@ export function DashboardShell({
         <SiteHeader />
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="@container/main flex flex-1 flex-col gap-2 overflow-hidden">
-            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 overflow-hidden h-full">
+            <div className="flex flex-col gap-4 py-4 min-[1025px]:gap-6 min-[1025px]:py-6 overflow-hidden h-full">
               {children}
             </div>
           </div>

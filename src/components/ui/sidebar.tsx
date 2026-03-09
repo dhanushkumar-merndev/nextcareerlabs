@@ -40,6 +40,7 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
+  overlap?: boolean;
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
@@ -53,20 +54,26 @@ function useSidebar() {
   return context;
 }
 
+import { usePathname } from "next/navigation";
+
 function SidebarProvider({
   defaultOpen = true,
   open: openProp,
   onOpenChange: setOpenProp,
   className,
   style,
+  overlap = false,
   children,
   ...props
 }: React.ComponentProps<"div"> & {
   defaultOpen?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  overlap?: boolean;
 }) {
   const isMobile = useIsMobile();
+  const pathname = usePathname();
+  const isLessonPage = /^\/dashboard\/[^/]+\/[^/]+/.test(pathname);
   const [openMobile, setOpenMobile] = React.useState(false);
 
   // This is the internal state of the sidebar.
@@ -85,13 +92,20 @@ function SidebarProvider({
       // This sets the cookie to keep the sidebar state.
       document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
     },
-    [setOpenProp, open]
+    [setOpenProp, open],
   );
 
   // Helper to toggle the sidebar.
   const toggleSidebar = React.useCallback(() => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   }, [isMobile, setOpen, setOpenMobile]);
+
+  // Handle auto-collapse on desktop for lesson pages
+  React.useEffect(() => {
+    if (!isMobile && isLessonPage && open) {
+      setOpen(false);
+    }
+  }, [pathname, isMobile, isLessonPage]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -122,8 +136,19 @@ function SidebarProvider({
       openMobile,
       setOpenMobile,
       toggleSidebar,
+      overlap: isLessonPage ? true : overlap,
     }),
-    [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar]
+    [
+      state,
+      open,
+      setOpen,
+      isMobile,
+      openMobile,
+      setOpenMobile,
+      toggleSidebar,
+      overlap,
+      isLessonPage,
+    ],
   );
 
   return (
@@ -140,7 +165,7 @@ function SidebarProvider({
           }
           className={cn(
             "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
-            className
+            className,
           )}
           {...props}
         >
@@ -163,7 +188,7 @@ function Sidebar({
   variant?: "sidebar" | "floating" | "inset";
   collapsible?: "offcanvas" | "icon" | "none";
 }) {
-  const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const { isMobile, state, openMobile, setOpenMobile, overlap } = useSidebar();
 
   if (collapsible === "none") {
     return (
@@ -171,7 +196,7 @@ function Sidebar({
         data-slot="sidebar"
         className={cn(
           "bg-sidebar text-sidebar-foreground flex h-full w-(--sidebar-width) flex-col",
-          className
+          className,
         )}
         {...props}
       >
@@ -207,37 +232,40 @@ function Sidebar({
 
   return (
     <div
-      className="group peer text-sidebar-foreground hidden md:block"
+      className="group peer text-sidebar-foreground hidden min-[1025px]:block"
       data-state={state}
       data-collapsible={state === "collapsed" ? collapsible : ""}
       data-variant={variant}
       data-side={side}
       data-slot="sidebar"
+      data-overlap={overlap}
     >
       {/* This is what handles the sidebar gap on desktop */}
       <div
         data-slot="sidebar-gap"
         className={cn(
-          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-linear",
+          "relative w-(--sidebar-width) bg-transparent transition-[width] duration-300 ease-in-out",
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
             ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
+            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
+          (props as any).overlap && "w-0! group-data-[state=expanded]:w-0!",
         )}
       />
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-linear md:flex",
+          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-300 ease-in-out min-[1025px]:flex",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
             ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
-            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
-          className
+            : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left] group-data-[side=right]",
+          overlap && "shadow-xl bg-sidebar",
+          className,
         )}
         {...props}
       >
@@ -291,13 +319,13 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-linear group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
+        "hover:after:bg-sidebar-border absolute inset-y-0 z-20 hidden w-4 -translate-x-1/2 transition-all ease-in-out duration-300 group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:left-1/2 after:w-[2px] sm:flex",
         "in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize",
         "[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize",
         "hover:group-data-[collapsible=offcanvas]:bg-sidebar group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full",
         "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
         "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2",
-        className
+        className,
       )}
       {...props}
     />
@@ -305,13 +333,16 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 }
 
 function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
+  const { overlap } = useSidebar();
   return (
     <main
       data-slot="sidebar-inset"
       className={cn(
-        "bg-background relative flex w-full flex-1 flex-col",
-        "md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
-        className
+        "bg-background relative flex w-full flex-1 flex-col overflow-hidden transition-all duration-300 ease-in-out",
+        "min-[1025px]:peer-data-[variant=inset]:m-2 min-[1025px]:peer-data-[variant=inset]:ml-0 min-[1025px]:peer-data-[variant=inset]:rounded-xl min-[1025px]:peer-data-[variant=inset]:shadow-sm min-[1025px]:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-2",
+        overlap &&
+          "min-[1025px]:m-4 min-[1025px]:rounded-3xl min-[1025px]:shadow-2xl",
+        className,
       )}
       {...props}
     />
@@ -375,7 +406,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
       data-sidebar="content"
       className={cn(
         "flex min-h-0 flex-1 flex-col gap-2 overflow-auto group-data-[collapsible=icon]:overflow-hidden",
-        className
+        className,
       )}
       {...props}
     />
@@ -405,9 +436,9 @@ function SidebarGroupLabel({
       data-slot="sidebar-group-label"
       data-sidebar="group-label"
       className={cn(
-        "text-sidebar-foreground/70 ring-sidebar-ring flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium outline-hidden transition-[margin,opacity] duration-200 ease-linear focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+        "text-sidebar-foreground/70 ring-sidebar-ring flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium outline-hidden transition-[margin,opacity] duration-300 ease-in-out focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         "group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0",
-        className
+        className,
       )}
       {...props}
     />
@@ -428,9 +459,9 @@ function SidebarGroupAction({
       className={cn(
         "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground absolute top-3.5 right-3 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         // Increases the hit area of the button on mobile.
-        "after:absolute after:-inset-2 md:after:hidden",
+        "after:absolute after:-inset-2 lg:after:hidden",
         "group-data-[collapsible=icon]:hidden",
-        className
+        className,
       )}
       {...props}
     />
@@ -492,7 +523,7 @@ const sidebarMenuButtonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
+  },
 );
 
 function SidebarMenuButton({
@@ -563,14 +594,14 @@ function SidebarMenuAction({
       className={cn(
         "text-sidebar-foreground ring-sidebar-ring hover:bg-sidebar-accent hover:text-sidebar-accent-foreground peer-hover/menu-button:text-sidebar-accent-foreground absolute top-1.5 right-1 flex aspect-square w-5 items-center justify-center rounded-md p-0 outline-hidden transition-transform focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         // Increases the hit area of the button on mobile.
-        "after:absolute after:-inset-2 md:after:hidden",
+        "after:absolute after:-inset-2 lg:after:hidden",
         "peer-data-[size=sm]/menu-button:top-1",
         "peer-data-[size=default]/menu-button:top-1.5",
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-          "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 md:opacity-0",
-        className
+          "peer-data-[active=true]/menu-button:text-sidebar-accent-foreground group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 lg:opacity-0",
+        className,
       )}
       {...props}
     />
@@ -592,7 +623,7 @@ function SidebarMenuBadge({
         "peer-data-[size=default]/menu-button:top-1.5",
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
-        className
+        className,
       )}
       {...props}
     />
@@ -609,7 +640,7 @@ function SidebarMenuSkeleton({
   // Random width between 50 to 90%.
   // Option 2: Use useState to set random value once on mount
   const [width] = React.useState(
-    () => `${Math.floor(Math.random() * 40) + 50}%`
+    () => `${Math.floor(Math.random() * 40) + 50}%`,
   );
 
   return (
@@ -646,7 +677,7 @@ function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
       className={cn(
         "border-sidebar-border mx-3.5 flex min-w-0 translate-x-px flex-col gap-1 border-l px-2.5 py-0.5",
         "group-data-[collapsible=icon]:hidden",
-        className
+        className,
       )}
       {...props}
     />
@@ -692,7 +723,7 @@ function SidebarMenuSubButton({
         size === "sm" && "text-xs",
         size === "md" && "text-sm",
         "group-data-[collapsible=icon]:hidden",
-        className
+        className,
       )}
       {...props}
     />
