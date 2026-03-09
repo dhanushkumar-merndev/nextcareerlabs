@@ -12,10 +12,21 @@
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { IconBook, IconCategory, IconChartBar, IconChevronDown, IconClock, IconPlayerPlay } from "@tabler/icons-react";
+import {
+  IconBook,
+  IconCategory,
+  IconChartBar,
+  IconChevronDown,
+  IconClock,
+  IconPlayerPlay,
+} from "@tabler/icons-react";
 import { CheckIcon, TimerIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -34,12 +45,7 @@ import { cn } from "@/lib/utils";
 // ✅ ADD import
 import { usePendingDetection } from "@/hooks/use-pending-detection";
 
-
-export function SlugPageWrapper({
-  slug,
-}: {
-  slug: string;
-}) {
+export function SlugPageWrapper({ slug }: { slug: string }) {
   const { session } = useSmartSession();
   const currentUserId = session?.user?.id;
   const router = useRouter();
@@ -55,14 +61,19 @@ export function SlugPageWrapper({
     setMounted(true);
 
     // 🔹 PERSISTENT LOGGING (SPA COMPATIBLE)
-    const logKey = `${slug}_${currentUserId || 'guest'}`;
+    const logKey = `${slug}_${currentUserId || "guest"}`;
     if (hasLogged.current !== logKey) {
       const cacheKey = `course_${slug}`;
-      let cached = currentUserId ? chatCache.get<any>(cacheKey, currentUserId) : null;
+      let cached = currentUserId
+        ? chatCache.get<any>(cacheKey, currentUserId)
+        : null;
       if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
 
       if (cached) {
-        console.log(`%c[SlugPage] LOCAL HIT (v${cached.version}) detected for ${slug}`, "color: #eab308; font-weight: bold");
+        console.log(
+          `%c[SlugPage] LOCAL HIT (v${cached.version}) detected for ${slug}`,
+          "color: #eab308; font-weight: bold",
+        );
       }
       hasLogged.current = logKey;
     }
@@ -71,11 +82,13 @@ export function SlugPageWrapper({
 
   // ✅ Extract cache ONCE before useQuery
   const cacheKey = `course_${slug}`;
-  const cachedEntry = typeof window !== "undefined"
-    ? (currentUserId
-      ? chatCache.get<any>(cacheKey, currentUserId) ?? chatCache.get<any>(cacheKey, undefined)
-      : chatCache.get<any>(cacheKey, undefined))
-    : null;
+  const cachedEntry =
+    typeof window !== "undefined"
+      ? currentUserId
+        ? (chatCache.get<any>(cacheKey, currentUserId) ??
+          chatCache.get<any>(cacheKey, undefined))
+        : chatCache.get<any>(cacheKey, undefined)
+      : null;
 
   const { data, isLoading } = useQuery({
     queryKey: ["course_detail", slug, currentUserId],
@@ -83,10 +96,17 @@ export function SlugPageWrapper({
       // Use already-resolved cachedEntry instead of re-reading storage
       const clientVersion = cachedEntry?.version;
       // Fetches the course data from the server
-      const result = await getSlugPageDataAction(slug, clientVersion, currentUserId);
+      const result = await getSlugPageDataAction(
+        slug,
+        clientVersion,
+        currentUserId,
+      );
       // Checks if the course data is not modified
       if (result && (result as any).status === "not-modified" && cachedEntry) {
-        console.log(`%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
+        console.log(
+          `%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`,
+          "color: #eab308; font-weight: bold",
+        );
         chatCache.touch(cacheKey, currentUserId);
         if (currentUserId) chatCache.clearSync(currentUserId);
         return cachedEntry.data;
@@ -94,7 +114,10 @@ export function SlugPageWrapper({
 
       const isData = result && !(result as any).status;
       if (isData) {
-        console.log(`%c[SlugPage] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
+        console.log(
+          `%c[SlugPage] Server: NEW_DATA -> Updating cache`,
+          "color: #3b82f6; font-weight: bold",
+        );
 
         if (currentUserId) {
           const oldStatus = cachedEntry?.data?.enrollmentStatus;
@@ -106,41 +129,51 @@ export function SlugPageWrapper({
             queryClient.invalidateQueries({
               predicate: (query) => {
                 const key = query.queryKey[0] as string;
-                return key === "user_dashboard" ||
+                return (
+                  key === "user_dashboard" ||
                   key === "my_courses" ||
                   key === "all_courses" ||
                   key === "enrolled_courses" ||
                   key === "user_enrolled_courses" ||
                   key === "user_resources_access" ||
                   key === "user_resources" ||
-                  key === "chat_sidebar";
-              }
+                  key === "chat_sidebar"
+                );
+              },
             });
 
-            triggerIfSingleStatusChanged(
-              oldStatus,
-              newStatus
-            );
+            triggerIfSingleStatusChanged(oldStatus, newStatus);
             setTimeout(() => router.refresh(), 500);
           }
         }
 
-        chatCache.set(cacheKey, result, currentUserId, (result as any).version, PERMANENT_TTL);
+        chatCache.set(
+          cacheKey,
+          result,
+          currentUserId,
+          (result as any).version,
+          PERMANENT_TTL,
+        );
         if (currentUserId) chatCache.clearSync(currentUserId);
       }
 
       return result;
     },
 
-    initialData: () => cachedEntry?.data,                    // ✅ single read
+    initialData: () => cachedEntry?.data, // ✅ single read
     initialDataUpdatedAt: cachedEntry?.timestamp ?? undefined, // ✅ single read
 
     staleTime: (() => {
       if (!cachedEntry) return 0;
       const age = Date.now() - (cachedEntry.timestamp || 0);
       const isPending = cachedEntry.data?.enrollmentStatus === "Pending";
-      const needsSync = currentUserId ? (chatCache.needsSync(currentUserId) || chatCache.hasAnyPending(currentUserId)) : false;
-      const hasAnyPending = currentUserId ? chatCache.hasAnyPending(currentUserId) : false;
+      const needsSync = currentUserId
+        ? chatCache.needsSync(currentUserId) ||
+          chatCache.hasAnyPending(currentUserId)
+        : false;
+      const hasAnyPending = currentUserId
+        ? chatCache.hasAnyPending(currentUserId)
+        : false;
       if (isPending || hasAnyPending || needsSync) return 0;
       if (age < 1800000) return 1800000 - age;
       return 0;
@@ -150,7 +183,6 @@ export function SlugPageWrapper({
     refetchOnWindowFocus: true,
     refetchOnMount: true,
   });
-
 
   // 🔹 INSTANT DATA LOOKUP (DURING RENDER)
   // This allows us to render the page immediately on the client if cache exists,
@@ -175,11 +207,16 @@ export function SlugPageWrapper({
   );
 }
 
-function SlugPageContent({ course, enrollmentStatus, slug, router }: {
-  course: any,
-  enrollmentStatus: string | null,
-  slug: string,
-  router: any
+function SlugPageContent({
+  course,
+  enrollmentStatus,
+  slug,
+  router,
+}: {
+  course: any;
+  enrollmentStatus: string | null;
+  slug: string;
+  router: any;
 }) {
   const [imageLoaded, setImageLoaded] = useState(false);
 
@@ -187,26 +224,27 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <h2 className="text-2xl font-bold">Course Not Found</h2>
-        <p className="text-muted-foreground">The course you are looking for might have been moved or deleted.</p>
-        <Link href="/courses" className={buttonVariants()}>Go Back to Courses</Link>
+        <p className="text-muted-foreground">
+          The course you are looking for might have been moved or deleted.
+        </p>
+        <Link href="/courses" className={buttonVariants()}>
+          Go Back to Courses
+        </Link>
       </div>
     );
   }
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
-
       <div className="order-1 lg:col-span-2">
         <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg bg-accent">
-          {!imageLoaded && (
-            <Skeleton className="absolute inset-0 z-10" />
-          )}
+          {!imageLoaded && <Skeleton className="absolute inset-0 z-10" />}
           <Image
             src={constructUrl(course.fileKey)}
             alt="Thumbnail"
             fill
             className={cn(
               "object-cover transition-opacity duration-500",
-              imageLoaded ? "opacity-100" : "opacity-0"
+              imageLoaded ? "opacity-100" : "opacity-0",
             )}
             priority
             crossOrigin="anonymous"
@@ -243,7 +281,9 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
           </h2>
           {/* Course Description */}
           <div>
-            <RenderDescription json={course.description ? JSON.parse(course.description) : null} />
+            <RenderDescription
+              json={course.description ? JSON.parse(course.description) : null}
+            />
           </div>
         </div>
         <Separator className="mt-8 mb-6" />
@@ -258,8 +298,9 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
               chapters |{" "}
               <span className="text-primary">
                 {course.chapter.reduce(
-                  (total: number, chapter: any) => total + chapter.lesson.length,
-                  0
+                  (total: number, chapter: any) =>
+                    total + chapter.lesson.length,
+                  0,
                 ) || 0}
               </span>{" "}
               Lessons
@@ -304,24 +345,26 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
                     {/* Course Lessons */}
                     <div className="border-t bg-muted/20">
                       <div className="p-6 pt-4 space-y-3">
-                        {chapter.lesson.map((lesson: any, lessonIndex: number) => (
-                          <div
-                            key={lesson.id}
-                            className="flex items-center gap-4 rounded-lg p-3 hover:bg-accent transition-colors group"
-                          >
-                            <div className="flex size-8 items-center justify-center rounded-full bg-background border-2 border-primary/20">
-                              <IconPlayerPlay className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        {chapter.lesson.map(
+                          (lesson: any, lessonIndex: number) => (
+                            <div
+                              key={lesson.id}
+                              className="flex items-center gap-4 rounded-lg p-3 hover:bg-accent transition-colors group"
+                            >
+                              <div className="flex size-8 items-center justify-center rounded-full bg-background border-2 border-primary/20">
+                                <IconPlayerPlay className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">
+                                  {lesson.title}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Lesson {lessonIndex + 1}
+                                </p>
+                              </div>
                             </div>
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">
-                                {lesson.title}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Lesson {lessonIndex + 1}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
+                          ),
+                        )}
                       </div>
                     </div>
                   </CollapsibleContent>
@@ -370,8 +413,9 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
                       icon={<IconBook className="size-4" />}
                       title="Total Lessons"
                       value={`${course.chapter.reduce(
-                        (total: number, chapter: any) => total + chapter.lesson.length,
-                        0
+                        (total: number, chapter: any) =>
+                          total + chapter.lesson.length,
+                        0,
                       )} Lessons`}
                     />
                   </div>
@@ -408,10 +452,14 @@ function SlugPageContent({ course, enrollmentStatus, slug, router }: {
                       className={buttonVariants({ className: "w-full" })}
                       href={(() => {
                         const firstLesson = course.chapter
-                          ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
-                          ?.[0]?.lesson
-                          ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))
-                          ?.[0];
+                          ?.sort(
+                            (a: any, b: any) =>
+                              (a.position ?? 0) - (b.position ?? 0),
+                          )?.[0]
+                          ?.lesson?.sort(
+                            (a: any, b: any) =>
+                              (a.position ?? 0) - (b.position ?? 0),
+                          )?.[0];
                         return firstLesson
                           ? `/dashboard/${course.slug}/${firstLesson.id}`
                           : `/dashboard/${course.slug}`;

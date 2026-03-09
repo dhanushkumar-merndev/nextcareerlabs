@@ -195,6 +195,7 @@ function VideoPlayer({
   const sessionDeltaRef = useRef<number>(0);
   const lastSavedDeltaRef = useRef<number>(0);
   const hasSyncedOnMountRef = useRef<boolean>(false);
+  const isSyncingRef = useRef<boolean>(false);
 
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
@@ -338,101 +339,108 @@ function VideoPlayer({
     delta?: number,
     position?: number,
   ) => {
-    const targetId = specificLessonId || lessonId;
-    const currentPosition =
-      position !== undefined ? position : lastPositionRef.current;
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
 
-    // Calculate final delta from accumulated video progress
-    let deltaToSync = 0;
-    if (delta !== undefined) {
-      deltaToSync = Math.round(delta);
-    } else {
-      deltaToSync = Math.round(sessionDeltaRef.current);
-    }
+    try {
+      const targetId = specificLessonId || lessonId;
+      const currentPosition =
+        position !== undefined ? position : lastPositionRef.current;
 
-    if (deltaToSync === 0 && position === undefined) return;
-
-    console.log(
-      `[Sync] Syncing ${targetId}: Position ${currentPosition}, Delta ${deltaToSync}`,
-    );
-
-    // ✅ Send consumed video duration to DB
-    const response = await updateVideoProgress(
-      targetId,
-      currentPosition,
-      deltaToSync,
-    );
-
-    if (response.status === "success" && !specificLessonId) {
-      // ✅ Update LOCAL CACHE directly (No invalidation avoids network hit on refresh)
-      const cacheKey = `lesson_content_${lessonId}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-      if (cached?.data?.lesson) {
-        const progress = cached.data.lesson.lessonProgress?.[0] || {
-          completed: false,
-          quizPassed: false,
-          lessonId: targetId,
-          lastWatched: 0,
-          actualWatchTime: 0,
-        };
-        progress.lastWatched = currentPosition;
-        progress.actualWatchTime =
-          (progress.actualWatchTime || 0) + deltaToSync;
-
-        if (!cached.data.lesson.lessonProgress)
-          cached.data.lesson.lessonProgress = [];
-        cached.data.lesson.lessonProgress[0] = progress;
-
-        chatCache.set(
-          cacheKey,
-          cached.data,
-          userId,
-          cached.version,
-          PERMANENT_TTL,
-        );
-        queryClient.setQueryData(["lesson_content", lessonId], cached.data);
+      // Calculate final delta from accumulated video progress
+      let deltaToSync = 0;
+      if (delta !== undefined) {
+        deltaToSync = Math.round(delta);
+      } else {
+        deltaToSync = Math.round(sessionDeltaRef.current);
       }
 
-      // ✅ Clear local state only after successful sync for current lesson
-      clearLocalDelta();
-      sessionDeltaRef.current = 0;
-    } else if (response.status === "success" && specificLessonId) {
-      // Update specific lesson cache
-      const cacheKey = `lesson_content_${specificLessonId}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-      if (cached?.data?.lesson) {
-        const progress = cached.data.lesson.lessonProgress?.[0] || {
-          completed: false,
-          quizPassed: false,
-          lessonId: specificLessonId,
-          lastWatched: 0,
-          actualWatchTime: 0,
-        };
-        progress.lastWatched = currentPosition;
-        progress.actualWatchTime =
-          (progress.actualWatchTime || 0) + deltaToSync;
+      if (deltaToSync === 0 && position === undefined) return;
 
-        if (!cached.data.lesson.lessonProgress)
-          cached.data.lesson.lessonProgress = [];
-        cached.data.lesson.lessonProgress[0] = progress;
+      console.log(
+        `[Sync] Syncing ${targetId}: Position ${currentPosition}, Delta ${deltaToSync}`,
+      );
 
-        chatCache.set(
-          cacheKey,
-          cached.data,
-          userId,
-          cached.version,
-          PERMANENT_TTL,
-        );
-        queryClient.setQueryData(
-          ["lesson_content", specificLessonId],
-          cached.data,
-        );
+      // ✅ Send consumed video duration to DB
+      const response = await updateVideoProgress(
+        targetId,
+        currentPosition,
+        deltaToSync,
+      );
+
+      if (response.status === "success" && !specificLessonId) {
+        // ✅ Update LOCAL CACHE directly (No invalidation avoids network hit on refresh)
+        const cacheKey = `lesson_content_${lessonId}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        if (cached?.data?.lesson) {
+          const progress = cached.data.lesson.lessonProgress?.[0] || {
+            completed: false,
+            quizPassed: false,
+            lessonId: targetId,
+            lastWatched: 0,
+            actualWatchTime: 0,
+          };
+          progress.lastWatched = currentPosition;
+          progress.actualWatchTime =
+            (progress.actualWatchTime || 0) + deltaToSync;
+
+          if (!cached.data.lesson.lessonProgress)
+            cached.data.lesson.lessonProgress = [];
+          cached.data.lesson.lessonProgress[0] = progress;
+
+          chatCache.set(
+            cacheKey,
+            cached.data,
+            userId,
+            cached.version,
+            PERMANENT_TTL,
+          );
+          queryClient.setQueryData(["lesson_content", lessonId], cached.data);
+        }
+
+        // ✅ Clear local state only after successful sync for current lesson
+        clearLocalDelta();
+        sessionDeltaRef.current = 0;
+      } else if (response.status === "success" && specificLessonId) {
+        // Update specific lesson cache
+        const cacheKey = `lesson_content_${specificLessonId}`;
+        const cached = chatCache.get<any>(cacheKey, userId);
+        if (cached?.data?.lesson) {
+          const progress = cached.data.lesson.lessonProgress?.[0] || {
+            completed: false,
+            quizPassed: false,
+            lessonId: specificLessonId,
+            lastWatched: 0,
+            actualWatchTime: 0,
+          };
+          progress.lastWatched = currentPosition;
+          progress.actualWatchTime =
+            (progress.actualWatchTime || 0) + deltaToSync;
+
+          if (!cached.data.lesson.lessonProgress)
+            cached.data.lesson.lessonProgress = [];
+          cached.data.lesson.lessonProgress[0] = progress;
+
+          chatCache.set(
+            cacheKey,
+            cached.data,
+            userId,
+            cached.version,
+            PERMANENT_TTL,
+          );
+          queryClient.setQueryData(
+            ["lesson_content", specificLessonId],
+            cached.data,
+          );
+        }
+
+        // Clear specific lesson delta
+        secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}`);
+        const expires = new Date(0).toUTCString();
+        document.cookie = `unsynced-delta-${specificLessonId}=; expires=${expires}; path=/; SameSite=Lax`;
       }
-
-      // Clear specific lesson delta
-      secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}`);
-      const expires = new Date(0).toUTCString();
-      document.cookie = `unsynced-delta-${specificLessonId}=; expires=${expires}; path=/; SameSite=Lax`;
+    } finally {
+      isSyncingRef.current = false;
     }
   };
 
@@ -446,18 +454,28 @@ function VideoPlayer({
     const performGlobalSync = async () => {
       // 1. Sync current lesson leftover
       const previousDelta = loadUnsyncedDelta();
-      sessionDeltaRef.current = previousDelta; // load into active ref
-      lastSavedDeltaRef.current = previousDelta; // sync saving state
+
+      // ✅ CRITICAL: CLEAR STORAGE IMMEDIATELY to prevent doubling if another process/mount starts
+      if (previousDelta > 0) {
+        secureStorage.removeItemTracked(`unsynced-delta-${lessonId}`);
+        deleteCookie(`unsynced-delta-${lessonId}`);
+      }
+
+      sessionDeltaRef.current = 0; // Start session delta at 0, previous is handled separately
+      lastSavedDeltaRef.current = 0;
 
       const savedTime = secureStorage.getItem(`video-progress-${lessonId}`);
-      const positionToSync = savedTime ? parseFloat(savedTime) : initialTime;
+      // ✅ Robust fallback: If storage is missing/stale on mount, use (initialServerTime + localPreviousDelta)
+      const positionToSync = Math.max(
+        initialTime + previousDelta,
+        savedTime ? parseFloat(savedTime) : 0,
+      );
 
-      if (
-        previousDelta > 0 ||
-        (savedTime && parseFloat(savedTime) > initialTime)
-      ) {
-        await syncToDB(lessonId, previousDelta, positionToSync);
-      }
+      // ✅ Update THE REF IMMEDIATELY so subsequent time updates start from the SYNCED position
+      lastPositionRef.current = positionToSync;
+      console.log(
+        `[Sync] Synced to ${positionToSync}, Delta: ${previousDelta}`,
+      );
 
       // 2. Global Sync: Find other unsynced deltas in localStorage
       try {
@@ -521,6 +539,7 @@ function VideoPlayer({
               const cacheKey = `lesson_content_${u.lessonId}`;
               const cached = chatCache.get<any>(cacheKey, userId);
               if (cached?.data?.lesson) {
+                // ... cache update logic remains ...
                 const progress = cached.data.lesson.lessonProgress?.[0] || {
                   completed: false,
                   quizPassed: false,
@@ -549,12 +568,10 @@ function VideoPlayer({
                 );
               }
 
-              if (u.lessonId === lessonId) {
-                clearLocalDelta();
-              } else {
+              // ✅ Clear others (current was cleared immediately)
+              if (u.lessonId !== lessonId) {
                 secureStorage.removeItemTracked(`unsynced-delta-${u.lessonId}`);
-                const expires = new Date(0).toUTCString();
-                document.cookie = `unsynced-delta-${u.lessonId}=; expires=${expires}; path=/; SameSite=Lax`;
+                deleteCookie(`unsynced-delta-${u.lessonId}`);
               }
             });
           }
@@ -568,6 +585,20 @@ function VideoPlayer({
   }, [lessonId, initialTime]);
 
   /* ============================================================
+     EXIT PROTECTION: Save final delta and position on unload
+  ============================================================ */
+  useEffect(() => {
+    const handleUnload = () => {
+      if (sessionDeltaRef.current > 0) {
+        saveUnsyncedDelta();
+        saveProgress(lastPositionRef.current);
+      }
+    };
+    window.addEventListener("beforeunload", handleUnload);
+    return () => window.removeEventListener("beforeunload", handleUnload);
+  }, []);
+
+  /* ============================================================
      TRACK WATCHED SECONDS (Every second during playback)
   ============================================================ */
   const trackCoverage = (currentPos: number) => {
@@ -577,12 +608,14 @@ function VideoPlayer({
     const delta = currentPos - lastPositionRef.current;
 
     // ✅ Equivalent Progress: Track delta in video time
-    if (delta > 0 && delta < 2) {
+    if (delta > 0 && delta < 2.5) {
       sessionDeltaRef.current += delta;
+      lastPositionRef.current = currentPos;
 
       // Heartbeat save to storage every 5 video seconds (User Request: EVERY5 SEC)
       if (Math.abs(sessionDeltaRef.current - lastSavedDeltaRef.current) >= 5) {
         saveUnsyncedDelta();
+        saveProgress(currentPos); // ✅ Save position too on heartbeat
         lastSavedDeltaRef.current = sessionDeltaRef.current;
       }
     }

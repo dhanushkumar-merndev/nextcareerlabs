@@ -268,19 +268,22 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
         // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change
         if (safeUserId) {
           const oldData = currentCache?.data?.data || [];
-          if (typeof triggerIfStatusChanged === "function") {
-            triggerIfStatusChanged(oldData, result.courses);
-          }
-
-          const oldPendingCount = oldData.filter(
+          const oldPending = oldData.filter(
             (c: any) => c.enrollmentStatus === "Pending",
-          ).length;
-          const newPendingCount = result.courses.filter(
+          );
+          const newPending = result.courses.filter(
             (c: any) => c.enrollmentStatus === "Pending",
-          ).length;
+          );
 
-          if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
+          // If pending count dropped, it likely means someone was approved
+          if (oldPending.length > 0 && newPending.length < oldPending.length) {
+            console.log(
+              `%c[Courses] Status change detected! Invalidating dashboard...`,
+              "color: #9333ea; font-weight: bold",
+            );
             chatCache.invalidateUserDashboardData(safeUserId);
+            chatCache.setNeedsSync(safeUserId);
+
             queryClient.invalidateQueries({
               predicate: (query) => {
                 const key = query.queryKey[0] as string;
@@ -297,6 +300,10 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
               },
             });
             chatCache.clearSync(safeUserId);
+          }
+
+          if (typeof triggerIfStatusChanged === "function") {
+            triggerIfStatusChanged(oldData, result.courses);
           }
         }
       }

@@ -5,7 +5,11 @@ import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types/auth";
 import { revalidatePath } from "next/cache";
 
-import { invalidateCache, GLOBAL_CACHE_KEYS, incrementGlobalVersion } from "@/lib/redis";
+import {
+  invalidateCache,
+  GLOBAL_CACHE_KEYS,
+  incrementGlobalVersion,
+} from "@/lib/redis";
 import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
 
 /**
@@ -13,14 +17,14 @@ import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
  */
 export async function markLessonComplete(
   lessonId: string,
-  slug: string
+  slug: string,
 ): Promise<ApiResponse> {
   const session = await requireUser();
 
   try {
     // 1. Check if the lesson has any MCQs
     const questionsCount = await prisma.question.count({
-      where: { lessonId: lessonId }
+      where: { lessonId: lessonId },
     });
 
     // 2. If questions exist, check if user has passed the assessment
@@ -32,13 +36,14 @@ export async function markLessonComplete(
             lessonId: lessonId,
           },
         },
-        select: { quizPassed: true, completed: true }
+        select: { quizPassed: true, completed: true },
       });
 
       if (!progress?.quizPassed && !progress?.completed) {
         return {
           status: "error",
-          message: "You must pass the assessment quiz before marking this lesson as complete.",
+          message:
+            "You must pass the assessment quiz before marking this lesson as complete.",
         };
       }
     }
@@ -66,7 +71,7 @@ export async function markLessonComplete(
       invalidateCache(`user:sidebar:${session.id}:${slug}`),
       invalidateCache(`user:lesson:${session.id}:${lessonId}`),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
     ]);
 
     // Revalidate the entire course dashboard to ensure everything is fresh
@@ -92,7 +97,7 @@ export async function markLessonComplete(
 export async function updateVideoProgress(
   lessonId: string,
   lastWatched: number,
-  actualWatchDelta = 0
+  actualWatchDelta = 0,
 ): Promise<ApiResponse> {
   const session = await requireUser();
 
@@ -123,18 +128,21 @@ export async function updateVideoProgress(
     // We only do this for the specific lesson and sidebar to keep it light
     await Promise.all([
       invalidateCache(`user:lesson:${session.id}:${lessonId}`),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
     ]);
+
+    // Revalidate the lesson page to ensure UI is fresh
+    revalidatePath(`/dashboard/[slug]/${lessonId}`, "page");
 
     return {
       status: "success",
-      message: "Progress updated"
+      message: "Progress updated",
     };
   } catch (error) {
     console.error("Error updating video progress:", error);
     return {
       status: "error",
-      message: "Failed to update progress"
+      message: "Failed to update progress",
     };
   }
 }
@@ -143,7 +151,7 @@ export async function updateVideoProgress(
  * Update multiple video progresses in a single transaction
  */
 export async function updateMultipleVideoProgress(
-  updates: Array<{ lessonId: string; lastWatched: number; delta: number }>
+  updates: Array<{ lessonId: string; lastWatched: number; delta: number }>,
 ): Promise<ApiResponse> {
   const session = await requireUser();
 
@@ -174,8 +182,8 @@ export async function updateMultipleVideoProgress(
               increment: Math.round(update.delta),
             },
           },
-        })
-      )
+        }),
+      ),
     );
 
     // Invalidate caches for all affected lessons
@@ -187,6 +195,9 @@ export async function updateMultipleVideoProgress(
       ...cacheInvalidations,
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
     ]);
+
+    // Revalidate affected cache
+    revalidatePath(`/dashboard`, "layout");
 
     return { status: "success", message: `Updated ${updates.length} items` };
   } catch (error) {
@@ -200,7 +211,7 @@ export async function updateMultipleVideoProgress(
 export async function submitQuizAttempt(
   lessonId: string,
   slug: string,
-  answers: number[]
+  answers: number[],
 ): Promise<ApiResponse & { score?: number; passed?: boolean }> {
   const session = await requireUser();
 
@@ -263,15 +274,18 @@ export async function submitQuizAttempt(
       // Fetch the actual current state to handle the edge case where they were already passed
       const currentProgress = await tx.lessonProgress.findUnique({
         where: { userId_lessonId: { userId: session.id, lessonId } },
-        select: { quizPassed: true, completed: true }
+        select: { quizPassed: true, completed: true },
       });
 
       // If they were already passed, we ensure the status remains 'true'
-      if (currentProgress && (currentProgress.quizPassed || currentProgress.completed)) {
+      if (
+        currentProgress &&
+        (currentProgress.quizPassed || currentProgress.completed)
+      ) {
         if (!passed) {
           await tx.lessonProgress.update({
             where: { userId_lessonId: { userId: session.id, lessonId } },
-            data: { quizPassed: true, completed: true }
+            data: { quizPassed: true, completed: true },
           });
         }
       }
@@ -291,7 +305,9 @@ export async function submitQuizAttempt(
 
     return {
       status: "success",
-      message: passed ? "Congratulations! You passed the quiz." : "You didn't pass the quiz. Please try again.",
+      message: passed
+        ? "Congratulations! You passed the quiz."
+        : "You didn't pass the quiz. Please try again.",
       score,
       passed,
     };
