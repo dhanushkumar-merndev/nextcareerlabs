@@ -3,7 +3,12 @@ import { requireAdmin } from "./require-admin";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import {
+  getCache,
+  setCache,
+  GLOBAL_CACHE_KEYS,
+  getGlobalVersion,
+} from "@/lib/redis";
 
 export type CourseData = {
   id: string;
@@ -34,11 +39,15 @@ export type CourseData = {
 export async function adminGetCourse(id: string, clientVersion?: string) {
   await requireAdmin();
 
-  let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION);
+  let currentVersion = await getGlobalVersion(
+    GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION,
+  );
 
   // Smart Sync
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(`[adminGetCourse] Version Match (${clientVersion}). Returning NOT_MODIFIED.`);
+    console.log(
+      `[adminGetCourse] Version Match (${clientVersion}). Returning NOT_MODIFIED.`,
+    );
     return { status: "not-modified", version: currentVersion };
   }
 
@@ -51,13 +60,13 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
     return {
       data: cached,
       version: currentVersion,
-      source: "REDIS"
+      source: "REDIS",
     };
   }
 
   console.log(`[adminGetCourse] Redis Cache MISS. Fetching from Prisma DB...`);
   const startTime = Date.now();
-  const data = await prisma.course.findUnique({
+  const data = (await prisma.course.findUnique({
     where: {
       id: id,
     },
@@ -73,11 +82,17 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
       slug: true,
       description: true,
       chapter: {
+        orderBy: {
+          position: "asc",
+        },
         select: {
           id: true,
           title: true,
           position: true,
           lesson: {
+            orderBy: {
+              position: "asc",
+            },
             select: {
               id: true,
               title: true,
@@ -90,7 +105,7 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
         },
       },
     },
-  }) as CourseData | null;
+  })) as CourseData | null;
   const duration = Date.now() - startTime;
   console.log(`[adminGetCourse] DB Fetch took ${duration}ms for ID: ${id}`);
 
@@ -105,7 +120,7 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
     data: data,
     version: currentVersion,
     source: "DB",
-    computeTime: duration
+    computeTime: duration,
   };
 }
 

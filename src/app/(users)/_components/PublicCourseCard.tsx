@@ -9,30 +9,47 @@ import { constructUrl } from "@/hooks/use-construct-url";
 import { CrownIcon, School, TimerIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { motion } from "motion/react";
 import { CoursesProps } from "@/lib/types/course";
 
 // PublicCourseCard component
-export function PublicCourseCard({ data, enrollmentStatus = null, isPriority = false }: CoursesProps & { isPriority?: boolean }) {
+export function PublicCourseCard({
+  data,
+  enrollmentStatus = null,
+  isPriority = false,
+}: CoursesProps & { isPriority?: boolean }) {
   const thumbnaiUrl = constructUrl(data.fileKey || "");
   return (
-    <Card className="group relative py-0 gap-0 shadow-lg border border-border/50 rounded-lg">
+    <Card className="group relative py-0 gap-0 shadow-lg border border-border/50 rounded-lg h-full flex flex-col overflow-hidden">
       {/* Badge */}
       <Badge className="absolute top-2 right-2 z-10">
         <CrownIcon className="size-2" />
         {data.level}
       </Badge>
-      <Image
-      src={thumbnaiUrl}
-      alt={data.title}
-      width={600}
-      height={400}
-      style={{ height: "auto" }}
-      className="w-full aspect-video h-full object-cover rounded-t-lg"
-      priority={isPriority}
-      loading={isPriority ? undefined : "lazy"}
-    />
 
-      <CardContent className="p-4">
+      {/* Animated Thumbnail Container */}
+      <div className="relative w-full aspect-video overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          whileHover={{ scale: 1.05 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="w-full h-full"
+        >
+          <Image
+            src={thumbnaiUrl}
+            alt={data.title}
+            width={600}
+            height={400}
+            className="w-full h-full object-cover"
+            priority={isPriority}
+            loading={isPriority ? undefined : "lazy"}
+          />
+        </motion.div>
+      </div>
+
+      <CardContent className="p-4 flex-1 flex flex-col">
         <Link
           className="font-medium text-lg line-clamp-2 hover:underline group-hover:text-primary transition-colors"
           href={`/courses/${data.slug}`}
@@ -52,42 +69,54 @@ export function PublicCourseCard({ data, enrollmentStatus = null, isPriority = f
             <p className="text-sm text-muted-foreground">{data.category}</p>
           </div>
         </div>
-        {enrollmentStatus === "Granted" ? (
-          <div className="mt-4 flex items-center gap-2">
-            <Link
-              href={data.firstLessonId ? `/dashboard/${data.slug}/${data.firstLessonId}` : `/dashboard/${data.slug}`}
-              className={buttonVariants({ className: "w-1/2" })}
-            >
-              Watch Now
-            </Link>
+        <div className="mt-auto pt-4">
+          {enrollmentStatus === "Granted" ? (
+            <div className="flex items-center gap-2">
+              <Link
+                href={
+                  data.firstLessonId
+                    ? `/dashboard/${data.slug}/${data.firstLessonId}`
+                    : `/dashboard/${data.slug}`
+                }
+                className={buttonVariants({ className: "w-1/2" })}
+              >
+                Watch Now
+              </Link>
 
+              <Link
+                href={`/courses/${data.slug}`}
+                className={buttonVariants({
+                  className: "w-1/2",
+                  variant: "outline",
+                })}
+              >
+                Learn More
+              </Link>
+            </div>
+          ) : (
             <Link
               href={`/courses/${data.slug}`}
               className={buttonVariants({
-                className: "w-1/2",
-                variant: "outline",
+                className: "w-full",
+                variant:
+                  enrollmentStatus === "Pending"
+                    ? "secondary"
+                    : enrollmentStatus === "Rejected" ||
+                        enrollmentStatus === "Revoked"
+                      ? "destructive"
+                      : "default",
               })}
             >
-              Learn More
+              {enrollmentStatus === "Pending"
+                ? "Pending Approval"
+                : enrollmentStatus === "Rejected"
+                  ? "Request Rejected"
+                  : enrollmentStatus === "Revoked"
+                    ? "Access Revoked"
+                    : "Learn More"}
             </Link>
-          </div>
-        ) : (
-          <Link
-            href={`/courses/${data.slug}`}
-            className={buttonVariants({
-              className: "w-full mt-4",
-              variant: 
-                enrollmentStatus === "Pending" ? "secondary" : 
-                (enrollmentStatus === "Rejected" || enrollmentStatus === "Revoked") ? "destructive" : 
-                "default",
-            })}
-          >
-            {enrollmentStatus === "Pending" ? "Pending Approval" : 
-             enrollmentStatus === "Rejected" ? "Request Rejected" :
-             enrollmentStatus === "Revoked" ? "Access Revoked" :
-             "Learn More"}
-          </Link>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   );

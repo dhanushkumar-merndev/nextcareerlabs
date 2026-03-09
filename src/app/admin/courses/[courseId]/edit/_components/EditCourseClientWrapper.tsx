@@ -35,7 +35,9 @@ export function EditCourseClientWrapper({
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "basic-info");
+  const [activeTab, setActiveTab] = useState(
+    searchParams.get("tab") || "basic-info",
+  );
 
   const getTime = () => new Date().toLocaleTimeString();
   const cacheKey = `admin_course_${courseId}`;
@@ -47,7 +49,10 @@ export function EditCourseClientWrapper({
       const result = await adminGetCourseAction(courseId, cached?.version);
 
       if ((result as any).status === "not-modified" && cached) {
-        console.log(`%c[EditCourse] ✨ LOCAL HIT (Smart Sync Match) (v${cached.version})`, "color: #eab308; font-weight: bold");
+        console.log(
+          `%c[EditCourse] ✨ LOCAL HIT (Smart Sync Match) (v${cached.version})`,
+          "color: #eab308; font-weight: bold",
+        );
         return cached.data;
       }
 
@@ -57,9 +62,15 @@ export function EditCourseClientWrapper({
       const computeTime = (result as any).computeTime;
 
       if (source === "REDIS") {
-        console.log(`%c[EditCourse] 🔵 REDIS HIT → course:${courseId} (v${version})`, "color: #3b82f6; font-weight: bold");
+        console.log(
+          `%c[EditCourse] 🔵 REDIS HIT → course:${courseId} (v${version})`,
+          "color: #3b82f6; font-weight: bold",
+        );
       } else if (source === "DB") {
-        console.log(`%c[EditCourse] 🗄️ DB COMPUTE → course:${courseId} done in ${computeTime}ms`, "color: #f97316; font-weight: bold");
+        console.log(
+          `%c[EditCourse] 🗄️ DB COMPUTE → course:${courseId} done in ${computeTime}ms`,
+          "color: #f97316; font-weight: bold",
+        );
       }
 
       chatCache.set(cacheKey, freshData, undefined, version, PERMANENT_TTL);
@@ -87,7 +98,10 @@ export function EditCourseClientWrapper({
     if (!hasLogged.current) {
       const cached = chatCache.get<any>(cacheKey);
       if (cached) {
-        console.log(`%c[EditCourse] ✨ LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+        console.log(
+          `%c[EditCourse] ✨ LOCAL HIT (v${cached.version}). Rendering from storage.`,
+          "color: #eab308; font-weight: bold",
+        );
       }
       hasLogged.current = true;
     }

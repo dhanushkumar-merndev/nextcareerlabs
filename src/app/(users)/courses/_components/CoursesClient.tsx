@@ -10,7 +10,10 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { getAllCoursesAction } from "../actions";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
-import { PublicCourseCard, PublicCourseCardSkeleton } from "../../_components/PublicCourseCard";
+import {
+  PublicCourseCard,
+  PublicCourseCardSkeleton,
+} from "../../_components/PublicCourseCard";
 import { useEffect, useState, useRef } from "react";
 import { useInView } from "react-intersection-observer";
 import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
@@ -46,11 +49,14 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   useEffect(() => {
     setMounted(true);
 
-    const logKey = `all_courses_${safeUserId || 'guest'}`;
+    const logKey = `all_courses_${safeUserId || "guest"}`;
     if (hasLogged.current !== logKey) {
       const cached = chatCache.get<any>("all_courses", safeUserId);
       if (cached) {
-        console.log(`%c[Courses] LOCAL HIT (v${cached.version || cached.data?.version}) from storage`, "color: #eab308; font-weight: bold");
+        console.log(
+          `%c[Courses] LOCAL HIT (v${cached.version || cached.data?.version}) from storage`,
+          "color: #eab308; font-weight: bold",
+        );
       }
       hasLogged.current = logKey;
     }
@@ -62,18 +68,20 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     rootMargin: "0px",
   });
 
-  const cached = chatCache.get<CoursesCacheWithCursor>("all_courses", safeUserId);
+  const cached = chatCache.get<CoursesCacheWithCursor>(
+    "all_courses",
+    safeUserId,
+  );
   const coursesInCache = cached?.data?.data ?? [];
 
-  // 🔹 DYNAMIC STALE TIME: 
+  // 🔹 DYNAMIC STALE TIME:
   // 30s if: 1. Mutation flag set, OR 2. Any pending enrollment exists in local cache.
   // 30m otherwise.
   // This ensures we check Redis on page open for pending users, but avoid hits on instant hard refresh.
   const hasPending = safeUserId ? chatCache.hasAnyPending(safeUserId) : false;
   const needsSync = safeUserId ? chatCache.needsSync(safeUserId) : false;
 
-  const dynamicStaleTime = (hasPending || needsSync) ? 0 : 30 * 60 * 1000;
-
+  const dynamicStaleTime = hasPending || needsSync ? 0 : 30 * 60 * 1000;
 
   const {
     data,
@@ -89,7 +97,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     readonly unknown[],
     string | null
   >({
-    // Query key depends on user + search 
+    // Query key depends on user + search
     queryKey: ["all_courses", safeUserId, searchTitle],
 
     // Seed data from cache for instant refresh (background revalidation)
@@ -99,27 +107,31 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       // 🔹 SEARCH MODE → Try to show whatever we have in cache first
       if (searchTitle && cached) {
         const q = searchTitle.toLowerCase();
-        const filtered = cached.data.data.filter((c: any) =>
-          c.title.toLowerCase().includes(q)
-        ).slice(0, 9);
+        const filtered = cached.data.data
+          .filter((c: any) => c.title.toLowerCase().includes(q))
+          .slice(0, 9);
 
         return {
-          pages: [{
-            courses: filtered,
-            nextCursor: null
-          }],
-          pageParams: [null]
+          pages: [
+            {
+              courses: filtered,
+              nextCursor: null,
+            },
+          ],
+          pageParams: [null],
         };
       }
 
       // 🔹 NORMAL MODE → Show cached first page
       if (!searchTitle && cached) {
         return {
-          pages: [{
-            courses: cached.data.data || cached.data,
-            nextCursor: cached.data.nextCursor || null
-          }],
-          pageParams: [null]
+          pages: [
+            {
+              courses: cached.data.data || cached.data,
+              nextCursor: cached.data.nextCursor || null,
+            },
+          ],
+          pageParams: [null],
         };
       }
 
@@ -131,30 +143,35 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       if (!searchTitle && initialData && initialData.status === "data") {
         console.log(`[Courses] SERVER HIT (First Load)`);
         return {
-          pages: [{
-            courses: initialData.courses,
-            nextCursor: initialData.nextCursor,
-          }],
-          pageParams: [null]
+          pages: [
+            {
+              courses: initialData.courses,
+              nextCursor: initialData.nextCursor,
+            },
+          ],
+          pageParams: [null],
         };
       }
 
       // Fallback to cache even in initialData to prevent flickering
       if (!searchTitle && typeof window !== "undefined" && cached) {
         return {
-          pages: [{
-            courses: cached.data.data || cached.data,
-            nextCursor: cached.data.nextCursor || null
-          }],
-          pageParams: [null]
+          pages: [
+            {
+              courses: cached.data.data || cached.data,
+              nextCursor: cached.data.nextCursor || null,
+            },
+          ],
+          pageParams: [null],
         };
       }
       return undefined;
     },
 
-    initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle
-      ? cached?.timestamp
-      : undefined,
+    initialDataUpdatedAt:
+      typeof window !== "undefined" && !searchTitle
+        ? cached?.timestamp
+        : undefined,
 
     // Fetch function (handles search + pagination)
     queryFn: async ({ pageParam }) => {
@@ -164,7 +181,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
           undefined,
           safeUserId,
           pageParam ?? null,
-          searchTitle
+          searchTitle,
         );
 
         if (result.status === "not-modified") {
@@ -181,19 +198,25 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       const cached = chatCache.get<any>("all_courses", safeUserId);
 
       // Send version only for first page
-      const clientVersion = pageParam ? undefined : (cached?.version);
+      const clientVersion = pageParam ? undefined : cached?.version;
 
-      console.info(`%c[Courses] SYNC CHECK: Version ${clientVersion || 'NONE'}`, "color: #eab308; font-weight: bold");
+      console.info(
+        `%c[Courses] SYNC CHECK: Version ${clientVersion || "NONE"}`,
+        "color: #eab308; font-weight: bold",
+      );
 
       const result = await getAllCoursesAction(
         clientVersion,
         safeUserId,
-        pageParam ?? null
+        pageParam ?? null,
       );
 
       // Server says cache is still valid
       if (result.status === "not-modified") {
-        console.log(`%c[Courses] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
+        console.log(
+          `%c[Courses] Server: NOT_MODIFIED (v${clientVersion})`,
+          "color: #eab308; font-weight: bold",
+        );
         chatCache.touch("all_courses", safeUserId);
         if (safeUserId) chatCache.clearSync(safeUserId);
         return {
@@ -202,17 +225,30 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
         };
       }
 
-      console.log(`%c[Courses] Server: NEW_DATA -> Updating cache`, "color: #3b82f6; font-weight: bold");
+      console.log(
+        `%c[Courses] Server: NEW_DATA -> Updating cache`,
+        "color: #3b82f6; font-weight: bold",
+      );
 
       // Persist merged courses + cursor
       if (!searchTitle) {
-        const currentCache = chatCache.get<CoursesCacheWithCursor>("all_courses", safeUserId);
+        const currentCache = chatCache.get<CoursesCacheWithCursor>(
+          "all_courses",
+          safeUserId,
+        );
         let mergedCourses: PublicCourseType[] = [];
 
         if (pageParam) {
-          const existingIds = new Set((currentCache?.data.data ?? []).map(c => c.id));
-          const newUniqueCourses = result.courses.filter(c => !existingIds.has(c.id));
-          mergedCourses = [...(currentCache?.data.data ?? []), ...newUniqueCourses];
+          const existingIds = new Set(
+            (currentCache?.data.data ?? []).map((c) => c.id),
+          );
+          const newUniqueCourses = result.courses.filter(
+            (c) => !existingIds.has(c.id),
+          );
+          mergedCourses = [
+            ...(currentCache?.data.data ?? []),
+            ...newUniqueCourses,
+          ];
         } else {
           mergedCourses = result.courses;
         }
@@ -226,33 +262,39 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
           },
           safeUserId,
           result.version,
-          PERMANENT_TTL
+          PERMANENT_TTL,
         );
 
         // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change
         if (safeUserId) {
           const oldData = currentCache?.data?.data || [];
-          if (typeof triggerIfStatusChanged === 'function') {
+          if (typeof triggerIfStatusChanged === "function") {
             triggerIfStatusChanged(oldData, result.courses);
           }
 
-          const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
-          const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
+          const oldPendingCount = oldData.filter(
+            (c: any) => c.enrollmentStatus === "Pending",
+          ).length;
+          const newPendingCount = result.courses.filter(
+            (c: any) => c.enrollmentStatus === "Pending",
+          ).length;
 
           if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
             chatCache.invalidateUserDashboardData(safeUserId);
             queryClient.invalidateQueries({
               predicate: (query) => {
                 const key = query.queryKey[0] as string;
-                return key === "user_dashboard" ||
+                return (
+                  key === "user_dashboard" ||
                   key === "my_courses" ||
                   key === "all_courses" ||
                   key === "enrolled_courses" ||
                   key === "user_enrolled_courses" ||
                   key === "user_resources_access" ||
                   key === "user_resources" ||
-                  key === "chat_sidebar";
-              }
+                  key === "chat_sidebar"
+                );
+              },
             });
             chatCache.clearSync(safeUserId);
           }
@@ -315,7 +357,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
             key={course.id}
             data={course}
             enrollmentStatus={course.enrollmentStatus ?? null}
-            isPriority={index < 3}
+            isPriority={index < 6}
           />
         ))}
       </div>
