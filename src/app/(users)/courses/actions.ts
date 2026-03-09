@@ -22,7 +22,16 @@ export async function getAllCoursesAction(
   userId?: string,
   cursor?: string | null,
   searchQuery?: string,
-  onlyAvailable?: boolean
+  onlyAvailable?: boolean,
 ) {
-  return getAllCourses(clientVersion, userId, cursor, searchQuery, onlyAvailable);
+  console.log(
+    `[getAllCoursesAction] Fetching courses (Search: ${searchQuery || "none"}, Cursor: ${cursor || "none"}, User: ${userId || "Guest"}, Version: ${clientVersion || "none"})`,
+  );
+  return getAllCourses(
+    clientVersion,
+    userId,
+    cursor,
+    searchQuery,
+    onlyAvailable,
+  );
 }

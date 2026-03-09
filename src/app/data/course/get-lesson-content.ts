@@ -32,11 +32,12 @@ export async function getLessonContent(
 
   // ── Tier 2: Redis ─────────────────────────────────────────────────
   const cacheKey = `user:lesson:${session.id}:${lessonId}:${currentVersion}`;
+  const redisStartTime = Date.now();
   const cached = await getCache<any>(cacheKey);
+  console.log(
+    `[Lesson] Redis cache lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
+  );
   if (cached) {
-    console.log(
-      `[Lesson] 🔵 REDIS HIT → lesson:${lessonId} (v${currentVersion})`,
-    );
     return { ...cached, version: currentVersion };
   }
 

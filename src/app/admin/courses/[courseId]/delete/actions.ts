@@ -6,8 +6,13 @@ import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types/auth";
 import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
-import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS, CHAT_CACHE_KEYS, incrementChatVersion } from "@/lib/redis";
-
+import {
+  invalidateCache,
+  incrementGlobalVersion,
+  GLOBAL_CACHE_KEYS,
+  CHAT_CACHE_KEYS,
+  incrementChatVersion,
+} from "@/lib/redis";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
@@ -85,7 +90,9 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
       await prisma.chatGroup.deleteMany({
         where: { courseId: courseId },
       });
-      console.log(`[deleteCourse] ChatGroup delete took ${Date.now() - chatStartTime}ms`);
+      console.log(
+        `[deleteCourse] ChatGroup delete took ${Date.now() - chatStartTime}ms`,
+      );
     }
 
     // 5. Delete the course (cascades to Chapter, Lesson, etc. thanks to schema)
@@ -95,7 +102,9 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
         id: courseId,
       },
     });
-    console.log(`[deleteCourse] DB Delete took ${Date.now() - deleteStartTime}ms`);
+    console.log(
+      `[deleteCourse] DB Delete took ${Date.now() - deleteStartTime}ms`,
+    );
 
     revalidatePath("/courses");
     revalidatePath(`/courses/${course.slug}`);
@@ -125,17 +134,25 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
     ];
 
     // Invalidate Chat Caches for all groups associated with this course
-    course.chatGroups.forEach(group => {
-      invalidationPromises.push(invalidateCache(CHAT_CACHE_KEYS.MESSAGES(group.id)));
+    course.chatGroups.forEach((group) => {
+      invalidationPromises.push(
+        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(group.id)),
+      );
     });
 
     // 6. Invalidate caches for all ENROLLED users (Students/Admins in the course)
     const enrolledUserIds = new Set(course.enrollment.map((e) => e.userId));
 
     enrolledUserIds.forEach((userId) => {
-      invalidationPromises.push(invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(userId)));
-      invalidationPromises.push(incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)));
-      invalidationPromises.push(invalidateCache(CHAT_CACHE_KEYS.THREADS(userId)));
+      invalidationPromises.push(
+        invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(userId)),
+      );
+      invalidationPromises.push(
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
+      );
+      invalidationPromises.push(
+        invalidateCache(CHAT_CACHE_KEYS.THREADS(userId)),
+      );
       invalidationPromises.push(incrementChatVersion(userId));
     });
 
@@ -143,18 +160,26 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
     const admins = await prisma.user.findMany({
       where: {
         role: "admin",
-        NOT: { id: { in: Array.from(enrolledUserIds) } } // Only admins not already covered
+        NOT: { id: { in: Array.from(enrolledUserIds) } }, // Only admins not already covered
       },
-      select: { id: true }
+      select: { id: true },
     });
 
-    admins.forEach(admin => {
-      invalidationPromises.push(invalidateCache(CHAT_CACHE_KEYS.THREADS(admin.id)));
+    admins.forEach((admin) => {
+      invalidationPromises.push(
+        invalidateCache(CHAT_CACHE_KEYS.THREADS(admin.id)),
+      );
       invalidationPromises.push(incrementChatVersion(admin.id));
     });
 
+    console.log(
+      `[deleteCourse] Invalidating massive cache tree (course, analaytics, all users, all admins)`,
+    );
+    const cacheStartTime = Date.now();
     await Promise.all(invalidationPromises);
-
+    console.log(
+      `[deleteCourse] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+    );
 
     return {
       status: "success",

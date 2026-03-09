@@ -10,9 +10,11 @@ interface ProfileData {
   phoneNumber: string;
 }
 
-export async function updateProfileAction(data: ProfileData): Promise<ApiResponse> {
+export async function updateProfileAction(
+  data: ProfileData,
+): Promise<ApiResponse> {
   const user = await requireUser();
-
+  console.log(`[updateProfileAction] Start: User=${user.id}`);
   try {
     await prisma.user.update({
       where: { id: user.id },
@@ -36,6 +38,8 @@ export async function updateProfileAction(data: ProfileData): Promise<ApiRespons
 }
 
 // Keep old action for backwards compatibility
-export async function updatePhoneNumberAction(phoneNumber: string): Promise<ApiResponse> {
+export async function updatePhoneNumberAction(
+  phoneNumber: string,
+): Promise<ApiResponse> {
   return updateProfileAction({ phoneNumber });
 }

@@ -24,7 +24,6 @@ export default function DeleteCourseRoute() {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const { courseId } = useParams<{ courseId: string }>();
-  console.log(`[AdminPage] Accessing Delete Course Page: ${courseId}`);
   const { user } = useSmartSession();
   const router = useRouter();
 
@@ -70,8 +69,12 @@ export default function DeleteCourseRoute() {
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_stats"] });
-        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_enrollments"] });
-        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
+        queryClient.invalidateQueries({
+          queryKey: ["admin_dashboard_enrollments"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["admin_dashboard_recent_courses"],
+        });
         queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
         router.push("/admin/courses");

@@ -6,10 +6,9 @@ import { AuthSession } from "@/lib/types/auth";
 import { cache } from "react";
 
 export const requireAdmin = cache(async () => {
-  const session = await auth.api.getSession({
+  const session = (await auth.api.getSession({
     headers: await headers(),
-  }) as AuthSession | null;
-
+  })) as AuthSession | null;
   if (!session) {
     redirect("/login?auth_failure=true");
   }

@@ -38,8 +38,15 @@ export async function sendNotificationAction(data: {
   fileUrl?: string;
   fileName?: string;
 }): Promise<TicketResponse> {
+  console.log(
+    `[sendNotificationAction] Start: Type=${data.type}, Recipient=${data.recipientId}, Thread=${data.threadId}`,
+  );
+  const authStartTime = Date.now();
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
+  console.log(
+    `[sendNotificationAction] Session fetch took ${Date.now() - authStartTime}ms`,
+  );
 
   // NEW: Generate threadId if not present for tickets
   // For Support Tickets, we use a deterministic ID based on the user ID
@@ -137,6 +144,10 @@ export async function sendNotificationAction(data: {
     const senderId = session.user.id;
     const isAdmin = session.user.role === "admin";
 
+    console.log(
+      `[sendNotificationAction] Invalidation for Thread=${threadId} and User=${session.user.id}`,
+    );
+    const cacheStartTime = Date.now();
     await Promise.all([
       !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(senderId)),
       !isAdmin && incrementChatVersion(senderId),
@@ -154,6 +165,9 @@ export async function sendNotificationAction(data: {
       (data.fileUrl || data.imageUrl) &&
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
     ]);
+    console.log(
+      `[sendNotificationAction] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+    );
   }
 
   revalidatePath("/admin/resources");
@@ -262,7 +276,11 @@ export async function getThreadsAction(clientVersion?: string) {
     ? GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR
     : CHAT_CACHE_KEYS.THREADS(session.user.id);
 
+  const redisStartTime = Date.now();
   const cachedData = await getCache<any>(cacheKey);
+  console.log(
+    `[getThreadsAction] Redis fetch for User=${session.user.id} took ${Date.now() - redisStartTime}ms. Result: ${cachedData ? "HIT" : "MISS"}`,
+  );
 
   if (cachedData && cachedData.version === currentVersion) {
     console.log(
@@ -688,7 +706,11 @@ export async function getThreadMessagesAction(
   }
 
   if (cacheKey) {
+    const redisStartTime = Date.now();
     const cached = await getCache<any>(cacheKey);
+    console.log(
+      `[getThreadMessagesAction] Redis fetch for Thread=${threadId} took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
+    );
     if (cached) {
       console.log(
         `[getThreadMessagesAction] Redis Cache HIT for thread ${threadId}.`,

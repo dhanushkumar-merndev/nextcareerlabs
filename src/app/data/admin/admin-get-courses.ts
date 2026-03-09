@@ -1,48 +1,74 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
+import {
+  getCache,
+  setCache,
+  GLOBAL_CACHE_KEYS,
+  getGlobalVersion,
+  incrementGlobalVersion,
+} from "@/lib/redis";
 
 const PAGE_SIZE = 9;
 
 export async function adminGetCourses(
   clientVersion?: string,
   cursor?: string | null,
-  searchQuery?: string
+  searchQuery?: string,
 ) {
   await requireAdmin();
-  let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION);
+  let currentVersion = await getGlobalVersion(
+    GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION,
+  );
 
   if (currentVersion === "0") {
     console.log(`[adminGetCourses] Version key missing. Initializing...`);
     await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION);
-    currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION);
+    currentVersion = await getGlobalVersion(
+      GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION,
+    );
   }
 
   // Smart Sync ONLY for first page and no search
-  if (!searchQuery && !cursor && clientVersion && clientVersion === currentVersion) {
-    console.log(`[adminGetCourses] Version Match (${clientVersion}). Returning NOT_MODIFIED (Skipping Redis Data Fetch).`);
+  if (
+    !searchQuery &&
+    !cursor &&
+    clientVersion &&
+    clientVersion === currentVersion
+  ) {
+    console.log(
+      `[adminGetCourses] Version Match (${clientVersion}). Returning NOT_MODIFIED (Skipping Redis Data Fetch).`,
+    );
     return { status: "not-modified", version: currentVersion };
   }
 
   if (!searchQuery && !cursor) {
-    console.log(`[adminGetCourses] Version Mismatch (Client: ${clientVersion || 'None'}, Server: ${currentVersion}). Checking Redis...`);
+    console.log(
+      `[adminGetCourses] Version Mismatch (Client: ${clientVersion || "None"}, Server: ${currentVersion}). Checking Redis...`,
+    );
   }
 
   // Check Redis cache
+  const redisStartTime = Date.now();
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST;
   const cached = await getCache<any[]>(cacheKey);
+  console.log(
+    `[adminGetCourses] Redis cache lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
+  );
 
   let allCourses: any[];
 
   if (searchQuery) {
     if (cached) {
-      console.log(`[adminGetCourses] Redis Cache filter for "${searchQuery}"...`);
+      console.log(
+        `[adminGetCourses] Redis Cache filter for "${searchQuery}"...`,
+      );
       const q = searchQuery.toLowerCase();
-      allCourses = cached.filter(c =>
-        c.title.toLowerCase().includes(q) ||
-        (c.smallDescription?.toLowerCase().includes(q)) ||
-        c.slug.toLowerCase().includes(q)
+      allCourses = cached.filter(
+        (c) =>
+          c.title.toLowerCase().includes(q) ||
+          c.smallDescription?.toLowerCase().includes(q) ||
+          c.slug.toLowerCase().includes(q),
       );
     } else {
       console.log(`[adminGetCourses] Searching DB for "${searchQuery}"...`);
@@ -50,10 +76,12 @@ export async function adminGetCourses(
       allCourses = await prisma.course.findMany({
         where: {
           OR: [
-            { title: { contains: searchQuery, mode: 'insensitive' } },
-            { smallDescription: { contains: searchQuery, mode: 'insensitive' } },
-            { slug: { contains: searchQuery, mode: 'insensitive' } }
-          ]
+            { title: { contains: searchQuery, mode: "insensitive" } },
+            {
+              smallDescription: { contains: searchQuery, mode: "insensitive" },
+            },
+            { slug: { contains: searchQuery, mode: "insensitive" } },
+          ],
         },
         orderBy: {
           createdAt: "desc",
@@ -79,21 +107,24 @@ export async function adminGetCourses(
     // Smart Sync: If no search/cursor, return first page immediately from Redis
     if (!cursor) {
       const firstPage = cached.slice(0, PAGE_SIZE);
-      const nextCursor = cached.length > PAGE_SIZE ? firstPage[firstPage.length - 1].id : null;
+      const nextCursor =
+        cached.length > PAGE_SIZE ? firstPage[firstPage.length - 1].id : null;
 
       return {
         data: {
           courses: firstPage,
           nextCursor,
-          total: cached.length
+          total: cached.length,
         },
-        version: currentVersion
+        version: currentVersion,
       };
     }
 
     allCourses = cached;
   } else {
-    console.log(`[adminGetCourses] Redis Cache MISS. Fetching from Prisma DB...`);
+    console.log(
+      `[adminGetCourses] Redis Cache MISS. Fetching from Prisma DB...`,
+    );
     const startTime = Date.now();
     allCourses = await prisma.course.findMany({
       orderBy: {
@@ -118,24 +149,23 @@ export async function adminGetCourses(
     await setCache(cacheKey, allCourses, 2592000);
   }
 
-
   // Cursor Pagination
   const startIndex = cursor
-    ? allCourses.findIndex(c => c.id === cursor) + 1
+    ? allCourses.findIndex((c) => c.id === cursor) + 1
     : 0;
 
   const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
 
   const nextCursor =
     startIndex + PAGE_SIZE < allCourses.length
-      ? page[page.length - 1]?.id ?? null
+      ? (page[page.length - 1]?.id ?? null)
       : null;
 
   return {
     data: {
       courses: page,
       nextCursor,
-      total: allCourses.length
+      total: allCourses.length,
     },
     version: currentVersion,
   };

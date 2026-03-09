@@ -14,7 +14,11 @@ import {
 } from "@/lib/zodSchemas";
 import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
-import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
+import {
+  invalidateCache,
+  incrementGlobalVersion,
+  GLOBAL_CACHE_KEYS,
+} from "@/lib/redis";
 import { invalidateAdminsCache } from "@/app/data/notifications/actions";
 import { adminGetCourse } from "@/app/data/admin/admin-get-course";
 
@@ -22,7 +26,7 @@ const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
 export async function editCourse(
   data: CourseSchemaType,
-  courseId: string
+  courseId: string,
 ): Promise<ApiResponse> {
   console.log(`[AdminCourseAction] Editing course ${courseId}: ${data.title}`);
   const user = await requireAdmin();
@@ -65,11 +69,13 @@ export async function editCourse(
         fileKey: result.data.fileKey ?? "",
       },
     });
-    console.log(`[editCourse] DB Update took ${Date.now() - updateStartTime}ms`);
+    console.log(
+      `[editCourse] DB Update took ${Date.now() - updateStartTime}ms`,
+    );
 
     // Sync or Auto-create Chat Group
     const existingGroup = await prisma.chatGroup.findFirst({
-      where: { courseId: courseId }
+      where: { courseId: courseId },
     });
 
     if (existingGroup) {
@@ -77,20 +83,24 @@ export async function editCourse(
         where: { id: existingGroup.id },
         data: {
           name: `${result.data.title} Group`,
-          imageUrl: result.data.fileKey
-        }
+          imageUrl: result.data.fileKey,
+        },
       });
     } else if (result.data.status === "Published") {
       await prisma.chatGroup.create({
         data: {
           name: `${result.data.title} Group`,
           courseId: courseId,
-          imageUrl: result.data.fileKey
-        }
+          imageUrl: result.data.fileKey,
+        },
       });
     }
 
     // Invalidate global courses and analytics cache
+    console.log(
+      `[editCourse] Invalidating extensive caches for CourseId=${courseId}`,
+    );
+    const cacheStartTime = Date.now();
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
@@ -109,8 +119,11 @@ export async function editCourse(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      invalidateAdminsCache()
+      invalidateAdminsCache(),
     ]);
+    console.log(
+      `[editCourse] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+    );
 
     revalidatePath("/courses");
     revalidatePath(`/courses/${result.data.slug}`);
@@ -131,9 +144,11 @@ export async function editCourse(
 export async function reorderLessons(
   chapterId: string,
   lesson: { id: string; position: number }[],
-  courseId: string
+  courseId: string,
 ): Promise<ApiResponse> {
-  console.log(`[AdminCourseAction] Reordering lessons in chapter ${chapterId} (Course: ${courseId})`);
+  console.log(
+    `[AdminCourseAction] Reordering lessons in chapter ${chapterId} (Course: ${courseId})`,
+  );
   try {
     if (!lesson || lesson.length === 0) {
       return {
@@ -154,9 +169,15 @@ export async function reorderLessons(
     });
     const startTime = Date.now();
     await prisma.$transaction(updates);
-    console.log(`[reorderLessons] Transaction took ${Date.now() - startTime}ms`);
+    console.log(
+      `[reorderLessons] Transaction took ${Date.now() - startTime}ms`,
+    );
 
     // Invalidate caches
+    console.log(
+      `[reorderLessons] Invalidating caches for CourseId=${courseId}`,
+    );
+    const cacheStartTime = Date.now();
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
@@ -166,8 +187,11 @@ export async function reorderLessons(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
     ]);
+    console.log(
+      `[reorderLessons] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+    );
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
     return {
@@ -184,7 +208,7 @@ export async function reorderLessons(
 
 export async function reorderChapters(
   courseId: string,
-  chapters: { id: string; position: number }[]
+  chapters: { id: string; position: number }[],
 ): Promise<ApiResponse> {
   console.log(`[AdminCourseAction] Reordering chapters in course ${courseId}`);
   await requireAdmin();
@@ -208,7 +232,9 @@ export async function reorderChapters(
     });
     const startTime = Date.now();
     await prisma.$transaction(updates);
-    console.log(`[reorderChapters] Transaction took ${Date.now() - startTime}ms`);
+    console.log(
+      `[reorderChapters] Transaction took ${Date.now() - startTime}ms`,
+    );
 
     // Invalidate caches
     await Promise.all([
@@ -219,7 +245,7 @@ export async function reorderChapters(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -236,9 +262,11 @@ export async function reorderChapters(
 }
 
 export async function createChapter(
-  data: ChapterSchemaType
+  data: ChapterSchemaType,
 ): Promise<ApiResponse> {
-  console.log(`[AdminCourseAction] Creating chapter: ${data.name} (Course: ${data.courseId})`);
+  console.log(
+    `[AdminCourseAction] Creating chapter: ${data.name} (Course: ${data.courseId})`,
+  );
   await requireAdmin();
   try {
     const result = chapterSchema.safeParse(data);
@@ -272,18 +300,27 @@ export async function createChapter(
     console.log(`[createChapter] Transaction took ${Date.now() - startTime}ms`);
 
     // Invalidate analytics and dashboard caches
+    console.log(
+      `[createChapter] Invalidating caches for CourseId=${result.data.courseId}`,
+    );
+    const cacheStartTime = Date.now();
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
+      invalidateCache(
+        GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId),
+      ),
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
+    console.log(
+      `[createChapter] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+    );
 
     revalidatePath(`/admin/courses/${result.data.courseId}/edit`);
     revalidatePath(`/admin/courses/${result.data.courseId}`);
@@ -300,9 +337,11 @@ export async function createChapter(
 }
 
 export async function createLesson(
-  data: LessonSchemaType
+  data: LessonSchemaType,
 ): Promise<ApiResponse> {
-  console.log(`[AdminCourseAction] Creating lesson: ${data.name} (Chapter: ${data.chapterId}, Course: ${data.courseId})`);
+  console.log(
+    `[AdminCourseAction] Creating lesson: ${data.name} (Chapter: ${data.chapterId}, Course: ${data.courseId})`,
+  );
   await requireAdmin();
   try {
     const result = lessonSchema.safeParse(data);
@@ -339,9 +378,15 @@ export async function createLesson(
     console.log(`[createLesson] Transaction took ${Date.now() - startTime}ms`);
 
     // Invalidate analytics and dashboard caches
+    console.log(
+      `[createLesson] Invalidating caches for CourseId=${result.data.courseId}`,
+    );
+    const cacheStartTime = Date.now();
     await Promise.all([
       // 1. Invalidate Actual Data
-      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
+      invalidateCache(
+        GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId),
+      ),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
@@ -358,8 +403,11 @@ export async function createLesson(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
     ]);
+    console.log(
+      `[createLesson] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+    );
 
     revalidatePath(`/admin/courses/${result.data.courseId}/edit`);
     return {
@@ -383,7 +431,9 @@ export async function deleteLesson({
   courseId: string;
   lessonId: string;
 }): Promise<ApiResponse> {
-  console.log(`[AdminCourseAction] Deleting lesson ${lessonId} from chapter ${chapterId} (Course: ${courseId})`);
+  console.log(
+    `[AdminCourseAction] Deleting lesson ${lessonId} from chapter ${chapterId} (Course: ${courseId})`,
+  );
   await requireAdmin();
   try {
     const startTime = Date.now();
@@ -403,7 +453,9 @@ export async function deleteLesson({
         },
       },
     });
-    console.log(`[deleteLesson] Chapter Fetch took ${Date.now() - startTime}ms`);
+    console.log(
+      `[deleteLesson] Chapter Fetch took ${Date.now() - startTime}ms`,
+    );
 
     if (!chapterWithLessons) {
       return {
@@ -418,7 +470,9 @@ export async function deleteLesson({
       where: { id: lessonId },
       select: { id: true, videoKey: true, thumbnailKey: true },
     });
-    console.log(`[deleteLesson] Lesson Fetch took ${Date.now() - lessonFetchStart}ms`);
+    console.log(
+      `[deleteLesson] Lesson Fetch took ${Date.now() - lessonFetchStart}ms`,
+    );
 
     if (!lessonToDelete) {
       return {
@@ -450,9 +504,15 @@ export async function deleteLesson({
       ...updates,
       prisma.lesson.delete({ where: { id: lessonId, chapterId: chapterId } }),
     ]);
-    console.log(`[deleteLesson] Transaction took ${Date.now() - transStartTime}ms`);
+    console.log(
+      `[deleteLesson] Transaction took ${Date.now() - transStartTime}ms`,
+    );
 
     // Invalidate analytics and dashboard caches
+    console.log(
+      `[deleteLesson] Invalidating caches for CourseId=${courseId} and LessonId=${lessonId}`,
+    );
+    const cacheStartTime = Date.now();
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
@@ -466,8 +526,11 @@ export async function deleteLesson({
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
     ]);
+    console.log(
+      `[deleteLesson] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+    );
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
     return {
@@ -489,7 +552,9 @@ export async function deleteChapter({
   chapterId: string;
   courseId: string;
 }): Promise<ApiResponse> {
-  console.log(`[AdminCourseAction] Deleting chapter ${chapterId} (Course: ${courseId})`);
+  console.log(
+    `[AdminCourseAction] Deleting chapter ${chapterId} (Course: ${courseId})`,
+  );
   await requireAdmin();
 
   try {
@@ -503,7 +568,9 @@ export async function deleteChapter({
         },
       },
     });
-    console.log(`[deleteChapter] Course Fetch took ${Date.now() - startTime}ms`);
+    console.log(
+      `[deleteChapter] Course Fetch took ${Date.now() - startTime}ms`,
+    );
 
     if (!courseWithChapters) {
       return { status: "error", message: "Course not found" };
@@ -518,7 +585,9 @@ export async function deleteChapter({
         },
       },
     });
-    console.log(`[deleteChapter] Chapter Fetch took ${Date.now() - chapStartTime}ms`);
+    console.log(
+      `[deleteChapter] Chapter Fetch took ${Date.now() - chapStartTime}ms`,
+    );
 
     if (!chapterToDelete) {
       return { status: "error", message: "Chapter not found" };
@@ -535,14 +604,14 @@ export async function deleteChapter({
     await Promise.all(Array.from(keysToDelete).map((key) => deleteS3File(key)));
 
     const remainingChapters = courseWithChapters.chapter.filter(
-      (c) => c.id !== chapterId
+      (c) => c.id !== chapterId,
     );
 
     const updates = remainingChapters.map((chapter, index) =>
       prisma.chapter.update({
         where: { id: chapter.id },
         data: { position: index + 1 },
-      })
+      }),
     );
 
     const transStartTime = Date.now();
@@ -552,7 +621,9 @@ export async function deleteChapter({
         where: { id: chapterId },
       }),
     ]);
-    console.log(`[deleteChapter] Transaction took ${Date.now() - transStartTime}ms`);
+    console.log(
+      `[deleteChapter] Transaction took ${Date.now() - transStartTime}ms`,
+    );
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
@@ -565,7 +636,7 @@ export async function deleteChapter({
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -591,7 +662,9 @@ export async function editChapter({
   courseId: string;
   name: string;
 }): Promise<ApiResponse> {
-  console.log(`[AdminCourseAction] Renaming chapter ${chapterId} to "${name}" (Course: ${courseId})`);
+  console.log(
+    `[AdminCourseAction] Renaming chapter ${chapterId} to "${name}" (Course: ${courseId})`,
+  );
   await requireAdmin();
 
   try {
@@ -612,7 +685,9 @@ export async function editChapter({
         title: name.trim(),
       },
     });
-    console.log(`[editChapter] DB Update took ${Date.now() - updateStartTime}ms`);
+    console.log(
+      `[editChapter] DB Update took ${Date.now() - updateStartTime}ms`,
+    );
 
     // Invalidate analytics and dashboard caches
     await Promise.all([
@@ -624,7 +699,7 @@ export async function editChapter({
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
 
     // Revalidate the edit page

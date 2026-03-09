@@ -21,7 +21,11 @@ export async function markLessonComplete(
 ): Promise<ApiResponse> {
   const session = await requireUser();
 
+  console.log(
+    `[markLessonComplete] Start: User=${session.id}, Lesson=${lessonId}, Slug=${slug}`,
+  );
   try {
+    const startTime = Date.now();
     // 1. Check if the lesson has any MCQs
     const questionsCount = await prisma.question.count({
       where: { lessonId: lessonId },
@@ -64,8 +68,14 @@ export async function markLessonComplete(
         completed: true,
       },
     });
+    console.log(
+      `[markLessonComplete] DB Upsert took ${Date.now() - startTime}ms`,
+    );
 
     // ✅ Invalidate ALL relevant Redis caches
+    console.log(
+      `[markLessonComplete] Invalidating caches for User=${session.id}, Slug=${slug}`,
+    );
     await Promise.all([
       invalidateCache(`user:dashboard:${session.id}`),
       invalidateCache(`user:sidebar:${session.id}:${slug}`),
@@ -102,8 +112,42 @@ export async function updateVideoProgress(
 ): Promise<ApiResponse> {
   const session = await requireUser();
 
+  console.log(
+    `[updateVideoProgress] Start: User=${session.id}, Lesson=${lessonId}, LastWatched=${lastWatched}, Delta=${actualWatchDelta}, Restriction=${restrictionTime}`,
+  );
   try {
-    // ✅ Atomic update prevents race conditions
+    const startTime = Date.now();
+    // ✅ 1. Fetch current state for sanity check
+    const existing = await prisma.lessonProgress.findUnique({
+      where: {
+        userId_lessonId: { userId: session.id, lessonId },
+      },
+      select: { updatedAt: true, actualWatchTime: true },
+    });
+    console.log(
+      `[updateVideoProgress] Fetch existing state took ${Date.now() - startTime}ms`,
+    );
+
+    // ✅ 2. Sanity Check: Prevent "accelerated" watch time
+    // If the user says they watched 60 seconds but only 5 seconds passed since the last sync,
+    // they are likely manipulating the client state.
+    let validatedDelta = actualWatchDelta;
+    if (existing && actualWatchDelta > 0) {
+      const elapsedMs = Date.now() - existing.updatedAt.getTime();
+      const elapsedSec = elapsedMs / 1000;
+
+      // Allow a 10s grace buffer for sync timing / late heartbeats
+      const maxPossibleDelta = elapsedSec + 10;
+
+      if (actualWatchDelta > maxPossibleDelta) {
+        console.warn(
+          `[Security] Watch time anomaly for User ${session.id}, Lesson ${lessonId}. Requested: ${actualWatchDelta}s, Max allowed: ${maxPossibleDelta}s. Capping to elapsed.`,
+        );
+        validatedDelta = Math.floor(elapsedSec);
+      }
+    }
+
+    // ✅ 3. Atomic update prevents race conditions
     await prisma.lessonProgress.upsert({
       where: {
         userId_lessonId: {
@@ -115,32 +159,36 @@ export async function updateVideoProgress(
         userId: session.id,
         lessonId,
         lastWatched,
-        actualWatchTime: actualWatchDelta, // First time: set initial value
+        actualWatchTime: Math.max(0, validatedDelta), // First time: set initial value
         restrictionTime: restrictionTime ?? 0,
       },
       update: {
         lastWatched, // Always update position
         actualWatchTime: {
-          increment: actualWatchDelta, // ✅ Atomic increment (no double counting)
+          increment: Math.max(0, validatedDelta), // ✅ Atomic increment (validated)
         },
       },
     });
 
-    // ✅ Security: Fetch current progress to validate restrictionTime against actualWatchTime
-    const currentProgress = await prisma.lessonProgress.findUnique({
-      where: { userId_lessonId: { userId: session.id, lessonId } },
-      select: { actualWatchTime: true },
+    // ✅ 4. Fetch lesson to cap progress at duration
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { duration: true },
     });
 
-    const totalWatchTime =
-      (currentProgress?.actualWatchTime || 0) + actualWatchDelta;
+    const lessonDuration = lesson?.duration || 1000000; // Super large fallback if not set
 
-    // Allow a small buffer (e.g. 10%) for variations in play speed or seeking back and forth,
+    const totalWatchTime = Math.min(
+      lessonDuration,
+      (existing?.actualWatchTime || 0) + validatedDelta,
+    );
+
+    // Allow a small buffer (e.g. 1.5x) for variations in play speed or seeking
     // but prevent skipping 10 minutes if you only watched 1 minute.
     const maxAllowedRestriction = totalWatchTime * 1.5 + 30; // 50% buffer + 30s grace
     const validatedRestriction =
       restrictionTime !== undefined
-        ? Math.min(restrictionTime, maxAllowedRestriction)
+        ? Math.min(restrictionTime, maxAllowedRestriction, lessonDuration)
         : undefined;
 
     // ✅ Update restrictionTime only if the new value is higher (high-water mark)
@@ -152,8 +200,14 @@ export async function updateVideoProgress(
       `;
     }
 
+    console.log(
+      `[updateVideoProgress] Core logic execution (Security + Upsert + Raw Update) took ${Date.now() - startTime}ms`,
+    );
+
     // ✅ Invalidate caches so refresh/sidebar reflects new progress
-    // We only do this for the specific lesson and sidebar to keep it light
+    console.log(
+      `[updateVideoProgress] Invalidating specific lesson/sidebar cache for User=${session.id}`,
+    );
     await Promise.all([
       invalidateCache(`user:lesson:${session.id}:${lessonId}`),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
@@ -288,7 +342,11 @@ export async function submitQuizAttempt(
 > {
   const session = await requireUser();
 
+  console.log(
+    `[submitQuizAttempt] Start: User=${session.id}, Lesson=${lessonId}, Slug=${slug}`,
+  );
   try {
+    const startTime = Date.now();
     // 1. Fetch correct answers from DB
     const questions = await prisma.question.findMany({
       where: { lessonId },
@@ -364,7 +422,14 @@ export async function submitQuizAttempt(
       }
     });
 
+    console.log(
+      `[submitQuizAttempt] Quiz processing (Score: ${score}, Passed: ${passed}) took ${Date.now() - startTime}ms`,
+    );
+
     // 4. Invalidate caches (same as markLessonComplete)
+    console.log(
+      `[submitQuizAttempt] Invalidating caches for User=${session.id}, Slug=${slug}`,
+    );
     await Promise.all([
       invalidateCache(`user:dashboard:${session.id}`),
       invalidateCache(`user:sidebar:${session.id}:${slug}`),

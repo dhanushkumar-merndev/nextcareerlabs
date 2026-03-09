@@ -4,14 +4,22 @@ import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types/auth";
 import { lessonSchema, LessonSchemaType } from "@/lib/zodSchemas";
-import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
+import {
+  invalidateCache,
+  incrementGlobalVersion,
+  GLOBAL_CACHE_KEYS,
+} from "@/lib/redis";
 
 export async function updateLesson(
   values: LessonSchemaType,
-  lessonId: string
+  lessonId: string,
 ): Promise<ApiResponse> {
-  console.log(`[AdminLessonAction] Updating lesson ${lessonId}: ${values.name}`);
+  console.log(
+    `[updateLesson] Start: LessonId=${lessonId}, Name=${values.name}`,
+  );
+  const authStartTime = Date.now();
   await requireAdmin();
+  console.log(`[updateLesson] Auth check took ${Date.now() - authStartTime}ms`);
 
   try {
     const result = lessonSchema.safeParse(values);
@@ -27,7 +35,9 @@ export async function updateLesson(
       where: { id: lessonId },
       select: { videoKey: true },
     });
-    console.log(`[updateLesson] Existing Fetch took ${Date.now() - fetchStartTime}ms`);
+    console.log(
+      `[updateLesson] Existing Fetch took ${Date.now() - fetchStartTime}ms`,
+    );
 
     const isVideoChanged = existingLesson?.videoKey !== result.data.videoKey;
 
@@ -69,22 +79,36 @@ export async function updateLesson(
         if (existingLesson?.videoKey) {
           const { deleteS3File } = await import("@/lib/s3-delete-utils");
           // Non-blocking cleanup (don't await to avoid slowing down the response)
-          deleteS3File(existingLesson.videoKey).catch(err =>
-            console.error("[Cleanup Error] Failed to delete old video assets:", err)
+          deleteS3File(existingLesson.videoKey).catch((err) =>
+            console.error(
+              "[Cleanup Error] Failed to delete old video assets:",
+              err,
+            ),
           );
         }
       }
     });
-    console.log(`[updateLesson] Transaction took ${Date.now() - updateStartTime}ms`);
+    console.log(
+      `[updateLesson] Transaction took ${Date.now() - updateStartTime}ms`,
+    );
 
     // Invalidate caches
+    console.log(
+      `[updateLesson] Invalidating caches for LessonId=${lessonId} and Course=${result.data.courseId}`,
+    );
+    const cacheStartTime = Date.now();
     await Promise.all([
-      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId)),
+      invalidateCache(
+        GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(result.data.courseId),
+      ),
       invalidateCache(`lesson:${lessonId}`),
       invalidateCache(`lesson:questions:${lessonId}`),
       invalidateCache(`lesson:content:${lessonId}`),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
+    console.log(
+      `[updateLesson] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+    );
 
     return {
       status: "success",

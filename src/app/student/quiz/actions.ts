@@ -1,17 +1,21 @@
-'use server';
+"use server";
 
-import { prisma as db } from '@/lib/db';
-import { auth } from '@/lib/auth';
-import { headers } from 'next/headers';
-import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from '@/lib/redis';
-import { QUIZ_PASS_THRESHOLD } from '@/lib/constants';
+import { prisma as db } from "@/lib/db";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import {
+  invalidateCache,
+  incrementGlobalVersion,
+  GLOBAL_CACHE_KEYS,
+} from "@/lib/redis";
+import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
 
 /**
  * Submit quiz answers and validate
  */
 export async function submitQuiz(
   lessonId: string,
-  answers: number[] // Array of selected indices [0-3]
+  answers: number[], // Array of selected indices [0-3]
 ): Promise<{
   success: boolean;
   score?: number;
@@ -19,19 +23,24 @@ export async function submitQuiz(
   correctAnswers?: boolean[];
   error?: string;
 }> {
+  console.log(`[submitQuiz] Start: LessonId=${lessonId}`);
+  const startTime = Date.now();
   try {
+    const authStartTime = Date.now();
     const session = await auth.api.getSession({
       headers: await headers(),
     });
+    console.log(`[submitQuiz] Auth check took ${Date.now() - authStartTime}ms`);
+    console.log(`[submitQuiz] User detected: ${session?.user?.id || "None"}`);
 
     if (!session?.user) {
-      return { success: false, error: 'Not authenticated' };
+      return { success: false, error: "Not authenticated" };
     }
 
     // Fetch questions from database
     const questions = await db.question.findMany({
       where: { lessonId },
-      orderBy: { order: 'asc' },
+      orderBy: { order: "asc" },
       select: {
         id: true,
         correctIdx: true,
@@ -39,11 +48,11 @@ export async function submitQuiz(
     });
 
     if (questions.length !== 20) {
-      return { success: false, error: 'Lesson must have exactly 20 questions' };
+      return { success: false, error: "Lesson must have exactly 20 questions" };
     }
 
     if (answers.length !== 20) {
-      return { success: false, error: 'Must answer all 20 questions' };
+      return { success: false, error: "Must answer all 20 questions" };
     }
 
     // Calculate score
@@ -56,7 +65,7 @@ export async function submitQuiz(
       if (isCorrect) score++;
     }
 
-  const passed = score >= QUIZ_PASS_THRESHOLD;
+    const passed = score >= QUIZ_PASS_THRESHOLD;
 
     // Create QuizAttempt record
     await db.quizAttempt.create({
@@ -92,12 +101,23 @@ export async function submitQuiz(
       });
 
       // Invalidate progress caches
-  await Promise.all([
-  invalidateCache(`user:dashboard:${session.user.id}`),
-  invalidateCache(`user:lesson:${session.user.id}:${lessonId}`),
-  incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.user.id)),
-]);
+      console.log(
+        `[submitQuiz] Invalidating progress caches for User=${session.user.id}`,
+      );
+      const cacheStartTime = Date.now();
+      await Promise.all([
+        invalidateCache(`user:dashboard:${session.user.id}`),
+        invalidateCache(`user:lesson:${session.user.id}:${lessonId}`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.user.id)),
+      ]);
+      console.log(
+        `[submitQuiz] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+      );
     }
+
+    console.log(
+      `[submitQuiz] Done in ${Date.now() - startTime}ms (Score: ${score}, Passed: ${passed})`,
+    );
 
     return {
       success: true,
@@ -106,10 +126,10 @@ export async function submitQuiz(
       correctAnswers,
     };
   } catch (error) {
-    console.error('[Submit Quiz Error]', error);
+    console.error("[Submit Quiz Error]", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to submit quiz',
+      error: error instanceof Error ? error.message : "Failed to submit quiz",
     };
   }
 }
@@ -135,7 +155,7 @@ export async function getQuizAttempts(lessonId: string): Promise<{
     });
 
     if (!session?.user) {
-      return { success: false, error: 'Not authenticated' };
+      return { success: false, error: "Not authenticated" };
     }
 
     const attempts = await db.quizAttempt.findMany({
@@ -143,7 +163,7 @@ export async function getQuizAttempts(lessonId: string): Promise<{
         userId: session.user.id,
         lessonId,
       },
-      orderBy: { completedAt: 'desc' },
+      orderBy: { completedAt: "desc" },
       select: {
         id: true,
         score: true,
@@ -152,11 +172,10 @@ export async function getQuizAttempts(lessonId: string): Promise<{
       },
     });
 
-    const bestScore = attempts.length > 0
-      ? Math.max(...attempts.map(a => a.score))
-      : 0;
+    const bestScore =
+      attempts.length > 0 ? Math.max(...attempts.map((a) => a.score)) : 0;
 
-    const hasPassed = attempts.some(a => a.passed);
+    const hasPassed = attempts.some((a) => a.passed);
 
     return {
       success: true,
@@ -165,10 +184,11 @@ export async function getQuizAttempts(lessonId: string): Promise<{
       hasPassed,
     };
   } catch (error) {
-    console.error('[Get Quiz Attempts Error]', error);
+    console.error("[Get Quiz Attempts Error]", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to fetch attempts',
+      error:
+        error instanceof Error ? error.message : "Failed to fetch attempts",
     };
   }
 }

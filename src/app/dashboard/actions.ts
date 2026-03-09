@@ -30,14 +30,17 @@ export async function getUserDashboardData(clientVersion?: string) {
 
   // Check Redis cache (versioned for immediate invalidation)
   const cacheKey = `user:dashboard:${userId}:${currentVersion}`;
-  const startTime = Date.now();
+  const redisStartTime = Date.now();
   const cached = await getCache<any>(cacheKey);
+  console.log(
+    `[getUserDashboardData] Redis lookup for User=${userId} took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
+  );
 
   if (cached) {
-    console.log(`[Redis] Cache HIT for dashboard: ${userId}`);
     return { data: cached, version: currentVersion };
   }
 
+  const dbStartTime = Date.now();
   try {
     const enrollments = await prisma.enrollment.findMany({
       where: {
@@ -60,7 +63,7 @@ export async function getUserDashboardData(clientVersion?: string) {
     });
 
     console.log(
-      `[getUserDashboardData] DB Computation took ${Date.now() - startTime}ms`,
+      `[getUserDashboardData] DB Computation took ${Date.now() - dbStartTime}ms`,
     );
 
     const enrolledCoursesCount = enrollments.length;

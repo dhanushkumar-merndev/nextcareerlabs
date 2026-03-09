@@ -1,7 +1,6 @@
 import { AnalyticsClient } from "./_components/AnalyticsClient";
 
 export default function AdminAnalyticsPage() {
-  console.log("[AdminPage] Accessing Platform Analytics");
   return (
     <div className="flex flex-col gap-4 sm:gap-6 px-4 sm:px-6 py-4 sm:py-6">
       <div className="flex flex-col gap-2">

@@ -1,15 +1,13 @@
 import { DashboardClient } from "./_components/DashboardClient";
+import { requireUser } from "../data/user/require-user";
+import { DashboardGreeting } from "./_components/DashboardGreeting";
 
-
-
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const user = await requireUser();
   return (
-    <div className="flex-1 space-y-4 p-4 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight text-foreground uppercase">
-            Dashboard
-        </h2>
-      </div>
+    <div className="px-4 lg:px-6 pb-10 space-y-6">
+      <h1 className="text-3xl font-bold mb-1">Dashboard</h1>
+      <DashboardGreeting userName={user.name} />
 
       <DashboardClient />
     </div>
