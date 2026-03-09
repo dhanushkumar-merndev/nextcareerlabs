@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { useRef } from "react";
 import {
   Card,
@@ -14,7 +14,14 @@ import { FileTextIcon } from "@/components/ui/file-text";
 import { UserIcon } from "@/components/ui/user";
 import { CircleCheckIcon } from "@/components/ui/circle-check";
 import { ClipboardCheckIcon } from "@/components/ui/clipboard-check";
-import { BookOpen, CheckCircle, Clock, GraduationCap, Image as ImageIcon, Layers } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle,
+  Clock,
+  GraduationCap,
+  Image as ImageIcon,
+  Layers,
+} from "lucide-react";
 
 const ICON_MAP = {
   users: UsersIcon,
@@ -37,7 +44,10 @@ export type IconName = keyof typeof ICON_MAP;
 interface AnalyticsCardProps {
   title: string;
   value: string | number;
-  icon: IconName | React.ForwardRefExoticComponent<any> | React.ComponentType<any>;
+  icon:
+    | IconName
+    | React.ForwardRefExoticComponent<any>
+    | React.ComponentType<any>;
   description?: string;
   lastUpdated?: string | Date;
 }
@@ -49,20 +59,23 @@ export function AnalyticsCard({
   description,
   lastUpdated,
 }: AnalyticsCardProps) {
-  const iconRef = useRef<{ startAnimation: () => void; stopAnimation: () => void }>(null);
+  const iconRef = useRef<{
+    startAnimation: () => void;
+    stopAnimation: () => void;
+  }>(null);
 
   // Determine which component to render
   const IconComponent = typeof icon === "string" ? ICON_MAP[icon] : icon;
-  
+
   const handleMouseEnter = () => {
-    if (iconRef.current && 'startAnimation' in iconRef.current) {
-        iconRef.current.startAnimation();
+    if (iconRef.current && "startAnimation" in iconRef.current) {
+      iconRef.current.startAnimation();
     }
   };
 
   const handleMouseLeave = () => {
-    if (iconRef.current && 'stopAnimation' in iconRef.current) {
-        iconRef.current.stopAnimation();
+    if (iconRef.current && "stopAnimation" in iconRef.current) {
+      iconRef.current.stopAnimation();
     }
   };
 
@@ -85,17 +98,17 @@ export function AnalyticsCard({
         {/* Animated Icon Container */}
         <div className="p-2 rounded-md bg-primary/10 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-primary/20">
           {IconComponent && (
-            <IconComponent 
-              ref={iconRef} 
-              className="size-6 text-primary" 
-              size={24} 
+            <IconComponent
+              ref={iconRef}
+              className="size-6 text-primary"
+              size={24}
             />
           )}
         </div>
       </CardHeader>
 
       {description && (
-        <CardFooter className={`${lastUpdated ? 'pb-2' : 'pb-4'}`}>
+        <CardFooter className={`${lastUpdated ? "pb-2" : "pb-4"}`}>
           <p className="text-muted-foreground text-sm">{description}</p>
         </CardFooter>
       )}
