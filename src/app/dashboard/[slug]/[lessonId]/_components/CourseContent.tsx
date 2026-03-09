@@ -63,6 +63,8 @@ function VideoPlayer({
   spriteHeight,
   lowResKey,
   transcriptionUrl,
+  isCompleted,
+  setOptimisticCompleted,
 }: {
   thumbnailkey: string;
   videoKey: string;
@@ -77,6 +79,8 @@ function VideoPlayer({
   spriteHeight?: number | null;
   lowResKey?: string | null;
   transcriptionUrl?: string | null;
+  isCompleted?: boolean;
+  setOptimisticCompleted: (val: boolean) => void;
 }) {
   console.log("[DEBUG] VideoPlayer render", { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
@@ -257,7 +261,9 @@ function VideoPlayer({
 
   const onEnded = useCallback(() => {
     syncToDB();
-  }, [lessonId]);
+    // ✅ Unlock seeking immediately when video ends
+    setOptimisticCompleted(true);
+  }, [lessonId, setOptimisticCompleted]);
 
   // const thumbnailUrl = useConstructUrl(thumbnailkey); // Removed duplicate
 
@@ -819,6 +825,8 @@ function VideoPlayer({
           spriteMetadata={fullSpriteMetadata}
           className="w-full h-full"
           noDownload
+          restrictSeeking={!isCompleted}
+          initialMaxTime={resumeTime}
         />
       )}
       {/* Transparent overlay — blocks native browser video context menu on mobile */}
@@ -914,6 +922,8 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             spriteHeight={lessonData.spriteHeight}
             lowResKey={lessonData.lowResKey}
             transcriptionUrl={lessonData.transcription?.vttUrl}
+            isCompleted={isCompleted}
+            setOptimisticCompleted={setOptimisticCompleted}
           />
         </div>
 

@@ -102,6 +102,10 @@ interface VideoPlayerProps {
   captionUrl?: string;
   /** Block browser download button and right-click context menu on the video */
   noDownload?: boolean;
+  /** Prevent seeking beyond the furthest point watched (for first-time users) */
+  restrictSeeking?: boolean;
+  /** The furthest point the user has ever watched (for initializing restriction) */
+  initialMaxTime?: number;
 }
 
 export function VideoPlayer({
@@ -118,6 +122,8 @@ export function VideoPlayer({
   onLoadedMetadata,
   captionUrl,
   noDownload = false,
+  restrictSeeking = false,
+  initialMaxTime = 0,
 }: VideoPlayerProps) {
   console.log("[DEBUG] VideoPlayer (Custom) render", {
     src: !!src,
@@ -163,6 +169,11 @@ export function VideoPlayer({
   const isPlayingRef = useRef<boolean>(false);
   const lastToggleTimeRef = useRef<number>(0);
   const pendingPlayRef = useRef<Promise<void> | null>(null);
+
+  // Furthest point reached during this session or previous one
+  const [maxWatchedTime, setMaxWatchedTime] = useState(
+    Math.max(initialTime, initialMaxTime),
+  );
 
   const [hasCaptions, setHasCaptions] = useState(!!captionUrl);
 
@@ -282,6 +293,9 @@ export function VideoPlayer({
             return rounded;
           });
           onTimeUpdate?.(time); // Original precision for parent tracking
+
+          // ✅ Update maxWatchedTime as we play forward
+          setMaxWatchedTime((prev) => Math.max(prev, time));
         }
       });
       player.on("loadedmetadata", () => {
@@ -406,12 +420,14 @@ export function VideoPlayer({
             break;
           case "l":
             e.preventDefault();
-            player.currentTime(
-              Math.min(
-                player.duration() || 0,
-                (player.currentTime() || 0) + 10,
-              ),
+            const forwardJump = Math.min(
+              player.duration() || 0,
+              (player.currentTime() || 0) + 10,
             );
+            const finalJump = restrictSeeking
+              ? Math.min(forwardJump, maxWatchedTime)
+              : forwardJump;
+            player.currentTime(finalJump);
             triggerSeekAnimation("forward", 10);
             break;
           case "arrowleft":
@@ -421,9 +437,14 @@ export function VideoPlayer({
             break;
           case "arrowright":
             e.preventDefault();
-            player.currentTime(
-              Math.min(player.duration() || 0, (player.currentTime() || 0) + 5),
+            const rightJump = Math.min(
+              player.duration() || 0,
+              (player.currentTime() || 0) + 5,
             );
+            const finalRightJump = restrictSeeking
+              ? Math.min(rightJump, maxWatchedTime)
+              : rightJump;
+            player.currentTime(finalRightJump);
             triggerSeekAnimation("forward", 5);
             break;
           case "arrowup":
@@ -666,9 +687,14 @@ export function VideoPlayer({
       let time = Math.round(value[0] * 100) / 100;
       time = Math.max(0, Math.min(time, duration || 0));
 
+      // ✅ Restrict UI preview too if active
+      if (restrictSeeking) {
+        time = Math.min(time, maxWatchedTime);
+      }
+
       setCurrentTime(time);
     },
-    [duration],
+    [duration, restrictSeeking, maxWatchedTime],
   );
 
   const handleSeekCommit = useCallback(
@@ -680,6 +706,11 @@ export function VideoPlayer({
 
       let time = Math.round(value[0] * 100) / 100;
       time = Math.max(0, Math.min(time, duration || 0));
+
+      // ✅ Final safety: prevent jumping ahead if restricted
+      if (restrictSeeking) {
+        time = Math.min(time, maxWatchedTime);
+      }
 
       // Optional: Only snap on commit to keep dragging smooth but final position precise
       if (spriteMetadata?.interval) {
@@ -698,7 +729,7 @@ export function VideoPlayer({
         }, 50);
       }
     },
-    [duration, spriteMetadata?.interval],
+    [duration, spriteMetadata?.interval, restrictSeeking, maxWatchedTime],
   );
 
   const toggleMute = (e?: React.MouseEvent | React.TouchEvent) => {
@@ -1447,6 +1478,11 @@ export function VideoPlayer({
                   : null;
                 const snapTime = spritePos?.startTime ?? hoverPosition.time;
 
+                // ✅ User Request: Hide strip (thumbnails) until watched
+                if (restrictSeeking && snapTime > maxWatchedTime + 1) {
+                  return null;
+                }
+
                 // Clamp so preview never overflows left/right
                 const scale =
                   window.innerWidth < 640
@@ -1561,6 +1597,17 @@ export function VideoPlayer({
                 />
               ))}
             </div>
+
+            {/* Max Watched Marker (| line) */}
+            {restrictSeeking && (
+              <div
+                className="absolute top-1/2  w-[1px] h-2 bg-white z-20 pointer-events-none rounded-full shadow-[0_0_8px_rgba(255,255,255,0.5)] transition-all duration-300"
+                style={{
+                  left: `${(maxWatchedTime / (duration || 1)) * 100}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
+              />
+            )}
 
             <Slider
               value={[Math.round(currentTime * 100) / 100]}
