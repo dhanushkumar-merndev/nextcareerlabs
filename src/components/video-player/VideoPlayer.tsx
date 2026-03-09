@@ -40,7 +40,8 @@ if (typeof window !== "undefined") {
       if (
         options.uri.includes("storage.dev") ||
         options.uri.includes("amazonaws.com") ||
-        options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN)
+        options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN) ||
+        options.uri.includes("localhost")
       ) {
         try {
           const url = new URL(options.uri);
@@ -230,7 +231,8 @@ export function VideoPlayer({
                 if (
                   options.uri.includes("storage.dev") ||
                   options.uri.includes("amazonaws.com") ||
-                  options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN)
+                  options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN) ||
+                  options.uri.includes("localhost")
                 ) {
                   try {
                     const url = new URL(options.uri);
