@@ -17,14 +17,18 @@ import {
   ChevronRight,
   Captions,
   RotateCcw,
-  RotateCw
+  RotateCw,
 } from "lucide-react";
 
 // Silence Video.js deprecation warnings for beforeRequest (which we use for surgical URL rewriting)
 if (typeof window !== "undefined") {
   const originalWarn = (videojs as any).log.warn;
   (videojs as any).log.warn = (...args: any[]) => {
-    if (typeof args[0] === "string" && args[0].includes("beforeRequest is deprecated")) return;
+    if (
+      typeof args[0] === "string" &&
+      args[0].includes("beforeRequest is deprecated")
+    )
+      return;
     originalWarn(...args);
   };
 }
@@ -33,11 +37,18 @@ if (typeof window !== "undefined") {
   (videojs as any).Vhs.xhr.beforeRequest = (options: any) => {
     if (options.uri.includes("/api/video/key/")) {
       options.withCredentials = true;
-      if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com") || options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN)) {
+      if (
+        options.uri.includes("storage.dev") ||
+        options.uri.includes("amazonaws.com") ||
+        options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN)
+      ) {
         try {
           const url = new URL(options.uri);
           const newUri = `${window.location.origin}${url.pathname}`;
-          console.log("VideoPlayer-Global: Redirecting key request to origin:", newUri);
+          console.log(
+            "VideoPlayer-Global: Redirecting key request to origin:",
+            newUri,
+          );
           return { ...options, uri: newUri };
         } catch (e) {
           return options;
@@ -108,7 +119,11 @@ export function VideoPlayer({
   captionUrl,
   noDownload = false,
 }: VideoPlayerProps) {
-  console.log('[DEBUG] VideoPlayer (Custom) render', { src: !!src, sources: sources?.length, captionUrl: !!captionUrl });
+  console.log("[DEBUG] VideoPlayer (Custom) render", {
+    src: !!src,
+    sources: sources?.length,
+    captionUrl: !!captionUrl,
+  });
   const videoRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
@@ -118,18 +133,31 @@ export function VideoPlayer({
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showCenterControls, setShowCenterControls] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
+  const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [seekAnimation, setSeekAnimation] = useState<{ type: "forward" | "backward", amount: number } | null>(null);
-  const seekAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [volumeAnimation, setVolumeAnimation] = useState<{ level: number, visible: boolean }>({ level: 1, visible: false });
-  const volumeAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [bufferedRanges, setBufferedRanges] = useState<{ start: number, end: number }[]>([]);
+  const [seekAnimation, setSeekAnimation] = useState<{
+    type: "forward" | "backward";
+    amount: number;
+  } | null>(null);
+  const seekAnimationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const [volumeAnimation, setVolumeAnimation] = useState<{
+    level: number;
+    visible: boolean;
+  }>({ level: 1, visible: false });
+  const volumeAnimationTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
+  const [bufferedRanges, setBufferedRanges] = useState<
+    { start: number; end: number }[]
+  >([]);
   const seekbarRef = useRef<HTMLDivElement>(null);
   const isSeekingRef = useRef<boolean>(false);
   const isPlayingRef = useRef<boolean>(false);
@@ -160,7 +188,10 @@ export function VideoPlayer({
       videoElement.setAttribute("crossorigin", "anonymous");
       if (noDownload) {
         // Disable browser's native download button and Save-As menu
-        videoElement.setAttribute("controlsList", "nodownload noremoteplayback");
+        videoElement.setAttribute(
+          "controlsList",
+          "nodownload noremoteplayback",
+        );
         videoElement.setAttribute("disablePictureInPicture", "true");
         videoElement.oncontextmenu = (e) => e.preventDefault();
       }
@@ -186,11 +217,18 @@ export function VideoPlayer({
                 // If the URL has been resolved against Tigris/S3 (e.g. via relative path in manifest),
                 // or if it's pointing to production,
                 // swap it back to our origin so the key delivery API can handle it.
-                if (options.uri.includes("storage.dev") || options.uri.includes("amazonaws.com") || options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN)) {
+                if (
+                  options.uri.includes("storage.dev") ||
+                  options.uri.includes("amazonaws.com") ||
+                  options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN)
+                ) {
                   try {
                     const url = new URL(options.uri);
                     const newUri = `${window.location.origin}${url.pathname}`;
-                    console.log("VideoPlayer: Redirecting key request to origin:", newUri);
+                    console.log(
+                      "VideoPlayer: Redirecting key request to origin:",
+                      newUri,
+                    );
                     options.uri = newUri;
                   } catch (e) {
                     console.error("VideoPlayer: Failed to rewrite key URL", e);
@@ -204,8 +242,8 @@ export function VideoPlayer({
             useDevicePixelRatio: true,
             experimentalExactSeeking: true,
             experimentalExactManifestTimings: true,
-            handlePartialData: true,       // Start playback before full segment loads
-            maxBufferLength: 30,           // Buffer only 30s ahead (faster seeks)
+            handlePartialData: true, // Start playback before full segment loads
+            maxBufferLength: 30, // Buffer only 30s ahead (faster seeks)
           },
           nativeVideoTracks: false,
           nativeAudioTracks: false,
@@ -216,6 +254,11 @@ export function VideoPlayer({
         playbackRates: [0.5, 1, 1.5, 2],
         controlBar: false,
       }));
+
+      player.ready(() => {
+        console.log("[DEBUG] VideoPlayer: stable player instance ready");
+        setIsPlayerReady(true);
+      });
 
       player.on("play", () => {
         setIsPlaying(true);
@@ -234,7 +277,7 @@ export function VideoPlayer({
         if (typeof time === "number" && !isNaN(time)) {
           // ✅ FIX: Round to match Slider precision (0.01) to reduce re-renders
           const rounded = Math.round(time * 100) / 100;
-          setCurrentTime(prev => {
+          setCurrentTime((prev) => {
             if (prev === rounded) return prev;
             return rounded;
           });
@@ -254,7 +297,9 @@ export function VideoPlayer({
       player.on("ended", () => onEnded?.());
       player.on("error", () => {
         const err = player.error();
-        const errorMsg = err ? `Error ${err.code}: ${err.message}` : "An unknown error occurred";
+        const errorMsg = err
+          ? `Error ${err.code}: ${err.message}`
+          : "An unknown error occurred";
         setError(errorMsg);
         setIsBuffering(false);
       });
@@ -272,7 +317,7 @@ export function VideoPlayer({
         let found = false;
         const tracks = trackList as any;
         for (let i = 0; i < tracks.length; i++) {
-          if (tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') {
+          if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
             found = true;
             break;
           }
@@ -280,21 +325,38 @@ export function VideoPlayer({
         setHasCaptions(found);
       };
 
-      trackList.on('addtrack', updateCaptionsStatus);
-      trackList.on('removetrack', updateCaptionsStatus);
+      const onAddTrack = (e: any) => {
+        const track = e.track;
+        if (
+          (track.kind === "captions" || track.kind === "subtitles") &&
+          captionsEnabled
+        ) {
+          console.log(
+            "[DEBUG] VideoPlayer: Auto-enabling newly added track",
+            track.label || track.id,
+          );
+          track.mode = "showing";
+        }
+        updateCaptionsStatus();
+      };
+
+      trackList.on("addtrack", onAddTrack);
       const onTrackChange = () => {
         // Sync UI state if changed elsewhere
         let isAnyShowing = false;
         const tracks = trackList as any;
         for (let i = 0; i < tracks.length; i++) {
-          if ((tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') && tracks[i].mode === 'showing') {
+          if (
+            (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") &&
+            tracks[i].mode === "showing"
+          ) {
             isAnyShowing = true;
             break;
           }
         }
         setCaptionsEnabled(isAnyShowing);
       };
-      trackList.on('change', onTrackChange);
+      trackList.on("change", onTrackChange);
 
       // Buffered Progress listener
       player.on("progress", () => {
@@ -309,7 +371,8 @@ export function VideoPlayer({
 
       // (Removed in-initializer caption logic to move to reactive effect)
 
-      const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+      const handleFullscreenChange = () =>
+        setIsFullscreen(!!document.fullscreenElement);
       document.addEventListener("fullscreenchange", handleFullscreenChange);
       player.on("fullscreenchange", handleFullscreenChange);
 
@@ -343,7 +406,12 @@ export function VideoPlayer({
             break;
           case "l":
             e.preventDefault();
-            player.currentTime(Math.min(player.duration() || 0, (player.currentTime() || 0) + 10));
+            player.currentTime(
+              Math.min(
+                player.duration() || 0,
+                (player.currentTime() || 0) + 10,
+              ),
+            );
             triggerSeekAnimation("forward", 10);
             break;
           case "arrowleft":
@@ -353,7 +421,9 @@ export function VideoPlayer({
             break;
           case "arrowright":
             e.preventDefault();
-            player.currentTime(Math.min(player.duration() || 0, (player.currentTime() || 0) + 5));
+            player.currentTime(
+              Math.min(player.duration() || 0, (player.currentTime() || 0) + 5),
+            );
             triggerSeekAnimation("forward", 5);
             break;
           case "arrowup":
@@ -388,10 +458,11 @@ export function VideoPlayer({
       window.addEventListener("keydown", handleKeyDown);
 
       player.on("dispose", () => {
+        setIsPlayerReady(false);
         window.removeEventListener("keydown", handleKeyDown);
-        trackList.off('addtrack', updateCaptionsStatus);
-        trackList.off('removetrack', updateCaptionsStatus);
-        trackList.off('change', onTrackChange);
+        trackList.off("addtrack", onAddTrack);
+        trackList.off("removetrack", updateCaptionsStatus);
+        trackList.off("change", onTrackChange);
       });
     };
 
@@ -400,6 +471,7 @@ export function VideoPlayer({
     return () => {
       cancelAnimationFrame(frame);
       if (playerRef.current) {
+        setIsPlayerReady(false);
         playerRef.current.dispose();
         playerRef.current = null;
       }
@@ -409,33 +481,54 @@ export function VideoPlayer({
   // Reactive Captions: Handle URL changes or late arrivals without reload
   useEffect(() => {
     const player = playerRef.current;
-    if (!player || !captionUrl) return;
+    if (!player || !isPlayerReady || !captionUrl) {
+      console.log("[DEBUG] VideoPlayer: Caption effect skipped", {
+        player: !!player,
+        isPlayerReady,
+        captionUrl: !!captionUrl,
+      });
+      return;
+    }
 
-    player.ready(() => {
-      console.log("VideoPlayer: Adding sidecar caption track", captionUrl);
+    console.log(
+      "[DEBUG] VideoPlayer: Adding sidecar caption track",
+      captionUrl,
+    );
 
-      // 1. Remove ONLY our previous sidecar tracks, not manifest ones
-      const tracks = player.textTracks();
-      for (let i = tracks.length - 1; i >= 0; i--) {
-        const track = (tracks[i] as any);
-        // Only remove if it matches our sidecar logic (usually via label or src if available)
-        if (track.label === "Sidecar-English") {
-          player.removeRemoteTextTrack(track);
-        }
+    if (captionUrl.endsWith(".vvt")) {
+      console.warn(
+        "[DEBUG] VideoPlayer: Detected .vvt extension, Video.js might expect .vtt",
+      );
+    }
+
+    // 1. Remove ONLY our previous sidecar tracks, not manifest ones
+    const tracks = player.textTracks();
+    for (let i = tracks.length - 1; i >= 0; i--) {
+      const track = tracks[i] as any;
+      if (track.label === "Sidecar-English") {
+        player.removeRemoteTextTrack(track);
       }
+    }
 
-      // 2. Add the new sidecar track
-      player.addRemoteTextTrack({
+    // 2. Add the new sidecar track
+    const track = player.addRemoteTextTrack(
+      {
         kind: "captions",
         src: captionUrl,
         srclang: "en",
         label: "Sidecar-English",
-        default: captionsEnabled,
-      }, false);
+        default: true,
+      },
+      false,
+    );
 
-      setHasCaptions(true);
-    });
-  }, [captionUrl]);
+    // Explicitly set mode (double-check for reliability)
+    if (captionsEnabled) {
+      track.mode = "showing";
+    }
+
+    setHasCaptions(true);
+  }, [captionUrl, isPlayerReady]);
 
   // Sync sources when they change after initialization
   useEffect(() => {
@@ -456,7 +549,8 @@ export function VideoPlayer({
         if (relativeY > rect.height - 5) {
           setShowControls(false);
           setShowCenterControls(false);
-          if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+          if (controlsTimeoutRef.current)
+            clearTimeout(controlsTimeoutRef.current);
           return;
         }
 
@@ -464,7 +558,8 @@ export function VideoPlayer({
         if (relativeY > rect.height - 60) {
           setShowControls(true);
           setShowCenterControls(false);
-          if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+          if (controlsTimeoutRef.current)
+            clearTimeout(controlsTimeoutRef.current);
           return;
         }
       }
@@ -486,17 +581,25 @@ export function VideoPlayer({
     }, timeout);
   };
 
-  const triggerSeekAnimation = (type: "forward" | "backward", amount: number = 10) => {
+  const triggerSeekAnimation = (
+    type: "forward" | "backward",
+    amount: number = 10,
+  ) => {
     setSeekAnimation({ type, amount });
-    if (seekAnimationTimeoutRef.current) clearTimeout(seekAnimationTimeoutRef.current);
-    seekAnimationTimeoutRef.current = setTimeout(() => setSeekAnimation(null), 800);
+    if (seekAnimationTimeoutRef.current)
+      clearTimeout(seekAnimationTimeoutRef.current);
+    seekAnimationTimeoutRef.current = setTimeout(
+      () => setSeekAnimation(null),
+      800,
+    );
   };
 
   const triggerVolumeAnimation = (level: number) => {
     setVolumeAnimation({ level, visible: true });
-    if (volumeAnimationTimeoutRef.current) clearTimeout(volumeAnimationTimeoutRef.current);
+    if (volumeAnimationTimeoutRef.current)
+      clearTimeout(volumeAnimationTimeoutRef.current);
     volumeAnimationTimeoutRef.current = setTimeout(() => {
-      setVolumeAnimation(prev => ({ ...prev, visible: false }));
+      setVolumeAnimation((prev) => ({ ...prev, visible: false }));
     }, 1000);
   };
 
@@ -530,10 +633,13 @@ export function VideoPlayer({
       if (playPromise !== undefined) {
         pendingPlayRef.current = playPromise;
         playPromise
-          .then(() => { pendingPlayRef.current = null; })
+          .then(() => {
+            pendingPlayRef.current = null;
+          })
           .catch((err: Error) => {
             pendingPlayRef.current = null;
-            if (err.name !== "AbortError") console.error("VideoPlayer play() error:", err);
+            if (err.name !== "AbortError")
+              console.error("VideoPlayer play() error:", err);
             setIsPlaying(false);
             isPlayingRef.current = false;
           });
@@ -544,49 +650,56 @@ export function VideoPlayer({
       if (pendingPlayRef.current) {
         pendingPlayRef.current
           .then(() => playerRef.current?.pause())
-          .catch(() => { });
+          .catch(() => {});
       } else {
         playerRef.current.pause();
       }
     }
   };
 
-  const handleSeek = useCallback((value: number[]) => {
-    if (!value || isNaN(value[0])) return;
+  const handleSeek = useCallback(
+    (value: number[]) => {
+      if (!value || isNaN(value[0])) return;
 
-    // Lock status and update UI state only for performance
-    isSeekingRef.current = true;
-    let time = Math.round(value[0] * 100) / 100;
-    time = Math.max(0, Math.min(time, duration || 0));
+      // Lock status and update UI state only for performance
+      isSeekingRef.current = true;
+      let time = Math.round(value[0] * 100) / 100;
+      time = Math.max(0, Math.min(time, duration || 0));
 
-    setCurrentTime(time);
-  }, [duration]);
-
-  const handleSeekCommit = useCallback((value: number[]) => {
-    if (!playerRef.current || !value || isNaN(value[0])) {
-      isSeekingRef.current = false;
-      return;
-    }
-
-    let time = Math.round(value[0] * 100) / 100;
-    time = Math.max(0, Math.min(time, duration || 0));
-
-    // Optional: Only snap on commit to keep dragging smooth but final position precise
-    if (spriteMetadata?.interval) {
-      time = Math.floor(time / spriteMetadata.interval) * spriteMetadata.interval;
-    }
-
-    try {
-      playerRef.current.currentTime(time);
       setCurrentTime(time);
-    } finally {
-      // Small delay before unlocking to prevent the next 'timeupdate' 
-      // from snapping the UI back to the old position before the seek completes
-      setTimeout(() => {
+    },
+    [duration],
+  );
+
+  const handleSeekCommit = useCallback(
+    (value: number[]) => {
+      if (!playerRef.current || !value || isNaN(value[0])) {
         isSeekingRef.current = false;
-      }, 50);
-    }
-  }, [duration, spriteMetadata?.interval]);
+        return;
+      }
+
+      let time = Math.round(value[0] * 100) / 100;
+      time = Math.max(0, Math.min(time, duration || 0));
+
+      // Optional: Only snap on commit to keep dragging smooth but final position precise
+      if (spriteMetadata?.interval) {
+        time =
+          Math.floor(time / spriteMetadata.interval) * spriteMetadata.interval;
+      }
+
+      try {
+        playerRef.current.currentTime(time);
+        setCurrentTime(time);
+      } finally {
+        // Small delay before unlocking to prevent the next 'timeupdate'
+        // from snapping the UI back to the old position before the seek completes
+        setTimeout(() => {
+          isSeekingRef.current = false;
+        }, 50);
+      }
+    },
+    [duration, spriteMetadata?.interval],
+  );
 
   const toggleMute = (e?: React.MouseEvent | React.TouchEvent) => {
     e?.stopPropagation();
@@ -596,7 +709,7 @@ export function VideoPlayer({
 
     toast.success(muted ? "Audio muted" : "Audio unmuted", {
       duration: 1000,
-      position: "top-center"
+      position: "top-center",
     });
   };
 
@@ -619,15 +732,15 @@ export function VideoPlayer({
       const enabled = !captionsEnabled;
 
       for (let i = 0; i < tracks.length; i++) {
-        if (tracks[i].kind === 'captions' || tracks[i].kind === 'subtitles') {
-          tracks[i].mode = enabled ? 'showing' : 'disabled';
+        if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
+          tracks[i].mode = enabled ? "showing" : "disabled";
         }
       }
 
       setCaptionsEnabled(enabled);
       toast.success(enabled ? "Captions enabled" : "Captions disabled", {
         duration: 1000,
-        position: "top-center"
+        position: "top-center",
       });
     }
   };
@@ -636,20 +749,31 @@ export function VideoPlayer({
     e?.stopPropagation();
     if (!containerRef.current) return;
     if (!document.fullscreenElement) {
-      containerRef.current.requestFullscreen().then(() => {
-        // Lock to landscape on mobile
-        if (typeof window !== "undefined" && (window.screen as any).orientation?.lock) {
-          (window.screen as any).orientation.lock("landscape").catch(() => {
-            console.log("Orientation lock not supported or failed");
-          });
-        }
-      }).catch((err) => {
-        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-      });
+      containerRef.current
+        .requestFullscreen()
+        .then(() => {
+          // Lock to landscape on mobile
+          if (
+            typeof window !== "undefined" &&
+            (window.screen as any).orientation?.lock
+          ) {
+            (window.screen as any).orientation.lock("landscape").catch(() => {
+              console.log("Orientation lock not supported or failed");
+            });
+          }
+        })
+        .catch((err) => {
+          console.error(
+            `Error attempting to enable full-screen mode: ${err.message}`,
+          );
+        });
     } else {
       document.exitFullscreen();
       // Unlock orientation
-      if (typeof window !== "undefined" && (window.screen as any).orientation?.unlock) {
+      if (
+        typeof window !== "undefined" &&
+        (window.screen as any).orientation?.unlock
+      ) {
         (window.screen as any).orientation.unlock();
       }
     }
@@ -666,7 +790,9 @@ export function VideoPlayer({
   const handleTouchEnd = (e: React.TouchEvent) => {
     // 1. Strict Target Isolation: Ignore ANY touch that lands on or near interactive controls
     const target = e.target as HTMLElement;
-    const isInteractive = !!target.closest('button, [role="button"], .cursor-pointer, .Slider-root, [data-seekbar]');
+    const isInteractive = !!target.closest(
+      'button, [role="button"], .cursor-pointer, .Slider-root, [data-seekbar]',
+    );
     if (isInteractive) return;
 
     const now = Date.now();
@@ -696,7 +822,10 @@ export function VideoPlayer({
         playerRef.current.currentTime(newTime);
         triggerSeekAnimation("backward", 10);
       } else {
-        const newTime = Math.min(playerRef.current.duration(), playerRef.current.currentTime() + 10);
+        const newTime = Math.min(
+          playerRef.current.duration(),
+          playerRef.current.currentTime() + 10,
+        );
         playerRef.current.currentTime(newTime);
         triggerSeekAnimation("forward", 10);
       }
@@ -706,13 +835,14 @@ export function VideoPlayer({
       singleTapTimeoutRef.current = setTimeout(() => {
         singleTapTimeoutRef.current = null;
 
-        setShowControls(prev => {
+        setShowControls((prev) => {
           const newState = !prev;
           setShowCenterControls(newState);
           if (newState) {
             resetControlsTimeout();
           } else {
-            if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+            if (controlsTimeoutRef.current)
+              clearTimeout(controlsTimeoutRef.current);
           }
           return newState;
         });
@@ -740,7 +870,10 @@ export function VideoPlayer({
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const [hoverPosition, setHoverPosition] = useState<{ x: number; time: number } | null>(null);
+  const [hoverPosition, setHoverPosition] = useState<{
+    x: number;
+    time: number;
+  } | null>(null);
 
   const calculatePosition = (clientX: number) => {
     if (!seekbarRef.current || duration === 0) return null;
@@ -751,9 +884,9 @@ export function VideoPlayer({
     return { x, time };
   };
 
-
-  const [vttCues, setVttCues] = useState<any[]>(spriteMetadata?.initialCues || []);
-
+  const [vttCues, setVttCues] = useState<any[]>(
+    spriteMetadata?.initialCues || [],
+  );
 
   // Sync initial cues if they arrive later
   useEffect(() => {
@@ -780,21 +913,27 @@ export function VideoPlayer({
     // We only preload the FIRST stripe to give instant feedback
     const firstCue = cues[0];
     if (firstCue?.url?.includes("#range=")) {
-      console.log("VideoPlayer: Byte-Range mode detected. Preloading first stripe...");
+      console.log(
+        "VideoPlayer: Byte-Range mode detected. Preloading first stripe...",
+      );
       // getSpritePosition will handle the specific range fetch
       return;
     }
 
     const uniqueImages = new Set<string>();
-    cues.forEach(cue => {
+    cues.forEach((cue) => {
       if (cue.url) {
-        const imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
+        const imageUrl = cue.url.startsWith("http")
+          ? cue.url
+          : baseUrl + cue.url;
         uniqueImages.add(imageUrl);
       }
     });
 
-    console.log(`VideoPlayer: Preloading ${uniqueImages.size} sprite images...`);
-    uniqueImages.forEach(url => {
+    console.log(
+      `VideoPlayer: Preloading ${uniqueImages.size} sprite images...`,
+    );
+    uniqueImages.forEach((url) => {
       const img = new Image();
       img.src = url;
     });
@@ -802,7 +941,10 @@ export function VideoPlayer({
 
   // Fetch and parse VTT if spriteMetadata.url contains .vtt
   useEffect(() => {
-    const isVTT = spriteMetadata?.url && (spriteMetadata.url.includes(".vtt") || spriteMetadata.url.includes("thumbnails"));
+    const isVTT =
+      spriteMetadata?.url &&
+      (spriteMetadata.url.includes(".vtt") ||
+        spriteMetadata.url.includes("thumbnails"));
 
     if (!isVTT) {
       console.log("VideoPlayer: Not a VTT URL", spriteMetadata?.url);
@@ -817,7 +959,11 @@ export function VideoPlayer({
     if (cached) {
       try {
         const parsedCache = JSON.parse(cached);
-        console.log("VideoPlayer: Using cached VTT data", parsedCache.length, "cues");
+        console.log(
+          "VideoPlayer: Using cached VTT data",
+          parsedCache.length,
+          "cues",
+        );
         setVttCues(parsedCache);
 
         // ✅ Preload sprite images from cache
@@ -828,14 +974,13 @@ export function VideoPlayer({
       }
     }
 
-
     console.log("VideoPlayer: Fetching VTT from", spriteMetadata.url);
     fetch(spriteMetadata.url)
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error(`VTT fetch failed: ${res.status}`);
         return res.text();
       })
-      .then(text => {
+      .then((text) => {
         console.log("VideoPlayer: VTT Loaded, length:", text.length);
         const lines = text.split("\n");
         // ... (rest of parser)
@@ -843,12 +988,12 @@ export function VideoPlayer({
         let currentCue: any = {};
 
         // Simple VTT parser
-        lines.forEach(line => {
+        lines.forEach((line) => {
           line = line.trim();
           if (line === "WEBVTT" || line === "") return;
 
           if (line.includes("-->")) {
-            const [start, end] = line.split("-->").map(t => {
+            const [start, end] = line.split("-->").map((t) => {
               const parts = t.trim().split(":");
               let s = 0;
               if (parts.length === 3) {
@@ -883,13 +1028,11 @@ export function VideoPlayer({
 
         // ✅ Preload all sprite images
         preloadSpriteImages(parsedCues, spriteMetadata.url);
-
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("VideoPlayer: Error loading VTT:", err);
       });
   }, [spriteMetadata?.url]);
-
 
   const [rangeCache] = useState<Map<string, string>>(new Map());
   const fullBinaryRef = useRef<Blob | null>(null);
@@ -903,7 +1046,11 @@ export function VideoPlayer({
       const res = await fetch(pureUrl);
       const blob = await res.blob();
       fullBinaryRef.current = blob;
-      console.log("VideoPlayer: Sprite binary preloaded (", Math.round(blob.size / 1024), "KB )");
+      console.log(
+        "VideoPlayer: Sprite binary preloaded (",
+        Math.round(blob.size / 1024),
+        "KB )",
+      );
       // No re-render needed immediately, it will be used on next hover
     } catch (err) {
       console.error("VideoPlayer: Background preload failed", err);
@@ -920,10 +1067,13 @@ export function VideoPlayer({
     if (!spriteMetadata) return null;
 
     if (vttCues.length > 0) {
-      const cue = vttCues.find(c => time >= c.startTime && time < c.endTime);
+      const cue = vttCues.find((c) => time >= c.startTime && time < c.endTime);
       if (!cue) return null;
 
-      const baseUrl = spriteMetadata.url.substring(0, spriteMetadata.url.lastIndexOf("/") + 1);
+      const baseUrl = spriteMetadata.url.substring(
+        0,
+        spriteMetadata.url.lastIndexOf("/") + 1,
+      );
       let imageUrl = cue.url.startsWith("http") ? cue.url : baseUrl + cue.url;
 
       if (imageUrl.includes("#range=")) {
@@ -949,40 +1099,41 @@ export function VideoPlayer({
             preloadFullBinary(pureUrl); // Trigger full load in background
 
             const [start, end] = fragment.split("-").map(Number);
-            fetch(pureUrl, { headers: { "Range": `bytes=${start}-${end}` } })
-              .then(res => res.blob())
-              .then(blob => {
+            fetch(pureUrl, { headers: { Range: `bytes=${start}-${end}` } })
+              .then((res) => res.blob())
+              .then((blob) => {
                 const blobUrl = URL.createObjectURL(blob);
                 rangeCache.set(cacheKey, blobUrl);
-                setVttUpdateTick(t => t + 1); // Trigger re-render to show frame
+                setVttUpdateTick((t) => t + 1); // Trigger re-render to show frame
               })
-              .catch(err => {
+              .catch((err) => {
                 console.error("Sprite range fetch failed:", err);
                 rangeCache.delete(`pending-${cacheKey}`);
               });
           }
-          return null;
         }
       }
 
-      // Scale display: source is e.g. 320x180, display at PREVIEW_DISPLAY_WIDTH
-      const scale = previewWidth / cue.w;
+      if (!imageUrl.includes("#range=")) {
+        // Scale display: source is e.g. 320x180, display at PREVIEW_DISPLAY_WIDTH
+        const scale = previewWidth / cue.w;
 
-      // Accurate background size for the sprite sheet
-      // We calculate based on the source size and the current display scale
-      const sheetWidth = (spriteMetadata.cols || 10) * previewWidth;
+        // Accurate background size for the sprite sheet
+        // We calculate based on the source size and the current display scale
+        const sheetWidth = (spriteMetadata.cols || 10) * previewWidth;
 
-      return {
-        backgroundImage: `url(${imageUrl})`,
-        backgroundPosition: `-${cue.x * scale}px -${cue.y * scale}px`,
-        backgroundSize: `${sheetWidth}px auto`, // Allow height to auto-scale proportionately
-        width: Math.round(cue.w * scale),
-        height: Math.round(cue.h * scale),
-        sourceWidth: cue.w,
-        sourceHeight: cue.h,
-        startTime: cue.startTime,
-        isHighRes: true,
-      };
+        return {
+          backgroundImage: `url(${imageUrl})`,
+          backgroundPosition: `-${cue.x * scale}px -${cue.y * scale}px`,
+          backgroundSize: `${sheetWidth}px auto`, // Allow height to auto-scale proportionately
+          width: Math.round(cue.w * scale),
+          height: Math.round(cue.h * scale),
+          sourceWidth: cue.w,
+          sourceHeight: cue.h,
+          startTime: cue.startTime,
+          isHighRes: true,
+        };
+      }
     }
 
     // 3. Fallback to Low-Res Grid if High-Res is pending
@@ -1023,7 +1174,7 @@ export function VideoPlayer({
     }
     const index = Math.min(
       Math.floor(time / spriteMetadata.interval),
-      spriteMetadata.cols * spriteMetadata.rows - 1
+      spriteMetadata.cols * spriteMetadata.rows - 1,
     );
     const col = index % spriteMetadata.cols;
     const row = Math.floor(index / spriteMetadata.cols);
@@ -1064,12 +1215,15 @@ export function VideoPlayer({
       className={cn(
         "relative group bg-black aspect-video rounded-xl overflow-hidden shadow-2xl border border-white/5 isolate select-none touch-manipulation @container",
         isFullscreen ? "w-screen h-screen rounded-none" : "w-full",
-        className
+        className,
       )}
       onMouseMove={handleMouseMove}
       onMouseEnter={() => {
         if (spriteMetadata?.url) {
-          const pureUrl = spriteMetadata.url.replace("thumbnails.vtt", "sprites.bin");
+          const pureUrl = spriteMetadata.url.replace(
+            "thumbnails.vtt",
+            "sprites.bin",
+          );
           preloadFullBinary(pureUrl);
         }
       }}
@@ -1078,18 +1232,19 @@ export function VideoPlayer({
         setShowControls(false);
         setShowCenterControls(false);
         setHoverPosition(null);
-        if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+        if (controlsTimeoutRef.current)
+          clearTimeout(controlsTimeoutRef.current);
       }}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-
-      <style dangerouslySetInnerHTML={{
-        __html: `
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
   .video-js .vjs-tech { ... }
   .vjs-poster { ... }
   .vjs-loading-spinner { display: none !important; }
-  ${currentTime > 0 ? `.video-js .vjs-poster { display: none !important; }` : ''}
+  ${currentTime > 0 ? `.video-js .vjs-poster { display: none !important; }` : ""}
 
   .video-js { container-type: size; }
 
@@ -1102,7 +1257,6 @@ export function VideoPlayer({
     display: flex !important;
     justify-content: center !important;
     pointer-events: none !important;
-    z-index: 10 !important;
   }
 
   .video-js .vjs-text-track-display div {
@@ -1112,11 +1266,11 @@ export function VideoPlayer({
   .video-js .vjs-text-track-cue > div {
     display: inline-block !important;
     max-width: 100% !important;
-    font-size: clamp(14px, 3.5cqh, 32px) !important;
-    padding: clamp(6px, 1cqh, 14px) clamp(12px, 2cqh, 28px) !important;
+    font-size: clamp(11px, 3cqh, 26px) !important;
+    padding: clamp(4px, 0.8cqh, 10px) clamp(8px, 1.5cqh, 20px) !important;
     background: rgba(0,0,0,0.80) !important;
     color: #fff !important;
-    border-radius: clamp(6px, 1cqh, 12px) !important;
+    border-radius: clamp(4px, 0.8cqh, 8px) !important;
     line-height: 1.4 !important;
     text-align: center !important;
     white-space: pre-wrap !important;
@@ -1129,23 +1283,25 @@ export function VideoPlayer({
   .animate-flash {
     animation: flash 0.6s ease-in-out infinite;
   }
-`}} />
-      <div data-vjs-player ref={videoRef} className="absolute inset-0 w-full h-full bg-black z-0" />
+`,
+        }}
+      />
+      <div
+        data-vjs-player
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full bg-black z-0"
+      />
 
       {/* Playback Toggle Layer (z-5)
           Captures background clicks for play/pause and mobile double-tap to seek.
           Positioned above video but below controls/animations. */}
       <div
         className="absolute inset-0 z-5 cursor-pointer"
-        style={{ touchAction: 'manipulation' }}
+        style={{ touchAction: "manipulation" }}
         onClick={handleContainerClick}
         onTouchEnd={handleTouchEnd}
         aria-hidden="true"
       />
-
-
-
-
 
       {seekAnimation?.type && (
         <>
@@ -1155,7 +1311,7 @@ export function VideoPlayer({
           <div
             className={cn(
               "absolute inset-y-0 z-20 w-1/3 flex items-center justify-center pointer-events-none ",
-              seekAnimation.type === "forward" ? "right-0" : "left-0"
+              seekAnimation.type === "forward" ? "right-0" : "left-0",
             )}
           >
             {/* Soft side glow */}
@@ -1164,11 +1320,10 @@ export function VideoPlayer({
                 "absolute inset-0 opacity-60",
                 seekAnimation.type === "forward"
                   ? "bg-linear-to-l from-primary/10 to-transparent rounded-l-[100%]"
-                  : "bg-linear-to-r from-primary/10 to-transparent rounded-r-[100%]"
+                  : "bg-linear-to-r from-primary/10 to-transparent rounded-r-[100%]",
               )}
             />
             <div className="relative flex flex-col items-center justify-center gap-2 sm:gap-3 md:gap-4 animate-in fade-in zoom-in-95 duration-200">
-
               {/* Direction Chevrons */}
               <div className="flex items-center justify-center -space-x-3 sm:-space-x-4 md:-space-x-6">
                 {[0, 1, 2].map((i) => {
@@ -1183,17 +1338,14 @@ export function VideoPlayer({
                         "size-8 sm:size-10 md:size-13 lg:size-15 text-primary animate-in fade-in duration-300",
                         isForward
                           ? "slide-in-from-left-2"
-                          : "slide-in-from-right-2"
+                          : "slide-in-from-right-2",
                       )}
                       style={{
                         animationDelay: `${visualIndex * 60}ms`,
                         opacity: 0.3 + visualIndex * 0.35,
-                        filter: `blur(${visualIndex === 2
-                          ? 0
-                          : visualIndex === 1
-                            ? 0.4
-                            : 0.8
-                          }px)`
+                        filter: `blur(${
+                          visualIndex === 2 ? 0 : visualIndex === 1 ? 0.4 : 0.8
+                        }px)`,
                       }}
                     />
                   );
@@ -1205,9 +1357,7 @@ export function VideoPlayer({
                 {seekAnimation.type === "forward" ? "+" : "-"}
                 {seekAnimation.amount}s
               </span>
-
             </div>
-
           </div>
         </>
       )}
@@ -1218,9 +1368,12 @@ export function VideoPlayer({
           <div className="px-6 py-4 rounded-2xl flex flex-col items-center gap-2 animate-in fade-in zoom-in duration-200 border border-white/10">
             {(() => {
               const lv = volumeAnimation.level;
-              if (lv === 0) return <VolumeX className="size-8 text-primary fill-white" />;
-              if (lv <= 0.33) return <Volume className="size-8 text-primary fill-white" />;
-              if (lv <= 0.66) return <Volume1 className="size-8 text-primary fill-white" />;
+              if (lv === 0)
+                return <VolumeX className="size-8 text-primary fill-white" />;
+              if (lv <= 0.33)
+                return <Volume className="size-8 text-primary fill-white" />;
+              if (lv <= 0.66)
+                return <Volume1 className="size-8 text-primary fill-white" />;
               return <Volume2 className="size-8 text-primary fill-white" />;
             })()}
             <span className="text-primary font-black text-2xl tabular-nums">
@@ -1229,8 +1382,6 @@ export function VideoPlayer({
           </div>
         </div>
       )}
-
-
 
       {/* Primary Custom Buffer Loader */}
       {isBuffering && !error && (
@@ -1258,7 +1409,7 @@ export function VideoPlayer({
       <div
         className={cn(
           "absolute inset-0 z-40 flex flex-col justify-end transition-opacity duration-300 bg-linear-to-t from-black/90 via-transparent to-transparent pointer-events-none",
-          showControls && !error ? "opacity-100" : "opacity-0"
+          showControls && !error ? "opacity-100" : "opacity-0",
         )}
       >
         <div
@@ -1279,7 +1430,9 @@ export function VideoPlayer({
               e.stopPropagation();
               const pos = calculatePosition(e.clientX);
               if (pos) {
-                const spritePos = spriteMetadata ? getSpritePosition(pos.time) : null;
+                const spritePos = spriteMetadata
+                  ? getSpritePosition(pos.time)
+                  : null;
                 const snapTime = spritePos?.startTime ?? pos.time;
                 handleSeekCommit([snapTime]);
               }
@@ -1287,86 +1440,110 @@ export function VideoPlayer({
             onTouchMove={handleSeekbarTouchMove}
             onTouchEnd={handleSeekbarTouchEnd}
           >
-            {hoverPosition && (() => {
-              const spritePos = spriteMetadata ? getSpritePosition(hoverPosition.time) : null;
-              const snapTime = spritePos?.startTime ?? hoverPosition.time;
+            {hoverPosition &&
+              (() => {
+                const spritePos = spriteMetadata
+                  ? getSpritePosition(hoverPosition.time)
+                  : null;
+                const snapTime = spritePos?.startTime ?? hoverPosition.time;
 
-              // Clamp so preview never overflows left/right
-              const scale = window.innerWidth < 640 ? 0.45 : window.innerWidth < 768 ? 0.55 : 0.90;
-              const hw = ((spritePos?.width ?? 128) * scale) / 2;
-              const sw = seekbarRef.current?.getBoundingClientRect().width ?? 600;
-              const clampedLeft = Math.min(Math.max((snapTime / duration) * sw, hw), sw - hw);
+                // Clamp so preview never overflows left/right
+                const scale =
+                  window.innerWidth < 640
+                    ? 0.45
+                    : window.innerWidth < 768
+                      ? 0.55
+                      : 0.9;
+                const hw = ((spritePos?.width ?? 128) * scale) / 2;
+                const sw =
+                  seekbarRef.current?.getBoundingClientRect().width ?? 600;
+                const clampedLeft = Math.min(
+                  Math.max((snapTime / duration) * sw, hw),
+                  sw - hw,
+                );
 
-              return (
-                <div
-                  className="absolute bottom-full mb-1 sm:mb-1.5 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
-                  style={{
-                    left: `${clampedLeft}px`,   // ← px instead of %
-                    transform: 'translateX(-50%)'
-                  }}
-                >
-                  {/* ...rest unchanged... */}
-                  {spriteMetadata ? (
-                    spritePos ? (
-                      <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">
-                        <div className="relative rounded-md overflow-hidden bg-muted flex items-center justify-center" style={{ width: `${spritePos.width}px`, height: `${spritePos.height}px` }}>
-                          {/* Low Res Layer (visible while loading HD or as base) */}
-                          {(!spritePos.isHighRes || true) && (
+                return (
+                  <div
+                    className="absolute bottom-full mb-1 sm:mb-1.5 flex flex-col items-center animate-in fade-in zoom-in duration-150 pointer-events-none z-50"
+                    style={{
+                      left: `${clampedLeft}px`, // ← px instead of %
+                      transform: "translateX(-50%)",
+                    }}
+                  >
+                    {/* ...rest unchanged... */}
+                    {spriteMetadata ? (
+                      spritePos ? (
+                        <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md origin-bottom scale-[0.5] sm:scale-[0.7] md:scale-[0.9] transition-transform duration-200">
+                          <div
+                            className="relative rounded-md overflow-hidden bg-muted flex items-center justify-center"
+                            style={{
+                              width: `${spritePos.width}px`,
+                              height: `${spritePos.height}px`,
+                            }}
+                          >
+                            {/* Low Res Layer (visible while loading HD or as base) */}
+                            {(!spritePos.isHighRes || true) && (
+                              <div
+                                className={cn(
+                                  "absolute inset-0 transition-opacity duration-300",
+                                  spritePos.isHighRes
+                                    ? "opacity-0"
+                                    : "opacity-100 blur-[2px] scale-105",
+                                )}
+                                style={{
+                                  width: `${spritePos.width}px`,
+                                  height: `${spritePos.height}px`,
+                                  backgroundImage: spritePos.backgroundImage,
+                                  backgroundPosition:
+                                    spritePos.backgroundPosition,
+                                  backgroundSize: spritePos.backgroundSize,
+                                  backgroundRepeat: "no-repeat",
+                                  imageRendering: "crisp-edges" as any,
+                                }}
+                              />
+                            )}
+
+                            {/* High Res Layer */}
                             <div
                               className={cn(
-                                "absolute inset-0 transition-opacity duration-300",
-                                spritePos.isHighRes ? "opacity-0" : "opacity-100 blur-[2px] scale-105"
+                                "transition-opacity duration-300",
+                                spritePos.isHighRes
+                                  ? "opacity-100"
+                                  : "opacity-0",
                               )}
                               style={{
                                 width: `${spritePos.width}px`,
                                 height: `${spritePos.height}px`,
                                 backgroundImage: spritePos.backgroundImage,
-                                backgroundPosition: spritePos.backgroundPosition,
+                                backgroundPosition:
+                                  spritePos.backgroundPosition,
                                 backgroundSize: spritePos.backgroundSize,
-                                backgroundRepeat: 'no-repeat',
-                                imageRendering: 'crisp-edges' as any,
+                                backgroundRepeat: "no-repeat",
+                                imageRendering: "auto",
                               }}
                             />
-                          )}
 
-                          {/* High Res Layer */}
-                          <div
-                            className={cn(
-                              "transition-opacity duration-300",
-                              spritePos.isHighRes ? "opacity-100" : "opacity-0"
-                            )}
-                            style={{
-                              width: `${spritePos.width}px`,
-                              height: `${spritePos.height}px`,
-                              backgroundImage: spritePos.backgroundImage,
-                              backgroundPosition: spritePos.backgroundPosition,
-                              backgroundSize: spritePos.backgroundSize,
-                              backgroundRepeat: 'no-repeat',
-                              imageRendering: 'auto',
-                            }}
-                          />
-
-                          <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/90">
-                            {formatTime(snapTime)}
+                            <div className="absolute bottom-1 right-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-mono text-white/90">
+                              {formatTime(snapTime)}
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md flex items-center justify-center w-32 aspect-video">
+                          <Loader size={16} />
+                        </div>
+                      )
                     ) : (
-                      <div className="bg-black/95 border border-white/20 rounded-lg overflow-hidden p-0.5 shadow-2xl backdrop-blur-md flex items-center justify-center w-32 aspect-video">
-                        <Loader size={16} />
+                      <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 shadow-2xl backdrop-blur-md">
+                        <div className="text-sm font-mono text-white/90">
+                          {formatTime(hoverPosition.time)}
+                        </div>
                       </div>
-                    )
-                  ) : (
-                    <div className="bg-black/90 border border-white/20 rounded-lg px-3 py-2 shadow-2xl backdrop-blur-md">
-                      <div className="text-sm font-mono text-white/90">
-                        {formatTime(hoverPosition.time)}
-                      </div>
-                    </div>
-                  )}
-                  <div className="w-2.5 h-2.5 bg-black/95 rotate-45 border-r border-b border-white/20 -mt-1.5 -z-1" />
-                </div>
-              );
-            })()}
+                    )}
+                    <div className="w-2.5 h-2.5 bg-black/95 rotate-45 border-r border-b border-white/20 -mt-1.5 -z-1" />
+                  </div>
+                );
+              })()}
 
             {/* Base Track (since we'll make Slider track transparent) */}
             <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-1.5 bg-white/10 rounded-full pointer-events-none" />
@@ -1379,7 +1556,7 @@ export function VideoPlayer({
                   className="absolute h-full bg-white/20 rounded-full transition-all duration-300"
                   style={{
                     left: `${(range.start / (duration || 1)) * 100}%`,
-                    width: `${((range.end - range.start) / (duration || 1)) * 100}%`
+                    width: `${((range.end - range.start) / (duration || 1)) * 100}%`,
                   }}
                 />
               ))}
@@ -1400,16 +1577,35 @@ export function VideoPlayer({
             <div className="flex items-center gap-2 sm:gap-4 text-white">
               <button
                 type="button"
-                onClick={(e) => { togglePlay(e); resetControlsTimeout(); }}
-                onTouchEnd={(e) => { e.stopPropagation(); togglePlay(e); resetControlsTimeout(); }}
+                onClick={(e) => {
+                  togglePlay(e);
+                  resetControlsTimeout();
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation();
+                  togglePlay(e);
+                  resetControlsTimeout();
+                }}
                 className="hover:text-primary transition-colors focus:outline-none p-1 sm:p-0"
               >
-                {isPlaying ? <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current" /> : <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />}
+                {isPlaying ? (
+                  <Pause className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
+                ) : (
+                  <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-current" />
+                )}
               </button>
 
               <div className="flex items-center gap-1 sm:gap-2 group/volume">
-                <button type="button" onClick={toggleMute} className="hover:text-primary focus:outline-none p-1 sm:p-0">
-                  {isMuted || volume === 0 ? <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" /> : <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />}
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  className="hover:text-primary focus:outline-none p-1 sm:p-0"
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" />
+                  ) : (
+                    <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                  )}
                 </button>
                 <div className="w-0 sm:group-hover/volume:w-20 transition-all duration-300 overflow-hidden hidden sm:block">
                   <Slider
@@ -1424,7 +1620,8 @@ export function VideoPlayer({
               </div>
 
               <div className="text-[11px] sm:text-[13px] font-medium text-white/90 tabular-nums">
-                {formatTime(currentTime)} <span className="text-white/40">/</span> {formatTime(duration)}
+                {formatTime(currentTime)}{" "}
+                <span className="text-white/40">/</span> {formatTime(duration)}
               </div>
             </div>
 
@@ -1435,7 +1632,9 @@ export function VideoPlayer({
                   onClick={toggleCaptions}
                   className={cn(
                     "hover:text-primary focus:outline-none transition-all duration-200 p-1 sm:p-0",
-                    captionsEnabled ? "text-primary scale-110" : "text-white/70"
+                    captionsEnabled
+                      ? "text-primary scale-110"
+                      : "text-white/70",
                   )}
                   title="Toggle Captions"
                 >
@@ -1448,7 +1647,8 @@ export function VideoPlayer({
                   <button
                     type="button"
                     onTouchEnd={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md border border-white/10">
+                    className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-xs font-bold hover:text-primary transition-colors focus:outline-none bg-white/10 hover:bg-white/20 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-md border border-white/10"
+                  >
                     <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     {playbackRate}x
                   </button>
@@ -1457,7 +1657,11 @@ export function VideoPlayer({
                   side="top"
                   align="end"
                   sideOffset={26}
-                  container={isFullscreen ? containerRef.current ?? undefined : undefined}
+                  container={
+                    isFullscreen
+                      ? (containerRef.current ?? undefined)
+                      : undefined
+                  }
                   avoidCollisions={false}
                   className={`bg-black/95 border-white/20 text-white
                              w-[clamp(100px,12cqw,120px)]
@@ -1465,7 +1669,8 @@ export function VideoPlayer({
                              shadow-2xl animate-in fade-in
                              duration-200
                              z-9999
-                             rounded-xl border`}>
+                             rounded-xl border`}
+                >
                   <div className="px-2 py-1 text-[9px] font-bold text-white/40 uppercase tracking-widest border-b border-white/5 mb-1">
                     Speed
                   </div>
@@ -1475,56 +1680,79 @@ export function VideoPlayer({
                       onClick={() => handlePlaybackRate(rate)}
                       className={cn(
                         "cursor-pointer focus:bg-primary/20 focus:text-primary text-[11px] font-medium px-2 py-1.5 rounded-md transition-colors",
-                        playbackRate === rate && "bg-primary/20 text-primary font-bold"
+                        playbackRate === rate &&
+                          "bg-primary/20 text-primary font-bold",
                       )}
                     >
                       <div className="flex items-center justify-between w-full">
                         <span>{rate === 1 ? "Normal" : `${rate}x`}</span>
-                        {playbackRate === rate && <div className="w-1 h-1 rounded-full bg-primary" />}
+                        {playbackRate === rate && (
+                          <div className="w-1 h-1 rounded-full bg-primary" />
+                        )}
                       </div>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              <button type="button" onClick={toggleFullscreen} className="hover:text-primary focus:outline-none transition-colors p-1 sm:p-0">
-                {isFullscreen ? <Minimize className="w-5 h-5 sm:w-6 sm:h-6" /> : <Maximize className="w-5 h-5 sm:w-6 sm:h-6" />}
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                className="hover:text-primary focus:outline-none transition-colors p-1 sm:p-0"
+              >
+                {isFullscreen ? (
+                  <Minimize className="w-5 h-5 sm:w-6 sm:h-6" />
+                ) : (
+                  <Maximize className="w-5 h-5 sm:w-6 sm:h-6" />
+                )}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {(showCenterControls && !isBuffering && !seekAnimation && !volumeAnimation.visible && !hoverPosition) && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-[8%] bg-black/50 animate-in fade-in duration-300">
-          {/* Backward 10s */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!playerRef.current) return;
-              const newTime = Math.max(0, playerRef.current.currentTime() - 10);
-              playerRef.current.currentTime(newTime);
-              triggerSeekAnimation("backward", 10);
-              resetControlsTimeout();
-            }}
-            className="
+      {showCenterControls &&
+        !isBuffering &&
+        !seekAnimation &&
+        !volumeAnimation.visible &&
+        !hoverPosition && (
+          <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none gap-[8%] bg-black/50 animate-in fade-in duration-300">
+            {/* Backward 10s */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!playerRef.current) return;
+                const newTime = Math.max(
+                  0,
+                  playerRef.current.currentTime() - 10,
+                );
+                playerRef.current.currentTime(newTime);
+                triggerSeekAnimation("backward", 10);
+                resetControlsTimeout();
+              }}
+              className="
               flex flex-col items-center justify-center gap-1
               text-primary/70 duration-100 hover:scale-105
               pointer-events-auto cursor-pointer
               animate-in fade-in slide-in-from-right-4
             "
-          >
-            <div className="relative flex items-center justify-center overflow-visible">
-              <RotateCcw className="size-6 sm:size-8 md:size-[clamp(32px,8cqw,64px)]" />
-              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-white/90 text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
-            </div>
-          </button>
+            >
+              <div className="relative flex items-center justify-center overflow-visible">
+                <RotateCcw className="size-6 sm:size-8 md:size-[clamp(32px,8cqw,64px)]" />
+                <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-white/90 text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">
+                  10
+                </span>
+              </div>
+            </button>
 
-          {/* Centered Play/Pause */}
-          <div
-            onClick={(e) => { togglePlay(e); resetControlsTimeout(); }}
-            className="
+            {/* Centered Play/Pause */}
+            <div
+              onClick={(e) => {
+                togglePlay(e);
+                resetControlsTimeout();
+              }}
+              className="
               size-12 sm:size-16 md:size-[clamp(64px,12cqw,84px)]
               flex items-center justify-center
               rounded-full 
@@ -1538,39 +1766,44 @@ export function VideoPlayer({
               cursor-pointer
               animate-in fade-in zoom-in
             "
-          >
-            {isPlaying ? (
-              <Pause className="size-[45%] fill-white" />
-            ) : (
-              <Play className="size-[45%] fill-white ml-[5%]" />
-            )}
-          </div>
+            >
+              {isPlaying ? (
+                <Pause className="size-[45%] fill-white" />
+              ) : (
+                <Play className="size-[45%] fill-white ml-[5%]" />
+              )}
+            </div>
 
-          {/* Forward 10s */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!playerRef.current) return;
-              const newTime = Math.min(playerRef.current.duration(), playerRef.current.currentTime() + 10);
-              playerRef.current.currentTime(newTime);
-              triggerSeekAnimation("forward", 10);
-              resetControlsTimeout();
-            }}
-            className="
+            {/* Forward 10s */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!playerRef.current) return;
+                const newTime = Math.min(
+                  playerRef.current.duration(),
+                  playerRef.current.currentTime() + 10,
+                );
+                playerRef.current.currentTime(newTime);
+                triggerSeekAnimation("forward", 10);
+                resetControlsTimeout();
+              }}
+              className="
               flex flex-col items-center justify-center gap-1
               text-primary/70 duration-100 hover:scale-105
               pointer-events-auto cursor-pointer
               animate-in fade-in slide-in-from-left-4
             "
-          >
-            <div className="relative flex items-center justify-center overflow-visible">
-              <RotateCw className="size-6 sm:size-8 md:size-[clamp(32px,8cqw,64px)]" />
-              <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-white/90 text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">10</span>
-            </div>
-          </button>
-        </div>
-      )}
+            >
+              <div className="relative flex items-center justify-center overflow-visible">
+                <RotateCw className="size-6 sm:size-8 md:size-[clamp(32px,8cqw,64px)]" />
+                <span className="absolute left-1/2 top-[50%] -translate-x-1/2 -translate-y-1/2 text-white/90 text-[9px] sm:text-[11px] md:text-[clamp(9px,1.8cqw,13px)] font-black leading-none">
+                  10
+                </span>
+              </div>
+            </button>
+          </div>
+        )}
     </div>
   );
 }
