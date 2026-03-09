@@ -296,7 +296,7 @@ export function AssessmentModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="fixed inset-0 z-100 w-screen h-screen max-w-none sm:max-w-none p-0 m-0 border-none rounded-none bg-background shadow-none overflow-hidden block translate-x-0 translate-y-0">
+      <DialogContent className="fixed inset-0 z-100 w-screen min-h-dvh max-w-none sm:max-w-none p-0 m-0 border-none rounded-none bg-background shadow-none overflow-hidden block translate-x-0 translate-y-0">
         <DialogHeader className="p-6 pb-0 sr-only">
           <DialogTitle>Lesson Assessment</DialogTitle>
           <DialogDescription>

@@ -37,6 +37,8 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { IconFileText } from "@tabler/icons-react";
+import { TriangleAlert } from "lucide-react";
+import { SupportTicketDialog } from "@/app/(users)/_components/SupportTicketDialog";
 
 interface iAppProps {
   lessonId: string;
@@ -917,6 +919,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
+  const [isSupportOpen, setIsSupportOpen] = useState(false);
 
   const { data: lesson, isLoading } = useQuery({
     queryKey: ["lesson_content", lessonId],
@@ -1034,46 +1037,55 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
               )}
             </Button>
           </div>
-
-          <Drawer
-            open={isMobileDescriptionOpen}
-            onOpenChange={setIsMobileDescriptionOpen}
-          >
-            <DrawerTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-muted-foreground rounded-full bg-muted transition-colors"
-              >
-                <ChevronRight className="size-6 ml-0.5" />
-              </Button>
-            </DrawerTrigger>
-            <DrawerContent className="max-h-[85vh] bg-background">
-              <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
-                <DrawerTitle className="sr-only">
-                  Lesson Description
-                </DrawerTitle>
-                <DrawerDescription className="sr-only">
-                  Detailed description for the current lesson
-                </DrawerDescription>
-                <div
-                  className="flex-1 overflow-y-auto px-6 pt-8 pb-12 overscroll-contain"
-                  data-lenis-prevent
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-amber-500 rounded-full bg-amber-500/10! hover:bg-amber-500/20! hover:text-amber-500!"
+              onClick={() => setIsSupportOpen(true)}
+            >
+              <TriangleAlert className="size-5" />
+            </Button>
+            <Drawer
+              open={isMobileDescriptionOpen}
+              onOpenChange={setIsMobileDescriptionOpen}
+            >
+              <DrawerTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground rounded-full bg-muted transition-colors"
                 >
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <h3 className="text-xl font-bold mb-4">
-                      {lessonData.title}
-                    </h3>
-                    {lessonData.description && (
-                      <RenderDescription
-                        json={JSON.parse(lessonData.description)}
-                      />
-                    )}
+                  <ChevronRight className="size-6 ml-0.5" />
+                </Button>
+              </DrawerTrigger>
+              <DrawerContent className="max-h-[85vh] bg-background">
+                <div className="mx-auto w-full max-w-lg flex flex-col h-full overflow-hidden">
+                  <DrawerTitle className="sr-only">
+                    Lesson Description
+                  </DrawerTitle>
+                  <DrawerDescription className="sr-only">
+                    Detailed description for the current lesson
+                  </DrawerDescription>
+                  <div
+                    className="flex-1 overflow-y-auto px-6 pt-8 pb-12 overscroll-contain"
+                    data-lenis-prevent
+                  >
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <h3 className="text-xl font-bold mb-4">
+                        {lessonData.title}
+                      </h3>
+                      {lessonData.description && (
+                        <RenderDescription
+                          json={JSON.parse(lessonData.description)}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </DrawerContent>
-          </Drawer>
+              </DrawerContent>
+            </Drawer>
+          </div>
         </div>
 
         {/* DESKTOP ACTION BAR */}
@@ -1099,6 +1111,14 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-amber-500 rounded-full h-10 w-10 bg-amber-500/10 hover:bg-amber-500/20! hover:text-amber-500! shrink-0"
+              onClick={() => setIsSupportOpen(true)}
+            >
+              <TriangleAlert className="size-5" />
+            </Button>
             <Button
               variant={isDescriptionOpen ? "secondary" : "outline"}
               className="gap-2 shrink-0 rounded-full"
@@ -1179,6 +1199,15 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
           }}
         />
       )}
+
+      {/* SUPPORT TICKET DIALOG */}
+      <SupportTicketDialog
+        open={isSupportOpen}
+        onOpenChange={setIsSupportOpen}
+        userId={userId}
+        initialCategory="fault"
+        initialTitle={`Issue with: ${lessonData.title}`}
+      />
     </div>
   );
 }

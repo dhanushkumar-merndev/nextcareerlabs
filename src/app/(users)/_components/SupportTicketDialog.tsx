@@ -2,13 +2,29 @@
 
 "use client";
 import { useState, useTransition, useEffect } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { sendNotificationAction, checkTicketLimitAction } from "@/app/data/notifications/actions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  sendNotificationAction,
+  checkTicketLimitAction,
+} from "@/app/data/notifications/actions";
 import { toast } from "sonner";
 import { Loader2, MessageSquarePlus } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,20 +32,46 @@ import { chatCache, getSidebarKey, getSidebarLocalKey } from "@/lib/chat-cache";
 import { TicketResponse } from "@/lib/types/components";
 
 // Support ticket dialog component
-export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }: { open: boolean; onOpenChange: (open: boolean) => void; courses?: { id: string, title: string }[], userId?: string }) {
+export function SupportTicketDialog({
+  open,
+  onOpenChange,
+  courses = [],
+  userId,
+  initialCategory,
+  initialTitle,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  courses?: { id: string; title: string }[];
+  userId?: string;
+  initialCategory?: string;
+  initialTitle?: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
   const currentUserId = userId;
-  const [courseId, setCourseId] = useState<string>("general");
-  const [title, setTitle] = useState("");
+  const [courseId, setCourseId] = useState<string>(
+    initialCategory || "general",
+  );
+  const [title, setTitle] = useState(initialTitle || "");
   const [content, setContent] = useState("");
-  const [limitStatus, setLimitStatus] = useState<{ limitReached: boolean, count: number }>({ limitReached: false, count: 0 });
+
+  useEffect(() => {
+    if (open) {
+      if (initialCategory) setCourseId(initialCategory);
+      if (initialTitle) setTitle(initialTitle);
+    }
+  }, [open, initialCategory, initialTitle]);
+  const [limitStatus, setLimitStatus] = useState<{
+    limitReached: boolean;
+    count: number;
+  }>({ limitReached: false, count: 0 });
   const isLimitChecking = open && limitStatus.count === 0;
   // Check ticket limit when dialog opens
   useEffect(() => {
     let mounted = true;
     if (open) {
-      checkTicketLimitAction().then(res => {
+      checkTicketLimitAction().then((res) => {
         if (mounted) setLimitStatus(res);
       });
     }
@@ -44,27 +86,44 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
       toast.error("You have reached the maximum of 3 active tickets.");
       return;
     }
-    if (title.trim().length < 5 || content.trim().length < 10){
-      toast.error("Please fill in all fields with at least 5 characters for title and 10 characters for description.");
+    if (title.trim().length < 5 || content.trim().length < 10) {
+      toast.error(
+        "Please fill in all fields with at least 5 characters for title and 10 characters for description.",
+      );
       return;
     }
     // Start transition for async operation
-    const prefix = courseId === "app_related" ? "[APP]" : courseId === "general" ? "[GENERAL]" : "[COURSE]";
-    const categoryName = courseId === "app_related" 
-        ? "App Related Issue" 
-        : courseId === "general" 
-            ? "General Issue" 
-            : courses.find(c => c.id === courseId)?.title || "Course Related";
-    
+    const prefixMap: Record<string, string> = {
+      app_related: "[APP]",
+      general: "[GENERAL]",
+      fault: "[FAULT]",
+      error: "[ERROR]",
+      improve: "[IMPROVE]",
+    };
+    const prefix = prefixMap[courseId] || "[COURSE]";
+
+    const categoryNameMap: Record<string, string> = {
+      app_related: "App Related Issue",
+      general: "General Issue",
+      fault: "Fault/Bug Report",
+      error: "Error/Technical Issue",
+      improve: "Improvement Suggestion",
+    };
+    const categoryName =
+      categoryNameMap[courseId] ||
+      courses.find((c) => c.id === courseId)?.title ||
+      "Course Related";
+
     const formattedContent = `**Issue Type:** ${categoryName}\n**Summary:** ${title}\n\n**Description:**\n${content}`;
     const issueTitle = `${prefix} ${title}`;
 
     // 2. PREDICT THREAD ID AND DISPATCH INSTANT UPDATE
     if (currentUserId) {
-        const predictedThreadId = `support_${currentUserId}`;
-        
-        // a. Update Sidebar Instantly with the new thread object
-        window.dispatchEvent(new CustomEvent("chat-thread-update", {
+      const predictedThreadId = `support_${currentUserId}`;
+
+      // a. Update Sidebar Instantly with the new thread object
+      window.dispatchEvent(
+        new CustomEvent("chat-thread-update", {
           detail: {
             threadId: predictedThreadId,
             lastMessage: title,
@@ -73,32 +132,33 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
               threadId: predictedThreadId,
               display: {
                 name: "Support",
-                image: "" // Support default image
+                image: "", // Support default image
               },
               lastMessage: title,
               updatedAt: new Date().toISOString(),
               unreadCount: 0,
               type: "Support",
-              resolved: false
-            }
-          }
-        }));
+              resolved: false,
+            },
+          },
+        }),
+      );
 
-        // b. Seed the message cache so it's ready if they click it
-        const optimisticMessage = {
-          id: `temp-${Date.now()}`,
-          content: formattedContent,
-          senderId: currentUserId,
-          createdAt: new Date().toISOString(),
-          status: "sending",
-          sender: { id: currentUserId, name: "You", image: "" },
-          type: "SUPPORT_TICKET"
-        };
+      // b. Seed the message cache so it's ready if they click it
+      const optimisticMessage = {
+        id: `temp-${Date.now()}`,
+        content: formattedContent,
+        senderId: currentUserId,
+        createdAt: new Date().toISOString(),
+        status: "sending",
+        sender: { id: currentUserId, name: "You", image: "" },
+        type: "SUPPORT_TICKET",
+      };
 
-        queryClient.setQueryData(["messages", predictedThreadId, currentUserId], {
-          pages: [{ messages: [optimisticMessage], nextCursor: null }],
-          pageParams: [undefined]
-        });
+      queryClient.setQueryData(["messages", predictedThreadId, currentUserId], {
+        pages: [{ messages: [optimisticMessage], nextCursor: null }],
+        pageParams: [undefined],
+      });
     }
 
     const predictedThreadId = `support_${currentUserId}`; // Keep for background action scoping
@@ -116,7 +176,9 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
           title: issueTitle,
           content: formattedContent,
           type: "SUPPORT_TICKET",
-          courseId: ["general", "app_related"].includes(courseId) ? undefined : courseId,
+          courseId: ["general", "app_related"].includes(courseId)
+            ? undefined
+            : courseId,
         });
 
         if (!res.success) {
@@ -125,37 +187,47 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
             const mins = res.minutesLeft;
             const hours = Math.floor(mins / 60);
             const remainingMins = mins % 60;
-            const timeStr = hours > 0 ? `${hours}h ${remainingMins}m` : `${remainingMins} minutes`;
+            const timeStr =
+              hours > 0
+                ? `${hours}h ${remainingMins}m`
+                : `${remainingMins} minutes`;
             toast.error(`Ticket limit reached. Try again in ${timeStr}!`);
           } else {
             toast.error("Failed to raise ticket. Please try again.");
           }
-          queryClient.invalidateQueries({ queryKey: getSidebarKey(currentUserId!, false) });
+          queryClient.invalidateQueries({
+            queryKey: getSidebarKey(currentUserId!, false),
+          });
           return;
         }
 
         // 4. FINAL SYNC
         const finalThreadId = res.notification?.threadId || predictedThreadId;
-        
-        await queryClient.invalidateQueries({ 
+
+        await queryClient.invalidateQueries({
           queryKey: getSidebarKey(currentUserId!, false),
-          refetchType: 'active' 
+          refetchType: "active",
         });
-        
+
         if (currentUserId) {
           chatCache.invalidate(getSidebarLocalKey(false), currentUserId);
         }
-        
-        queryClient.invalidateQueries({ queryKey: ["messages", finalThreadId, currentUserId] });
+
+        queryClient.invalidateQueries({
+          queryKey: ["messages", finalThreadId, currentUserId],
+        });
         chatCache.invalidate(`messages_${finalThreadId}`, currentUserId);
 
         // 5. DASHBOARD & RESOURCES INVALIDATION
-        queryClient.invalidateQueries({ queryKey: ["user_dashboard", currentUserId] });
+        queryClient.invalidateQueries({
+          queryKey: ["user_dashboard", currentUserId],
+        });
         chatCache.invalidate(`user_dashboard_${currentUserId}`, currentUserId);
-
       } catch (error) {
         toast.error("Failed to raise ticket. Please try again.");
-        queryClient.invalidateQueries({ queryKey: getSidebarKey(currentUserId!, false) });
+        queryClient.invalidateQueries({
+          queryKey: getSidebarKey(currentUserId!, false),
+        });
       }
     })();
   };
@@ -168,17 +240,21 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
           <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <MessageSquarePlus className="h-6 w-6 text-primary" />
           </div>
-          <DialogTitle className="text-center text-xl">Raise a Support Ticket</DialogTitle>
+          <DialogTitle className="text-center text-xl">
+            Raise a Support Ticket
+          </DialogTitle>
           {/* Dialog Description */}
           <DialogDescription className="text-center">
             Having trouble? Describe your issue and we'll help you out.
           </DialogDescription>
           <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-[10px] font-medium text-center">
-            Please mention all the required details and information. Cannot be modified once submitted.
+            Please mention all the required details and information. Cannot be
+            modified once submitted.
           </div>
           {limitStatus.limitReached && (
             <div className="mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-xs font-medium text-center">
-              Limit Reached: You have 3 active tickets. Please wait for them to be resolved before raising new ones.
+              Limit Reached: You have 3 active tickets. Please wait for them to
+              be resolved before raising new ones.
             </div>
           )}
         </DialogHeader>
@@ -193,8 +269,13 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
               <SelectContent>
                 <SelectItem value="general">General Issue</SelectItem>
                 <SelectItem value="app_related">App Related Issue</SelectItem>
-                {courses.map(c => (
-                  <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                <SelectItem value="fault">Fault / Bug Report</SelectItem>
+                <SelectItem value="error">Error / Technical Issue</SelectItem>
+                <SelectItem value="improve">Improvement Suggestion</SelectItem>
+                {courses.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.title}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -202,9 +283,9 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
           {/* Dialog Form Input */}
           <div className="space-y-2">
             <Label htmlFor="title">Issue Summary</Label>
-            <Input 
-              id="title" 
-              placeholder="e.g., Cannot access MERN stack course" 
+            <Input
+              id="title"
+              placeholder="e.g., Cannot access MERN stack course"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
@@ -213,9 +294,9 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
           {/* Dialog Form Input */}
           <div className="space-y-2">
             <Label htmlFor="content">Description</Label>
-            <Textarea 
-              id="content" 
-              placeholder="Please provide as much detail as possible..." 
+            <Textarea
+              id="content"
+              placeholder="Please provide as much detail as possible..."
               className="min-h-[120px]"
               value={content}
               onChange={(e) => setContent(e.target.value)}
@@ -224,16 +305,19 @@ export function SupportTicketDialog({ open, onOpenChange, courses = [], userId }
           </div>
           {/* Dialog Footer */}
           <DialogFooter className="pt-4">
-            <Button 
-              type="button" 
-              variant="outline" 
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
               Cancel
             </Button>
             {/* Dialog Submit Button */}
-            <Button type="submit" disabled={isPending || limitStatus.limitReached }>
+            <Button
+              type="submit"
+              disabled={isPending || limitStatus.limitReached}
+            >
               {isPending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
