@@ -209,6 +209,7 @@ model LessonProgress {
   quizPassed      Boolean  @default(false)
   lastWatched     Float    @default(0)
   actualWatchTime Float    @default(0)
+  restrictionTime Float    @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   User            User     @relation(fields: [userId], references: [id], onDelete: Cascade)

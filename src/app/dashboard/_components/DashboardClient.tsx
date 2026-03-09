@@ -28,13 +28,18 @@ export function DashboardClient() {
       const cached = chatCache.get<any>(cacheKey, userId);
       const clientVersion = cached?.version;
 
-      console.log(`[Dashboard] Smart Sync: Checking version (v${clientVersion || 'None'})...`);
-      const result = await getUserDashboardData(userId, clientVersion);
+      console.log(
+        `[Dashboard] Smart Sync: Checking version (v${clientVersion || "None"})...`,
+      );
+      const result = await getUserDashboardData(clientVersion);
 
       // 1. Version Match -> Return cached data
       // Server says cache is still valid
       if (result && (result as any).status === "not-modified") {
-        console.log(`%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`, "color: #eab308; font-weight: bold");
+        console.log(
+          `%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`,
+          "color: #eab308; font-weight: bold",
+        );
         chatCache.touch(cacheKey, userId);
         if (userId) chatCache.clearSync(userId);
         return cached?.data || null; // Ensure we return cached data if available, or null
@@ -42,8 +47,17 @@ export function DashboardClient() {
 
       // 2. Fresh Data -> Update Local Cache (Permanent TTL)
       if (result && result.data) {
-        console.log(`%c[Dashboard] Server: NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
-        chatCache.set(cacheKey, result.data, userId, result.version, PERMANENT_TTL);
+        console.log(
+          `%c[Dashboard] Server: NEW_DATA -> Updating Cache (v${result.version})`,
+          "color: #3b82f6; font-weight: bold",
+        );
+        chatCache.set(
+          cacheKey,
+          result.data,
+          userId,
+          result.version,
+          PERMANENT_TTL,
+        );
         if (userId) chatCache.clearSync(userId);
         return result.data;
       }
@@ -54,9 +68,10 @@ export function DashboardClient() {
       if (typeof window === "undefined" || !userId) return undefined;
       return chatCache.get<any>("user_dashboard", userId)?.data;
     },
-    initialDataUpdatedAt: typeof window !== "undefined" && userId
-      ? chatCache.get<any>("user_dashboard", userId)?.timestamp
-      : undefined,
+    initialDataUpdatedAt:
+      typeof window !== "undefined" && userId
+        ? chatCache.get<any>("user_dashboard", userId)?.timestamp
+        : undefined,
     staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,
@@ -68,7 +83,10 @@ export function DashboardClient() {
         {/* Top Stats Skeletons */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-card border border-border/10 rounded-3xl p-6 space-y-3">
+            <div
+              key={i}
+              className="bg-card border border-border/10 rounded-3xl p-6 space-y-3"
+            >
               <div className="flex items-center justify-between">
                 <Skeleton className="h-4 w-24" />
                 <Skeleton className="h-4 w-4 rounded-full" />
@@ -88,7 +106,10 @@ export function DashboardClient() {
 
           <div className="flex flex-col gap-4">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="flex flex-col sm:flex-row gap-4 p-4 rounded-3xl border border-border/10 bg-muted/5">
+              <div
+                key={i}
+                className="flex flex-col sm:flex-row gap-4 p-4 rounded-3xl border border-border/10 bg-muted/5"
+              >
                 <Skeleton className="aspect-video w-full sm:w-48 rounded-2xl" />
                 <div className="flex-1 space-y-3 py-2">
                   <div className="space-y-2">
@@ -154,7 +175,9 @@ export function DashboardClient() {
 
         {data.coursesProgress?.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-dashed border-border/20 bg-muted/5">
-            <p className="text-muted-foreground font-medium italic">You are not enrolled in any courses yet.</p>
+            <p className="text-muted-foreground font-medium italic">
+              You are not enrolled in any courses yet.
+            </p>
           </div>
         ) : (
           <div className="flex flex-col gap-4">

@@ -65,7 +65,7 @@ function VideoPlayer({
   transcriptionUrl,
   isCompleted,
   setOptimisticCompleted,
-  initialActualTime = 0,
+  initialRestrictionTime = 0,
 }: {
   thumbnailkey: string;
   videoKey: string;
@@ -82,7 +82,7 @@ function VideoPlayer({
   transcriptionUrl?: string | null;
   isCompleted?: boolean;
   setOptimisticCompleted: (val: boolean) => void;
-  initialActualTime?: number;
+  initialRestrictionTime?: number;
 }) {
   console.log("[DEBUG] VideoPlayer render", { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
@@ -210,10 +210,34 @@ function VideoPlayer({
   const [resumeTime, setResumeTime] = useState(initialTime);
   useEffect(() => {
     const localProgress = secureStorage.getItem(`video-progress-${lessonId}`);
+    const needsSync =
+      secureStorage.getItem(`needs-sync-${lessonId}`) === "true";
+
     if (localProgress) {
-      setResumeTime(Math.max(initialTime, parseFloat(localProgress)));
+      const parsedLocal = parseFloat(localProgress);
+      // ✅ TRUST local intent if a sync was interrupted (needsSync), otherwise use Math.max for cross-device safety
+      setResumeTime(
+        needsSync ? parsedLocal : Math.max(initialTime, parsedLocal),
+      );
+    } else {
+      setResumeTime(initialTime);
     }
   }, [lessonId, initialTime]);
+
+  // ✅ Restriction time: localStorage high-water mark
+  const restrictionTimeRef = useRef<number>(initialRestrictionTime);
+  useEffect(() => {
+    const localRestriction = parseFloat(
+      secureStorage.getItem(`restriction-time-${lessonId}`) || "0",
+    );
+    const effective = Math.max(initialRestrictionTime, localRestriction);
+    restrictionTimeRef.current = effective;
+    // Persist so we always have the highest known
+    secureStorage.setItemTracked(
+      `restriction-time-${lessonId}`,
+      effective.toString(),
+    );
+  }, [lessonId, initialRestrictionTime]);
 
   const sources = useMemo(() => {
     const list = [];
@@ -236,16 +260,33 @@ function VideoPlayer({
 
   const onTimeUpdate = useCallback(
     (currentTime: number) => {
-      // ✅ Track coverage
-      trackCoverage(currentTime);
+      // ✅ 1. Update Restriction Instantly (Fixes "5 sec slow")
+      if (currentTime > restrictionTimeRef.current) {
+        restrictionTimeRef.current = currentTime;
+        secureStorage.setItemTracked(
+          `restriction-time-${lessonId}`,
+          currentTime.toString(),
+        );
+      }
 
-      // Save position for resume (every 5 seconds)
+      // ✅ 2. Track Coverage Delta
+      const delta = currentTime - lastPositionRef.current;
+      if (delta > 0 && delta < 2.5) {
+        // Multi-tab safety: Only track if page is active
+        if (document.visibilityState === "visible") {
+          sessionDeltaRef.current += delta;
+        }
+      }
+      lastPositionRef.current = currentTime;
+
+      // ✅ 3. Periodic Position Save (localStorage only - every 5 seconds)
       const lastSavedTime = parseFloat(
         secureStorage.getItem(`video-progress-${lessonId}`) || "0",
       );
 
-      if (Math.abs(currentTime - lastSavedTime) > 5) {
+      if (Math.abs(currentTime - lastSavedTime) >= 1) {
         saveProgress(currentTime);
+        saveUnsyncedDelta();
       }
     },
     [lessonId],
@@ -260,6 +301,19 @@ function VideoPlayer({
     saveProgress(lastPositionRef.current);
     saveUnsyncedDelta(); // Ensure delta is saved on pause
   }, [lessonId]);
+
+  const onRestrictionUpdate = useCallback(
+    (maxTime: number) => {
+      if (maxTime > restrictionTimeRef.current) {
+        restrictionTimeRef.current = maxTime;
+        secureStorage.setItemTracked(
+          `restriction-time-${lessonId}`,
+          maxTime.toString(),
+        );
+      }
+    },
+    [lessonId],
+  );
 
   const onEnded = useCallback(() => {
     syncToDB();
@@ -374,6 +428,7 @@ function VideoPlayer({
         targetId,
         currentPosition,
         deltaToSync,
+        restrictionTimeRef.current,
       );
 
       if (response.status === "success" && !specificLessonId) {
@@ -387,10 +442,15 @@ function VideoPlayer({
             lessonId: targetId,
             lastWatched: 0,
             actualWatchTime: 0,
+            restrictionTime: 0,
           };
           progress.lastWatched = currentPosition;
           progress.actualWatchTime =
             (progress.actualWatchTime || 0) + deltaToSync;
+          progress.restrictionTime = Math.max(
+            progress.restrictionTime || 0,
+            restrictionTimeRef.current,
+          );
 
           if (!cached.data.lesson.lessonProgress)
             cached.data.lesson.lessonProgress = [];
@@ -406,8 +466,9 @@ function VideoPlayer({
           queryClient.setQueryData(["lesson_content", lessonId], cached.data);
         }
 
-        // ✅ Clear local state only after successful sync for current lesson
+        // ✅ Clear local state and mark as clean
         clearLocalDelta();
+        secureStorage.removeItemTracked(`needs-sync-${lessonId}`);
         sessionDeltaRef.current = 0;
       } else if (response.status === "success" && specificLessonId) {
         // Update specific lesson cache
@@ -420,10 +481,19 @@ function VideoPlayer({
             lessonId: specificLessonId,
             lastWatched: 0,
             actualWatchTime: 0,
+            restrictionTime: 0,
           };
           progress.lastWatched = currentPosition;
           progress.actualWatchTime =
             (progress.actualWatchTime || 0) + deltaToSync;
+          // Note: for specificLessonId we don't have easy access to its restrictionTimeRef
+          // but if it's the current lesson, restrictionTimeRef.current is accurate.
+          if (specificLessonId === lessonId) {
+            progress.restrictionTime = Math.max(
+              progress.restrictionTime || 0,
+              restrictionTimeRef.current,
+            );
+          }
 
           if (!cached.data.lesson.lessonProgress)
             cached.data.lesson.lessonProgress = [];
@@ -442,8 +512,9 @@ function VideoPlayer({
           );
         }
 
-        // Clear specific lesson delta
+        // Clear specific lesson delta and mark as clean
         secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}`);
+        secureStorage.removeItemTracked(`needs-sync-${specificLessonId}`);
         const expires = new Date(0).toUTCString();
         document.cookie = `unsynced-delta-${specificLessonId}=; expires=${expires}; path=/; SameSite=Lax`;
       }
@@ -473,11 +544,19 @@ function VideoPlayer({
       lastSavedDeltaRef.current = 0;
 
       const savedTime = secureStorage.getItem(`video-progress-${lessonId}`);
-      // ✅ Robust fallback: If storage is missing/stale on mount, use (initialServerTime + localPreviousDelta)
-      const positionToSync = Math.max(
-        initialTime + previousDelta,
-        savedTime ? parseFloat(savedTime) : 0,
-      );
+      const needsSync =
+        secureStorage.getItem(`needs-sync-${lessonId}`) === "true";
+
+      // ✅ Robust fallback: If we "need sync", trust the local saved time (intent).
+      // Otherwise use server time + delta as a safe baseline.
+      const positionToSync = needsSync
+        ? savedTime
+          ? parseFloat(savedTime)
+          : initialTime
+        : Math.max(
+            initialTime + previousDelta,
+            savedTime ? parseFloat(savedTime) : 0,
+          );
 
       // ✅ Update THE REF IMMEDIATELY so subsequent time updates start from the SYNCED position
       lastPositionRef.current = positionToSync;
@@ -492,6 +571,7 @@ function VideoPlayer({
           lessonId: string;
           lastWatched: number;
           delta: number;
+          restrictionTime: number;
         }> = [];
 
         // Add current lesson to batch if it has a delta
@@ -503,6 +583,7 @@ function VideoPlayer({
             lessonId,
             lastWatched: positionToSync,
             delta: previousDelta,
+            restrictionTime: restrictionTimeRef.current,
           });
         }
 
@@ -526,11 +607,16 @@ function VideoPlayer({
             } catch {}
             const otherPosition = rawPos ? parseFloat(rawPos) : 0;
 
-            if (otherDelta > 0) {
+            const otherRestriction = parseFloat(
+              secureStorage.getItem(`restriction-time-${otherLessonId}`) || "0",
+            );
+
+            if (otherDelta > 0 || otherRestriction > 0) {
               updatesToBatch.push({
                 lessonId: otherLessonId,
                 lastWatched: otherPosition,
                 delta: otherDelta,
+                restrictionTime: otherRestriction,
               });
             }
           }
@@ -554,10 +640,15 @@ function VideoPlayer({
                   lessonId: u.lessonId,
                   lastWatched: 0,
                   actualWatchTime: 0,
+                  restrictionTime: 0,
                 };
                 progress.lastWatched = u.lastWatched;
                 progress.actualWatchTime =
                   (progress.actualWatchTime || 0) + u.delta;
+                progress.restrictionTime = Math.max(
+                  progress.restrictionTime || 0,
+                  u.restrictionTime,
+                );
 
                 if (!cached.data.lesson.lessonProgress)
                   cached.data.lesson.lessonProgress = [];
@@ -609,27 +700,7 @@ function VideoPlayer({
   /* ============================================================
      TRACK WATCHED SECONDS (Every second during playback)
   ============================================================ */
-  const trackCoverage = (currentPos: number) => {
-    // 🔴 Multi-tab safety: Only track if the page is active
-    if (document.visibilityState !== "visible") return;
-
-    const delta = currentPos - lastPositionRef.current;
-
-    // ✅ Equivalent Progress: Track delta in video time
-    if (delta > 0 && delta < 2.5) {
-      sessionDeltaRef.current += delta;
-      lastPositionRef.current = currentPos;
-
-      // Heartbeat save to storage every 5 video seconds (User Request: EVERY5 SEC)
-      if (Math.abs(sessionDeltaRef.current - lastSavedDeltaRef.current) >= 5) {
-        saveUnsyncedDelta();
-        saveProgress(currentPos); // ✅ Save position too on heartbeat
-        lastSavedDeltaRef.current = sessionDeltaRef.current;
-      }
-    }
-
-    lastPositionRef.current = currentPos;
-  };
+  // trackCoverage merged into onTimeUpdate for better synchronization
 
   /* ============================================================
      PERSISTENCE HEARTBEAT (Position Only)
@@ -640,7 +711,7 @@ function VideoPlayer({
       if (document.visibilityState === "visible") {
         saveProgress(lastPositionRef.current);
       }
-    }, 5000);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [lessonId]);
@@ -775,6 +846,7 @@ function VideoPlayer({
   ============================================================ */
   const saveProgress = (time: number) => {
     secureStorage.setItemTracked(`video-progress-${lessonId}`, time.toString());
+    secureStorage.setItemTracked(`needs-sync-${lessonId}`, "true"); // Mark dirty
   };
 
   /* ============================================================
@@ -828,7 +900,8 @@ function VideoPlayer({
           className="w-full h-full"
           noDownload
           restrictSeeking={!isCompleted}
-          initialMaxTime={initialActualTime}
+          initialMaxTime={restrictionTimeRef.current}
+          onRestrictionUpdate={onRestrictionUpdate}
         />
       )}
       {/* Transparent overlay — blocks native browser video context menu on mobile */}
@@ -926,8 +999,8 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             transcriptionUrl={lessonData.transcription?.vttUrl}
             isCompleted={isCompleted}
             setOptimisticCompleted={setOptimisticCompleted}
-            initialActualTime={
-              lessonData.lessonProgress?.[0]?.actualWatchTime ?? 0
+            initialRestrictionTime={
+              lessonData.lessonProgress?.[0]?.restrictionTime ?? 0
             }
           />
         </div>

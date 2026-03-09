@@ -1,22 +1,32 @@
-"use server"
+"use server";
 import { requireUser } from "../user/require-user";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import {
+  getCache,
+  setCache,
+  GLOBAL_CACHE_KEYS,
+  getGlobalVersion,
+} from "@/lib/redis";
 
-export async function getLessonContent(lessonId: string, clientVersion?: string) {
+export async function getLessonContent(
+  lessonId: string,
+  clientVersion?: string,
+) {
   const session = await requireUser();
-  
+
   // ✅ Parallel version reads instead of sequential
   const [coursesVersion, userVersion] = await Promise.all([
     getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-    getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id))
+    getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
   ]);
   const currentVersion = `${coursesVersion}_${userVersion}`;
 
   // Smart Sync – version match means client local cache is fresh
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(`[Lesson] ✅ VERSION MATCH → NOT_MODIFIED (v${currentVersion})`);
+    console.log(
+      `[Lesson] ✅ VERSION MATCH → NOT_MODIFIED (v${currentVersion})`,
+    );
     return { status: "not-modified", version: currentVersion };
   }
 
@@ -24,7 +34,9 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
   const cacheKey = `user:lesson:${session.id}:${lessonId}:${currentVersion}`;
   const cached = await getCache<any>(cacheKey);
   if (cached) {
-    console.log(`[Lesson] 🔵 REDIS HIT → lesson:${lessonId} (v${currentVersion})`);
+    console.log(
+      `[Lesson] 🔵 REDIS HIT → lesson:${lessonId} (v${currentVersion})`,
+    );
     return { ...cached, version: currentVersion };
   }
 
@@ -57,10 +69,11 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
           lessonId: true,
           lastWatched: true,
           actualWatchTime: true,
+          restrictionTime: true,
         },
       },
       transcription: {
-        select: { vttUrl: true }
+        select: { vttUrl: true },
       },
       Chapter: {
         select: {
@@ -80,23 +93,21 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
       where: {
         userId_courseId: {
           userId: session.id,
-          courseId: lesson.Chapter.courseId
-        }
+          courseId: lesson.Chapter.courseId,
+        },
       },
-      select: { status: true }
+      select: { status: true },
     }),
     prisma.question.findMany({
       where: { lessonId },
-      orderBy: { order: 'asc' },
+      orderBy: { order: "asc" },
       select: {
         id: true,
         question: true,
         options: true,
-        correctIdx: true,
-        explanation: true,
         order: true,
-      }
-    })
+      },
+    }),
   ]);
 
   console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
@@ -108,7 +119,7 @@ export async function getLessonContent(lessonId: string, clientVersion?: string)
   const result = { lesson, questions };
 
   // ✅ Don't await cache write — let it happen in background
-  setCache(cacheKey, result,  2592000).catch(console.error);
+  setCache(cacheKey, result, 2592000).catch(console.error);
   console.log(`[Lesson] 💾 CACHED in Redis (30 min) → lesson:${lessonId}`);
 
   return { ...result, version: currentVersion };

@@ -107,6 +107,8 @@ interface VideoPlayerProps {
   restrictSeeking?: boolean;
   /** The furthest point the user has ever watched (for initializing restriction) */
   initialMaxTime?: number;
+  /** Called when maxWatchedTime increases (for localStorage sync) */
+  onRestrictionUpdate?: (maxTime: number) => void;
 }
 
 export function VideoPlayer({
@@ -125,6 +127,7 @@ export function VideoPlayer({
   noDownload = false,
   restrictSeeking = false,
   initialMaxTime = 0,
+  onRestrictionUpdate,
 }: VideoPlayerProps) {
   console.log("[DEBUG] VideoPlayer (Custom) render", {
     src: !!src,
@@ -171,9 +174,9 @@ export function VideoPlayer({
   const lastToggleTimeRef = useRef<number>(0);
   const pendingPlayRef = useRef<Promise<void> | null>(null);
 
-  // Furthest point reached during this session or previous one (now based on content watched)
+  // Furthest point reached during this session or previous one (max progress high-water mark)
   const [maxWatchedTime, setMaxWatchedTime] = useState(initialMaxTime);
-  const lastTimeRef = useRef<number>(initialTime);
+  const maxWatchedTimeRef = useRef<number>(initialMaxTime);
 
   const [hasCaptions, setHasCaptions] = useState(!!captionUrl);
 
@@ -295,14 +298,13 @@ export function VideoPlayer({
           });
           onTimeUpdate?.(time); // Original precision for parent tracking
 
-          // ✅ Update maxWatchedTime based on "Actual Watch Time" (delta logic)
-          const delta = time - lastTimeRef.current;
-          if (delta > 0 && delta < 2.5) {
-            setMaxWatchedTime((prev) =>
-              Math.min(player.duration() || 0, prev + delta),
-            );
+          // ✅ Update maxWatchedTime based on max video progress (high-water mark)
+          if (time > maxWatchedTimeRef.current) {
+            const clamped = Math.min(player.duration() || 0, time);
+            maxWatchedTimeRef.current = clamped;
+            setMaxWatchedTime(clamped);
+            onRestrictionUpdate?.(clamped);
           }
-          lastTimeRef.current = time;
         }
       });
       player.on("loadedmetadata", () => {

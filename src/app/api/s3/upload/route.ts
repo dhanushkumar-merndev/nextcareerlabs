@@ -21,7 +21,9 @@ const fileItemSchema = z.object({
 
 const fileUploadSchema = z.union([fileItemSchema, z.array(fileItemSchema)]);
 
-const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 200 }));
+const aj = arcjet.withRule(
+  fixedWindow({ mode: "LIVE", window: "1m", max: 200 }),
+);
 
 export async function POST(request: Request) {
   const session = await requireAdmin();
@@ -39,7 +41,7 @@ export async function POST(request: Request) {
     if (!validation.success) {
       return NextResponse.json(
         { error: "Invalid Request Body", details: validation.error.format() },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -49,14 +51,32 @@ export async function POST(request: Request) {
 
     const results = await Promise.all(
       items.map(async (item) => {
-        const { fileName, contentType, size, isKeyDirect, customKey, prefix, isImage } = item;
+        const {
+          fileName,
+          contentType,
+          size,
+          isKeyDirect,
+          customKey,
+          prefix,
+          isImage,
+        } = item;
 
         // Generate the base filename
         const baseFileName = `${uuidv4()}-${fileName}`;
 
         // Construct the full key: folder/prefix + baseFileName
-        let key = isKeyDirect && customKey ? customKey : baseFileName;
-        if (!isKeyDirect && prefix) {
+        let key = baseFileName;
+        if (isKeyDirect && customKey) {
+          // Security: Prevent directory traversal and invalid characters
+          if (
+            customKey.includes("../") ||
+            customKey.includes("..\\") ||
+            customKey.startsWith("/")
+          ) {
+            throw new Error("Invalid custom key path");
+          }
+          key = customKey;
+        } else if (!isKeyDirect && prefix) {
           // Normalize prefix to ensure it doesn't end with / and starts with required path
           const cleanPrefix = prefix.replace(/\/$/, "");
           key = `${cleanPrefix}/${baseFileName}`;
@@ -78,14 +98,16 @@ export async function POST(request: Request) {
         });
 
         return { presignedUrl, key };
-      })
+      }),
     );
 
-    return NextResponse.json(Array.isArray(validation.data) ? results : results[0]);
+    return NextResponse.json(
+      Array.isArray(validation.data) ? results : results[0],
+    );
   } catch (err) {
     return NextResponse.json(
       { error: "Failed to generate presigned URL" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

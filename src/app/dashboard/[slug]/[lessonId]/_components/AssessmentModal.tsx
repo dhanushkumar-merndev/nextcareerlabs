@@ -6,7 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,13 +18,17 @@ import {
   Trophy,
   RefreshCw,
   Loader2,
-  Eye
+  Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { submitQuizAttempt } from "../actions";
 import { toast } from "sonner";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
 
 function shuffleArray<T>(array: T[]): T[] {
@@ -40,8 +44,8 @@ interface Question {
   id: string;
   question: string;
   options: any; // string[]
-  explanation: string | null;
-  correctIdx: number;
+  explanation?: string | null;
+  correctIdx?: number;
 }
 
 interface ShuffledQuestion extends Question {
@@ -69,15 +73,22 @@ export function AssessmentModal({
   lessonId,
   slug,
   onSuccess,
-  initialPassed
+  initialPassed,
 }: AssessmentModalProps) {
   const [screen, setScreen] = useState<Screen>("quiz");
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
-  const [selectedAnswers, setSelectedAnswers] = useState<number[]>(new Array(questions.length).fill(-1));
+  const [selectedAnswers, setSelectedAnswers] = useState<number[]>(
+    new Array(questions.length).fill(-1),
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [result, setResult] = useState<{ score: number; passed: boolean } | null>(null);
-  const [shuffledQuestions, setShuffledQuestions] = useState<ShuffledQuestion[]>([]);
+  const [result, setResult] = useState<{
+    score: number;
+    passed: boolean;
+  } | null>(null);
+  const [shuffledQuestions, setShuffledQuestions] = useState<
+    ShuffledQuestion[]
+  >([]);
   // Maps shuffled question index -> original option index that the user selected
   const [resolvedAnswers, setResolvedAnswers] = useState<number[]>([]);
   const [showAnswers, setShowAnswers] = useState(true);
@@ -86,14 +97,18 @@ export function AssessmentModal({
   const initializeQuiz = (qs: Question[]) => {
     if (qs.length === 0) return;
 
-    const shuffled = shuffleArray(qs.map((q, qIdx) => ({
-      ...q,
-      originalIndex: qIdx,
-      shuffledOptions: shuffleArray((q.options as string[]).map((opt, oIdx) => ({
-        text: opt,
-        originalIndex: oIdx
-      })))
-    })));
+    const shuffled = shuffleArray(
+      qs.map((q, qIdx) => ({
+        ...q,
+        originalIndex: qIdx,
+        shuffledOptions: shuffleArray(
+          (q.options as string[]).map((opt, oIdx) => ({
+            text: opt,
+            originalIndex: oIdx,
+          })),
+        ),
+      })),
+    );
 
     setShuffledQuestions(shuffled);
     setCurrentIndex(0);
@@ -151,7 +166,8 @@ export function AssessmentModal({
       shuffledQuestions.forEach((sQ, i) => {
         const selectedUIIdx = selectedAnswers[i];
         if (selectedUIIdx !== -1) {
-          const originalOptionIdx = sQ.shuffledOptions[selectedUIIdx].originalIndex;
+          const originalOptionIdx =
+            sQ.shuffledOptions[selectedUIIdx].originalIndex;
           originalAnswers[sQ.originalIndex] = originalOptionIdx;
           resolved[i] = originalOptionIdx; // store per shuffled question slot
         }
@@ -173,27 +189,56 @@ export function AssessmentModal({
         setDirection(0);
         setShowAnswers(true);
 
-        toast.success(`Practice complete! You got ${score} out of ${questions.length} correct.`, {
-          duration: 3000,
-        });
+        toast.success(
+          `Practice complete! You got ${score} out of ${questions.length} correct.`,
+          {
+            duration: 3000,
+          },
+        );
         return;
       }
 
       const res = await submitQuizAttempt(lessonId, slug, originalAnswers);
-      if (res.status === "success" && res.score !== undefined && res.passed !== undefined) {
+      if (
+        res.status === "success" &&
+        res.score !== undefined &&
+        res.passed !== undefined &&
+        res.feedback
+      ) {
+        // Merge feedback into shuffledQuestions for the review screen
+        setShuffledQuestions((prev) =>
+          prev.map((sQ) => {
+            const feedback = res.feedback?.find((f) => f.id === sQ.id);
+            if (feedback) {
+              return {
+                ...sQ,
+                correctIdx: feedback.correctIdx,
+                explanation: feedback.explanation,
+              };
+            }
+            return sQ;
+          }),
+        );
+
         const finalResult = { score: res.score, passed: res.passed };
         setResult(finalResult);
 
         // Show toast with score
         if (res.passed) {
-          toast.success(`You got ${res.score} out of ${questions.length} correct! Assessment passed! 🎉`, {
-            duration: 4000,
-          });
+          toast.success(
+            `You got ${res.score} out of ${questions.length} correct! Assessment passed! 🎉`,
+            {
+              duration: 4000,
+            },
+          );
           onSuccess(); // update sidebar/cache but don't close modal
         } else {
-          toast.error(`You got ${res.score} out of ${questions.length} correct. 15 needed to pass.`, {
-            duration: 4000,
-          });
+          toast.error(
+            `You got ${res.score} out of ${questions.length} correct. 15 needed to pass.`,
+            {
+              duration: 4000,
+            },
+          );
         }
 
         // Switch to review screen
@@ -220,7 +265,8 @@ export function AssessmentModal({
     if (!currentQuestion) return "neutral";
 
     // In Quiz mode (Practice), hide answers if toggle is off
-    if (!isReviewMode && (result?.passed || initialPassed) && !showAnswers) return "neutral";
+    if (!isReviewMode && (result?.passed || initialPassed) && !showAnswers)
+      return "neutral";
 
     const option = currentQuestion.shuffledOptions[shuffledOptionIdx];
     const isCorrect = option.originalIndex === currentQuestion.correctIdx;
@@ -242,7 +288,8 @@ export function AssessmentModal({
   };
 
   const isReviewMode = screen === "review";
-  const canShowAnswerToggle = !isReviewMode && (result?.passed || initialPassed);
+  const canShowAnswerToggle =
+    !isReviewMode && (result?.passed || initialPassed);
   const reviewHeader = result
     ? `${result.score}/${questions.length} Correct`
     : "";
@@ -261,7 +308,14 @@ export function AssessmentModal({
           {/* Progress Bar */}
           <div className="h-1 w-full bg-muted overflow-hidden">
             <motion.div
-              className={cn("h-full", isReviewMode && result?.passed ? "bg-green-500" : isReviewMode ? "bg-red-500" : "bg-primary")}
+              className={cn(
+                "h-full",
+                isReviewMode && result?.passed
+                  ? "bg-green-500"
+                  : isReviewMode
+                    ? "bg-red-500"
+                    : "bg-primary",
+              )}
               initial={{ width: 0 }}
               animate={{ width: isReviewMode ? "100%" : `${progress}%` }}
               transition={{ duration: 0.3 }}
@@ -273,20 +327,34 @@ export function AssessmentModal({
             <div className="flex items-center justify-between py-6 px-4 mb-4 w-full">
               <div className="flex items-center gap-1 text-primary font-bold">
                 <div className="p-2 rounded-lg">
-                  {isReviewMode ? <Eye className="size-5" /> : <HelpCircle className="size-5" />}
+                  {isReviewMode ? (
+                    <Eye className="size-5" />
+                  ) : (
+                    <HelpCircle className="size-5" />
+                  )}
                 </div>
                 <span className="text-sm uppercase tracking-wider">
-                  {isReviewMode ? `Review: ${currentIndex + 1}/${questions.length}` : `Question ${currentIndex + 1} of ${questions.length}`}
+                  {isReviewMode
+                    ? `Review: ${currentIndex + 1}/${questions.length}`
+                    : `Question ${currentIndex + 1} of ${questions.length}`}
                 </span>
               </div>
 
               <div className="flex items-center gap-2">
                 {isReviewMode && result && (
-                  <div className={cn(
-                    "flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full",
-                    result.passed ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
-                  )}>
-                    {result.passed ? <Trophy className="size-3.5" /> : <XCircle className="size-3.5" />}
+                  <div
+                    className={cn(
+                      "flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full",
+                      result.passed
+                        ? "bg-green-500/10 text-green-500"
+                        : "bg-red-500/10 text-red-500",
+                    )}
+                  >
+                    {result.passed ? (
+                      <Trophy className="size-3.5" />
+                    ) : (
+                      <XCircle className="size-3.5" />
+                    )}
                     {reviewHeader}
                   </div>
                 )}
@@ -304,8 +372,9 @@ export function AssessmentModal({
                       </div>
                     </PopoverTrigger>
                     <PopoverContent className="w-84 mr-6 text-xs z-10000">
-                      You must score at least 15 correct answers out of 20 to pass this assessment.
-                      This ensures you have a strong understanding of the topic.
+                      You must score at least 15 correct answers out of 20 to
+                      pass this assessment. This ensures you have a strong
+                      understanding of the topic.
                     </PopoverContent>
                   </Popover>
                 )}
@@ -337,7 +406,7 @@ export function AssessmentModal({
                   exit="exit"
                   transition={{
                     x: { type: "spring", stiffness: 300, damping: 30 },
-                    opacity: { duration: 0.2 }
+                    opacity: { duration: 0.2 },
                   }}
                   className="flex-1 flex flex-col md:max-w-4xl md:mx-auto md:w-full md:flex-initial"
                 >
@@ -346,7 +415,9 @@ export function AssessmentModal({
                   </h3>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 md:flex-initial overflow-y-auto pr-2 custom-scrollbar md:pr-0">
-                    {(currentQuestion.shuffledOptions as ShuffledQuestion["shuffledOptions"]).map((option, idx) => {
+                    {(
+                      currentQuestion.shuffledOptions as ShuffledQuestion["shuffledOptions"]
+                    ).map((option, idx) => {
                       const reviewState = getOptionReviewState(idx);
                       const isSelected = selectedAnswers[currentIndex] === idx;
 
@@ -358,35 +429,63 @@ export function AssessmentModal({
                           className={cn(
                             "w-full text-left p-4 md:p-6 rounded-xl border-2 transition-all duration-200 group flex items-start gap-4 disabled:cursor-default",
                             // Quiz mode defaults
-                            !isReviewMode && reviewState === "neutral" && (isSelected
-                              ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
-                              : "border-border hover:border-primary/50 hover:bg-muted/30"),
+                            !isReviewMode &&
+                              reviewState === "neutral" &&
+                              (isSelected
+                                ? "border-primary bg-primary/5 shadow-md shadow-primary/5"
+                                : "border-border hover:border-primary/50 hover:bg-muted/30"),
                             // Review or Show Answers in Quiz
-                            reviewState === "correct" && "border-green-500 bg-green-500/10",
-                            reviewState === "wrong" && "border-red-500 bg-red-500/10",
-                            isReviewMode && reviewState === "neutral" && "border-border opacity-50",
+                            reviewState === "correct" &&
+                              "border-green-500 bg-green-500/10",
+                            reviewState === "wrong" &&
+                              "border-red-500 bg-red-500/10",
+                            isReviewMode &&
+                              reviewState === "neutral" &&
+                              "border-border opacity-50",
                           )}
                         >
-                          <div className={cn(
-                            "size-6 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
-                            !isReviewMode && reviewState === "neutral" && (isSelected
-                              ? "border-primary bg-primary text-white"
-                              : "border-muted-foreground group-hover:border-primary"),
-                            reviewState === "correct" && "border-green-500 bg-green-500 text-white",
-                            reviewState === "wrong" && "border-red-500 bg-red-500 text-white",
-                            isReviewMode && reviewState === "neutral" && "border-muted-foreground",
-                          )}>
-                            {!isReviewMode && reviewState === "neutral" && isSelected && <CheckCircle2 className="size-4" />}
-                            {reviewState === "correct" && <CheckCircle2 className="size-4" />}
-                            {reviewState === "wrong" && <XCircle className="size-4" />}
+                          <div
+                            className={cn(
+                              "size-6 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
+                              !isReviewMode &&
+                                reviewState === "neutral" &&
+                                (isSelected
+                                  ? "border-primary bg-primary text-white"
+                                  : "border-muted-foreground group-hover:border-primary"),
+                              reviewState === "correct" &&
+                                "border-green-500 bg-green-500 text-white",
+                              reviewState === "wrong" &&
+                                "border-red-500 bg-red-500 text-white",
+                              isReviewMode &&
+                                reviewState === "neutral" &&
+                                "border-muted-foreground",
+                            )}
+                          >
+                            {!isReviewMode &&
+                              reviewState === "neutral" &&
+                              isSelected && <CheckCircle2 className="size-4" />}
+                            {reviewState === "correct" && (
+                              <CheckCircle2 className="size-4" />
+                            )}
+                            {reviewState === "wrong" && (
+                              <XCircle className="size-4" />
+                            )}
                           </div>
-                          <span className={cn(
-                            "text-sm md:text-base font-medium leading-normal",
-                            !isReviewMode && reviewState === "neutral" && (isSelected ? "text-primary" : "text-foreground"),
-                            reviewState === "correct" && "text-green-500",
-                            reviewState === "wrong" && "text-red-500",
-                            isReviewMode && reviewState === "neutral" && "text-muted-foreground",
-                          )}>
+                          <span
+                            className={cn(
+                              "text-sm md:text-base font-medium leading-normal",
+                              !isReviewMode &&
+                                reviewState === "neutral" &&
+                                (isSelected
+                                  ? "text-primary"
+                                  : "text-foreground"),
+                              reviewState === "correct" && "text-green-500",
+                              reviewState === "wrong" && "text-red-500",
+                              isReviewMode &&
+                                reviewState === "neutral" &&
+                                "text-muted-foreground",
+                            )}
+                          >
                             {option.text}
                           </span>
                         </button>
@@ -395,10 +494,14 @@ export function AssessmentModal({
                   </div>
 
                   {/* Show explanation if toggled in Practice, or always in Review */}
-                  {((isReviewMode) || (showAnswers && screen === "quiz" && initialPassed)) && (
+                  {(isReviewMode ||
+                    (showAnswers && screen === "quiz" && initialPassed)) && (
                     <div className="mt-4 md:mt-6 p-4 rounded-xl bg-muted/50 border border-border text-sm text-muted-foreground md:max-w-4xl md:mx-auto md:w-full">
-                      <span className="font-bold text-foreground">Explanation: </span>
-                      {currentQuestion.explanation || "No detailed explanation available for this question."}
+                      <span className="font-bold text-foreground">
+                        Explanation:{" "}
+                      </span>
+                      {currentQuestion.explanation ||
+                        "No detailed explanation available for this question."}
                     </div>
                   )}
 
@@ -422,12 +525,12 @@ export function AssessmentModal({
                     <div className="flex justify-center">
                       {canShowAnswerToggle && (
                         <button
-                          onClick={() => setShowAnswers(v => !v)}
+                          onClick={() => setShowAnswers((v) => !v)}
                           className={cn(
                             "flex items-center gap-2 px-5 py-2 rounded-full font-bold text-xs transition-all duration-200 border-2",
                             showAnswers
                               ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
-                              : "bg-muted/60 text-muted-foreground border-border hover:bg-muted"
+                              : "bg-muted/60 text-muted-foreground border-border hover:bg-muted",
                           )}
                         >
                           <Eye className="size-3.5" />
@@ -456,7 +559,9 @@ export function AssessmentModal({
                               onClick={onClose}
                               className={cn(
                                 "rounded-full px-10 h-12 font-bold uppercase tracking-tight text-xs",
-                                result?.passed ? "bg-green-500 hover:bg-green-600 shadow-xl shadow-green-500/20" : ""
+                                result?.passed
+                                  ? "bg-green-500 hover:bg-green-600 shadow-xl shadow-green-500/20"
+                                  : "",
                               )}
                             >
                               {result?.passed ? "Close & Continue" : "Close"}
@@ -465,17 +570,28 @@ export function AssessmentModal({
                         ) : (
                           <Button
                             onClick={handleSubmit}
-                            disabled={selectedAnswers.includes(-1) || isSubmitting}
+                            disabled={
+                              selectedAnswers.includes(-1) || isSubmitting
+                            }
                             className="gap-2 rounded-full px-10 h-12 font-bold uppercase tracking-tight text-xs"
                           >
-                            {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
-                            {initialPassed ? "Finish Practice" : "Finish Assessment"}
+                            {isSubmitting ? (
+                              <Loader2 className="size-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="size-4" />
+                            )}
+                            {initialPassed
+                              ? "Finish Practice"
+                              : "Finish Assessment"}
                           </Button>
                         )
                       ) : (
                         <Button
                           onClick={handleNext}
-                          disabled={!isReviewMode && selectedAnswers[currentIndex] === -1}
+                          disabled={
+                            !isReviewMode &&
+                            selectedAnswers[currentIndex] === -1
+                          }
                           className="h-12 px-6 rounded-full flex items-center gap-1 bg-transparent hover:bg-transparent focus-visible:ring-0 shadow-none cursor-pointer text-foreground"
                         >
                           <span className="text-sm">Next</span>
@@ -506,12 +622,12 @@ export function AssessmentModal({
             {/* Show/Hide toggle in mobile footer - always visible when passed */}
             {canShowAnswerToggle && (
               <button
-                onClick={() => setShowAnswers(v => !v)}
+                onClick={() => setShowAnswers((v) => !v)}
                 className={cn(
                   "flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-[11px] transition-all duration-200 border-2 shrink-0",
                   showAnswers
                     ? "bg-primary/10 text-primary border-primary/30"
-                    : "bg-muted/60 text-muted-foreground border-border"
+                    : "bg-muted/60 text-muted-foreground border-border",
                 )}
               >
                 <Eye className="size-3.5" />
@@ -538,7 +654,7 @@ export function AssessmentModal({
                     size="sm"
                     className={cn(
                       "rounded-full px-6 font-bold uppercase tracking-tight text-xs",
-                      result?.passed ? "bg-green-500 hover:bg-green-600" : ""
+                      result?.passed ? "bg-green-500 hover:bg-green-600" : "",
                     )}
                   >
                     Close
@@ -550,7 +666,11 @@ export function AssessmentModal({
                   disabled={selectedAnswers.includes(-1) || isSubmitting}
                   className="gap-2 rounded-full px-8 font-bold uppercase tracking-tight text-xs shadow-lg shadow-primary/20"
                 >
-                  {isSubmitting ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+                  {isSubmitting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="size-4" />
+                  )}
                   {initialPassed ? "Finish" : "Finish"}
                 </Button>
               )
@@ -566,7 +686,6 @@ export function AssessmentModal({
             )}
           </div>
         </div>
-
       </DialogContent>
     </Dialog>
   );

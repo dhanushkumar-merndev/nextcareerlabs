@@ -5,7 +5,17 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { NotificationType } from "@/generated/prisma";
-import { getCache, setCache, invalidateCache, CHAT_CACHE_KEYS, getChatVersion, incrementChatVersion, getGlobalVersion, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
+import {
+  getCache,
+  setCache,
+  invalidateCache,
+  CHAT_CACHE_KEYS,
+  getChatVersion,
+  incrementChatVersion,
+  getGlobalVersion,
+  incrementGlobalVersion,
+  GLOBAL_CACHE_KEYS,
+} from "@/lib/redis";
 import { TicketResponse } from "@/lib/types/components";
 async function getSession() {
   return await auth.api.getSession({
@@ -17,21 +27,17 @@ async function getSession() {
  * Send a notification (Broadcast, Ticket, etc.)
  */
 
-
-export async function sendNotificationAction(
-  data: {
-    title: string;
-    content: string;
-    type: NotificationType;
-    courseId?: string;
-    recipientId?: string;
-    imageUrl?: string;
-    threadId?: string;
-    fileUrl?: string;
-    fileName?: string;
-  }
-): Promise<TicketResponse> 
- {
+export async function sendNotificationAction(data: {
+  title: string;
+  content: string;
+  type: NotificationType;
+  courseId?: string;
+  recipientId?: string;
+  imageUrl?: string;
+  threadId?: string;
+  fileUrl?: string;
+  fileName?: string;
+}): Promise<TicketResponse> {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
@@ -42,7 +48,7 @@ export async function sendNotificationAction(
   if (!threadId && data.type === "SUPPORT_TICKET") {
     threadId = `support_${session.user.id}`;
   }
-  
+
   // For other types, generate a random one if missing
   threadId = threadId || crypto.randomUUID();
 
@@ -52,49 +58,54 @@ export async function sendNotificationAction(
 
   if (data.threadId) {
     const group = await prisma.chatGroup.findUnique({
-        where: { id: data.threadId },
-        select: { id: true, courseId: true, name: true }
+      where: { id: data.threadId },
+      select: { id: true, courseId: true, name: true },
     });
     if (group) {
-        chatGroupId = group.id;
-        finalType = "GROUP_CHAT";
-        
-        // Restriction: Only Admins can post to Broadcast group
-        if (group.name === "Broadcast" && group.courseId === null && session.user.role !== "admin") {
-            throw new Error("Only admins can post to the Broadcast channel");
-        }
+      chatGroupId = group.id;
+      finalType = "GROUP_CHAT";
+
+      // Restriction: Only Admins can post to Broadcast group
+      if (
+        group.name === "Broadcast" &&
+        group.courseId === null &&
+        session.user.role !== "admin"
+      ) {
+        throw new Error("Only admins can post to the Broadcast channel");
+      }
     }
   }
 
   // Enforcement: 3-ticket limit for users
   if (data.type === "SUPPORT_TICKET") {
     if (session.user.isSupportBanned) {
-        throw new Error("You are banned from creating support tickets.");
+      throw new Error("You are banned from creating support tickets.");
     }
-    
+
     const startOfDay = new Date();
-    startOfDay.setHours(0,0,0,0);
-    
+    startOfDay.setHours(0, 0, 0, 0);
+
     // Check how many messages (tickets) the user has sent today
     const dailyTickets = await prisma.notification.count({
       where: {
         senderId: session.user.id,
         type: "SUPPORT_TICKET",
-        createdAt: { gte: startOfDay }
-      }
+        createdAt: { gte: startOfDay },
+      },
     });
 
     if (dailyTickets >= 3) {
       const now = new Date();
       const nextDay = new Date(now);
-      nextDay.setHours(24, 0, 0, 0); 
-      const minutesLeft = Math.ceil((nextDay.getTime() - now.getTime()) / (1000 * 60));
+      nextDay.setHours(24, 0, 0, 0);
+      const minutesLeft = Math.ceil(
+        (nextDay.getTime() - now.getTime()) / (1000 * 60),
+      );
       return {
-  success: false,
-  code: "TICKET_LIMIT_REACHED",
-  minutesLeft,
-};
-
+        success: false,
+        code: "TICKET_LIMIT_REACHED",
+        minutesLeft,
+      };
     }
 
     // Ensure the thread is visible for both parties
@@ -113,34 +124,35 @@ export async function sendNotificationAction(
       fileUrl: data.fileUrl,
       fileName: data.fileName,
       threadId: threadId,
-      chatGroupId: chatGroupId
+      chatGroupId: chatGroupId,
     },
   });
-
-
 
   // Unhide for everyone (if it was hidden) - ONLY ONCE
   if (threadId) {
     await unhideThreadForAll(threadId);
-    
+
     // Invalidate caches
     const recipientId = data.recipientId;
     const senderId = session.user.id;
     const isAdmin = session.user.role === "admin";
 
     await Promise.all([
-        !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(senderId)),
-        !isAdmin && incrementChatVersion(senderId),
-        recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(recipientId)),
-        recipientId && incrementChatVersion(recipientId),
-        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
-        (isAdmin || data.type === "SUPPORT_TICKET") && invalidateAdminsCache(),
-        // Invalidate dashboard for the user
-        !isAdmin && invalidateCache(`user:dashboard:${senderId}`),
-        !isAdmin && incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(senderId)),
-        // Analytics invalidation for resources
-        (data.fileUrl || data.imageUrl) && invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
-        (data.fileUrl || data.imageUrl) && incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
+      !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(senderId)),
+      !isAdmin && incrementChatVersion(senderId),
+      recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(recipientId)),
+      recipientId && incrementChatVersion(recipientId),
+      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
+      (isAdmin || data.type === "SUPPORT_TICKET") && invalidateAdminsCache(),
+      // Invalidate dashboard for the user
+      !isAdmin && invalidateCache(`user:dashboard:${senderId}`),
+      !isAdmin &&
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(senderId)),
+      // Analytics invalidation for resources
+      (data.fileUrl || data.imageUrl) &&
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+      (data.fileUrl || data.imageUrl) &&
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
     ]);
   }
 
@@ -156,16 +168,21 @@ export async function sendNotificationAction(
  * Ensures the admin sidebar updates in real-time when new tickets are created.
  */
 export async function invalidateAdminsCache() {
-    try {
-        await Promise.all([
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
-          invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR)
-        ]);
-        console.log(`[AdminSync] Incremented global admin chat version and invalidated shared sidebar cache.`);
-    } catch (error) {
-        console.error("[AdminSync] Failed to invalidate global admin cache:", error);
-    }
+  try {
+    await Promise.all([
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+    ]);
+    console.log(
+      `[AdminSync] Incremented global admin chat version and invalidated shared sidebar cache.`,
+    );
+  } catch (error) {
+    console.error(
+      "[AdminSync] Failed to invalidate global admin cache:",
+      error,
+    );
+  }
 }
 
 export async function replyToTicketAction(data: {
@@ -176,7 +193,8 @@ export async function replyToTicketAction(data: {
   fileName?: string;
 }) {
   const session = await getSession();
-  if (!session || session.user.role !== "admin") throw new Error("Unauthorized");
+  if (!session || session.user.role !== "admin")
+    throw new Error("Unauthorized");
 
   const notification = await prisma.notification.create({
     data: {
@@ -196,12 +214,14 @@ export async function replyToTicketAction(data: {
 
   // Invalidate caches
   await Promise.all([
-      invalidateCache(CHAT_CACHE_KEYS.THREADS(data.recipientId)),
-      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(data.threadId)),
-      incrementChatVersion(data.recipientId),
-      invalidateAdminsCache(), // Update global admin cache
-      (data.fileUrl) && invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
-      (data.fileUrl) && incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
+    invalidateCache(CHAT_CACHE_KEYS.THREADS(data.recipientId)),
+    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(data.threadId)),
+    incrementChatVersion(data.recipientId),
+    invalidateAdminsCache(), // Update global admin cache
+    data.fileUrl &&
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+    data.fileUrl &&
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
   ]);
 
   // Mark all messages in thread as read for admin? Or just specific ones?
@@ -217,132 +237,144 @@ export async function replyToTicketAction(data: {
 
 export async function getThreadsAction(clientVersion?: string) {
   const session = await getSession();
-  if (!session) return { threads: [], version: "0", enrolledCourses: [], presence: null };
+  if (!session)
+    return { threads: [], version: "0", enrolledCourses: [], presence: null };
 
   let currentVersion = await getChatVersion(session.user.id);
   const isAdmin = session.user.role === "admin";
 
   if (isAdmin) {
-      // Admins ONLY use the global version to prevent redundant per-user versions in Redis/LocalStorage
-      currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION);
-  }
-  
-  // If client already has the latest version, don't download everything
-  if (clientVersion && clientVersion === currentVersion) {
-      console.log(`[getThreadsAction] Version Match (${clientVersion}) for user ${session.user.id}. Returning NOT_MODIFIED.`);
-      return { status: "not-modified", version: currentVersion };
+    // Admins ONLY use the global version to prevent redundant per-user versions in Redis/LocalStorage
+    currentVersion = await getGlobalVersion(
+      GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION,
+    );
   }
 
-  const cacheKey = isAdmin 
+  // If client already has the latest version, don't download everything
+  if (clientVersion && clientVersion === currentVersion) {
+    console.log(
+      `[getThreadsAction] Version Match (${clientVersion}) for user ${session.user.id}. Returning NOT_MODIFIED.`,
+    );
+    return { status: "not-modified", version: currentVersion };
+  }
+
+  const cacheKey = isAdmin
     ? GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR
     : CHAT_CACHE_KEYS.THREADS(session.user.id);
-  
+
   const cachedData = await getCache<any>(cacheKey);
 
   if (cachedData && cachedData.version === currentVersion) {
-    console.log(`[getThreadsAction] Redis Cache HIT (Fresh) for user ${session.user.id}.`);
+    console.log(
+      `[getThreadsAction] Redis Cache HIT (Fresh) for user ${session.user.id}.`,
+    );
     return cachedData;
   }
 
-  console.log(`[getThreadsAction] Redis Cache MISS for user ${session.user.id}. Fetching from Prisma DB...`);
+  console.log(
+    `[getThreadsAction] Redis Cache MISS for user ${session.user.id}. Fetching from Prisma DB...`,
+  );
 
   // Ensure default "Broadcast" group exists (Only on cache miss for admins)
   if (isAdmin) {
-      const missingGroupsCount = await prisma.course.count({
-          where: { status: "Published", chatGroups: { none: {} } }
-      });
-      const broadcastExist = await prisma.chatGroup.findFirst({
-          where: { name: "Broadcast", courseId: null },
-          select: { id: true }
-      });
-      
-      if (missingGroupsCount > 0 || !broadcastExist) {
-          if (!broadcastExist) {
-              await prisma.chatGroup.create({ data: { name: "Broadcast" } });
-          }
-          const missingGroups = await prisma.course.findMany({
-              where: { status: "Published", chatGroups: { none: {} } }
-          });
-          if (missingGroups.length > 0) {
-              await Promise.all(missingGroups.map(c => 
-                  prisma.chatGroup.create({
-                      data: {
-                          name: `${c.title} Group`,
-                          courseId: c.id,
-                          imageUrl: c.fileKey
-                      }
-                  })
-              ));
-          }
-           revalidatePath("/admin/resources");
+    const missingGroupsCount = await prisma.course.count({
+      where: { status: "Published", chatGroups: { none: {} } },
+    });
+    const broadcastExist = await prisma.chatGroup.findFirst({
+      where: { name: "Broadcast", courseId: null },
+      select: { id: true },
+    });
+
+    if (missingGroupsCount > 0 || !broadcastExist) {
+      if (!broadcastExist) {
+        await prisma.chatGroup.create({ data: { name: "Broadcast" } });
       }
+      const missingGroups = await prisma.course.findMany({
+        where: { status: "Published", chatGroups: { none: {} } },
+      });
+      if (missingGroups.length > 0) {
+        await Promise.all(
+          missingGroups.map((c) =>
+            prisma.chatGroup.create({
+              data: {
+                name: `${c.title} Group`,
+                courseId: c.id,
+                imageUrl: c.fileKey,
+              },
+            }),
+          ),
+        );
+      }
+      revalidatePath("/admin/resources");
+    }
   }
 
-
   // Strategy: Group by threadId to find unique conversations
-  const whereClause: any = isAdmin 
-    ? { 
+  const whereClause: any = isAdmin
+    ? {
         OR: [
-            { type: "SUPPORT_TICKET" }, 
-            { type: "ADMIN_REPLY" }, 
-            { 
-                type: "GROUP_CHAT",
-                NOT: {
-                    chatGroup: {
-                        name: { equals: "Support", mode: "insensitive" }
-                    }
-                }
-            }
+          { type: "SUPPORT_TICKET" },
+          { type: "ADMIN_REPLY" },
+          {
+            type: "GROUP_CHAT",
+            NOT: {
+              chatGroup: {
+                name: { equals: "Support", mode: "insensitive" },
+              },
+            },
+          },
         ],
       }
-    : { 
+    : {
         OR: [
-           { 
-                senderId: session.user.id,
-                NOT: {
-                    chatGroup: {
-                        name: { equals: "Support", mode: "insensitive" }
-                    }
-                }
-           }, 
-           { 
-                recipientId: session.user.id,
-                NOT: {
-                    chatGroup: {
-                        name: { equals: "Support", mode: "insensitive" }
-                    }
-                }
-           }
-        ]
+          {
+            senderId: session.user.id,
+            NOT: {
+              chatGroup: {
+                name: { equals: "Support", mode: "insensitive" },
+              },
+            },
+          },
+          {
+            recipientId: session.user.id,
+            NOT: {
+              chatGroup: {
+                name: { equals: "Support", mode: "insensitive" },
+              },
+            },
+          },
+        ],
       };
 
   const dbStartTime = Date.now();
   // 1. Get unique threads and their latest message timestamp
   const threadMaxDates = await prisma.notification.groupBy({
-    by: ['threadId'],
+    by: ["threadId"],
     where: {
-      ...whereClause as any,
-      threadId: { not: null }
+      ...(whereClause as any),
+      threadId: { not: null },
     },
-    _max: { createdAt: true }
+    _max: { createdAt: true },
   });
-  console.log(`[getThreadsAction] GroupBy Threads took ${Date.now() - dbStartTime}ms`);
+  console.log(
+    `[getThreadsAction] GroupBy Threads took ${Date.now() - dbStartTime}ms`,
+  );
 
-  const threadIds = threadMaxDates.map(t => t.threadId!).filter(Boolean);
-  
+  const threadIds = threadMaxDates.map((t) => t.threadId!).filter(Boolean);
+
   // 5. BATCH FETCH CHAT GROUPS WHERE CLAUSE
   let groupWhere: any = { name: { not: "Support", mode: "insensitive" } };
   if (!isAdmin) {
     const userEnrollments = await prisma.enrollment.findMany({
       where: { userId: session.user.id, status: "Granted" },
-      select: { courseId: true }
+      select: { courseId: true },
     });
-    const courseIds = userEnrollments.map(e => e.courseId);
+    const courseIds = userEnrollments.map((e) => e.courseId);
     groupWhere = {
-        AND: [
-            { name: { not: "Support" } },
-            { OR: [{ courseId: { in: courseIds } }, { courseId: null }] }
-        ]
+      AND: [
+        { name: { not: "Support" } },
+        { OR: [{ courseId: { in: courseIds } }, { courseId: null }] },
+      ],
     };
   }
 
@@ -354,50 +386,64 @@ export async function getThreadsAction(clientVersion?: string) {
     groups,
     userStates,
     enrollmentData,
-    latestNotification
+    latestNotification,
   ] = await Promise.all([
     // Latest Messages (The big one)
-    threadIds.length > 0 ? prisma.notification.findMany({
-      where: {
-        OR: threadMaxDates.map(t => ({
-          threadId: t.threadId,
-          createdAt: t._max.createdAt!
-        }))
-      },
-      include: {
-        sender: { select: { id: true, name: true, image: true, email: true } },
-        recipient: { select: { id: true, name: true, image: true, email: true } },
-        chatGroup: true
-      }
-    }) : Promise.resolve([]),
+    threadIds.length > 0
+      ? prisma.notification.findMany({
+          where: {
+            OR: threadMaxDates.map((t) => ({
+              threadId: t.threadId,
+              createdAt: t._max.createdAt!,
+            })),
+          },
+          include: {
+            sender: {
+              select: { id: true, name: true, image: true, email: true },
+            },
+            recipient: {
+              select: { id: true, name: true, image: true, email: true },
+            },
+            chatGroup: true,
+          },
+        })
+      : Promise.resolve([]),
 
     // Unresolved Tickets
-    threadIds.length > 0 ? prisma.notification.findMany({
-      where: {
-        threadId: { in: threadIds },
-        type: "SUPPORT_TICKET",
-        resolved: false
-      },
-      select: { threadId: true }
-    }) : Promise.resolve([]),
+    threadIds.length > 0
+      ? prisma.notification.findMany({
+          where: {
+            threadId: { in: threadIds },
+            type: "SUPPORT_TICKET",
+            resolved: false,
+          },
+          select: { threadId: true },
+        })
+      : Promise.resolve([]),
 
     // Student Info (Admin only)
-    isAdmin && threadIds.length > 0 ? prisma.notification.findMany({
-      where: {
-        threadId: { in: threadIds },
-        sender: {
-            OR: [ { role: null }, { role: { not: "admin" } } ]
-        }
-      },
-      distinct: ['threadId'],
-      orderBy: { createdAt: 'asc' },
-      include: { sender: { select: { id: true, name: true, image: true, email: true } } }
-    }) : Promise.resolve([]),
+    isAdmin && threadIds.length > 0
+      ? prisma.notification.findMany({
+          where: {
+            threadId: { in: threadIds },
+            sender: {
+              OR: [{ role: null }, { role: { not: "admin" } }],
+            },
+          },
+          distinct: ["threadId"],
+          orderBy: { createdAt: "asc" },
+          include: {
+            sender: {
+              select: { id: true, name: true, image: true, email: true },
+            },
+          },
+        })
+      : Promise.resolve([]),
 
     // Chat Groups
     prisma.chatGroup.findMany({
       where: groupWhere,
-      include: { messages: { take: 1, orderBy: { createdAt: 'desc' } } }
+      include: { messages: { take: 1, orderBy: { createdAt: "desc" } } },
     }),
 
     // User Thread States
@@ -406,147 +452,182 @@ export async function getThreadsAction(clientVersion?: string) {
     // Enrolled Courses for Meta
     prisma.enrollment.findMany({
       where: { userId: session.user.id, status: "Granted" },
-      include: { Course: { select: { id: true, title: true } } }
+      include: { Course: { select: { id: true, title: true } } },
     }),
 
     // Version Check
     prisma.notification.findFirst({
-        where: {
-            OR: [
-                { recipientId: session.user.id },
-                { senderId: session.user.id },
-                { type: "BROADCAST" }
-            ]
-        },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true }
-    })
+      where: {
+        OR: [
+          { recipientId: session.user.id },
+          { senderId: session.user.id },
+          { type: "BROADCAST" },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
   ]);
-  console.log(`[getThreadsAction] Big Parallel Fetch took ${Date.now() - dbStartTime}ms (Threads: ${threadIds.length})`);
+  console.log(
+    `[getThreadsAction] Big Parallel Fetch took ${Date.now() - dbStartTime}ms (Threads: ${threadIds.length})`,
+  );
 
   // Transform Maps
   const unresolvedMap: Record<string, number> = {};
-  unresolvedTicketsResults.forEach(msg => {
-      if (msg.threadId) unresolvedMap[msg.threadId] = (unresolvedMap[msg.threadId] || 0) + 1;
+  unresolvedTicketsResults.forEach((msg) => {
+    if (msg.threadId)
+      unresolvedMap[msg.threadId] = (unresolvedMap[msg.threadId] || 0) + 1;
   });
 
   const studentMap: Record<string, any> = {};
   if (isAdmin) {
-      studentMsgs.forEach(m => { if (m.threadId) studentMap[m.threadId] = m.sender; });
+    studentMsgs.forEach((m) => {
+      if (m.threadId) studentMap[m.threadId] = m.sender;
+    });
   }
 
-  const enrollmentCourses = enrollmentData.map(e => e.Course);
-  const stateMap = new Map((userStates as any[]).map(s => [s.threadId, s]));
+  const enrollmentCourses = enrollmentData.map((e) => e.Course);
+  const stateMap = new Map((userStates as any[]).map((s) => [s.threadId, s]));
 
   // Combine results in memory
-  const threadDetails = (latestMsgs as any[]).map(latestMsg => {
+  const threadDetails = (latestMsgs as any[]).map((latestMsg) => {
     const threadId = latestMsg.threadId!;
-    let display = { name: "Support Team", image: "", email: "support@platform.com" };
+    let display = {
+      name: "Support Team",
+      image: "",
+      email: "support@platform.com",
+    };
 
     if (latestMsg.chatGroupId && latestMsg.chatGroup) {
-        display = {
-            name: latestMsg.chatGroup.name,
-            image: latestMsg.chatGroup.imageUrl || "",
-            email: "Group"
-        };
+      display = {
+        name: latestMsg.chatGroup.name,
+        image: latestMsg.chatGroup.imageUrl || "",
+        email: "Group",
+      };
     } else if (isAdmin) {
-      let targetUser = (latestMsg.senderId !== session.user.id) ? latestMsg.sender : (latestMsg.recipient || studentMap[threadId]);
+      let targetUser =
+        latestMsg.senderId !== session.user.id
+          ? latestMsg.sender
+          : latestMsg.recipient || studentMap[threadId];
       if (targetUser) {
-        display = { name: targetUser.name || targetUser.email || "Student", image: targetUser.image || "", email: targetUser.email };
+        display = {
+          name: targetUser.name || targetUser.email || "Student",
+          image: targetUser.image || "",
+          email: targetUser.email,
+        };
       } else {
         display = { name: "Ticket User", image: "", email: "" };
       }
     }
 
     const isThreadResolved = !(unresolvedMap[threadId] > 0);
-    
+
     // Improved preview logic for attachments and statuses
     let previewMessage = latestMsg.content || "";
-    
+
     // Status-based previews (Feedback/Resolution)
     if (latestMsg.feedback) {
-        const f = latestMsg.feedback.toLowerCase().trim();
-        if (f.includes("positive feedback") || ["helpful", "yes"].includes(f)) {
-            previewMessage = "Positive Feedback";
-        } else if (f.includes("negative feedback") || ["more help", "no"].includes(f)) {
-            previewMessage = "Negative Feedback";
-        } else if (f === "resolved") {
-            previewMessage = "Issue Resolved";
-        } else if (f === "denied") {
-            previewMessage = "Issue Denied";
-        }
+      const f = latestMsg.feedback.toLowerCase().trim();
+      if (f.includes("positive feedback") || ["helpful", "yes"].includes(f)) {
+        previewMessage = "Positive Feedback";
+      } else if (
+        f.includes("negative feedback") ||
+        ["more help", "no"].includes(f)
+      ) {
+        previewMessage = "Negative Feedback";
+      } else if (f === "resolved") {
+        previewMessage = "Issue Resolved";
+      } else if (f === "denied") {
+        previewMessage = "Issue Denied";
+      }
     }
 
     if (!previewMessage.trim()) {
-        if (latestMsg.imageUrl) previewMessage = "Image";
-        else if (latestMsg.fileUrl) previewMessage = `PDF (${latestMsg.fileName || "Document"})`;
+      if (latestMsg.imageUrl) previewMessage = "Image";
+      else if (latestMsg.fileUrl)
+        previewMessage = `PDF (${latestMsg.fileName || "Document"})`;
     }
 
     return {
       threadId,
       lastMessage: previewMessage,
       updatedAt: latestMsg.createdAt,
-      resolved: isThreadResolved, 
+      resolved: isThreadResolved,
       isGroup: !!latestMsg.chatGroupId,
-      type: latestMsg.chatGroupId ? "Group" : (isAdmin ? "Ticket" : "Support"),
-      display
+      type: latestMsg.chatGroupId ? "Group" : isAdmin ? "Ticket" : "Support",
+      display,
     };
   });
 
   const uniqueGroupsMap = new Map<string, any>();
-  groups.forEach(g => {
-      const key = g.courseId ? g.id : `GLOBAL_NAME_${g.name}`;
-      if (!uniqueGroupsMap.has(key)) uniqueGroupsMap.set(key, g);
+  groups.forEach((g) => {
+    const key = g.courseId ? g.id : `GLOBAL_NAME_${g.name}`;
+    if (!uniqueGroupsMap.has(key)) uniqueGroupsMap.set(key, g);
   });
 
-  const groupThreads = Array.from(uniqueGroupsMap.values()).map(g => {
-      const threadId = g.id;
-      const lastMsg = g.messages[0];
-      
-      let previewMessage = lastMsg?.content || "No messages yet";
-      if (lastMsg?.feedback) {
-          const f = lastMsg.feedback.toLowerCase().trim();
-          if (["helpful", "yes"].includes(f)) previewMessage = "Positive Feedback";
-          else if (["more help", "no"].includes(f)) previewMessage = "Negative Feedback";
-          else if (f === "resolved") previewMessage = "Issue Resolved";
-          else if (f === "denied") previewMessage = "Issue Denied";
-      }
+  const groupThreads = Array.from(uniqueGroupsMap.values()).map((g) => {
+    const threadId = g.id;
+    const lastMsg = g.messages[0];
 
-      if (lastMsg && !lastMsg.content?.trim()) {
-          if (lastMsg.imageUrl) previewMessage = "Image";
-          else if (lastMsg.fileUrl) previewMessage = `PDF (${lastMsg.fileName || "Document"})`;
-      }
+    let previewMessage = lastMsg?.content || "No messages yet";
+    if (lastMsg?.feedback) {
+      const f = lastMsg.feedback.toLowerCase().trim();
+      if (["helpful", "yes"].includes(f)) previewMessage = "Positive Feedback";
+      else if (["more help", "no"].includes(f))
+        previewMessage = "Negative Feedback";
+      else if (f === "resolved") previewMessage = "Issue Resolved";
+      else if (f === "denied") previewMessage = "Issue Denied";
+    }
 
-      return {
-        threadId,
-        lastMessage: previewMessage,
-        updatedAt: lastMsg?.createdAt || g.createdAt,
-        resolved: true,
-        isGroup: true,
-        type: "Group",
-        display: { name: g.name, image: g.imageUrl || "", email: "" }
-      };
+    if (lastMsg && !lastMsg.content?.trim()) {
+      if (lastMsg.imageUrl) previewMessage = "Image";
+      else if (lastMsg.fileUrl)
+        previewMessage = `PDF (${lastMsg.fileName || "Document"})`;
+    }
+
+    return {
+      threadId,
+      lastMessage: previewMessage,
+      updatedAt: lastMsg?.createdAt || g.createdAt,
+      resolved: true,
+      isGroup: true,
+      type: "Group",
+      display: { name: g.name, image: g.imageUrl || "", email: "" },
+    };
   });
 
   const allThreadsMap = new Map<string, any>();
-  [...threadDetails, ...groupThreads].forEach(t => {
-      const state = stateMap.get(t.threadId);
-      const merged = { ...t, archived: state?.archived ?? false,  hidden: state?.hidden ?? false, muted: state?.muted ?? false };
-      const existing = allThreadsMap.get(t.threadId);
-      if (!existing || new Date(merged.updatedAt) > new Date(existing.updatedAt)) {
-          allThreadsMap.set(t.threadId, merged);
-      }
+  [...threadDetails, ...groupThreads].forEach((t) => {
+    const state = stateMap.get(t.threadId);
+    const merged = {
+      ...t,
+      archived: state?.archived ?? false,
+      hidden: state?.hidden ?? false,
+      muted: state?.muted ?? false,
+    };
+    const existing = allThreadsMap.get(t.threadId);
+    if (
+      !existing ||
+      new Date(merged.updatedAt) > new Date(existing.updatedAt)
+    ) {
+      allThreadsMap.set(t.threadId, merged);
+    }
   });
 
   const finalThreads = Array.from(allThreadsMap.values())
-    .filter(t => !t.hidden)
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    .filter((t) => !t.hidden)
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
 
-  const result = { 
-      threads: finalThreads, 
-      version: currentVersion || (latestNotification?.createdAt.getTime() ?? 0).toString(),
-      enrolledCourses: enrollmentCourses,
-      presence: null 
+  const result = {
+    threads: finalThreads,
+    version:
+      currentVersion ||
+      (latestNotification?.createdAt.getTime() ?? 0).toString(),
+    enrolledCourses: enrollmentCourses,
+    presence: null,
   };
 
   await setCache(cacheKey, result, 2592000); // 30 days
@@ -558,25 +639,65 @@ export async function getThreadsAction(clientVersion?: string) {
  * Call this when a course is published or when an admin enters the dashboard.
  */
 
-export async function getThreadMessagesAction(threadId: string, before?: string) {
+export async function getThreadMessagesAction(
+  threadId: string,
+  before?: string,
+) {
   const session = await getSession();
   if (!session) return { messages: [], state: null, nextCursor: null };
 
   const isAdmin = session.user.role === "admin";
+
+  // Access Control: Verify the user is a participant in this thread
+  if (!isAdmin) {
+    const participation = await prisma.notification.findFirst({
+      where: {
+        threadId: threadId,
+        OR: [{ senderId: session.user.id }, { recipientId: session.user.id }],
+      },
+    });
+
+    if (!participation) {
+      // Check if it's a group chat they are enrolled in
+      const group = await prisma.chatGroup.findUnique({
+        where: { id: threadId },
+        include: {
+          course: {
+            include: {
+              enrollment: {
+                where: { userId: session.user.id, status: "Granted" },
+              },
+            },
+          },
+        },
+      });
+
+      if (!group || (group.courseId && group.course?.enrollment.length === 0)) {
+        throw new Error("Forbidden: You are not a participant in this thread");
+      }
+    }
+  }
+
   let cacheKey = !before ? CHAT_CACHE_KEYS.MESSAGES(threadId) : null;
 
   if (cacheKey && isAdmin) {
-      const gv = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION);
-      cacheKey = `${cacheKey}:${gv}`;
+    const gv = await getGlobalVersion(
+      GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION,
+    );
+    cacheKey = `${cacheKey}:${gv}`;
   }
 
   if (cacheKey) {
     const cached = await getCache<any>(cacheKey);
     if (cached) {
-        console.log(`[getThreadMessagesAction] Redis Cache HIT for thread ${threadId}.`);
-        return cached;
+      console.log(
+        `[getThreadMessagesAction] Redis Cache HIT for thread ${threadId}.`,
+      );
+      return cached;
     }
-    console.log(`[getThreadMessagesAction] Redis Cache MISS for thread ${threadId}. Fetching from Prisma DB...`);
+    console.log(
+      `[getThreadMessagesAction] Redis Cache MISS for thread ${threadId}. Fetching from Prisma DB...`,
+    );
   }
 
   // Optimization: If initial load, we don't need a separate "latest" fetch anymore.
@@ -588,52 +709,69 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
   const mainDbStart = Date.now();
   const [messages, state, oldestEver] = await Promise.all([
     prisma.notification.findMany({
-      where: { 
-          threadId: threadId as string,
-          createdAt: {
-              lt: referenceDate,
-              // If it's an initial load, we don't strictly enforce a 7-day floor 
-              // UNLESS we want to keep the "one-week segment" logic.
-              // To ensure we get data even if it's old, we'll take the top 50
-              // but still use the window as a hint if preferred.
-          }
+      where: {
+        threadId: threadId as string,
+        createdAt: {
+          lt: referenceDate,
+          // If it's an initial load, we don't strictly enforce a 7-day floor
+          // UNLESS we want to keep the "one-week segment" logic.
+          // To ensure we get data even if it's old, we'll take the top 50
+          // but still use the window as a hint if preferred.
+        },
       },
       include: {
-        sender: { select: { id: true, name: true, image: true, role: true, isSupportBanned: true } }
+        sender: {
+          select: {
+            id: true,
+            name: true,
+            image: true,
+            role: true,
+            isSupportBanned: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
-      take: 50 // Performance safety: limit to 50 messages per segment
+      take: 50, // Performance safety: limit to 50 messages per segment
     }),
     prisma.userThreadState.findUnique({
       where: {
         userId_threadId: {
           userId: session.user.id,
-          threadId: threadId as string
-        }
-      }
+          threadId: threadId as string,
+        },
+      },
     }),
     prisma.notification.findFirst({
-        where: { threadId: threadId as string },
-        orderBy: { createdAt: "asc" },
-        select: { createdAt: true }
-    })
+      where: { threadId: threadId as string },
+      orderBy: { createdAt: "asc" },
+      select: { createdAt: true },
+    }),
   ]);
-  console.log(`[getThreadMessagesAction] DB Fetch (Msgs + State + Oldest) took ${Date.now() - mainDbStart}ms (Count: ${messages.length})`);
+  console.log(
+    `[getThreadMessagesAction] DB Fetch (Msgs + State + Oldest) took ${Date.now() - mainDbStart}ms (Count: ${messages.length})`,
+  );
 
-  const nextCursor = (oldestEver && oldestEver.createdAt < windowEnd) ? windowEnd.toISOString() : null;
+  const nextCursor =
+    oldestEver && oldestEver.createdAt < windowEnd
+      ? windowEnd.toISOString()
+      : null;
   const dbDuration = Date.now() - mainDbStart;
-  console.log(`[getThreadMessagesAction] DB Operations total took ${dbDuration}ms.`);
+  console.log(
+    `[getThreadMessagesAction] DB Operations total took ${dbDuration}ms.`,
+  );
 
-  const signedMessages = await Promise.all(messages.map(m => signMessageAttachments(m)));
+  const signedMessages = await Promise.all(
+    messages.map((m) => signMessageAttachments(m)),
+  );
 
   const result = {
     messages: [...signedMessages].reverse(),
     state: {
       isMuted: state?.muted ?? false,
       isArchived: state?.archived ?? false,
-      isHidden: state?.hidden ?? false
+      isHidden: state?.hidden ?? false,
     },
-    nextCursor
+    nextCursor,
   };
 
   if (cacheKey) {
@@ -646,18 +784,19 @@ export async function getThreadMessagesAction(threadId: string, before?: string)
 // ... existing helper functions ...
 
 export async function createChatGroupAction(name: string, courseId: string) {
-    const session = await getSession();
-    if (!session || session.user.role !== "admin") throw new Error("Unauthorized");
+  const session = await getSession();
+  if (!session || session.user.role !== "admin")
+    throw new Error("Unauthorized");
 
-    const group = await prisma.chatGroup.create({
-        data: {
-            name,
-            courseId: courseId === "all" ? null : courseId
-        }
-    });
+  const group = await prisma.chatGroup.create({
+    data: {
+      name,
+      courseId: courseId === "all" ? null : courseId,
+    },
+  });
 
-    revalidatePath("/admin/resources");
-    return group;
+  revalidatePath("/admin/resources");
+  return group;
 }
 
 export async function getPublishedCoursesAction() {
@@ -667,20 +806,19 @@ export async function getPublishedCoursesAction() {
   return await prisma.course.findMany({
     where: { status: "Published" },
     select: { id: true, title: true },
-    orderBy: { createdAt: "desc" }
+    orderBy: { createdAt: "desc" },
   });
 }
 
 import { getEnrolledCourses } from "@/app/data/user/get-enrolled-courses";
 
 export async function getEnrolledCoursesAction() {
-    const session = await getSession();
-    if (!session) return [];
+  const session = await getSession();
+  if (!session) return [];
 
-    const result = await getEnrolledCourses();
-    return result.enrollments.map((e: any) => e.Course);
+  const result = await getEnrolledCourses();
+  return result.enrollments.map((e: any) => e.Course);
 }
-
 
 import { DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -699,7 +837,9 @@ async function signMessageAttachments(msg: any) {
         Bucket: env.S3_BUCKET_NAME,
         Key: signedMsg.imageUrl,
       });
-      signedMsg.imageUrl = await getSignedUrl(tigris, command, { expiresIn: 3600 });
+      signedMsg.imageUrl = await getSignedUrl(tigris, command, {
+        expiresIn: 3600,
+      });
     } catch (e) {
       console.error("[signMessageAttachments] Image signing failed:", e);
     }
@@ -711,7 +851,9 @@ async function signMessageAttachments(msg: any) {
         Bucket: env.S3_BUCKET_NAME,
         Key: signedMsg.fileUrl,
       });
-      signedMsg.fileUrl = await getSignedUrl(tigris, command, { expiresIn: 3600 });
+      signedMsg.fileUrl = await getSignedUrl(tigris, command, {
+        expiresIn: 3600,
+      });
     } catch (e) {
       console.error("[signMessageAttachments] File signing failed:", e);
     }
@@ -725,69 +867,82 @@ export async function deleteMessageAction(id: string) {
   if (!session) throw new Error("Unauthorized");
 
   const isAdmin = session.user.role === "admin";
-  
+
   // 1. Fetch message to check for attachments and permissions
   const message = await prisma.notification.findUnique({
-      where: { id },
-      select: { id: true, senderId: true, recipientId: true, imageUrl: true, fileUrl: true, threadId: true }
+    where: { id },
+    select: {
+      id: true,
+      senderId: true,
+      recipientId: true,
+      imageUrl: true,
+      fileUrl: true,
+      threadId: true,
+    },
   });
 
   if (!message) return { success: false, error: "Message not found" };
 
   // Permission Check: Admin can delete anything. User can delete if they sent or received it.
-  if (!isAdmin && message.senderId !== session.user.id && message.recipientId !== session.user.id) {
-      return { success: false, error: "Unauthorized" };
+  if (
+    !isAdmin &&
+    message.senderId !== session.user.id &&
+    message.recipientId !== session.user.id
+  ) {
+    return { success: false, error: "Unauthorized" };
   }
 
   // 2. Delete from S3 if attachment exists
   try {
-      if (message.imageUrl) {
-          // Chat images are now in the private bucket
-          const command = new DeleteObjectCommand({
-              Bucket: env.S3_BUCKET_NAME,
-              Key: message.imageUrl,
-          });
-          await S3.send(command);
-      }
-      if (message.fileUrl) {
-           const command = new DeleteObjectCommand({
-              Bucket: env.S3_BUCKET_NAME,
-              Key: message.fileUrl,
-          });
-          await S3.send(command);
-      }
+    if (message.imageUrl) {
+      // Chat images are now in the private bucket
+      const command = new DeleteObjectCommand({
+        Bucket: env.S3_BUCKET_NAME,
+        Key: message.imageUrl,
+      });
+      await S3.send(command);
+    }
+    if (message.fileUrl) {
+      const command = new DeleteObjectCommand({
+        Bucket: env.S3_BUCKET_NAME,
+        Key: message.fileUrl,
+      });
+      await S3.send(command);
+    }
   } catch (error) {
-      // Proceed with DB deletion anyway
+    // Proceed with DB deletion anyway
   }
 
   // 3. Delete from DB
   await prisma.notification.delete({
-    where: { id }
+    where: { id },
   });
 
   // Invalidate caches
   await Promise.all([
-      !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
-      !isAdmin && incrementChatVersion(session.user.id),
-      message.recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(message.recipientId)),
-      message.recipientId && incrementChatVersion(message.recipientId),
-      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(message.threadId || "")),
-      isAdmin && invalidateAdminsCache(),
-      (message.imageUrl || message.fileUrl) && invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
-      (message.imageUrl || message.fileUrl) && incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION)
+    !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+    !isAdmin && incrementChatVersion(session.user.id),
+    message.recipientId &&
+      invalidateCache(CHAT_CACHE_KEYS.THREADS(message.recipientId)),
+    message.recipientId && incrementChatVersion(message.recipientId),
+    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(message.threadId || "")),
+    isAdmin && invalidateAdminsCache(),
+    (message.imageUrl || message.fileUrl) &&
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+    (message.imageUrl || message.fileUrl) &&
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
   ]);
 
   revalidatePath("/admin/resources");
   return { success: true };
 }
 
-
 export async function editMessageAction(
-  id: string, 
-  newContent: string, 
+  id: string,
+  newContent: string,
   imageUrl?: string | null,
   fileUrl?: string | null,
-  fileName?: string | null
+  fileName?: string | null,
 ) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
@@ -796,61 +951,65 @@ export async function editMessageAction(
   const message = await prisma.notification.findUnique({ where: { id } });
   if (!message) throw new Error("Message not found");
 
-  if (message.senderId !== session.user.id && !isAdmin) throw new Error("Unauthorized");
+  if (message.senderId !== session.user.id && !isAdmin)
+    throw new Error("Unauthorized");
   // NEW: Only admins can edit messages
   if (!isAdmin) throw new Error("Only admins can edit messages");
 
   await prisma.notification.update({
     where: { id },
-    data: { 
-        content: newContent,
-        imageUrl: imageUrl, 
-        fileUrl: fileUrl,
-        fileName: fileName
-    }
+    data: {
+      content: newContent,
+      imageUrl: imageUrl,
+      fileUrl: fileUrl,
+      fileName: fileName,
+    },
   });
 
   // Invalidate
   const threadId = message.threadId || "";
   await Promise.all([
-      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
-      isAdmin && invalidateAdminsCache(),
-      !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
-      !isAdmin && incrementChatVersion(session.user.id),
-      message.recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(message.recipientId)),
-      message.recipientId && incrementChatVersion(message.recipientId)
+    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
+    isAdmin && invalidateAdminsCache(),
+    !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+    !isAdmin && incrementChatVersion(session.user.id),
+    message.recipientId &&
+      invalidateCache(CHAT_CACHE_KEYS.THREADS(message.recipientId)),
+    message.recipientId && incrementChatVersion(message.recipientId),
   ]);
 
   revalidatePath("/admin/resources");
   return { success: true };
 }
 
-
-
 /**
  * Resolve a ticket
  */
-export async function resolveTicketAction(id: string, status: "Resolved" | "Denied" = "Resolved") {
+export async function resolveTicketAction(
+  id: string,
+  status: "Resolved" | "Denied" = "Resolved",
+) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
   const n = await prisma.notification.update({
     where: { id },
-    data: { 
-        resolved: true,
-        feedback: status
-    }
+    data: {
+      resolved: true,
+      feedback: status,
+    },
   });
 
   // Invalidate
   await Promise.all([
-      n.senderId && invalidateCache(CHAT_CACHE_KEYS.THREADS(n.senderId)),
-      n.senderId && incrementChatVersion(n.senderId),
-      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
-      invalidateAdminsCache(),
-      // Invalidate dashboard for the user who raised the ticket
-      n.senderId && invalidateCache(`user:dashboard:${n.senderId}`),
-      n.senderId && incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(n.senderId))
+    n.senderId && invalidateCache(CHAT_CACHE_KEYS.THREADS(n.senderId)),
+    n.senderId && incrementChatVersion(n.senderId),
+    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
+    invalidateAdminsCache(),
+    // Invalidate dashboard for the user who raised the ticket
+    n.senderId && invalidateCache(`user:dashboard:${n.senderId}`),
+    n.senderId &&
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(n.senderId)),
   ]);
 
   revalidatePath("/admin/resources");
@@ -873,21 +1032,21 @@ export async function submitFeedbackAction(data: {
 
   const n = await prisma.notification.update({
     where: { id: data.notificationId },
-    data: { 
+    data: {
       feedback: data.feedback,
-      resolved: ["More Help"].includes(data.feedback) ? false : true 
-    }
+      resolved: ["More Help"].includes(data.feedback) ? false : true,
+    },
   });
 
   // Invalidate
   await Promise.all([
-      invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
-      invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
-      incrementChatVersion(session.user.id),
-      invalidateAdminsCache(),
-      // Invalidate dashboard for the user giving feedback
-      invalidateCache(`user:dashboard:${session.user.id}`),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.user.id))
+    invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
+    incrementChatVersion(session.user.id),
+    invalidateAdminsCache(),
+    // Invalidate dashboard for the user giving feedback
+    invalidateCache(`user:dashboard:${session.user.id}`),
+    incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.user.id)),
   ]);
 
   revalidatePath("/admin/resources");
@@ -905,232 +1064,222 @@ export async function checkTicketLimitAction() {
     where: {
       senderId: session.user.id,
       type: "SUPPORT_TICKET",
-      resolved: false
-    }
+      resolved: false,
+    },
   });
 
-  return { 
+  return {
     limitReached: count >= 3,
-    count 
+    count,
   };
 }
 
-
 export async function banUserFromSupportAction(userId: string) {
-    const session = await getSession();
-    if (!session || session.user.role !== "admin") throw new Error("Unauthorized");
+  const session = await getSession();
+  if (!session || session.user.role !== "admin")
+    throw new Error("Unauthorized");
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new Error("User not found");
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("User not found");
 
-    const newStatus = !user.isSupportBanned;
+  const newStatus = !user.isSupportBanned;
 
-    await prisma.user.update({
-        where: { id: userId },
-        data: { isSupportBanned: newStatus }
-    });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { isSupportBanned: newStatus },
+  });
 
-    revalidatePath("/admin/resources");
-    return { banned: newStatus };
+  revalidatePath("/admin/resources");
+  return { banned: newStatus };
 }
 
-
-
 export async function archiveThreadAction(threadId: string) {
-    const session = await getSession();
-    if (!session) throw new Error("Unauthorized");
+  const session = await getSession();
+  if (!session) throw new Error("Unauthorized");
 
-    const state = await prisma.userThreadState.findUnique({
-        where: {
-            userId_threadId: {
-                userId: session.user.id,
-                threadId: threadId
-            }
-        }
-    });
+  const state = await prisma.userThreadState.findUnique({
+    where: {
+      userId_threadId: {
+        userId: session.user.id,
+        threadId: threadId,
+      },
+    },
+  });
 
-    const newArchivedStatus = !(state?.archived ?? false);
+  const newArchivedStatus = !(state?.archived ?? false);
 
-    await prisma.userThreadState.upsert({
-        where: {
-            userId_threadId: {
-                userId: session.user.id,
-                threadId: threadId
-            }
-        },
-        update: { archived: newArchivedStatus },
-        create: {
-            userId: session.user.id,
-            threadId: threadId,
-            archived: newArchivedStatus
-        }
-    });
+  await prisma.userThreadState.upsert({
+    where: {
+      userId_threadId: {
+        userId: session.user.id,
+        threadId: threadId,
+      },
+    },
+    update: { archived: newArchivedStatus },
+    create: {
+      userId: session.user.id,
+      threadId: threadId,
+      archived: newArchivedStatus,
+    },
+  });
 
-    // Invalidate
-    const isAdmin = session.user.role === "admin";
-    await Promise.all([
-        invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
-        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
-        incrementChatVersion(session.user.id),
-        isAdmin && invalidateAdminsCache()
-    ]);
+  // Invalidate
+  const isAdmin = session.user.role === "admin";
+  await Promise.all([
+    invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
+    incrementChatVersion(session.user.id),
+    isAdmin && invalidateAdminsCache(),
+  ]);
 
-    revalidatePath("/admin/resources");
-    return { success: true, archived: newArchivedStatus };
+  revalidatePath("/admin/resources");
+  return { success: true, archived: newArchivedStatus };
 }
 
 async function unhideThreadForAll(threadId: string) {
-    // This finds all states for this thread and unhides/unarchives them
-    await prisma.userThreadState.updateMany({
-        where: { threadId },
-        data: { 
-            hidden: false,
-            archived: false 
-        }
-    });
+  // This finds all states for this thread and unhides/unarchives them
+  await prisma.userThreadState.updateMany({
+    where: { threadId },
+    data: {
+      hidden: false,
+      archived: false,
+    },
+  });
 }
 
 export async function getGroupParticipantsAction(chatGroupId: string) {
-    const session = await getSession();
-    if (!session) return [];
+  const session = await getSession();
+  if (!session) return [];
 
-    const cacheKey = CHAT_CACHE_KEYS.PARTICIPANTS(chatGroupId);
-    const cached = await getCache<any[]>(cacheKey);
-    if (cached) {
-        console.log(`[Redis] Cache HIT for participants: ${chatGroupId}`);
-        return cached;
-    }
+  const cacheKey = CHAT_CACHE_KEYS.PARTICIPANTS(chatGroupId);
+  const cached = await getCache<any[]>(cacheKey);
+  if (cached) {
+    console.log(`[Redis] Cache HIT for participants: ${chatGroupId}`);
+    return cached;
+  }
 
-    const group = await prisma.chatGroup.findUnique({
-        where: { id: chatGroupId },
-        select: { id: true, courseId: true, name: true }
+  const group = await prisma.chatGroup.findUnique({
+    where: { id: chatGroupId },
+    select: { id: true, courseId: true, name: true },
+  });
+
+  if (!group) return [];
+
+  let result: any[] = [];
+
+  // If it's the global Broadcast, return all users
+  if (group.name === "Broadcast" && !group.courseId) {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+      },
+      take: 100, // Limit for performance
+    });
+    result = users.map((u) => ({
+      user: u,
+      role: u.role === "admin" ? "admin" : "member",
+    }));
+  } else if (group.courseId) {
+    // Otherwise, get enrolled users for the course
+    const enrollments = await prisma.enrollment.findMany({
+      where: { courseId: group.courseId, status: "Granted" },
+      include: {
+        User: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            role: true,
+          },
+        },
+      },
     });
 
-    if (!group) return [];
+    result = enrollments.map((e) => ({
+      user: e.User,
+      role: e.User.role === "admin" ? "admin" : "member",
+    }));
+  }
 
-    let result: any[] = [];
+  if (result.length > 0) {
+    await setCache(cacheKey, result, 2592000); // 30 days
+  }
 
-    // If it's the global Broadcast, return all users
-    if (group.name === "Broadcast" && !group.courseId) {
-        const users = await prisma.user.findMany({
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                image: true,
-                role: true
-            },
-            take: 100 // Limit for performance
-        });
-        result = users.map(u => ({
-            user: u,
-            role: u.role === "admin" ? "admin" : "member"
-        }));
-    } else if (group.courseId) {
-        // Otherwise, get enrolled users for the course
-        const enrollments = await prisma.enrollment.findMany({
-            where: { courseId: group.courseId, status: "Granted" },
-            include: {
-                User: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        image: true,
-                        role: true
-                    }
-                }
-            }
-        });
-
-        result = enrollments.map(e => ({
-            user: e.User,
-            role: e.User.role === "admin" ? "admin" : "member"
-        }));
-    }
-
-    if (result.length > 0) {
-        await setCache(cacheKey, result, 2592000); // 30 days
-    }
-
-    return result;
+  return result;
 }
 
 export async function deleteThreadMessagesAction(threadId: string) {
-    const session = await getSession();
-    if (!session) throw new Error("Unauthorized");
+  const session = await getSession();
+  if (!session) throw new Error("Unauthorized");
 
-    // 1. Check if thread is a group
-    const group = await prisma.chatGroup.findUnique({
-        where: { id: threadId }
+  // 1. Check if thread is a group
+  const group = await prisma.chatGroup.findUnique({
+    where: { id: threadId },
+  });
+
+  if (group) {
+    throw new Error("Cannot delete group or broadcast chats");
+  }
+
+  // 2. Security: Ensure the user belongs to this thread if not admin
+  if (session.user.role !== "admin") {
+    const belongsToThread = await prisma.notification.findFirst({
+      where: {
+        threadId,
+        OR: [{ senderId: session.user.id }, { recipientId: session.user.id }],
+      },
     });
+    if (!belongsToThread) throw new Error("Unauthorized");
+  }
 
-    if (group) {
-        throw new Error("Cannot delete group or broadcast chats");
-    }
+  // 3. Delete all notifications in this thread
+  await prisma.notification.deleteMany({
+    where: { threadId },
+  });
 
-    // 2. Security: Ensure the user belongs to this thread if not admin
-    if (session.user.role !== "admin") {
-        const belongsToThread = await prisma.notification.findFirst({
-            where: {
-                threadId,
-                OR: [
-                    { senderId: session.user.id },
-                    { recipientId: session.user.id }
-                ]
-            }
-        });
-        if (!belongsToThread) throw new Error("Unauthorized");
-    }
+  // 4. Cleanup user thread states
+  await prisma.userThreadState.deleteMany({
+    where: { threadId },
+  });
 
-    // 3. Delete all notifications in this thread
-    await prisma.notification.deleteMany({
-        where: { threadId }
-    });
+  // Invalidate
+  const isAdmin = session.user.role === "admin";
+  await Promise.all([
+    invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
+    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
+    incrementChatVersion(session.user.id),
+    isAdmin && invalidateAdminsCache(),
+  ]);
 
-    // 4. Cleanup user thread states
-    await prisma.userThreadState.deleteMany({
-        where: { threadId }
-    });
-
-    // Invalidate
-    const isAdmin = session.user.role === "admin";
-    await Promise.all([
-        invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
-        invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
-        incrementChatVersion(session.user.id),
-        isAdmin && invalidateAdminsCache()
-    ]);
-
-    revalidatePath("/admin/resources");
-    return { success: true };
+  revalidatePath("/admin/resources");
+  return { success: true };
 }
 
 export async function getChatVersionAction(threadId?: string) {
-    const session = await getSession();
-    if (!session) return { version: null };
+  const session = await getSession();
+  if (!session) return { version: null };
 
+  const latest = await prisma.notification.findFirst({
+    where: {
+      OR: [
+        { senderId: session.user.id },
+        { recipientId: session.user.id },
+        { chatGroupId: { not: null } },
+      ],
+    },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
 
+  let otherPresence = null;
 
-    const latest = await prisma.notification.findFirst({
-        where: {
-            OR: [
-                { senderId: session.user.id },
-                { recipientId: session.user.id },
-                { chatGroupId: { not: null } },
-            ]
-        },
-        orderBy: { createdAt: "desc" },
-        select: { createdAt: true }
-    });
-
-    let otherPresence = null;
-
-    return { 
-        version: latest?.createdAt.getTime() || 0,
-        otherPresence 
-    };
+  return {
+    version: latest?.createdAt.getTime() || 0,
+    otherPresence,
+  };
 }
-
-
-
