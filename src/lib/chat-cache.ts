@@ -19,9 +19,17 @@ interface CacheEntry<T> {
 }
 
 export const chatCache = {
-  set: <T>(key: string, data: T, userId?: string, version?: string, ttl: number = DEFAULT_TTL) => {
+  set: <T>(
+    key: string,
+    data: T,
+    userId?: string,
+    version?: string,
+    ttl: number = DEFAULT_TTL,
+  ) => {
     if (typeof window === "undefined" || !key) return;
-    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    const storageKey = userId
+      ? `${STORAGE_PREFIX}${userId}_${key}`
+      : `${STORAGE_PREFIX}${key}`;
     const entry: CacheEntry<T> = {
       data,
       version,
@@ -35,9 +43,14 @@ export const chatCache = {
     }
   },
 
-  get: <T>(key: string, userId?: string): { data: T; version?: string; timestamp?: number } | null => {
+  get: <T>(
+    key: string,
+    userId?: string,
+  ): { data: T; version?: string; timestamp?: number } | null => {
     if (typeof window === "undefined" || !key) return null;
-    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    const storageKey = userId
+      ? `${STORAGE_PREFIX}${userId}_${key}`
+      : `${STORAGE_PREFIX}${key}`;
     const item = secureStorage.getItem(storageKey);
     if (!item) return null;
 
@@ -48,7 +61,11 @@ export const chatCache = {
         secureStorage.removeItemTracked(storageKey);
         return null;
       }
-      return { data: entry.data, version: entry.version, timestamp: entry.timestamp };
+      return {
+        data: entry.data,
+        version: entry.version,
+        timestamp: entry.timestamp,
+      };
     } catch (e) {
       secureStorage.removeItemTracked(storageKey);
       return null;
@@ -57,7 +74,9 @@ export const chatCache = {
 
   invalidate: (key: string, userId?: string) => {
     if (typeof window === "undefined") return;
-    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    const storageKey = userId
+      ? `${STORAGE_PREFIX}${userId}_${key}`
+      : `${STORAGE_PREFIX}${key}`;
     secureStorage.removeItemTracked(storageKey);
   },
 
@@ -84,53 +103,62 @@ export const chatCache = {
 
     // Clear all participant caches as well
     const allKeys = secureStorage.keysByPrefix(STORAGE_PREFIX);
-    allKeys.forEach(origKey => {
-        if (origKey.includes("participants_")) {
-            secureStorage.removeItemTracked(origKey);
-        }
+    allKeys.forEach((origKey) => {
+      if (origKey.includes("participants_")) {
+        secureStorage.removeItemTracked(origKey);
+      }
     });
 
-    console.log("[chatCache] Admin data and participants invalidated from local storage.");
+    console.log(
+      "[chatCache] Admin data and participants invalidated from local storage.",
+    );
   },
   invalidateUserDashboardData: (userId: string) => {
     if (typeof window === "undefined") return;
-    
+
     // ✅ chatCache.invalidate builds the storage key internally
     const keys = [
-        "user_dashboard",
-        "user_enrolled_courses",
-        "available_courses",
-        "user_needs_sync",
-        "all_courses",
-        "my_courses",
-        "user_resources",
-        "user_resources_access",
-        "enrolled_courses",
+      "user_dashboard",
+      "user_enrolled_courses",
+      "available_courses",
+      "user_needs_sync",
+      "all_courses",
+      "my_courses",
+      "user_resources",
+      "user_resources_access",
+      "enrolled_courses",
     ];
-    keys.forEach(key => {
-        // "all_courses" is generic (no userId prefix)
-        if (key === "all_courses") chatCache.invalidate(key);
-        else chatCache.invalidate(key, userId);
+    keys.forEach((key) => {
+      // "all_courses" is generic (no userId prefix)
+      if (key === "all_courses") chatCache.invalidate(key);
+      else chatCache.invalidate(key, userId);
     });
-},
+  },
 
   invalidateAllCourseData: () => {
     if (typeof window === "undefined") return;
-    
+
     // 1. Clear generic course list
     chatCache.invalidate("all_courses");
-    
+
     // 2. Clear all keys that look like course_ slug caches or dashboard data
     // We use keysByPrefix to find everything starting with our internal storage prefix
     const allKeys = secureStorage.keysByPrefix(STORAGE_PREFIX);
-    
-    allKeys.forEach(origKey => {
-        if (origKey.includes("course_") || origKey.includes("available_courses_") || origKey.includes("user_dashboard_")) {
-            secureStorage.removeItemTracked(origKey);
-        }
+
+    allKeys.forEach((origKey) => {
+      if (
+        origKey.includes("course_") ||
+        origKey.includes("available_courses_") ||
+        origKey.includes("user_dashboard_")
+      ) {
+        secureStorage.removeItemTracked(origKey);
+      }
     });
-    
-    console.log("%c[chatCache] GLOBAL INVALIDATION: Cleared all course-related local storage", "color: #ef4444; font-weight: bold");
+
+    console.log(
+      "%c[chatCache] GLOBAL INVALIDATION: Cleared all course-related local storage",
+      "color: #ef4444; font-weight: bold",
+    );
   },
 
   /**
@@ -139,7 +167,9 @@ export const chatCache = {
    */
   touch: (key: string, userId?: string) => {
     if (typeof window === "undefined" || !key) return;
-    const storageKey = userId ? `${STORAGE_PREFIX}${userId}_${key}` : `${STORAGE_PREFIX}${key}`;
+    const storageKey = userId
+      ? `${STORAGE_PREFIX}${userId}_${key}`
+      : `${STORAGE_PREFIX}${key}`;
     const item = secureStorage.getItem(storageKey);
     if (!item) return;
 
@@ -170,37 +200,45 @@ export const chatCache = {
 
   hasAnyPending: (userId: string): boolean => {
     if (typeof window === "undefined") return false;
-    
+
     // 1. Check known list caches
     const knownLists = ["all_courses", `available_courses_${userId}`];
     for (const key of knownLists) {
-        const cached = chatCache.get<any>(key, userId);
-        const data = cached?.data?.data || cached?.data;
-        if (Array.isArray(data) && data.some((c: any) => c.enrollmentStatus === "Pending")) {
-            return true;
-        }
+      const cached = chatCache.get<any>(key, userId);
+      const data = cached?.data?.data || cached?.data;
+      if (
+        Array.isArray(data) &&
+        data.some((c: any) => c.enrollmentStatus === "Pending")
+      ) {
+        return true;
+      }
     }
-    
+
     // 2. Scan all slug-specific course caches
     const allKeys = secureStorage.keysByPrefix(STORAGE_PREFIX);
     for (const origKey of allKeys) {
-        if (origKey.includes(`course_`) && origKey.includes(userId)) {
-            const item = secureStorage.getItem(origKey);
-            if (item) {
-                try {
-                    const entry = JSON.parse(item);
-                    if (entry.data?.enrollmentStatus === "Pending") return true;
-                } catch(e) {}
-            }
+      if (origKey.includes(`course_`) && origKey.includes(userId)) {
+        const item = secureStorage.getItem(origKey);
+        if (item) {
+          try {
+            const entry = JSON.parse(item);
+            if (entry.data?.enrollmentStatus === "Pending") return true;
+          } catch (e) {}
         }
+      }
     }
-    
+
     return false;
   },
 };
 
-export const getSidebarKey = (userId: string, isAdmin: boolean) =>
-  ["chat_sidebar", userId, isAdmin] as const;
+export const getSidebarKey = (
+  userId: string | undefined | null,
+  isAdmin: boolean,
+) =>
+  isAdmin
+    ? (["admin_chat_sidebar_key"] as const)
+    : (["chat_sidebar", userId] as const);
 
 export const getSidebarLocalKey = (isAdmin: boolean) =>
   isAdmin ? "admin_chat_sidebar" : "user_chat_sidebar";

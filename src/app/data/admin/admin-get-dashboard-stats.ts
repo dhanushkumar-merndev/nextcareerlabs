@@ -1,51 +1,70 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
+import {
+  getCache,
+  setCache,
+  GLOBAL_CACHE_KEYS,
+  getGlobalVersion,
+  incrementGlobalVersion,
+} from "@/lib/redis";
 
 export async function adminGetDashboardStats(clientVersion?: string) {
   await requireAdmin();
 
-
-  let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION);
-
-  if (currentVersion === "0") {
-    console.log(`[adminGetDashboardStats] Version key missing. Initializing...`);
-    await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION);
-    currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION);
-  }
+  const currentVersion = await getGlobalVersion(
+    GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION,
+  );
 
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(`[adminGetDashboardStats] Version Match (${clientVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION}". Returning NOT_MODIFIED.`);
+    console.log(
+      `%c[adminGetDashboardStats] SERVER HIT: NOT_MODIFIED (${clientVersion}).`,
+      "color: #eab308; font-weight: bold",
+    );
     return { status: "not-modified", version: currentVersion };
   }
 
   if (!clientVersion) {
-    console.log(`[adminGetDashboardStats] SSR Request (Client: None). Returning full data for Prop.`);
+    console.log(
+      `[adminGetDashboardStats] SSR Request (Client: None). Returning full data for Prop.`,
+    );
   } else {
-    console.log(`[adminGetDashboardStats] Background Sync (Client: ${clientVersion}, Server: ${currentVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION}". Checking Redis...`);
+    console.log(
+      `[adminGetDashboardStats] Background Sync (Client: ${clientVersion}, Server: ${currentVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION}". Checking Redis...`,
+    );
   }
 
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS;
+  const redisStartTime = Date.now();
   const cached = await getCache<any>(cacheKey);
+  const redisDuration = Date.now() - redisStartTime;
 
   if (cached) {
-    console.log(`[adminGetDashboardStats] Redis Cache HIT. Returning data.`);
+    console.log(
+      `%c[adminGetDashboardStats] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
+      "color: #eab308; font-weight: bold",
+    );
     return { data: cached, version: currentVersion };
   }
 
-  console.log(`[adminGetDashboardStats] Redis Cache MISS. Fetching from Prisma DB...`);
+  console.log(
+    `[adminGetDashboardStats] Redis Cache MISS. Fetching from Prisma DB...`,
+  );
   const startTime = Date.now();
 
-  const [totalUsers, totalSubscriptions, totalCourses, totalLessons] = await Promise.all([
-    prisma.user.count(),
-    prisma.enrollment.count({ where: { status: 'Granted' } }),
-    prisma.course.count(),
-    prisma.lesson.count(),
-  ]);
+  const [totalUsers, totalSubscriptions, totalCourses, totalLessons] =
+    await Promise.all([
+      prisma.user.count(),
+      prisma.enrollment.count({ where: { status: "Granted" } }),
+      prisma.course.count(),
+      prisma.lesson.count(),
+    ]);
 
   const duration = Date.now() - startTime;
-  console.log(`[adminGetDashboardStats] DB Fetch Parallel took ${duration}ms.`);
+  console.log(
+    `%c[adminGetDashboardStats] DB HIT (${duration}ms).`,
+    "color: #eab308; font-weight: bold",
+  );
 
   const stats = {
     totalUsers,

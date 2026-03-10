@@ -485,27 +485,11 @@ export function VideoPlayer({
         }
       };
 
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === "hidden") {
-          console.log("VideoPlayer: Tab hidden, pausing video...");
-          if (player && !player.paused()) {
-            player.pause();
-            setIsPlaying(false);
-            isPlayingRef.current = false;
-          }
-        }
-      };
-
       window.addEventListener("keydown", handleKeyDown);
-      document.addEventListener("visibilitychange", handleVisibilityChange);
 
       player.on("dispose", () => {
         setIsPlayerReady(false);
         window.removeEventListener("keydown", handleKeyDown);
-        document.removeEventListener(
-          "visibilitychange",
-          handleVisibilityChange,
-        );
         trackList.off("addtrack", onAddTrack);
         trackList.off("removetrack", updateCaptionsStatus);
         trackList.off("change", onTrackChange);
@@ -927,7 +911,6 @@ export function VideoPlayer({
   };
 
   const [hoverPosition, setHoverPosition] = useState<{
-    localX: number;
     x: number;
     time: number;
   } | null>(null);
@@ -1249,22 +1232,16 @@ export function VideoPlayer({
   };
 
   const handleSeekbarMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = seekbarRef.current?.getBoundingClientRect();
-    if (!rect) return;
     const pos = calculatePosition(e.clientX);
     if (pos) {
-      const localX = e.clientX - rect.left;
-      setHoverPosition({ ...pos, localX });
+      setHoverPosition(pos);
     }
   };
 
   const handleSeekbarTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    const rect = seekbarRef.current?.getBoundingClientRect();
-    if (!rect) return;
     const pos = calculatePosition(e.touches[0].clientX);
     if (pos) {
-      const localX = e.touches[0].clientX - rect.left;
-      setHoverPosition({ ...pos, localX });
+      setHoverPosition(pos);
     }
   };
 
@@ -1529,18 +1506,9 @@ export function VideoPlayer({
                 const hw = ((spritePos?.width ?? 128) * scale) / 2;
                 const sw =
                   seekbarRef.current?.getBoundingClientRect().width ?? 600;
-                const snapX = (snapTime / duration) * sw;
-                const clampedLeft = Math.min(Math.max(snapX, hw), sw - hw);
-
-                // For the "tip" (arrow), use relative offset between mouse and container
-                // hoverPosition.localX is where the mouse is.
-                // clampedLeft is where the container is centered.
-                const relativeMouseX =
-                  (hoverPosition.localX ?? snapX) - clampedLeft;
-                // Clamp arrow within tooltip width (minus some padding)
-                const arrowX = Math.min(
-                  Math.max(relativeMouseX, -hw + 10),
-                  hw - 10,
+                const clampedLeft = Math.min(
+                  Math.max((snapTime / duration) * sw, hw),
+                  sw - hw,
                 );
 
                 return (
@@ -1621,12 +1589,7 @@ export function VideoPlayer({
                         </div>
                       </div>
                     )}
-                    <div
-                      className="w-2.5 h-2.5 bg-black/95 rotate-45 border-r border-b border-white/20 -mt-1.5 -z-1 transition-transform duration-75"
-                      style={{
-                        transform: `translateX(${arrowX}px) rotate(45deg)`,
-                      }}
-                    />
+                    <div className="w-2.5 h-2.5 bg-black/95 rotate-45 border-r border-b border-white/20 -mt-1.5 -z-1" />
                   </div>
                 );
               })()}

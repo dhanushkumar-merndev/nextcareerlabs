@@ -7,6 +7,7 @@ import {
   setCache,
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
+  getVersions,
 } from "@/lib/redis";
 
 export async function getLessonContent(
@@ -15,10 +16,10 @@ export async function getLessonContent(
 ) {
   const session = await requireUser();
 
-  // ✅ Parallel version reads instead of sequential
-  const [coursesVersion, userVersion] = await Promise.all([
-    getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-    getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+  // ✅ Batched version reads in 1 round trip
+  const [coursesVersion, userVersion] = await getVersions([
+    GLOBAL_CACHE_KEYS.COURSES_VERSION,
+    GLOBAL_CACHE_KEYS.USER_VERSION(session.id),
   ]);
   const currentVersion = `${coursesVersion}_${userVersion}`;
 

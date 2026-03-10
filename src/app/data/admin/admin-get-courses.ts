@@ -17,17 +17,9 @@ export async function adminGetCourses(
   searchQuery?: string,
 ) {
   await requireAdmin();
-  let currentVersion = await getGlobalVersion(
+  const currentVersion = await getGlobalVersion(
     GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION,
   );
-
-  if (currentVersion === "0") {
-    console.log(`[adminGetCourses] Version key missing. Initializing...`);
-    await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION);
-    currentVersion = await getGlobalVersion(
-      GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION,
-    );
-  }
 
   // Smart Sync ONLY for first page and no search
   if (
@@ -51,7 +43,15 @@ export async function adminGetCourses(
   // Check Redis cache
   const redisStartTime = Date.now();
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST;
-  const cached = await getCache<any[]>(cacheKey);
+  const cachedRaw = await getCache<any[]>(cacheKey);
+  const cached = Array.isArray(cachedRaw) ? cachedRaw : null;
+
+  if (cachedRaw && !cached) {
+    console.warn(
+      `[adminGetCourses] Redis cache for "${cacheKey}" is NOT an array. Forcing fresh fetch.`,
+    );
+  }
+
   console.log(
     `[adminGetCourses] Redis cache lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
   );

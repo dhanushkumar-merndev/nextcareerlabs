@@ -5,7 +5,14 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
   const getCached = () => {
     if (typeof window === "undefined" || !userId) return undefined;
-    return chatCache.get<any>("user_enrolled_courses", userId) ?? undefined;
+    const cached = chatCache.get<any>("user_enrolled_courses", userId);
+    if (cached) {
+      console.log(
+        `%c[EnrolledCourses] LOCAL HIT (v${cached.version}). Rendering from device storage.`,
+        "color: #eab308; font-weight: bold",
+      );
+    }
+    return cached ?? undefined;
   };
 
   const query = useQuery({
@@ -19,7 +26,7 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
 
       try {
         const response = await fetch(
-          `/api/user/enrolled-courses${clientVersion ? `?version=${clientVersion}` : ""}`
+          `/api/user/enrolled-courses${clientVersion ? `?version=${clientVersion}` : ""}`,
         );
         if (!response.ok) throw new Error("Failed to fetch enrolled courses");
 
@@ -27,15 +34,27 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
 
         // NOT_MODIFIED -> use localStorage
         if (result.status === "not-modified") {
-          console.log(`%c[EnrolledCourses] NOT_MODIFIED. Using cache.`, "color: #eab308; font-weight: bold");
+          console.log(
+            `%c[EnrolledCourses] SERVER HIT: NOT_MODIFIED. Syncing from device storage.`,
+            "color: #eab308; font-weight: bold",
+          );
           chatCache.touch(cacheKey, userId);
           return cached?.data?.enrollments ?? [];
         }
 
         // Fresh data -> update localStorage
         if (result.enrollments) {
-          console.log(`%c[EnrolledCourses] NEW_DATA -> Updating Cache (v${result.version})`, "color: #3b82f6; font-weight: bold");
-          chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
+          console.log(
+            `%c[EnrolledCourses] SERVER HIT: NEW_DATA. Updating Local Cache (v${result.version}).`,
+            "color: #eab308; font-weight: bold",
+          );
+          chatCache.set(
+            cacheKey,
+            result,
+            userId,
+            result.version,
+            PERMANENT_TTL,
+          );
           chatCache.clearSync(userId);
           return result.enrollments;
         }
@@ -47,9 +66,10 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
     },
     enabled: !!userId && !sessionLoading,
     initialData: () => getCached()?.data?.enrollments,
-    initialDataUpdatedAt: typeof window !== "undefined" && userId 
-      ? chatCache.get<any>("user_enrolled_courses", userId)?.timestamp 
-      : undefined,
+    initialDataUpdatedAt:
+      typeof window !== "undefined" && userId
+        ? chatCache.get<any>("user_enrolled_courses", userId)?.timestamp
+        : undefined,
     staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: true,

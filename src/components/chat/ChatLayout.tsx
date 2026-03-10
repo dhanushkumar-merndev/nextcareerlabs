@@ -31,7 +31,11 @@ export function ChatLayout({
   const queryClient = useQueryClient();
 
   // Derive from session if not provided via props
-  const isAdmin = propIsAdmin ?? user?.role === "admin";
+  const isAdmin =
+    propIsAdmin ??
+    (user?.role === "admin" ||
+      (typeof window !== "undefined" &&
+        window.location.pathname.startsWith("/admin")));
   const currentUserId = propCurrentUserId ?? user?.id;
 
   const [selectedThread, setSelectedThread] = useState<{
@@ -106,16 +110,18 @@ export function ChatLayout({
 
       const result = await getThreadsAction(clientVersion);
 
-      // If server says no change → use cache
       if ((result as any)?.status === "not-modified" && cached) {
-        console.log(`[Chat] Server: NOT_MODIFIED (v${clientVersion})`);
+        console.log(
+          `%c[Chat] SERVER HIT: NOT_MODIFIED (v${clientVersion}). Key: ${localKey}`,
+          "color: #eab308; font-weight: bold",
+        );
         return cached.data;
       }
 
-      // If new data received → update cache
       if (result && !(result as any)?.status) {
         console.log(
-          `[Chat] Server: NEW_DATA -> Updating Local Cache (v${result.version})`,
+          `%c[Chat] SERVER HIT: NEW_DATA. Syncing (v${result.version}). Key: ${localKey}`,
+          "color: #eab308; font-weight: bold",
         );
 
         const oldCoursesCount =
@@ -168,15 +174,17 @@ export function ChatLayout({
 
     initialDataUpdatedAt:
       typeof window !== "undefined"
-        ? chatCache.get<any>(
+        ? (chatCache.get<any>(
             getSidebarLocalKey(isAdmin),
             isAdmin ? undefined : currentUserId,
-          )?.timestamp
+          )?.timestamp as number)
         : undefined,
     // 30-minute version check (Heartbeat)
     staleTime: 1800000,
     refetchInterval: 1800000,
     refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    enabled: !!(isAdmin || currentUserId), // Enable for admins immediately, or users with ID
   });
 
   const threads = (sidebarData as any)?.threads || [];

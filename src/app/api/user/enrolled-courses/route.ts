@@ -25,6 +25,10 @@ export async function GET(req: Request) {
 
     // Version match -> NOT_MODIFIED
     if (clientVersion && clientVersion === currentVersion) {
+      console.log(
+        `%c[api/enrolled-courses] SERVER HIT: NOT_MODIFIED (${clientVersion}).`,
+        "color: #eab308; font-weight: bold",
+      );
       return NextResponse.json({
         status: "not-modified",
         version: currentVersion,
@@ -36,8 +40,15 @@ export async function GET(req: Request) {
       user.id,
       currentVersion,
     );
+    const redisStartTime = Date.now();
     const cached = await getCache<any>(redisCacheKey);
+    const redisDuration = Date.now() - redisStartTime;
+
     if (cached) {
+      console.log(
+        `%c[api/enrolled-courses] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
+        "color: #eab308; font-weight: bold",
+      );
       return NextResponse.json({
         enrollments: cached,
         version: currentVersion,
@@ -45,6 +56,7 @@ export async function GET(req: Request) {
     }
 
     // DB fetch
+    const startTime = Date.now();
     const [enrollments, allProgress] = await Promise.all([
       prisma.enrollment.findMany({
         where: { userId: user.id, status: "Granted" },
@@ -81,6 +93,11 @@ export async function GET(req: Request) {
         select: { lessonId: true, completed: true },
       }),
     ]);
+    const duration = Date.now() - startTime;
+    console.log(
+      `%c[api/enrolled-courses] DB HIT (${duration}ms).`,
+      "color: #eab308; font-weight: bold",
+    );
 
     const isEnrolled = enrollments.length > 0;
 

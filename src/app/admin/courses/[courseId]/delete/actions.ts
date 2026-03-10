@@ -11,7 +11,6 @@ import {
   incrementGlobalVersion,
   GLOBAL_CACHE_KEYS,
   CHAT_CACHE_KEYS,
-  incrementChatVersion,
 } from "@/lib/redis";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
@@ -153,7 +152,9 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
       invalidationPromises.push(
         invalidateCache(CHAT_CACHE_KEYS.THREADS(userId)),
       );
-      invalidationPromises.push(incrementChatVersion(userId));
+      invalidationPromises.push(
+        incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(userId)),
+      );
     });
 
     // 7. Invalidate chat threads for ALL admins (even if not enrolled) to ensure synchronicity
@@ -169,7 +170,9 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
       invalidationPromises.push(
         invalidateCache(CHAT_CACHE_KEYS.THREADS(admin.id)),
       );
-      invalidationPromises.push(incrementChatVersion(admin.id));
+      invalidationPromises.push(
+        incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(admin.id)),
+      );
     });
 
     console.log(

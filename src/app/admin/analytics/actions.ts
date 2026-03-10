@@ -23,6 +23,7 @@ export async function getAdminAnalytics(
   await requireAdmin();
 
   const isCustomRange = !!startDate || !!endDate;
+  const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:chart`;
   let currentVersion = await getGlobalVersion(
     GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION,
   );
@@ -36,19 +37,21 @@ export async function getAdminAnalytics(
 
   if (!isCustomRange && clientVersion && clientVersion === currentVersion) {
     console.log(
-      `[getAdminAnalytics] Chart Version Match (${clientVersion}). Returning NOT_MODIFIED.`,
+      `%c[getAdminAnalytics] SERVER HIT: NOT_MODIFIED (${clientVersion}).`,
+      "color: #eab308; font-weight: bold",
     );
     return { status: "not-modified", version: currentVersion };
   }
 
-  const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:chart`;
   if (!isCustomRange) {
     const redisStartTime = Date.now();
     const cached = await getCache<any>(cacheKey);
-    console.log(
-      `[getAdminAnalytics] Redis chart lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
-    );
+    const redisDuration = Date.now() - redisStartTime;
     if (cached) {
+      console.log(
+        `%c[getAdminAnalytics] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
+        "color: #eab308; font-weight: bold",
+      );
       return { data: cached, version: currentVersion };
     }
   }
@@ -92,7 +95,10 @@ export async function getAdminAnalytics(
     ]);
 
     const mainDuration = Date.now() - startTime;
-    console.log(`[getAdminAnalytics] Chart DB Query took ${mainDuration}ms`);
+    console.log(
+      `%c[getAdminAnalytics] DB HIT (${mainDuration}ms). Range: ${normalizedStart.toISOString()} to ${normalizedEnd.toISOString()}`,
+      "color: #eab308; font-weight: bold",
+    );
 
     // 6. Process Chart Data (Registrations by Day - IST Grouped)
     const getISTDateKey = (date: Date) => {
@@ -165,10 +171,12 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`;
   const redisStartTime = Date.now();
   const cached = await getCache<any>(cacheKey);
-  console.log(
-    `[getAdminStaticAnalytics] Redis static lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
-  );
+  const redisDuration = Date.now() - redisStartTime;
   if (cached) {
+    console.log(
+      `%c[getAdminStaticAnalytics] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
+      "color: #eab308; font-weight: bold",
+    );
     return { data: cached, version: currentVersion };
   }
 
@@ -265,8 +273,10 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
     };
 
     await setCache(cacheKey, result, 86400); // 24 hours
+    const dbDuration = Date.now() - startTime;
     console.log(
-      `[getAdminStaticAnalytics] Computed in ${Date.now() - startTime}ms`,
+      `%c[getAdminStaticAnalytics] DB HIT (${dbDuration}ms).`,
+      "color: #eab308; font-weight: bold",
     );
 
     return { data: result, version: currentVersion };

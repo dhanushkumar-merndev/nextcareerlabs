@@ -10,11 +10,10 @@ import {
   setCache,
   invalidateCache,
   CHAT_CACHE_KEYS,
-  getChatVersion,
-  incrementChatVersion,
   getGlobalVersion,
   incrementGlobalVersion,
   GLOBAL_CACHE_KEYS,
+  getVersions,
 } from "@/lib/redis";
 import { TicketResponse } from "@/lib/types/components";
 async function getSession() {
@@ -150,9 +149,10 @@ export async function sendNotificationAction(data: {
     const cacheStartTime = Date.now();
     await Promise.all([
       !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(senderId)),
-      !isAdmin && incrementChatVersion(senderId),
+      !isAdmin && incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(senderId)),
       recipientId && invalidateCache(CHAT_CACHE_KEYS.THREADS(recipientId)),
-      recipientId && incrementChatVersion(recipientId),
+      recipientId &&
+        incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(recipientId)),
       invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
       (isAdmin || data.type === "SUPPORT_TICKET") && invalidateAdminsCache(),
       // Invalidate dashboard for the user
@@ -232,7 +232,7 @@ export async function replyToTicketAction(data: {
   await Promise.all([
     invalidateCache(CHAT_CACHE_KEYS.THREADS(data.recipientId)),
     invalidateCache(CHAT_CACHE_KEYS.MESSAGES(data.threadId)),
-    incrementChatVersion(data.recipientId),
+    incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(data.recipientId)),
     invalidateAdminsCache(), // Update global admin cache
     (data.fileUrl || data.imageUrl) &&
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
@@ -256,15 +256,13 @@ export async function getThreadsAction(clientVersion?: string) {
   if (!session)
     return { threads: [], version: "0", enrolledCourses: [], presence: null };
 
-  let currentVersion = await getChatVersion(session.user.id);
   const isAdmin = session.user.role === "admin";
+  const [userChatV, adminChatV] = await getVersions([
+    CHAT_CACHE_KEYS.VERSION(session.user.id),
+    GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION,
+  ]);
 
-  if (isAdmin) {
-    // Admins ONLY use the global version to prevent redundant per-user versions in Redis/LocalStorage
-    currentVersion = await getGlobalVersion(
-      GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION,
-    );
-  }
+  const currentVersion = isAdmin ? adminChatV : userChatV;
 
   // If client already has the latest version, don't download everything
   if (clientVersion && clientVersion === currentVersion) {
@@ -280,13 +278,12 @@ export async function getThreadsAction(clientVersion?: string) {
 
   const redisStartTime = Date.now();
   const cachedData = await getCache<any>(cacheKey);
-  console.log(
-    `[getThreadsAction] Redis fetch for User=${session.user.id} took ${Date.now() - redisStartTime}ms. Result: ${cachedData ? "HIT" : "MISS"}`,
-  );
+  const redisDuration = Date.now() - redisStartTime;
 
   if (cachedData && cachedData.version === currentVersion) {
     console.log(
-      `[getThreadsAction] Redis Cache HIT (Fresh) for user ${session.user.id}.`,
+      `%c[getThreadsAction] REDIS HIT (${redisDuration}ms) for User=${session.user.id}. Version: ${currentVersion}. Key: ${cacheKey}`,
+      "color: #eab308; font-weight: bold",
     );
     return cachedData;
   }
@@ -650,6 +647,12 @@ export async function getThreadsAction(clientVersion?: string) {
     presence: null,
   };
 
+  const dbDuration = Date.now() - dbStartTime;
+  console.log(
+    `%c[getThreadsAction] DB HIT (${dbDuration}ms) for User=${session.user.id}. Key: ${cacheKey}`,
+    "color: #eab308; font-weight: bold",
+  );
+
   await setCache(cacheKey, result, 2592000); // 30 days
   return result;
 }
@@ -945,10 +948,12 @@ export async function deleteMessageAction(id: string) {
   // Invalidate caches
   await Promise.all([
     !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
-    !isAdmin && incrementChatVersion(session.user.id),
+    !isAdmin &&
+      incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(session.user.id)),
     message.recipientId &&
       invalidateCache(CHAT_CACHE_KEYS.THREADS(message.recipientId)),
-    message.recipientId && incrementChatVersion(message.recipientId),
+    message.recipientId &&
+      incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(message.recipientId)),
     invalidateCache(CHAT_CACHE_KEYS.MESSAGES(message.threadId || "")),
     isAdmin && invalidateAdminsCache(),
     (message.imageUrl || message.fileUrl) &&
@@ -996,10 +1001,12 @@ export async function editMessageAction(
     invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
     isAdmin && invalidateAdminsCache(),
     !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
-    !isAdmin && incrementChatVersion(session.user.id),
+    !isAdmin &&
+      incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(session.user.id)),
     message.recipientId &&
       invalidateCache(CHAT_CACHE_KEYS.THREADS(message.recipientId)),
-    message.recipientId && incrementChatVersion(message.recipientId),
+    message.recipientId &&
+      incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(message.recipientId)),
   ]);
 
   revalidatePath("/admin/resources");
@@ -1027,7 +1034,7 @@ export async function resolveTicketAction(
   // Invalidate
   await Promise.all([
     n.senderId && invalidateCache(CHAT_CACHE_KEYS.THREADS(n.senderId)),
-    n.senderId && incrementChatVersion(n.senderId),
+    n.senderId && incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(n.senderId)),
     invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
     invalidateAdminsCache(),
     // Invalidate dashboard for the user who raised the ticket
@@ -1066,7 +1073,7 @@ export async function submitFeedbackAction(data: {
   await Promise.all([
     invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
     invalidateCache(CHAT_CACHE_KEYS.MESSAGES(n.threadId || "")),
-    incrementChatVersion(session.user.id),
+    incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(session.user.id)),
     invalidateAdminsCache(),
     // Invalidate dashboard for the user giving feedback
     invalidateCache(`user:dashboard:${session.user.id}`),
@@ -1152,7 +1159,7 @@ export async function archiveThreadAction(threadId: string) {
   await Promise.all([
     invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
     invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
-    incrementChatVersion(session.user.id),
+    incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(session.user.id)),
     isAdmin && invalidateAdminsCache(),
   ]);
 
@@ -1276,7 +1283,7 @@ export async function deleteThreadMessagesAction(threadId: string) {
   await Promise.all([
     invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
     invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
-    incrementChatVersion(session.user.id),
+    incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(session.user.id)),
     isAdmin && invalidateAdminsCache(),
   ]);
 

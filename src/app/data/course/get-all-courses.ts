@@ -4,6 +4,8 @@ import { cache } from "react";
 import {
   getCache,
   setCache,
+  getMultiCache,
+  getVersions,
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
 } from "@/lib/redis";
@@ -23,13 +25,11 @@ const getAllCoursesInternal = async (
   searchQuery?: string,
   onlyAvailable?: boolean,
 ): Promise<CoursesServerResult> => {
-  // ✅ Optimization: Parallel version fetches
-  const [coursesVersion, userVersion] = await Promise.all([
-    getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-    userId
-      ? getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId))
-      : Promise.resolve(""),
-  ]);
+  // ✅ Optimization: Batched version fetches in 1 round trip
+  const versionKeys = [GLOBAL_CACHE_KEYS.COURSES_VERSION];
+  if (userId) versionKeys.push(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
+
+  const [coursesVersion, userVersion = ""] = await getVersions(versionKeys);
 
   const currentVersion = userId
     ? `${coursesVersion}:${userVersion}`
@@ -51,9 +51,18 @@ const getAllCoursesInternal = async (
   // ✅ Optimization: Include version in key to avoid stale global data
   const redisStartTime = Date.now();
   const cacheKey = `${GLOBAL_CACHE_KEYS.COURSES_LIST}:${coursesVersion}`;
-  const cached = await getCache<RedisCoursesCache>(cacheKey);
+
+  // If we have a userId, we might also want to pre-fetch the enrollment map
+  // However, the enrollment map key depends on userVersion, so we can batch it here
+  const dataKeys = [cacheKey];
+  if (userId) {
+    dataKeys.push(`user:enrollment-map:${userId}:${userVersion}`);
+  }
+
+  const [cached, cachedEnrollMap] = await getMultiCache<any>(dataKeys);
+
   console.log(
-    `[getAllCourses] Redis course list lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
+    `[getAllCourses] Redis batch lookup took ${Date.now() - redisStartTime}ms. Courses: ${cached ? "HIT" : "MISS"}, EnrollMap: ${userId ? (cachedEnrollMap ? "HIT" : "MISS") : "N/A"}`,
   );
 
   let allCourses: PublicCourseType[];
@@ -161,28 +170,30 @@ const getAllCoursesInternal = async (
     const mergeStart = Date.now();
     const enrollCacheKey = `user:enrollment-map:${userId}:${userVersion}`;
     const redisEnrollStartTime = Date.now();
-    let mapValues = await getCache<[string, string][]>(enrollCacheKey);
-    console.log(
-      `[getAllCourses] Redis enrollment map lookup took ${Date.now() - redisEnrollStartTime}ms. Result: ${mapValues ? "HIT" : "MISS"}`,
-    );
+
+    // ✅ Optimization: Use pre-fetched enrollment map from step 1
+    let mapValues: [string, string | null][] = cachedEnrollMap as [
+      string,
+      string | null,
+    ][];
 
     if (!mapValues) {
       console.log(
-        `[getAllCourses] Enrollment Map MISS for ${userId} -> DB Query`,
+        `[getAllCourses] Enrollment Map MISS for ${userId} (or not pre-fetched) -> DB Query`,
       );
       const enrollments = await prisma.enrollment.findMany({
         where: { userId },
         select: { courseId: true, status: true },
       });
       mapValues = enrollments.map(
-        (e) => [e.courseId, e.status] as [string, string],
+        (e) => [e.courseId, e.status] as [string, string | null],
       );
       await setCache(enrollCacheKey, mapValues, 86400 * 7);
     } else {
       console.log(`[getAllCourses] Enrollment Map HIT for ${userId}`);
     }
 
-    const map = new Map(mapValues);
+    const map = new Map<string, string | null>(mapValues);
 
     if (onlyAvailable) {
       resultCourses = allCourses

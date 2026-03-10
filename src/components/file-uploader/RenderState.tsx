@@ -6,7 +6,12 @@ import CircularProgressColorDemo from "@/components/ui/progress-10";
 import { useEffect, useRef } from "react";
 import { VideoPlayer } from "../video-player/VideoPlayer";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
 export function RenderEmptyState({ isDragActive }: { isDragActive: boolean }) {
   return (
     <div className="text-center">
@@ -14,7 +19,7 @@ export function RenderEmptyState({ isDragActive }: { isDragActive: boolean }) {
         <CloudUploadIcon
           className={cn(
             "size-6 text-muted-foreground",
-            isDragActive && "text-primary"
+            isDragActive && "text-primary",
           )}
         />
       </div>
@@ -44,14 +49,12 @@ export function RenderErrorState() {
   );
 }
 
-
 export function RenderUploadedState({
   previewUrl,
   isDeleting,
   handleRemoveFile,
   fileType,
   hlsUrl,
-  isSpriteGenerated,
   spriteMetadata,
   onDurationLoaded,
   captionUrl,
@@ -68,17 +71,19 @@ export function RenderUploadedState({
   onDurationLoaded?: (duration: number) => void;
   captionUrl?: string;
 }) {
-  const spriteProps = spriteMetadata ? {
-    url: constructUrl(spriteMetadata.spriteKey),
-    lowResUrl: spriteMetadata.lowResKey ? constructUrl(spriteMetadata.lowResKey) : undefined,
-    cols: spriteMetadata.spriteCols || 10,
-    rows: spriteMetadata.spriteRows || 0,
-    interval: spriteMetadata.spriteInterval || 10,
-    width: spriteMetadata.spriteWidth || 240,
-    height: spriteMetadata.spriteHeight || 135,
-  } : undefined;
-
-
+  const spriteProps = spriteMetadata
+    ? {
+        url: constructUrl(spriteMetadata.spriteKey),
+        lowResUrl: spriteMetadata.lowResKey
+          ? constructUrl(spriteMetadata.lowResKey)
+          : undefined,
+        cols: spriteMetadata.spriteCols || 10,
+        rows: spriteMetadata.spriteRows || 0,
+        interval: spriteMetadata.spriteInterval || 10,
+        width: spriteMetadata.spriteWidth || 240,
+        height: spriteMetadata.spriteHeight || 135,
+      }
+    : undefined;
 
   return (
     <div className="relative w-full md:max-w-[500px] lg:max-w-[700px] aspect-video bg-black overflow-hidden rounded-xl mx-auto">
@@ -91,6 +96,7 @@ export function RenderUploadedState({
           className="absolute inset-0 w-full h-full object-cover"
           onLoadedMetadata={onDurationLoaded}
           captionUrl={captionUrl}
+          spriteMetadata={spriteProps}
         />
       ) : (
         <Image
@@ -102,7 +108,6 @@ export function RenderUploadedState({
           loading="eager"
         />
       )}
-
 
       {/* Delete Button */}
       <Button
@@ -121,7 +126,7 @@ export function RenderUploadedState({
           <XIcon className="size-4" />
         )}
       </Button>
-    </div >
+    </div>
   );
 }
 
@@ -180,7 +185,6 @@ export function RenderUploadingState({
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-
       )}
     </div>
   );

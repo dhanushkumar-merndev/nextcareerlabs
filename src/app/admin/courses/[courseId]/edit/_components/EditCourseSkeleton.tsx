@@ -16,7 +16,7 @@ export function EditCourseSkeleton() {
       </div>
 
       {/* Tabs Skeleton */}
-      <div className="w-full px-4 md:px-0">
+      <div className="w-full p-4 md:px-0">
         <div className="grid grid-cols-2 w-full h-10 bg-muted/20 rounded-md p-1 gap-1">
           <Skeleton className="h-full w-full" />
           <div className="h-full w-full" /> {/* Just one active-looking tab */}

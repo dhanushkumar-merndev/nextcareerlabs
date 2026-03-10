@@ -6,24 +6,41 @@ import { ApiResponse } from "@/lib/types/auth";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { EnrollmentStatus } from "@/generated/prisma";
-import { invalidateCache, CHAT_CACHE_KEYS, GLOBAL_CACHE_KEYS, incrementGlobalVersion, incrementChatVersion, invalidateAllAdminCache, invalidateUserEnrollmentCache } from "@/lib/redis";
+import {
+  invalidateCache,
+  CHAT_CACHE_KEYS,
+  GLOBAL_CACHE_KEYS,
+  incrementGlobalVersion,
+  invalidateAllAdminCache,
+  invalidateUserEnrollmentCache,
+} from "@/lib/redis";
 
 export async function getRequestsAction(
   skip: number,
   take: number,
   status?: EnrollmentStatus | "All",
   search?: string,
-  clientVersion?: string
+  clientVersion?: string,
 ) {
-  console.log(`[AdminRequestAction] Fetching requests (Status: ${status}, Search: ${search}, ClientVersion: ${clientVersion || 'none'})`);
-  return await adminGetEnrollmentRequests(skip, take, status, search, clientVersion);
+  console.log(
+    `[AdminRequestAction] Fetching requests (Status: ${status}, Search: ${search}, ClientVersion: ${clientVersion || "none"})`,
+  );
+  return await adminGetEnrollmentRequests(
+    skip,
+    take,
+    status,
+    search,
+    clientVersion,
+  );
 }
 
 export async function updateEnrollmentStatusAction(
   enrollmentId: string,
-  status: "Granted" | "Revoked" | "Pending"
+  status: "Granted" | "Revoked" | "Pending",
 ): Promise<ApiResponse> {
-  console.log(`[AdminRequestAction] Updating enrollment ${enrollmentId} to status ${status}`);
+  console.log(
+    `[AdminRequestAction] Updating enrollment ${enrollmentId} to status ${status}`,
+  );
   await requireAdmin();
 
   try {
@@ -38,47 +55,52 @@ export async function updateEnrollmentStatusAction(
         userId: true,
         courseId: true,
         Course: {
-          select: { slug: true }
-        }
-      }
+          select: { slug: true },
+        },
+      },
     });
 
     const updateDuration = Date.now() - updateStartTime;
-    console.log(`[updateEnrollmentStatusAction] DB Update + Fetch took ${updateDuration}ms`);
+    console.log(
+      `[updateEnrollmentStatusAction] DB Update + Fetch took ${updateDuration}ms`,
+    );
 
-    // NOTE: We don't set the cookie here because this is an ADMIN action. 
-    // The user's browser will sync its own cookie via DashboardShell when it 
+    // NOTE: We don't set the cookie here because this is an ADMIN action.
+    // The user's browser will sync its own cookie via DashboardShell when it
     // detects the new enrollment via the client-side API/fetch.
 
     if (enrollment) {
       // Find course group for participants invalidation
       const courseGroup = await prisma.chatGroup.findFirst({
         where: { courseId: enrollment.courseId },
-        select: { id: true }
+        select: { id: true },
       });
 
       // Collective invalidation (Admin + User)
       const invalidations: Promise<any>[] = [
         invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId)),
-        courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
+        courseGroup
+          ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id))
+          : Promise.resolve(),
 
         // Admin Keys (Centralized Invalidation)
         invalidateAllAdminCache(),
-
 
         // Support for User Synchronicity (Unified)
         invalidateUserEnrollmentCache(enrollment.userId),
 
         // Versions (The triggers)
         incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION), // Force global list refresh
-        incrementChatVersion(enrollment.userId),
+        incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(enrollment.userId)),
       ];
 
       // On Grant, also invalidate specific user course caches to reflect enrollment status
       if (status === "Granted") {
         invalidations.push(
-          invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(enrollment.Course.slug)), // Use standardized key
-          invalidateCache(`course:${enrollment.Course.slug}`) // Support older variant
+          invalidateCache(
+            GLOBAL_CACHE_KEYS.COURSE_DETAIL(enrollment.Course.slug),
+          ), // Use standardized key
+          invalidateCache(`course:${enrollment.Course.slug}`), // Support older variant
         );
       }
 
@@ -120,10 +142,12 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
       }),
       prisma.enrollment.updateMany({
         where: { userId },
-        data: { status: "Revoked" }
-      })
+        data: { status: "Revoked" },
+      }),
     ]);
-    console.log(`[banUserAction] DB Update (Ban + Revoke) took ${Date.now() - startTime}ms`);
+    console.log(
+      `[banUserAction] DB Update (Ban + Revoke) took ${Date.now() - startTime}ms`,
+    );
 
     // Invalidate user caches and admin list (Centralized)
     await Promise.all([
@@ -133,7 +157,7 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
       invalidateUserEnrollmentCache(userId),
 
       // Versions (The triggers)
-      incrementChatVersion(userId),
+      incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(userId)),
     ]);
 
     revalidatePath("/admin/requests");
@@ -176,7 +200,7 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
       invalidateUserEnrollmentCache(userId),
 
       // Versions (The triggers)
-      incrementChatVersion(userId),
+      incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(userId)),
     ]);
 
     revalidatePath("/admin/requests");
@@ -201,9 +225,11 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
 
 export async function updateUserDetailsAction(
   userId: string,
-  data: { email?: string; phoneNumber?: string }
+  data: { email?: string; phoneNumber?: string },
 ): Promise<ApiResponse> {
-  console.log(`[AdminRequestAction] Updating user details for ${userId}: ${JSON.stringify(data)}`);
+  console.log(
+    `[AdminRequestAction] Updating user details for ${userId}: ${JSON.stringify(data)}`,
+  );
   await requireAdmin();
 
   try {
@@ -212,12 +238,14 @@ export async function updateUserDetailsAction(
       where: { id: userId },
       data,
     });
-    console.log(`[updateUserDetailsAction] DB Update took ${Date.now() - startTime}ms`);
+    console.log(
+      `[updateUserDetailsAction] DB Update took ${Date.now() - startTime}ms`,
+    );
 
     // Invalidate enrollment list since user details changed
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION)
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
     ]);
 
     revalidatePath("/admin/requests");
@@ -241,7 +269,7 @@ export async function updateUserDetailsAction(
 }
 
 export async function deleteEnrollmentAction(
-  enrollmentId: string
+  enrollmentId: string,
 ): Promise<ApiResponse> {
   console.log(`[AdminRequestAction] Deleting enrollment ${enrollmentId}`);
   await requireAdmin();
@@ -255,8 +283,8 @@ export async function deleteEnrollmentAction(
       select: {
         userId: true,
         courseId: true,
-        Course: { select: { slug: true } }
-      }
+        Course: { select: { slug: true } },
+      },
     });
 
     if (!enrollment) {
@@ -269,25 +297,29 @@ export async function deleteEnrollmentAction(
     // Find course group for participants invalidation
     const courseGroup = await prisma.chatGroup.findFirst({
       where: { courseId: enrollment.courseId },
-      select: { id: true }
+      select: { id: true },
     });
 
     await prisma.enrollment.delete({
       where: { id: enrollmentId },
     });
-    console.log(`[deleteEnrollmentAction] DB Delete took ${Date.now() - startTime}ms`);
+    console.log(
+      `[deleteEnrollmentAction] DB Delete took ${Date.now() - startTime}ms`,
+    );
 
     // Smart Sync Invalidation (Centralized Admin + User Specific)
     await Promise.all([
       invalidateAllAdminCache(),
-      courseGroup ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id)) : Promise.resolve(),
+      courseGroup
+        ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id))
+        : Promise.resolve(),
 
       // User invalidation (Unified)
       invalidateUserEnrollmentCache(enrollment.userId),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(enrollment.Course.slug)),
 
       // Versions (The triggers)
-      incrementChatVersion(enrollment.userId),
+      incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(enrollment.userId)),
     ]);
 
     revalidatePath("/admin/requests");

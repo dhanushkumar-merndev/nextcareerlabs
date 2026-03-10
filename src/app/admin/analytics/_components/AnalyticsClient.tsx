@@ -13,14 +13,31 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getAdminAnalytics, getAdminSuccessRate, getAdminStaticAnalytics } from "@/app/admin/analytics/actions";
+import {
+  getAdminAnalytics,
+  getAdminSuccessRate,
+  getAdminStaticAnalytics,
+} from "@/app/admin/analytics/actions";
 
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { SimpleBarChart, SimplePieChart } from "@/components/analytics/Charts";
 import { GrowthChartWithFilter } from "@/components/analytics/GrowthChartWithFilter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
@@ -38,23 +55,41 @@ export function AnalyticsClient() {
     setMounted(true);
 
     if (!hasLogged.current) {
-      const cached = chatCache.get<any>("admin_analytics");
-      if (cached) {
-        console.log(`%c[Analytics] LOCAL HIT (v${cached.version}). Rendering from device storage.`, "color: #eab308; font-weight: bold");
-      }
+      const keys = [
+        { key: "admin_static_analytics", label: "Static" },
+        { key: "admin_analytics_growth", label: "Growth" },
+        { key: "admin_success_rate", label: "SuccessRate" },
+      ];
+
+      keys.forEach(({ key, label }) => {
+        const cached = chatCache.get<any>(key);
+        if (cached) {
+          console.log(
+            `%c[Analytics] LOCAL HIT (${label}). Rendering from device storage.`,
+            "color: #eab308; font-weight: bold",
+          );
+        }
+      });
       hasLogged.current = true;
     }
 
     // Cross-Tab Sync
     const handleStorageChange = (e: StorageEvent) => {
-      const syncKeys = ["admin_analytics", "admin_static_analytics", "admin_analytics_growth", "admin_success_rate"];
-      if (syncKeys.some(key => e.key?.includes(key))) {
-        console.log(`[Analytics] Cross-Tab Sync: Updating dashboard via router.refresh()...`);
+      const syncKeys = [
+        "admin_analytics",
+        "admin_static_analytics",
+        "admin_analytics_growth",
+        "admin_success_rate",
+      ];
+      if (syncKeys.some((key) => e.key?.includes(key))) {
+        console.log(
+          `[Analytics] Cross-Tab Sync: Updating dashboard via router.refresh()...`,
+        );
         router.refresh(); // Server-side refresh
       }
     };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, [router]);
 
   const getTime = () => new Date().toLocaleTimeString();
@@ -71,8 +106,17 @@ export function AnalyticsClient() {
       }
 
       if (result?.data) {
-        console.log(`[${getTime()}] [Analytics] Static Data: UPDATED`);
-        chatCache.set("admin_static_analytics", result.data, undefined, result.version, PERMANENT_TTL);
+        console.log(
+          `%c[Analytics] SERVER HIT: NEW_DATA (Static). Syncing (v${result.version}).`,
+          "color: #eab308; font-weight: bold",
+        );
+        chatCache.set(
+          "admin_static_analytics",
+          result.data,
+          undefined,
+          result.version,
+          PERMANENT_TTL,
+        );
         return result.data;
       }
       return cached?.data || null;
@@ -81,8 +125,9 @@ export function AnalyticsClient() {
       if (typeof window === "undefined") return undefined;
       return chatCache.get<any>("admin_static_analytics")?.data;
     },
-    staleTime: 3600000, // 1 hour
+    staleTime: 3600000,
     refetchInterval: 3600000,
+    refetchOnWindowFocus: false,
   });
 
   const staticData = staticDataRaw as any;
@@ -92,14 +137,28 @@ export function AnalyticsClient() {
     queryKey: ["admin_analytics_growth"],
     queryFn: async () => {
       const cached = chatCache.get<any>("admin_analytics_growth");
-      const result = await getAdminAnalytics(undefined, undefined, cached?.version);
+      const result = await getAdminAnalytics(
+        undefined,
+        undefined,
+        cached?.version,
+      );
 
       if (result?.status === "not-modified" && cached) {
         return cached.data;
       }
 
       if (result?.data) {
-        chatCache.set("admin_analytics_growth", result.data, undefined, result.version, PERMANENT_TTL);
+        console.log(
+          `%c[Analytics] SERVER HIT: NEW_DATA (Growth). Syncing (v${result.version}).`,
+          "color: #eab308; font-weight: bold",
+        );
+        chatCache.set(
+          "admin_analytics_growth",
+          result.data,
+          undefined,
+          result.version,
+          PERMANENT_TTL,
+        );
         return result.data;
       }
       return cached?.data || null;
@@ -108,7 +167,8 @@ export function AnalyticsClient() {
       if (typeof window === "undefined") return undefined;
       return chatCache.get<any>("admin_analytics_growth")?.data;
     },
-    staleTime: 1800000, // 30 mins
+    staleTime: 1800000,
+    refetchOnWindowFocus: false,
   });
 
   const growthData = growthDataRaw as any;
@@ -121,7 +181,17 @@ export function AnalyticsClient() {
       const result = await getAdminSuccessRate();
 
       if (result) {
-        chatCache.set("admin_success_rate", result, undefined, result.lastUpdated, PERMANENT_TTL);
+        console.log(
+          `%c[Analytics] SERVER HIT: NEW_DATA (SuccessRate). Syncing (v${result.lastUpdated}).`,
+          "color: #eab308; font-weight: bold",
+        );
+        chatCache.set(
+          "admin_success_rate",
+          result,
+          undefined,
+          result.lastUpdated,
+          PERMANENT_TTL,
+        );
         return result;
       }
       return cached?.data || null;
@@ -132,10 +202,17 @@ export function AnalyticsClient() {
     },
     staleTime: 1800000,
     refetchInterval: 1800000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
+    initialDataUpdatedAt: () => {
+      if (typeof window === "undefined") return undefined;
+      return chatCache.get<any>("admin_success_rate")?.timestamp;
+    },
   });
 
-  const successRate = successRateRaw as { value: number; lastUpdated: string } | null;
+  const successRate = successRateRaw as {
+    value: number;
+    lastUpdated: string;
+  } | null;
 
   // Strict hydration guard
   if (!mounted) {
@@ -177,7 +254,11 @@ export function AnalyticsClient() {
         />
         <AnalyticsCard
           title="Success Rate"
-          value={isSuccessRateLoading && !successRate ? "Loading..." : `${successRate?.value ?? 0}%`}
+          value={
+            isSuccessRateLoading && !successRate
+              ? "Loading..."
+              : `${successRate?.value ?? 0}%`
+          }
           icon="play"
           description="Average lesson completion rate"
           lastUpdated={successRate?.lastUpdated}
@@ -234,7 +315,9 @@ export function AnalyticsClient() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[200px]">User</TableHead>
-                    <TableHead className="min-w-[100px] hidden md:table-cell">Joined</TableHead>
+                    <TableHead className="min-w-[100px] hidden md:table-cell">
+                      Joined
+                    </TableHead>
                     <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -245,11 +328,15 @@ export function AnalyticsClient() {
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={user.image || ""} />
-                            <AvatarFallback>{user.name?.charAt(0) || "U"}</AvatarFallback>
+                            <AvatarFallback>
+                              {user.name?.charAt(0) || "U"}
+                            </AvatarFallback>
                           </Avatar>
                           <div className="flex flex-col">
                             <span className="font-medium">{user.name}</span>
-                            <span className="text-xs text-muted-foreground">{user.email}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {user.email}
+                            </span>
                           </div>
                         </div>
                       </TableCell>
@@ -257,8 +344,15 @@ export function AnalyticsClient() {
                         {formatIST(user.createdAt)}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" className="h-7 px-3 text-[10px]" asChild>
-                          <Link href={`/admin/analytics/users/${user.id}`}>View</Link>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-3 text-[10px]"
+                          asChild
+                        >
+                          <Link href={`/admin/analytics/users/${user.id}`}>
+                            View
+                          </Link>
                         </Button>
                       </TableCell>
                     </TableRow>

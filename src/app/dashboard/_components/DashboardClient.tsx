@@ -48,8 +48,8 @@ export function DashboardClient() {
       // 2. Fresh Data -> Update Local Cache (Permanent TTL)
       if (result && result.data) {
         console.log(
-          `%c[Dashboard] Server: NEW_DATA -> Updating Cache (v${result.version})`,
-          "color: #3b82f6; font-weight: bold",
+          `%c[Dashboard] SERVER HIT: NEW_DATA. Updating Local Cache (v${result.version}).`,
+          "color: #eab308; font-weight: bold",
         );
         chatCache.set(
           cacheKey,
@@ -66,7 +66,15 @@ export function DashboardClient() {
     },
     initialData: () => {
       if (typeof window === "undefined" || !userId) return undefined;
-      return chatCache.get<any>("user_dashboard", userId)?.data;
+      const cached = chatCache.get<any>("user_dashboard", userId);
+      if (cached && !hasLogged.current) {
+        console.log(
+          `%c[Dashboard] LOCAL HIT (v${cached.version}). Rendering from device storage.`,
+          "color: #eab308; font-weight: bold",
+        );
+        hasLogged.current = true;
+      }
+      return cached?.data;
     },
     initialDataUpdatedAt:
       typeof window !== "undefined" && userId

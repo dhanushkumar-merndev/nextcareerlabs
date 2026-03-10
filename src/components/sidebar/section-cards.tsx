@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { useRef } from "react";
 import { UserIcon } from "@/components/ui/user";
 import { UsersIcon } from "@/components/ui/users";
@@ -67,14 +67,22 @@ export function SectionCards({ stats }: SectionCardsProps) {
   );
 }
 
-function SimpleStatCard({ title, value, description, icon: Icon }: SimpleCardProps) {
-  const iconRef = useRef<{ startAnimation: () => void; stopAnimation: () => void }>(null);
+function SimpleStatCard({
+  title,
+  value,
+  description,
+  icon: Icon,
+}: SimpleCardProps) {
+  const iconRef = useRef<{
+    startAnimation: () => void;
+    stopAnimation: () => void;
+  }>(null);
 
   return (
     <Card
       onMouseEnter={() => iconRef.current?.startAnimation()}
       onMouseLeave={() => iconRef.current?.stopAnimation()}
-      className="group rounded-xl border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-default"
+      className="group rounded-xl border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-default py-4 gap-2"
     >
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
@@ -90,8 +98,10 @@ function SimpleStatCard({ title, value, description, icon: Icon }: SimpleCardPro
         </div>
       </CardHeader>
 
-      <CardFooter>
-        <p className="text-muted-foreground text-sm">{description}</p>
+      <CardFooter className="pb-1 pt-0">
+        <p className="text-muted-foreground text-xs sm:text-sm font-medium leading-relaxed italic opacity-80">
+          {description}
+        </p>
       </CardFooter>
     </Card>
   );

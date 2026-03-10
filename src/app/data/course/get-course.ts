@@ -1,22 +1,30 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { getCache, setCache, GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
+import {
+  getCache,
+  setCache,
+  GLOBAL_CACHE_KEYS,
+  getGlobalVersion,
+  getVersions,
+} from "@/lib/redis";
 
-export async function getIndividualCourse(slug: string, clientVersion?: string, userId?: string) {
-  let currentVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION);
+export async function getIndividualCourse(
+  slug: string,
+  clientVersion?: string,
+  userId?: string,
+) {
+  const versionKeys = [GLOBAL_CACHE_KEYS.COURSES_VERSION];
+  if (userId) versionKeys.push(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
 
-  // 🔹 If user is logged in, combine global version with user-specific version
-  if (userId) {
-    const userVersion = await getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
-    currentVersion = `${currentVersion}:${userVersion}`;
-  }
+  const [coursesV, userV = ""] = await getVersions(versionKeys);
+  const currentVersion = userId ? `${coursesV}:${userV}` : coursesV;
 
-
-  
   // Smart Sync: If client has the latest version, don't re-fetch
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(`[getIndividualCourse] Version match for ${slug}. Returning NOT_MODIFIED.`);
+    console.log(
+      `[getIndividualCourse] Version match for ${slug}. Returning NOT_MODIFIED.`,
+    );
     return { status: "not-modified", version: currentVersion };
   }
 
@@ -24,7 +32,7 @@ export async function getIndividualCourse(slug: string, clientVersion?: string, 
   const cacheKey = `${GLOBAL_CACHE_KEYS.COURSE_DETAIL(slug)}:${currentVersion}`;
   const startTime = Date.now();
   const cached = await getCache<any>(cacheKey);
-  
+
   if (cached) {
     console.log(`[Redis] Cache HIT for course: ${slug} (v${currentVersion})`);
     return { course: cached, version: currentVersion };
@@ -65,11 +73,13 @@ export async function getIndividualCourse(slug: string, clientVersion?: string, 
     },
   });
 
-  console.log(`[getIndividualCourse] DB Computation took ${Date.now() - startTime}ms`);
+  console.log(
+    `[getIndividualCourse] DB Computation took ${Date.now() - startTime}ms`,
+  );
 
   // Cache in Redis for 30 days
   await setCache(cacheKey, course, 2592000); // 30 days
-  
+
   return { course, version: currentVersion };
 }
 

@@ -10,38 +10,41 @@ import {
 import { requireUser } from "../data/user/require-user";
 
 export async function getUserDashboardData(clientVersion?: string) {
-  const user = await requireUser();
-  const userId = user.id;
-
-  const [userVersion, globalCoursesVersion] = await Promise.all([
-    getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
-    getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-  ]);
-
-  const currentVersion = `${userVersion}:${globalCoursesVersion}`;
-
-  // Smart Sync
-  if (clientVersion && clientVersion === currentVersion) {
-    console.log(
-      `[getUserDashboardData] Version match for ${userId}. Returning NOT_MODIFIED.`,
-    );
-    return { status: "not-modified", version: currentVersion };
-  }
-
-  // Check Redis cache (versioned for immediate invalidation)
-  const cacheKey = `user:dashboard:${userId}:${currentVersion}`;
-  const redisStartTime = Date.now();
-  const cached = await getCache<any>(cacheKey);
-  console.log(
-    `[getUserDashboardData] Redis lookup for User=${userId} took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
-  );
-
-  if (cached) {
-    return { data: cached, version: currentVersion };
-  }
-
-  const dbStartTime = Date.now();
   try {
+    const user = await requireUser();
+    const userId = user.id;
+
+    const [userVersion, globalCoursesVersion] = await Promise.all([
+      getGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
+      getGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+    ]);
+
+    const currentVersion = `${userVersion}:${globalCoursesVersion}`;
+
+    // Smart Sync
+    if (clientVersion && clientVersion === currentVersion) {
+      console.log(
+        `%c[getUserDashboardData] SERVER HIT: NOT_MODIFIED (${clientVersion}).`,
+        "color: #eab308; font-weight: bold",
+      );
+      return { status: "not-modified", version: currentVersion };
+    }
+
+    // Check Redis cache (versioned for immediate invalidation)
+    const cacheKey = `user:dashboard:${userId}:${currentVersion}`;
+    const redisStartTime = Date.now();
+    const cached = await getCache<any>(cacheKey);
+    const redisDuration = Date.now() - redisStartTime;
+
+    if (cached) {
+      console.log(
+        `%c[getUserDashboardData] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
+        "color: #eab308; font-weight: bold",
+      );
+      return { data: cached, version: currentVersion };
+    }
+
+    const dbStartTime = Date.now();
     const enrollments = await prisma.enrollment.findMany({
       where: {
         userId,
@@ -62,8 +65,10 @@ export async function getUserDashboardData(clientVersion?: string) {
       },
     });
 
+    const duration = Date.now() - dbStartTime;
     console.log(
-      `[getUserDashboardData] DB Computation took ${Date.now() - dbStartTime}ms`,
+      `%c[getUserDashboardData] DB HIT (${duration}ms).`,
+      "color: #eab308; font-weight: bold",
     );
 
     const enrolledCoursesCount = enrollments.length;

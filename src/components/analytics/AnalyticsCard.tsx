@@ -83,7 +83,7 @@ export function AnalyticsCard({
     <Card
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      className="group rounded-xl border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-default"
+      className="group rounded-xl border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-default py-4 gap-2"
     >
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
@@ -107,18 +107,19 @@ export function AnalyticsCard({
         </div>
       </CardHeader>
 
-      {description && (
-        <CardFooter className={`${lastUpdated ? "pb-2" : "pb-4"}`}>
-          <p className="text-muted-foreground text-sm">{description}</p>
-        </CardFooter>
-      )}
-
-      {lastUpdated && (
-        <CardFooter className="pt-0 pb-4">
-          <p className="text-[10px] text-muted-foreground/60 flex items-center gap-1">
-            <Clock size={10} />
-            Updated: {new Date(lastUpdated).toLocaleString()}
-          </p>
+      {(description || lastUpdated) && (
+        <CardFooter className="flex flex-col items-start gap-1 pb-1">
+          {description && (
+            <p className="text-muted-foreground text-[13px] leading-relaxed italic opacity-80">
+              {description}
+            </p>
+          )}
+          {lastUpdated && (
+            <p className="text-[10px] text-muted-foreground/50 flex items-center gap-1 mt-1 font-medium">
+              <Clock size={10} />
+              Updated: {new Date(lastUpdated).toLocaleString()}
+            </p>
+          )}
         </CardFooter>
       )}
     </Card>
