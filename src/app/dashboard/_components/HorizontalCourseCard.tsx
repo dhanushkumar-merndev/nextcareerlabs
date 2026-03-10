@@ -63,10 +63,7 @@ export function HorizontalCourseCard({
         );
         // DB duration is in minutes, Video duration is in seconds. Normalize to seconds.
         const duration =
-          cachedDuration ||
-          localDuration ||
-          (lp.duration ? lp.duration * 60 : 0) ||
-          0;
+          cachedDuration || localDuration || lp.duration || 0 || 0;
         totalCourseDuration += duration;
 
         // 2. Get Restriction / Watched Time (chatCache (1-day) > secureStorage > DB)

@@ -60,7 +60,8 @@ export function CourseSidebar({ course }: iAppProps) {
       let completedCount = 0;
 
       chapter.lesson.forEach((lesson: any) => {
-        // 1. Get Duration (chatCache (1-day) > secureStorage > DB)
+        // 1. Get Duration: DB is the primary source (stable across sessions)
+        const dbDuration = lesson.duration || 0;
         const cachedDuration = chatCache.get<number>(
           `duration_${lesson.id}`,
           userId,
@@ -68,11 +69,7 @@ export function CourseSidebar({ course }: iAppProps) {
         const localDuration = parseFloat(
           secureStorage.getItem(`duration-${lesson.id}`) || "0",
         );
-        const duration =
-          cachedDuration ||
-          localDuration ||
-          (lesson.duration ? lesson.duration * 60 : 0) ||
-          0;
+        const duration = dbDuration || cachedDuration || localDuration || 0;
         totalChapterDuration += duration;
 
         // 2. Get Restriction / Watched Time
@@ -97,7 +94,7 @@ export function CourseSidebar({ course }: iAppProps) {
         // 3. Completion check
         const isCompleted =
           lesson.lessonProgress?.some((p: any) => p.completed) ||
-          (duration > 0 && effectiveRestriction >= duration * 0.95);
+          (duration > 0 && effectiveRestriction >= duration * 0.9);
 
         if (isCompleted) {
           completedCount++;
@@ -230,6 +227,7 @@ export function CourseSidebar({ course }: iAppProps) {
               (c: any) => c.id === openChapter,
             );
             return activeChapter?.lesson.map((lesson: any) => {
+              const dbDuration = lesson.duration || 0;
               const cachedDuration = chatCache.get<number>(
                 `duration_${lesson.id}`,
                 userId,
@@ -238,10 +236,7 @@ export function CourseSidebar({ course }: iAppProps) {
                 secureStorage.getItem(`duration-${lesson.id}`) || "0",
               );
               const duration =
-                cachedDuration ||
-                localDuration ||
-                (lesson.duration ? lesson.duration * 60 : 0) ||
-                0;
+                dbDuration || cachedDuration || localDuration || 0;
               const cachedRestriction = chatCache.get<number>(
                 `restriction_${lesson.id}`,
                 userId,
@@ -260,7 +255,7 @@ export function CourseSidebar({ course }: iAppProps) {
               );
               const isCompleted =
                 lesson.lessonProgress?.some((p: any) => p.completed) ||
-                (duration > 0 && effectiveRestriction >= duration * 0.95);
+                (duration > 0 && effectiveRestriction >= duration * 0.9);
 
               return (
                 <LessonItem
@@ -314,6 +309,7 @@ export function CourseSidebar({ course }: iAppProps) {
 
               <CollapsibleContent className="mt-3 pl-6 border-l-2 space-y-3">
                 {chapter.lesson.map((lesson: any) => {
+                  const dbDuration = lesson.duration || 0;
                   const cachedDuration = chatCache.get<number>(
                     `duration_${lesson.id}`,
                     userId,
@@ -322,10 +318,7 @@ export function CourseSidebar({ course }: iAppProps) {
                     secureStorage.getItem(`duration-${lesson.id}`) || "0",
                   );
                   const duration =
-                    cachedDuration ||
-                    localDuration ||
-                    (lesson.duration ? lesson.duration * 60 : 0) ||
-                    0;
+                    dbDuration || cachedDuration || localDuration || 0;
                   const cachedRestriction = chatCache.get<number>(
                     `restriction_${lesson.id}`,
                     userId,
@@ -345,7 +338,7 @@ export function CourseSidebar({ course }: iAppProps) {
                   );
                   const isCompleted =
                     lesson.lessonProgress?.some((p: any) => p.completed) ||
-                    (duration > 0 && effectiveRestriction >= duration * 0.95);
+                    (duration > 0 && effectiveRestriction >= duration * 0.9);
 
                   return (
                     <LessonItem

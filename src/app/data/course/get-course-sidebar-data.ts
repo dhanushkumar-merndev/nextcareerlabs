@@ -78,6 +78,7 @@ export async function getCourseSidebarData(
               position: true,
               description: true,
               thumbnailKey: true,
+              duration: true,
               lessonProgress: {
                 where: {
                   userId: session.id,
@@ -87,6 +88,8 @@ export async function getCourseSidebarData(
                   quizPassed: true,
                   lessonId: true,
                   id: true,
+                  restrictionTime: true,
+                  lastWatched: true,
                 },
               },
             },

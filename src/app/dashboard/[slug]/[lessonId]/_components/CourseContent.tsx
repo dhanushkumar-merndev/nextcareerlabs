@@ -44,6 +44,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { checkAndInvalidateAssessmentEligibility } from "../invalidate-assessment";
 
 interface iAppProps {
   lessonId: string;
@@ -57,6 +58,7 @@ const EMPTY_ARRAY: any[] = [];
 // VideoPlayer is defined as a separate top-level component (not inside CourseContent)
 // to ensure React maintains a stable identity across renders
 const ONE_DAY_TTL = 24 * 60 * 60 * 1000;
+const ONE_YEAR_TTL = 365 * 24 * 60 * 60 * 1000;
 
 function VideoPlayer({
   thumbnailkey,
@@ -75,6 +77,8 @@ function VideoPlayer({
   isCompleted,
   setOptimisticCompleted,
   initialRestrictionTime = 0,
+  durationInSec,
+  slug,
 }: {
   thumbnailkey: string;
   videoKey: string;
@@ -92,6 +96,8 @@ function VideoPlayer({
   isCompleted?: boolean;
   setOptimisticCompleted: (val: boolean) => void;
   initialRestrictionTime?: number;
+  durationInSec: number;
+  slug: string;
 }) {
   console.log("[DEBUG] VideoPlayer render", { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
@@ -215,6 +221,30 @@ function VideoPlayer({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [hlsUrl, setHlsUrl] = useState<string | null>(null);
   const [captionUrl, setCaptionUrl] = useState<string | undefined>(undefined);
+  const [actualDuration, setActualDuration] = useState<number>(0);
+
+  // ✅ Refs to avoid stale closures in onTimeUpdate while keeping callback stable
+  const isCompletedRef = useRef(isCompleted);
+  const actualDurationRef = useRef(0);
+  const durationInSecRef = useRef(durationInSec);
+  const slugRef = useRef(slug);
+  const setOptimisticCompletedRef = useRef(setOptimisticCompleted);
+
+  useEffect(() => {
+    isCompletedRef.current = isCompleted;
+  }, [isCompleted]);
+  useEffect(() => {
+    actualDurationRef.current = actualDuration;
+  }, [actualDuration]);
+  useEffect(() => {
+    durationInSecRef.current = durationInSec;
+  }, [durationInSec]);
+  useEffect(() => {
+    slugRef.current = slug;
+  }, [slug]);
+  useEffect(() => {
+    setOptimisticCompletedRef.current = setOptimisticCompleted;
+  }, [setOptimisticCompleted]);
 
   const [resumeTime, setResumeTime] = useState(initialTime);
   useEffect(() => {
@@ -265,6 +295,7 @@ function VideoPlayer({
   ============================================================ */
   const onLoadedMetadata = useCallback(
     (duration: number) => {
+      setActualDuration(duration);
       // ✅ Save duration locally for real-time dashboard progress calculation (1 day TTL)
       chatCache.set(
         `duration_${lessonId}`,
@@ -297,7 +328,57 @@ function VideoPlayer({
         );
       }
 
-      // ✅ 2. Track Coverage Delta
+      // ✅ 2. Real-time Assessment Eligibility Check (90% threshold)
+      const _isCompleted = isCompletedRef.current;
+      const _actualDuration = actualDurationRef.current;
+      const _durationInSec = durationInSecRef.current;
+      const _slug = slugRef.current;
+      const _setOptimisticCompleted = setOptimisticCompletedRef.current;
+
+      if (
+        !_isCompleted &&
+        !hasTriggeredAssessmentCacheRef.current &&
+        (_actualDuration > 0 || _durationInSec > 0)
+      ) {
+        const effectiveDuration =
+          _actualDuration > 0 ? _actualDuration : _durationInSec;
+        const threshold = effectiveDuration * 0.9;
+        if (currentTime >= threshold) {
+          // ── Tier 1: Check Local Cache FIRST ───────────────────────────
+          const cacheKey = `assessment_eligible_${lessonId}`;
+          const cached = chatCache.get<boolean>(cacheKey, userId);
+
+          if (cached?.data === true) {
+            console.log(
+              `%c[AssessmentEligibility] 🟡 LOCAL CACHE HIT (Already Eligible) for Lesson=${lessonId}. Skipping Server Call.`,
+              "color: #eab308; font-weight: bold",
+            );
+            hasTriggeredAssessmentCacheRef.current = true;
+            _setOptimisticCompleted(true);
+            return;
+          }
+
+          // ── Tier 2: Call Server & Cache Result ────────────────────────
+          hasTriggeredAssessmentCacheRef.current = true;
+          _setOptimisticCompleted(true);
+
+          checkAndInvalidateAssessmentEligibility(lessonId, _slug)
+            .then((res) => {
+              // Cache for 1 year so we never hit the server again for this lesson
+              chatCache.set(cacheKey, true, userId, undefined, ONE_YEAR_TTL);
+              console.log(
+                `%c[AssessmentEligibility] 💾 CACHED eligibility locally (1 year) for Lesson=${lessonId}`,
+                "color: #8b5cf6",
+              );
+            })
+            .catch((e) => {
+              console.error("[Eligibility] Error invalidating caches:", e);
+              hasTriggeredAssessmentCacheRef.current = false;
+            });
+        }
+      }
+
+      // ✅ 3. Track Coverage Delta
       const delta = currentTime - lastPositionRef.current;
       if (delta > 0 && delta < 5.0) {
         // Multi-tab safety: Only track if page is active
@@ -739,8 +820,10 @@ function VideoPlayer({
   // trackCoverage merged into onTimeUpdate for better synchronization
 
   /* ============================================================
-     PERSISTENCE HEARTBEAT (Position Only)
+     PERSISTENCE HEARTBEAT (Position Only) + ASSESSMENT CHECK
   ============================================================ */
+  const hasTriggeredAssessmentCacheRef = useRef<boolean>(false);
+
   useEffect(() => {
     const interval = setInterval(() => {
       // We only heartbeat the position now, delta is session-based
@@ -750,14 +833,14 @@ function VideoPlayer({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [lessonId]);
+  }, [lessonId, isCompleted, durationInSec, slug, actualDuration]);
 
   /* ============================================================
      HLS + VIDEO + CAPTION URL SETUP (with local 28-min cache)
   ============================================================ */
   const urlCacheKey = `lesson_video_urls_${lessonId}`;
   // 28 min TTL — just under the 30-min S3 signed URL expiry
-  const VIDEO_URL_TTL = 28 * 60 * 1000;
+  const VIDEO_URL_TTL = 30 * 60 * 1000;
 
   useEffect(() => {
     if (!videoKey) return;
@@ -982,11 +1065,32 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   // ✅ isLoadingMCQs state
   const [isLoadingMCQs, setIsLoadingMCQs] = useState(false);
 
+  const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
+
+  const cachedEligibility = chatCache.get<boolean>(
+    `assessment_eligible_${lessonId}`,
+    userId,
+  )?.data;
+
+  // isCompleted: mark lesson done in sidebar/UI only after pass/DB confirm
   const isCompleted =
+    quizPassed ||
     optimisticCompleted ||
+    cachedEligibility ||
     lessonData?.lessonProgress?.some((p: any) => p.completed);
 
-  const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
+  // ✅ Seed assessment eligibility cache on mount/update if completed
+  useEffect(() => {
+    if (isCompleted) {
+      chatCache.set(
+        `assessment_eligible_${lessonId}`,
+        true,
+        userId,
+        undefined,
+        ONE_YEAR_TTL,
+      );
+    }
+  }, [lessonId, isCompleted, userId]);
 
   const hasVideo = Boolean(lessonData?.videoKey);
 
@@ -1015,13 +1119,54 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     );
   }
 
-  const restriction =
-    lessonData?.lessonProgress?.[0]?.restrictionTime ??
-    lessonData?.lessonProgress?.[0]?.lastWatched ??
-    0;
-  const durationInSec = (lessonData.duration || 0) * 60;
+  // Use the highest known restriction time (DB vs Local vs Cache)
+  const localRestriction = parseFloat(
+    secureStorage.getItem(`restriction-time-${lessonId}`) || "0",
+  );
+  const cachedRestriction = chatCache.get<number>(
+    `restriction_${lessonId}`,
+    userId,
+  )?.data;
+
+  const restriction = Math.max(
+    lessonData?.lessonProgress?.[0]?.restrictionTime ?? 0,
+    lessonData?.lessonProgress?.[0]?.lastWatched ?? 0,
+    localRestriction,
+    cachedRestriction || 0,
+  );
+
+  // Use the most accurate duration available
+  const cachedDuration = chatCache.get<number>(
+    `duration_${lessonId}`,
+    userId,
+  )?.data;
+  const localDuration = parseFloat(
+    secureStorage.getItem(`duration-${lessonId}`) || "0",
+  );
+  const effectiveDuration =
+    cachedDuration || localDuration || lessonData.duration || 0;
+
+  // canStartAssessment: enabled if threshold reached OR already marked completed in DB
   const canStartAssessment =
-    quizPassed || restriction >= Math.max(0, durationInSec - 600);
+    quizPassed ||
+    optimisticCompleted ||
+    cachedEligibility ||
+    lessonData?.lessonProgress?.some((p: any) => p.completed) ||
+    (effectiveDuration > 0 &&
+      Math.round(restriction) >= Math.round(effectiveDuration * 0.9));
+
+  console.log("[DEBUG] Assessment Eligibility:", {
+    lessonId,
+    quizPassed,
+    optimisticCompleted,
+    cachedEligibility,
+    dbCompleted: lessonData?.lessonProgress?.some((p: any) => p.completed),
+    restriction,
+    effectiveDuration,
+    threshold: effectiveDuration * 0.9,
+    canStartAssessment,
+    questionsCount: questions.length,
+  });
 
   return (
     <div className="relative flex flex-col min-[1025px]:flex-row bg-background min-[1025px]:h-full overflow-hidden min-[1025px]:border-l border-border">
@@ -1047,6 +1192,8 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             initialRestrictionTime={
               lessonData.lessonProgress?.[0]?.restrictionTime ?? 0
             }
+            durationInSec={effectiveDuration}
+            slug={lessonData.Chapter?.Course?.slug}
           />
         </div>
 
@@ -1080,7 +1227,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
                     ) : hasVideo ? (
                       <>
                         <CheckCircle className="size-4" />
-                        {isCompleted ? "Assessment" : "Start Assessment"}
+                        {quizPassed ? "Retake Assessment" : "Start Assessment"}
                       </>
                     ) : (
                       "No Video"
@@ -1171,7 +1318,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
                     ) : hasVideo ? (
                       <>
                         <CheckCircle className="size-4" />
-                        {isCompleted ? "Assessment" : "Start Assessment"}
+                        {quizPassed ? "Retake Assessment" : "Start Assessment"}
                       </>
                     ) : (
                       "No Video Available"

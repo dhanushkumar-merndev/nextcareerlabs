@@ -105,28 +105,27 @@ export async function getLessonContent(
     }),
     prisma.lessonProgress.findUnique({
       where: { userId_lessonId: { userId: session.id, lessonId } },
-      select: { quizPassed: true, restrictionTime: true },
+      select: { completed: true, quizPassed: true, restrictionTime: true },
     }),
   ]);
 
   const isQuizPassed = progress?.quizPassed ?? false;
+  const isCompleted = progress?.completed ?? false;
   const restriction = progress?.restrictionTime ?? 0;
-  const lessonThreshold = lesson.duration ? lesson.duration * 60 - 600 : 0; // 10 minutes before end
-  const canSeeMCQs = isQuizPassed || restriction >= lessonThreshold;
 
-  const questions = canSeeMCQs
-    ? await prisma.question.findMany({
-        where: { lessonId },
-        orderBy: { order: "asc" },
-        select: {
-          id: true,
-          question: true,
-          options: true,
-          order: true,
-          ...(isQuizPassed ? { correctIdx: true, explanation: true } : {}),
-        },
-      })
-    : [];
+  // ✅ MCQs are now always fetched if enrollment is granted
+  // The client controls when to SHOW them (via canStartAssessment)
+  const questions = await prisma.question.findMany({
+    where: { lessonId },
+    orderBy: { order: "asc" },
+    select: {
+      id: true,
+      question: true,
+      options: true,
+      order: true,
+      ...(isQuizPassed ? { correctIdx: true, explanation: true } : {}),
+    },
+  });
 
   console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
 

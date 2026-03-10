@@ -96,14 +96,6 @@ export const LessonItem = memo(function LessonItem({
               Lesson {lesson.position}
             </span>
 
-            {lesson.duration && (
-              <>
-                <span className="text-[10px] text-muted-foreground/40">•</span>
-                <span className="text-[10px] md:text-xs text-muted-foreground font-medium flex items-center gap-1">
-                  {lesson.duration}m
-                </span>
-              </>
-            )}
             {completed && (
               <div className="absolute top-2 right-2 p-0.5 rounded-full bg-green-500 shadow-sm  ">
                 <Check className="size-2 text-white" strokeWidth={4} />

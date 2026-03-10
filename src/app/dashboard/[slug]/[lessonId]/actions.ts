@@ -152,10 +152,8 @@ export async function updateVideoProgress(
       select: { duration: true },
     });
 
-    const lessonDuration = lesson?.duration ? lesson.duration * 60 : 1000000; // Normalize DB minutes to seconds
+    const lessonDuration = lesson?.duration ? lesson.duration : 1000000; // DB duration is in seconds
 
-    const currentActualTotal =
-      (existing?.actualWatchTime || 0) + validatedDelta;
     // ✅ "PRECISE" SYNC: Trust the client's high-water mark exactly (capped only by duration)
     const validatedRestriction =
       restrictionTime !== undefined
@@ -256,7 +254,7 @@ export async function updateMultipleVideoProgress(
       select: { id: true, duration: true },
     });
     const lessonDurationsMap = new Map(
-      lessons.map((l) => [l.id, (l.duration || 0) * 60]),
+      lessons.map((l) => [l.id, l.duration || 0]),
     ); // seconds
 
     // 2. Fetch current progress to calculate deltas
@@ -431,31 +429,27 @@ export async function submitQuizAttempt(
         create: {
           userId: session.id,
           lessonId,
-          completed: passed, // Mark complete ONLY if passed
           quizPassed: passed,
+          // completed is handled by watch-time logic (90%)
         },
         update: {
           // 🛡️ Protection: only update to 'true', never downgrade if they already passed
-          quizPassed: passed,
-          ...(passed ? { completed: true } : {}),
+          quizPassed: {
+            set: passed || undefined, // Prisma trick: only set if passed is true, otherwise keep existing
+          },
         },
       });
 
-      // Fetch the actual current state to handle the edge case where they were already passed
-      const currentProgress = await tx.lessonProgress.findUnique({
-        where: { userId_lessonId: { userId: session.id, lessonId } },
-        select: { quizPassed: true, completed: true },
-      });
-
-      // If they were already passed, we ensure the status remains 'true'
-      if (
-        currentProgress &&
-        (currentProgress.quizPassed || currentProgress.completed)
-      ) {
-        if (!passed) {
+      // Special case: if they already passed but this attempt failed, ensure quizPassed remains true
+      if (!passed) {
+        const currentProgress = await tx.lessonProgress.findUnique({
+          where: { userId_lessonId: { userId: session.id, lessonId } },
+          select: { quizPassed: true },
+        });
+        if (currentProgress?.quizPassed) {
           await tx.lessonProgress.update({
             where: { userId_lessonId: { userId: session.id, lessonId } },
-            data: { quizPassed: true, completed: true },
+            data: { quizPassed: true },
           });
         }
       }

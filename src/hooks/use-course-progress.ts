@@ -37,7 +37,9 @@ export function useCourseProgress({
         chapter.lesson?.forEach((lesson: any) => {
           totalLessons++;
 
-          // 1. Get Duration (chatCache (1-day) > secureStorage > DB)
+          // 1. Get Duration: DB is the primary source (stable across sessions)
+          // chatCache/secureStorage are only used when DB has no value
+          const dbDuration = lesson.duration || 0;
           const cachedDuration = chatCache.get<number>(
             `duration_${lesson.id}`,
             userId,
@@ -45,11 +47,7 @@ export function useCourseProgress({
           const localDuration = parseFloat(
             secureStorage.getItem(`duration-${lesson.id}`) || "0",
           );
-          const duration =
-            cachedDuration ||
-            localDuration ||
-            (lesson.duration ? lesson.duration * 60 : 0) ||
-            0;
+          const duration = dbDuration || cachedDuration || localDuration || 0;
           totalCourseDuration += duration;
 
           // 2. Get Restriction / Watched Time (chatCache (1-day) > secureStorage > DB)
@@ -74,7 +72,7 @@ export function useCourseProgress({
           // 3. Completion Check
           const isCompleted =
             lesson.lessonProgress?.some((p: any) => p.completed) ||
-            (duration > 0 && effectiveRestriction >= duration * 0.95);
+            (duration > 0 && effectiveRestriction >= duration * 0.9);
 
           if (isCompleted) {
             completedLessons++;
