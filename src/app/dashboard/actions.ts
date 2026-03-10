@@ -53,7 +53,7 @@ export async function getUserDashboardData(clientVersion?: string) {
             chapter: {
               include: {
                 lesson: {
-                  select: { id: true },
+                  select: { id: true, duration: true },
                 },
               },
             },
@@ -88,16 +88,25 @@ export async function getUserDashboardData(clientVersion?: string) {
       let courseActualWatchTime = 0;
       let totalLessons = 0;
 
+      const lessonsProgress: any[] = [];
+
       course.chapter.forEach((chapter: any) => {
         totalLessons += chapter.lesson.length;
         chapter.lesson.forEach((lesson: any) => {
-          const progress = progressMap.get(lesson.id);
+          const progress = progressMap.get(lesson.id) as any;
           if (progress?.completed) courseCompletedCount++;
           courseActualWatchTime += progress?.actualWatchTime || 0;
+
+          lessonsProgress.push({
+            id: lesson.id,
+            duration: lesson.duration || 0,
+            restrictionTime: progress?.restrictionTime || 0,
+            completed: progress?.completed || false,
+          });
         });
       });
 
-      const progress =
+      const progressPercentage =
         totalLessons > 0
           ? Math.round((courseCompletedCount / totalLessons) * 100)
           : 0;
@@ -106,12 +115,13 @@ export async function getUserDashboardData(clientVersion?: string) {
         id: course.id,
         title: course.title,
         imageUrl: course.fileKey,
-        progress,
+        progress: progressPercentage,
         totalLessons,
         completedLessons: courseCompletedCount,
         actualWatchTime: courseActualWatchTime,
         slug: course.slug,
         level: course.level,
+        lessonsProgress, // ✅ New: detailed for client-side "real-time" sync
       };
     });
 

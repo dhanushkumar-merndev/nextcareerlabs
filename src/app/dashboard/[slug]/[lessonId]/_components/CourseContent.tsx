@@ -51,6 +51,8 @@ const EMPTY_ARRAY: any[] = [];
 
 // VideoPlayer is defined as a separate top-level component (not inside CourseContent)
 // to ensure React maintains a stable identity across renders
+const ONE_DAY_TTL = 24 * 60 * 60 * 1000;
+
 function VideoPlayer({
   thumbnailkey,
   videoKey,
@@ -256,9 +258,20 @@ function VideoPlayer({
   /* ============================================================
      VIDEO EVENT HANDLERS (Memoized for stability)
   ============================================================ */
-  const onLoadedMetadata = useCallback((duration: number) => {
-    // No-op for now as CustomPlayer handles seeking initially
-  }, []);
+  const onLoadedMetadata = useCallback(
+    (duration: number) => {
+      // ✅ Save duration locally for real-time dashboard progress calculation (1 day TTL)
+      chatCache.set(
+        `duration_${lessonId}`,
+        duration,
+        userId,
+        undefined,
+        ONE_DAY_TTL,
+      );
+      secureStorage.setItemTracked(`duration-${lessonId}`, duration.toString());
+    },
+    [lessonId, userId],
+  );
 
   const onTimeUpdate = useCallback(
     (currentTime: number) => {
@@ -268,6 +281,14 @@ function VideoPlayer({
         secureStorage.setItemTracked(
           `restriction-time-${lessonId}`,
           currentTime.toString(),
+        );
+        // ✅ Real-time dashboard override (1 day TTL)
+        chatCache.set(
+          `restriction_${lessonId}`,
+          currentTime,
+          userId,
+          undefined,
+          ONE_DAY_TTL,
         );
       }
 
@@ -291,7 +312,7 @@ function VideoPlayer({
         saveUnsyncedDelta();
       }
     },
-    [lessonId],
+    [lessonId, userId],
   );
 
   const onPlay = useCallback(() => {
@@ -312,9 +333,17 @@ function VideoPlayer({
           `restriction-time-${lessonId}`,
           maxTime.toString(),
         );
+        // ✅ Real-time dashboard override (1 day TTL)
+        chatCache.set(
+          `restriction_${lessonId}`,
+          maxTime,
+          userId,
+          undefined,
+          ONE_DAY_TTL,
+        );
       }
     },
-    [lessonId],
+    [lessonId, userId],
   );
 
   const onEnded = useCallback(() => {

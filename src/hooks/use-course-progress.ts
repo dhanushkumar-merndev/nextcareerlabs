@@ -1,7 +1,8 @@
-"use client";
 import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
-import { useMemo } from "react";
-
+import { useEffect, useState } from "react";
+import { secureStorage } from "@/lib/secure-storage";
+import { chatCache } from "@/lib/chat-cache";
+import { useSmartSession } from "./use-smart-session";
 
 interface CourseProgressResult {
   totalLessons: number;
@@ -14,38 +15,94 @@ export function useCourseProgress({
 }: {
   courseData?: CourseSidebarDataType["course"] | null;
 }): CourseProgressResult {
-  return useMemo(() => {
-    let totalLessons = 0;
-    let completedLessons = 0;
+  const { session } = useSmartSession();
+  const userId = session?.user.id;
 
-    if (!courseData?.chapter) {
-      return {
-        totalLessons: 0,
-        completedLessons: 0,
-        progressPercentage: 0,
-      };
-    }
-
-   courseData.chapter.forEach((chapter: any) => {
-  chapter.lesson?.forEach((lesson: any) => {
-    totalLessons++;
-
-    const isCompleted =
-      lesson.lessonProgress?.some((p: any) => p.completed) ?? false;
-
-    if (isCompleted) completedLessons++;
+  const [liveData, setLiveData] = useState<CourseProgressResult>({
+    totalLessons: 0,
+    completedLessons: 0,
+    progressPercentage: 0,
   });
-});
 
-    const progressPercentage =
-      totalLessons > 0
-        ? Math.round((completedLessons / totalLessons) * 100)
-        : 0;
+  useEffect(() => {
+    if (!courseData?.chapter) return;
 
-    return {
-      totalLessons,
-      completedLessons,
-      progressPercentage,
+    const calculate = () => {
+      let totalLessons = 0;
+      let completedLessons = 0;
+      let totalCourseDuration = 0;
+      let totalWatchedTime = 0;
+
+      courseData.chapter.forEach((chapter: any) => {
+        chapter.lesson?.forEach((lesson: any) => {
+          totalLessons++;
+
+          // 1. Get Duration (chatCache (1-day) > secureStorage > DB)
+          const cachedDuration = chatCache.get<number>(
+            `duration_${lesson.id}`,
+            userId,
+          )?.data;
+          const localDuration = parseFloat(
+            secureStorage.getItem(`duration-${lesson.id}`) || "0",
+          );
+          const duration =
+            cachedDuration ||
+            localDuration ||
+            (lesson.duration ? lesson.duration * 60 : 0) ||
+            0;
+          totalCourseDuration += duration;
+
+          // 2. Get Restriction / Watched Time (chatCache (1-day) > secureStorage > DB)
+          const cachedRestriction = chatCache.get<number>(
+            `restriction_${lesson.id}`,
+            userId,
+          )?.data;
+          const localRestriction = parseFloat(
+            secureStorage.getItem(`restriction-time-${lesson.id}`) || "0",
+          );
+          const localProgress = parseFloat(
+            secureStorage.getItem(`video-progress-${lesson.id}`) || "0",
+          );
+
+          const effectiveRestriction = Math.max(
+            lesson.lessonProgress?.[0]?.restrictionTime || 0,
+            cachedRestriction || 0,
+            localRestriction,
+            localProgress,
+          );
+
+          // 3. Completion Check
+          const isCompleted =
+            lesson.lessonProgress?.some((p: any) => p.completed) ||
+            (duration > 0 && effectiveRestriction >= duration * 0.95);
+
+          if (isCompleted) {
+            completedLessons++;
+            totalWatchedTime += duration;
+          } else {
+            totalWatchedTime += Math.min(effectiveRestriction, duration);
+          }
+        });
+      });
+
+      const progressPercentage =
+        totalCourseDuration > 0
+          ? Math.round((totalWatchedTime / totalCourseDuration) * 100)
+          : totalLessons > 0
+            ? Math.round((completedLessons / totalLessons) * 100)
+            : 0;
+
+      setLiveData({
+        totalLessons,
+        completedLessons,
+        progressPercentage,
+      });
     };
-  }, [courseData]);
+
+    calculate();
+    const interval = setInterval(calculate, 5000);
+    return () => clearInterval(interval);
+  }, [courseData, userId]);
+
+  return liveData;
 }

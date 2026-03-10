@@ -176,7 +176,13 @@ export function SupportTicketDialog({
           title: issueTitle,
           content: formattedContent,
           type: "SUPPORT_TICKET",
-          courseId: ["general", "app_related"].includes(courseId)
+          courseId: [
+            "general",
+            "app_related",
+            "fault",
+            "error",
+            "improve",
+          ].includes(courseId)
             ? undefined
             : courseId,
         });

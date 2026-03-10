@@ -8,12 +8,12 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ListVideo } from "lucide-react";
 import { LessonItem } from "./LessonItem";
 import { usePathname } from "next/navigation";
 import { CourseProgressBar } from "./CourseProgressBar";
 import { CircularProgress } from "@/components/ui/circular-progress";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,29 +21,109 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { ListVideo } from "lucide-react";
+import { secureStorage } from "@/lib/secure-storage";
+import { chatCache } from "@/lib/chat-cache";
+import { useSmartSession } from "@/hooks/use-smart-session";
 
 interface iAppProps {
   course: CourseSidebarDataType["course"];
 }
 
-const getChapterProgress = (
-  chapter: CourseSidebarDataType["course"]["chapter"][0],
-) => {
-  const total = chapter.lesson.length;
-  if (total === 0) return 0;
-  const completed = chapter.lesson.filter((l: any) =>
-    l.lessonProgress.some((p: any) => p.completed),
-  ).length;
-  return Math.round((completed / total) * 100);
-};
-
 export function CourseSidebar({ course }: iAppProps) {
+  const { session } = useSmartSession();
+  const userId = session?.user.id;
+
   const pathname = usePathname();
   const currentLessonId = pathname.split("/").pop();
 
   const [openChapter, setOpenChapter] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const [chapterProgressMap, setChapterProgressMap] = useState<
+    Record<string, number>
+  >({});
+
+  const calculateChapterProgress = useCallback(() => {
+    if (!course?.chapter) return;
+
+    const newMap: Record<string, number> = {};
+
+    course.chapter.forEach((chapter: any) => {
+      const total = chapter.lesson.length;
+      if (total === 0) {
+        newMap[chapter.id] = 0;
+        return;
+      }
+
+      let totalChapterDuration = 0;
+      let totalChapterWatched = 0;
+      let completedCount = 0;
+
+      chapter.lesson.forEach((lesson: any) => {
+        // 1. Get Duration (chatCache (1-day) > secureStorage > DB)
+        const cachedDuration = chatCache.get<number>(
+          `duration_${lesson.id}`,
+          userId,
+        )?.data;
+        const localDuration = parseFloat(
+          secureStorage.getItem(`duration-${lesson.id}`) || "0",
+        );
+        const duration =
+          cachedDuration ||
+          localDuration ||
+          (lesson.duration ? lesson.duration * 60 : 0) ||
+          0;
+        totalChapterDuration += duration;
+
+        // 2. Get Restriction / Watched Time
+        const cachedRestriction = chatCache.get<number>(
+          `restriction_${lesson.id}`,
+          userId,
+        )?.data;
+        const localRestriction = parseFloat(
+          secureStorage.getItem(`restriction-time-${lesson.id}`) || "0",
+        );
+        const localProgress = parseFloat(
+          secureStorage.getItem(`video-progress-${lesson.id}`) || "0",
+        );
+
+        const effectiveRestriction = Math.max(
+          lesson.lessonProgress?.[0]?.restrictionTime || 0,
+          cachedRestriction || 0,
+          localRestriction,
+          localProgress,
+        );
+
+        // 3. Completion check
+        const isCompleted =
+          lesson.lessonProgress?.some((p: any) => p.completed) ||
+          (duration > 0 && effectiveRestriction >= duration * 0.95);
+
+        if (isCompleted) {
+          completedCount++;
+          totalChapterWatched += duration;
+        } else {
+          totalChapterWatched += Math.min(effectiveRestriction, duration);
+        }
+      });
+
+      if (totalChapterDuration > 0) {
+        newMap[chapter.id] = Math.round(
+          (totalChapterWatched / totalChapterDuration) * 100,
+        );
+      } else {
+        newMap[chapter.id] = Math.round((completedCount / total) * 100);
+      }
+    });
+
+    setChapterProgressMap(newMap);
+  }, [course, userId]);
+
+  useEffect(() => {
+    calculateChapterProgress();
+    const interval = setInterval(calculateChapterProgress, 5000);
+    return () => clearInterval(interval);
+  }, [calculateChapterProgress]);
 
   // ✅ Fixed: derive lessonId inside effect, depend on pathname not currentLessonId
   useEffect(() => {
@@ -95,7 +175,6 @@ export function CourseSidebar({ course }: iAppProps) {
                 data-lenis-prevent
               >
                 {course.chapter.map((chapter: any) => {
-                  const chapterProgress = getChapterProgress(chapter);
                   return (
                     <Button
                       key={chapter.id}
@@ -117,7 +196,7 @@ export function CourseSidebar({ course }: iAppProps) {
                         </span>
                       </div>
                       <CircularProgress
-                        value={chapterProgress}
+                        value={chapterProgressMap[chapter.id] || 0}
                         size={34}
                         showCircle={false}
                         strokeWidth={2.5}
@@ -146,20 +225,55 @@ export function CourseSidebar({ course }: iAppProps) {
         </div>
 
         <div className="space-y-2 mt-4">
-          {course.chapter
-            .find((c: any) => c.id === openChapter)
-            ?.lesson.map((lesson: any) => (
-              <LessonItem
-                key={lesson.id}
-                lesson={lesson}
-                slug={course.slug}
-                isActive={currentLessonId === lesson.id}
-                courseThumbnail={course.fileKey}
-                completed={
-                  lesson.lessonProgress.some((p: any) => p.completed) || false
-                }
-              />
-            ))}
+          {(() => {
+            const activeChapter = course.chapter.find(
+              (c: any) => c.id === openChapter,
+            );
+            return activeChapter?.lesson.map((lesson: any) => {
+              const cachedDuration = chatCache.get<number>(
+                `duration_${lesson.id}`,
+                userId,
+              )?.data;
+              const localDuration = parseFloat(
+                secureStorage.getItem(`duration-${lesson.id}`) || "0",
+              );
+              const duration =
+                cachedDuration ||
+                localDuration ||
+                (lesson.duration ? lesson.duration * 60 : 0) ||
+                0;
+              const cachedRestriction = chatCache.get<number>(
+                `restriction_${lesson.id}`,
+                userId,
+              )?.data;
+              const localRestriction = parseFloat(
+                secureStorage.getItem(`restriction-time-${lesson.id}`) || "0",
+              );
+              const localProgress = parseFloat(
+                secureStorage.getItem(`video-progress-${lesson.id}`) || "0",
+              );
+              const effectiveRestriction = Math.max(
+                lesson.lessonProgress?.[0]?.restrictionTime || 0,
+                cachedRestriction || 0,
+                localRestriction,
+                localProgress,
+              );
+              const isCompleted =
+                lesson.lessonProgress?.some((p: any) => p.completed) ||
+                (duration > 0 && effectiveRestriction >= duration * 0.95);
+
+              return (
+                <LessonItem
+                  key={lesson.id}
+                  lesson={lesson}
+                  slug={course.slug}
+                  isActive={currentLessonId === lesson.id}
+                  courseThumbnail={course.fileKey}
+                  completed={isCompleted}
+                />
+              );
+            });
+          })()}
         </div>
       </div>
 
@@ -170,8 +284,6 @@ export function CourseSidebar({ course }: iAppProps) {
       >
         {course.chapter.map((chapter: any) => {
           const isOpen = openChapter === chapter.id;
-          const chapterProgress = getChapterProgress(chapter);
-
           return (
             <Collapsible key={chapter.id} open={isOpen}>
               <CollapsibleTrigger asChild>
@@ -192,7 +304,7 @@ export function CourseSidebar({ course }: iAppProps) {
                     </p>
                   </div>
                   <CircularProgress
-                    value={chapterProgress}
+                    value={chapterProgressMap[chapter.id] || 0}
                     size={30}
                     strokeWidth={2.5}
                     showCircle={false}
@@ -201,19 +313,51 @@ export function CourseSidebar({ course }: iAppProps) {
               </CollapsibleTrigger>
 
               <CollapsibleContent className="mt-3 pl-6 border-l-2 space-y-3">
-                {chapter.lesson.map((lesson: any) => (
-                  <LessonItem
-                    key={lesson.id}
-                    lesson={lesson}
-                    slug={course.slug}
-                    isActive={currentLessonId === lesson.id}
-                    courseThumbnail={course.fileKey}
-                    completed={
-                      lesson.lessonProgress.some((p: any) => p.completed) ||
-                      false
-                    }
-                  />
-                ))}
+                {chapter.lesson.map((lesson: any) => {
+                  const cachedDuration = chatCache.get<number>(
+                    `duration_${lesson.id}`,
+                    userId,
+                  )?.data;
+                  const localDuration = parseFloat(
+                    secureStorage.getItem(`duration-${lesson.id}`) || "0",
+                  );
+                  const duration =
+                    cachedDuration ||
+                    localDuration ||
+                    (lesson.duration ? lesson.duration * 60 : 0) ||
+                    0;
+                  const cachedRestriction = chatCache.get<number>(
+                    `restriction_${lesson.id}`,
+                    userId,
+                  )?.data;
+                  const localRestriction = parseFloat(
+                    secureStorage.getItem(`restriction-time-${lesson.id}`) ||
+                      "0",
+                  );
+                  const localProgress = parseFloat(
+                    secureStorage.getItem(`video-progress-${lesson.id}`) || "0",
+                  );
+                  const effectiveRestriction = Math.max(
+                    lesson.lessonProgress?.[0]?.restrictionTime || 0,
+                    cachedRestriction || 0,
+                    localRestriction,
+                    localProgress,
+                  );
+                  const isCompleted =
+                    lesson.lessonProgress?.some((p: any) => p.completed) ||
+                    (duration > 0 && effectiveRestriction >= duration * 0.95);
+
+                  return (
+                    <LessonItem
+                      key={lesson.id}
+                      lesson={lesson}
+                      slug={course.slug}
+                      isActive={currentLessonId === lesson.id}
+                      courseThumbnail={course.fileKey}
+                      completed={isCompleted}
+                    />
+                  );
+                })}
               </CollapsibleContent>
             </Collapsible>
           );

@@ -3,6 +3,7 @@ import { Play, Check } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { constructUrl } from "@/hooks/use-construct-url";
+import { memo } from "react";
 
 interface iAppProps {
   lesson: {
@@ -19,7 +20,13 @@ interface iAppProps {
   courseThumbnail?: string | null;
 }
 
-export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail }: iAppProps) {
+export const LessonItem = memo(function LessonItem({
+  lesson,
+  slug,
+  isActive,
+  completed,
+  courseThumbnail,
+}: iAppProps) {
   const thumbnail = constructUrl(lesson.thumbnailKey || courseThumbnail || "");
 
   return (
@@ -30,14 +37,14 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
 
         // Normal
         !isActive &&
-        "bg-card/50 hover:bg-accent border-transparent hover:border-border/50",
+          "bg-card/50 hover:bg-accent border-transparent hover:border-border/50",
 
         // Active
         isActive &&
-        "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20",
+          "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20",
 
         // Completed (subtle indicator)
-        completed && !isActive && "opacity-80"
+        completed && !isActive && "opacity-80",
       )}
     >
       {/* Background active indicator */}
@@ -55,7 +62,7 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
             sizes="(max-width: 768px) 100px, 80px"
             className={cn(
               "object-cover transition-transform duration-500 group-hover:scale-105",
-              isActive ? "opacity-40" : "opacity-90"
+              isActive ? "opacity-40" : "opacity-90",
             )}
             loading="lazy"
           />
@@ -68,8 +75,6 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
               </div>
             </div>
           )}
-
-
         </div>
 
         {/* TEXT CONTENT */}
@@ -77,8 +82,10 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
           <h4
             className={cn(
               "text-xs md:text-sm font-semibold truncate leading-snug transition-colors",
-              isActive ? "text-primary" : "text-card-foreground group-hover:text-primary/90",
-              completed && !isActive && "text-muted-foreground"
+              isActive
+                ? "text-primary"
+                : "text-card-foreground group-hover:text-primary/90",
+              completed && !isActive && "text-muted-foreground",
             )}
           >
             {lesson.title}
@@ -112,4 +119,4 @@ export function LessonItem({ lesson, slug, isActive, completed, courseThumbnail 
       </div>
     </Link>
   );
-}
+});
