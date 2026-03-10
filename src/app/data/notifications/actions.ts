@@ -203,6 +203,7 @@ export async function replyToTicketAction(data: {
   threadId: string;
   recipientId: string;
   content: string;
+  imageUrl?: string;
   fileUrl?: string;
   fileName?: string;
 }) {
@@ -218,6 +219,7 @@ export async function replyToTicketAction(data: {
       senderId: session.user.id,
       recipientId: data.recipientId,
       threadId: data.threadId,
+      imageUrl: data.imageUrl,
       fileUrl: data.fileUrl,
       fileName: data.fileName,
     },
@@ -232,9 +234,9 @@ export async function replyToTicketAction(data: {
     invalidateCache(CHAT_CACHE_KEYS.MESSAGES(data.threadId)),
     incrementChatVersion(data.recipientId),
     invalidateAdminsCache(), // Update global admin cache
-    data.fileUrl &&
+    (data.fileUrl || data.imageUrl) &&
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
-    data.fileUrl &&
+    (data.fileUrl || data.imageUrl) &&
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
   ]);
 
@@ -856,7 +858,7 @@ async function signMessageAttachments(msg: any) {
   if (signedMsg.imageUrl && !signedMsg.imageUrl.startsWith("http")) {
     try {
       const command = new GetObjectCommand({
-        Bucket: env.S3_BUCKET_NAME,
+        Bucket: env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
         Key: signedMsg.imageUrl,
       });
       signedMsg.imageUrl = await getSignedUrl(tigris, command, {
