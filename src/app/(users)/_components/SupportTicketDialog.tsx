@@ -39,6 +39,8 @@ export function SupportTicketDialog({
   userId,
   initialCategory,
   initialTitle,
+  courseName,
+  lessonName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,6 +48,8 @@ export function SupportTicketDialog({
   userId?: string;
   initialCategory?: string;
   initialTitle?: string;
+  courseName?: string;
+  lessonName?: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
@@ -55,6 +59,60 @@ export function SupportTicketDialog({
   );
   const [title, setTitle] = useState(initialTitle || "");
   const [content, setContent] = useState("");
+
+  const isLessonSpecific = !!(courseName || lessonName);
+
+  const placeholderMap: Record<string, string> = {
+    general:
+      "Tell us what you're looking for or any general questions about your account...",
+    app_related:
+      "Are you facing issues with the website layout, buttons, or dashboard features? Please describe...",
+    fault:
+      "What happened? Please provide steps to reproduce the bug so we can fix it quickly...",
+    error:
+      "What error message did you see? If possible, mention when it occurs (e.g., during payment, during video play)...",
+    improve:
+      "How can we make your experience better? We'd love to hear your ideas!",
+  };
+
+  const summaryPlaceholderMap: Record<string, string> = {
+    general: "e.g., Question about my subscription",
+    app_related: "e.g., Sidebar not opening on mobile",
+    fault: "e.g., Video stuck at 10:05",
+    error: "e.g., Received 404 error on dashboard",
+    improve: "e.g., Suggested feature for progress tracking",
+  };
+
+  const categoryNameMap: Record<string, string> = {
+    app_related: "App Related Issue",
+    general: "General Issue",
+    fault: "Fault/Bug Report",
+    error: "Error/Technical Issue",
+    improve: "Improvement Suggestion",
+  };
+
+  const categoryName =
+    categoryNameMap[courseId] ||
+    courses.find((c) => c.id === courseId)?.title ||
+    "Course Related";
+
+  const prefixMap: Record<string, string> = {
+    app_related: "[APP]",
+    general: "[GENERAL]",
+    fault: "[FAULT]",
+    error: "[ERROR]",
+    improve: "[IMPROVE]",
+  };
+
+  const prefix = prefixMap[courseId] || "[COURSE]";
+
+  const currentPlaceholder =
+    placeholderMap[courseId] ||
+    `Please describe your question or issue regarding "${categoryName}" in detail...`;
+
+  const currentSummaryPlaceholder =
+    summaryPlaceholderMap[courseId] ||
+    `Summary of issue regarding ${categoryName}...`;
 
   useEffect(() => {
     if (open) {
@@ -92,30 +150,12 @@ export function SupportTicketDialog({
       );
       return;
     }
-    // Start transition for async operation
-    const prefixMap: Record<string, string> = {
-      app_related: "[APP]",
-      general: "[GENERAL]",
-      fault: "[FAULT]",
-      error: "[ERROR]",
-      improve: "[IMPROVE]",
-    };
-    const prefix = prefixMap[courseId] || "[COURSE]";
+    const finalSummary = isLessonSpecific
+      ? `${lessonName} (${courseName}) — ${title}`
+      : title;
 
-    const categoryNameMap: Record<string, string> = {
-      app_related: "App Related Issue",
-      general: "General Issue",
-      fault: "Fault/Bug Report",
-      error: "Error/Technical Issue",
-      improve: "Improvement Suggestion",
-    };
-    const categoryName =
-      categoryNameMap[courseId] ||
-      courses.find((c) => c.id === courseId)?.title ||
-      "Course Related";
-
-    const formattedContent = `**Issue Type:** ${categoryName}\n**Summary:** ${title}\n\n**Description:**\n${content}`;
-    const issueTitle = `${prefix} ${title}`;
+    const formattedContent = `**Issue Type:** ${categoryName}\n**Summary:** ${finalSummary}\n\n**Description:**\n${content}`;
+    const issueTitle = `${prefix} ${finalSummary}`;
 
     // 2. PREDICT THREAD ID AND DISPATCH INSTANT UPDATE
     if (currentUserId) {
@@ -126,7 +166,7 @@ export function SupportTicketDialog({
         new CustomEvent("chat-thread-update", {
           detail: {
             threadId: predictedThreadId,
-            lastMessage: title,
+            lastMessage: finalSummary,
             updatedAt: new Date().toISOString(),
             newThread: {
               threadId: predictedThreadId,
@@ -134,7 +174,7 @@ export function SupportTicketDialog({
                 name: "Support",
                 image: "", // Support default image
               },
-              lastMessage: title,
+              lastMessage: finalSummary,
               updatedAt: new Date().toISOString(),
               unreadCount: 0,
               type: "Support",
@@ -263,6 +303,29 @@ export function SupportTicketDialog({
               be resolved before raising new ones.
             </div>
           )}
+
+          {isLessonSpecific && (
+            <div className="mt-4 p-3 bg-muted/50 border border-border rounded-lg space-y-1.5">
+              <div className="flex justify-between items-center text-[10px] uppercase tracking-wider text-muted-foreground font-bold">
+                <span>Context Info</span>
+                <span className="text-primary/70">Read Only</span>
+              </div>
+              <div className="space-y-1">
+                <div className="flex gap-2 text-xs">
+                  <span className="font-semibold text-foreground/70 min-w-[50px]">
+                    Course:
+                  </span>
+                  <span className="text-foreground truncate">{courseName}</span>
+                </div>
+                <div className="flex gap-2 text-xs">
+                  <span className="font-semibold text-foreground/70 min-w-[50px]">
+                    Lesson:
+                  </span>
+                  <span className="text-foreground truncate">{lessonName}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </DialogHeader>
         {/* Dialog Form */}
         <form onSubmit={handleSubmit} className="space-y-4 py-4">
@@ -291,7 +354,7 @@ export function SupportTicketDialog({
             <Label htmlFor="title">Issue Summary</Label>
             <Input
               id="title"
-              placeholder="e.g., Cannot access MERN stack course"
+              placeholder={currentSummaryPlaceholder}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
@@ -302,7 +365,7 @@ export function SupportTicketDialog({
             <Label htmlFor="content">Description</Label>
             <Textarea
               id="content"
-              placeholder="Please provide as much detail as possible..."
+              placeholder={currentPlaceholder}
               className="min-h-[120px]"
               value={content}
               onChange={(e) => setContent(e.target.value)}

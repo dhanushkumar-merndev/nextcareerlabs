@@ -84,8 +84,9 @@ export async function getUserDashboardData(clientVersion?: string) {
     // Calculate metrics in memory
     const coursesProgress = enrollments.map((enrollment: any) => {
       const course = enrollment.Course;
+      let courseDurationSum = 0;
+      let courseRestrictionSum = 0;
       let courseCompletedCount = 0;
-      let courseActualWatchTime = 0;
       let totalLessons = 0;
 
       const lessonsProgress: any[] = [];
@@ -94,22 +95,34 @@ export async function getUserDashboardData(clientVersion?: string) {
         totalLessons += chapter.lesson.length;
         chapter.lesson.forEach((lesson: any) => {
           const progress = progressMap.get(lesson.id) as any;
-          if (progress?.completed) courseCompletedCount++;
-          courseActualWatchTime += progress?.actualWatchTime || 0;
+          const duration = (lesson.duration || 0) * 60; // Normalize to seconds
+          const restriction = progress?.restrictionTime || 0;
+
+          courseDurationSum += duration;
+          courseRestrictionSum += Math.min(restriction, duration);
+
+          if (
+            progress?.completed ||
+            (duration > 0 && restriction >= duration * 0.95)
+          ) {
+            courseCompletedCount++;
+          }
 
           lessonsProgress.push({
             id: lesson.id,
             duration: lesson.duration || 0,
-            restrictionTime: progress?.restrictionTime || 0,
+            restrictionTime: restriction,
             completed: progress?.completed || false,
           });
         });
       });
 
       const progressPercentage =
-        totalLessons > 0
-          ? Math.round((courseCompletedCount / totalLessons) * 100)
-          : 0;
+        courseDurationSum > 0
+          ? Math.round((courseRestrictionSum / courseDurationSum) * 100)
+          : totalLessons > 0
+            ? Math.round((courseCompletedCount / totalLessons) * 100)
+            : 0;
 
       return {
         id: course.id,
@@ -118,7 +131,7 @@ export async function getUserDashboardData(clientVersion?: string) {
         progress: progressPercentage,
         totalLessons,
         completedLessons: courseCompletedCount,
-        actualWatchTime: courseActualWatchTime,
+        actualWatchTime: courseRestrictionSum,
         slug: course.slug,
         level: course.level,
         lessonsProgress, // ✅ New: detailed for client-side "real-time" sync

@@ -1229,13 +1229,14 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         />
       )}
 
-      {/* SUPPORT TICKET DIALOG */}
       <SupportTicketDialog
         open={isSupportOpen}
         onOpenChange={setIsSupportOpen}
         userId={userId}
         initialCategory="fault"
-        initialTitle={`Issue with: ${lessonData.title}`}
+        initialTitle=""
+        courseName={lessonData.Chapter.Course.title}
+        lessonName={lessonData.title}
       />
     </div>
   );

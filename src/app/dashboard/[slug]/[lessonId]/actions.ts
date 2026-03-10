@@ -147,7 +147,23 @@ export async function updateVideoProgress(
       }
     }
 
-    // ✅ 3. Atomic update prevents race conditions
+    // ✅ 3. Fetch lesson to calculate security caps
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { duration: true },
+    });
+
+    const lessonDuration = lesson?.duration ? lesson.duration * 60 : 1000000; // Normalize DB minutes to seconds
+
+    const currentActualTotal =
+      (existing?.actualWatchTime || 0) + validatedDelta;
+    // ✅ "PRECISE" SYNC: Trust the client's high-water mark exactly (capped only by duration)
+    const validatedRestriction =
+      restrictionTime !== undefined
+        ? Math.round(Math.min(restrictionTime, lessonDuration))
+        : undefined;
+
+    // ✅ 4. Atomic update with capped values (Rounded for precision)
     await prisma.lessonProgress.upsert({
       where: {
         userId_lessonId: {
@@ -158,40 +174,28 @@ export async function updateVideoProgress(
       create: {
         userId: session.id,
         lessonId,
-        lastWatched,
-        actualWatchTime: Math.max(0, validatedDelta), // First time: set initial value
-        restrictionTime: restrictionTime ?? 0,
+        lastWatched: Math.round(
+          Math.min(lastWatched, validatedRestriction ?? lessonDuration),
+        ),
+        actualWatchTime: Math.round(Math.max(0, validatedDelta)),
+        restrictionTime: validatedRestriction ?? 0,
       },
       update: {
-        lastWatched, // Always update position
+        lastWatched: Math.round(
+          Math.min(
+            lastWatched,
+            validatedRestriction ??
+              (existing ? (existing as any).restrictionTime : lessonDuration) ??
+              lessonDuration,
+          ),
+        ),
         actualWatchTime: {
-          increment: Math.max(0, validatedDelta), // ✅ Atomic increment (validated)
+          increment: Math.round(Math.max(0, validatedDelta)),
         },
       },
     });
 
-    // ✅ 4. Fetch lesson to cap progress at duration
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
-      select: { duration: true },
-    });
-
-    const lessonDuration = lesson?.duration || 1000000; // Super large fallback if not set
-
-    const totalWatchTime = Math.min(
-      lessonDuration,
-      (existing?.actualWatchTime || 0) + validatedDelta,
-    );
-
-    // Allow a small buffer (e.g. 1.5x) for variations in play speed or seeking
-    // but prevent skipping 10 minutes if you only watched 1 minute.
-    const maxAllowedRestriction = totalWatchTime * 1.5 + 30; // 50% buffer + 30s grace
-    const validatedRestriction =
-      restrictionTime !== undefined
-        ? Math.min(restrictionTime, maxAllowedRestriction, lessonDuration)
-        : undefined;
-
-    // ✅ Update restrictionTime only if the new value is higher (high-water mark)
+    // ✅ 5. Update restrictionTime only if the new value is higher (high-water mark)
     if (validatedRestriction !== undefined && validatedRestriction > 0) {
       await prisma.$executeRaw`
         UPDATE "LessonProgress"
@@ -247,10 +251,39 @@ export async function updateMultipleVideoProgress(
   }
 
   try {
-    // Process all updates in a single transaction
+    // 1. Fetch durations for all targeted lessons to normalize and cap
+    const lessons = await prisma.lesson.findMany({
+      where: { id: { in: updates.map((u) => u.lessonId) } },
+      select: { id: true, duration: true },
+    });
+    const lessonDurationsMap = new Map(
+      lessons.map((l) => [l.id, (l.duration || 0) * 60]),
+    ); // seconds
+
+    // 2. Fetch current progress to calculate deltas
+    const currentProgress = await prisma.lessonProgress.findMany({
+      where: {
+        userId: session.id,
+        lessonId: { in: updates.map((u) => u.lessonId) },
+      },
+      select: { lessonId: true, actualWatchTime: true, restrictionTime: true },
+    });
+    const currentProgressMap = new Map(
+      currentProgress.map((p) => [p.lessonId, p]),
+    );
+
+    // 3. Process each update with security caps
     await prisma.$transaction(
-      updates.map((update) =>
-        prisma.lessonProgress.upsert({
+      updates.map((update) => {
+        const duration = lessonDurationsMap.get(update.lessonId) || 1000000;
+        const existing = currentProgressMap.get(update.lessonId);
+
+        // Capped only by lesson duration for precision
+        const validatedRestriction = Math.round(
+          Math.min(update.restrictionTime ?? duration, duration),
+        );
+
+        return prisma.lessonProgress.upsert({
           where: {
             userId_lessonId: {
               userId: session.id,
@@ -260,18 +293,25 @@ export async function updateMultipleVideoProgress(
           create: {
             userId: session.id,
             lessonId: update.lessonId,
-            lastWatched: update.lastWatched,
-            actualWatchTime: update.delta,
-            restrictionTime: update.restrictionTime ?? 0,
+            lastWatched: Math.round(
+              Math.min(update.lastWatched, validatedRestriction),
+            ),
+            actualWatchTime: Math.round(update.delta),
+            restrictionTime: validatedRestriction,
           },
           update: {
-            lastWatched: update.lastWatched,
+            lastWatched: Math.round(
+              Math.min(
+                update.lastWatched,
+                Math.max(validatedRestriction, existing?.restrictionTime || 0),
+              ),
+            ),
             actualWatchTime: {
-              increment: update.delta,
+              increment: Math.round(update.delta),
             },
           },
-        }),
-      ),
+        });
+      }),
     );
 
     // ✅ Security: Fetch current progress for all lessons in the batch to validate restrictionTimes

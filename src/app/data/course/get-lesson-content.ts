@@ -80,7 +80,10 @@ export async function getLessonContent(
         select: {
           courseId: true,
           Course: {
-            select: { slug: true },
+            select: {
+              slug: true,
+              title: true,
+            },
           },
         },
       },
