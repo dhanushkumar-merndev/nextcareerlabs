@@ -8,6 +8,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   ChevronRight,
@@ -19,6 +29,7 @@ import {
   RefreshCw,
   Loader2,
   Eye,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
@@ -30,6 +41,45 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
+import { secureStorage } from "@/lib/secure-storage";
+
+// ─── Encrypted Feedback Cache (1-day TTL) ─────────────────────────────────
+const FEEDBACK_TTL_MS = 24 * 60 * 60 * 1000; // 1 day
+
+interface SavedFeedback {
+  timestamp: number;
+  data: { id: string; correctIdx: number; explanation: string | null }[];
+}
+
+function saveFeedbackToStorage(
+  lessonId: string,
+  feedback: { id: string; correctIdx: number; explanation: string | null }[],
+) {
+  const payload: SavedFeedback = { timestamp: Date.now(), data: feedback };
+  secureStorage.setItemTracked(
+    `quiz-feedback-${lessonId}`,
+    JSON.stringify(payload),
+  );
+}
+
+function loadFeedbackFromStorage(
+  lessonId: string,
+): { id: string; correctIdx: number; explanation: string | null }[] | null {
+  const raw = secureStorage.getItem(`quiz-feedback-${lessonId}`);
+  if (!raw) return null;
+  try {
+    const parsed: SavedFeedback = JSON.parse(raw);
+    // Check TTL (1 day)
+    if (Date.now() - parsed.timestamp > FEEDBACK_TTL_MS) {
+      secureStorage.removeItemTracked(`quiz-feedback-${lessonId}`);
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    secureStorage.removeItemTracked(`quiz-feedback-${lessonId}`);
+    return null;
+  }
+}
 
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
@@ -92,22 +142,37 @@ export function AssessmentModal({
   // Maps shuffled question index -> original option index that the user selected
   const [resolvedAnswers, setResolvedAnswers] = useState<number[]>([]);
   const [showAnswers, setShowAnswers] = useState(true);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   // Initialize shuffled questions and options
   const initializeQuiz = (qs: Question[]) => {
     if (qs.length === 0) return;
 
+    // If user already passed, try to load saved feedback from encrypted storage
+    let savedFeedback:
+      | { id: string; correctIdx: number; explanation: string | null }[]
+      | null = null;
+    if (initialPassed) {
+      savedFeedback = loadFeedbackFromStorage(lessonId);
+    }
+
     const shuffled = shuffleArray(
-      qs.map((q, qIdx) => ({
-        ...q,
-        originalIndex: qIdx,
-        shuffledOptions: shuffleArray(
-          (q.options as string[]).map((opt, oIdx) => ({
-            text: opt,
-            originalIndex: oIdx,
-          })),
-        ),
-      })),
+      qs.map((q, qIdx) => {
+        // Merge saved feedback (correctIdx + explanation) if available
+        const fb = savedFeedback?.find((f) => f.id === q.id);
+        return {
+          ...q,
+          correctIdx: fb?.correctIdx ?? q.correctIdx,
+          explanation: fb?.explanation ?? q.explanation,
+          originalIndex: qIdx,
+          shuffledOptions: shuffleArray(
+            (q.options as string[]).map((opt, oIdx) => ({
+              text: opt,
+              originalIndex: oIdx,
+            })),
+          ),
+        };
+      }),
     );
 
     setShuffledQuestions(shuffled);
@@ -126,7 +191,11 @@ export function AssessmentModal({
     if (isOpen) {
       initializeQuiz(questions);
     }
-  }, [isOpen, questions, initialPassed]);
+    // We only want to initialize the quiz when the modal transitions from closed to open.
+    // If the modal is already open and questions/initialPassed change (e.g. from background refetches),
+    // we should NOT reset the current quiz/review state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const currentQuestion = shuffledQuestions[currentIndex];
   if (!currentQuestion && questions.length > 0) return null;
@@ -138,7 +207,12 @@ export function AssessmentModal({
     // Read-only in review mode
     if (screen === "review") return;
     const newAnswers = [...selectedAnswers];
-    newAnswers[currentIndex] = optionIdx;
+    // If clicking the already selected option, deselect it
+    if (newAnswers[currentIndex] === optionIdx) {
+      newAnswers[currentIndex] = -1;
+    } else {
+      newAnswers[currentIndex] = optionIdx;
+    }
     setSelectedAnswers(newAnswers);
   };
 
@@ -153,6 +227,16 @@ export function AssessmentModal({
     if (currentIndex > 0) {
       setDirection(-1);
       setCurrentIndex(currentIndex - 1);
+    }
+  };
+
+  const handleToggleAnswers = () => {
+    const nextShow = !showAnswers;
+    setShowAnswers(nextShow);
+    if (!nextShow) {
+      // Animated reset to first question when hiding answers for a "serious" practice
+      setDirection(-1);
+      setCurrentIndex(0);
     }
   };
 
@@ -184,17 +268,27 @@ export function AssessmentModal({
 
         const isPracticePass = score >= QUIZ_PASS_THRESHOLD;
         setResult({ score, passed: isPracticePass });
-        setScreen("review");
-        setCurrentIndex(0);
-        setDirection(0);
-        setShowAnswers(true);
 
-        toast.success(
-          `Practice complete! You got ${score} out of ${questions.length} correct.`,
-          {
-            duration: 3000,
-          },
-        );
+        if (isPracticePass) {
+          setScreen("review");
+          setCurrentIndex(0);
+          setDirection(0);
+          setShowAnswers(true);
+          toast.success(
+            `Practice complete! You got ${score} out of ${questions.length} correct.`,
+            {
+              duration: 3000,
+            },
+          );
+        } else {
+          toast.error(
+            `You got ${score} out of ${questions.length} correct. 15 needed to pass.`,
+            {
+              duration: 3000,
+            },
+          );
+          onClose(); // Close if failed in practice too
+        }
         return;
       }
 
@@ -223,8 +317,13 @@ export function AssessmentModal({
         const finalResult = { score: res.score, passed: res.passed };
         setResult(finalResult);
 
-        // Show toast with score
+        // Show toast with score and determine next step
         if (res.passed) {
+          // 🔒 Save feedback to encrypted localStorage (1-day TTL) for future practice sessions
+          if (res.feedback) {
+            saveFeedbackToStorage(lessonId, res.feedback);
+          }
+
           toast.success(
             `You got ${res.score} out of ${questions.length} correct! Assessment passed! 🎉`,
             {
@@ -232,6 +331,12 @@ export function AssessmentModal({
             },
           );
           onSuccess(); // update sidebar/cache but don't close modal
+
+          // Switch to review screen ONLY if passed
+          setScreen("review");
+          setCurrentIndex(0);
+          setDirection(0);
+          setShowAnswers(true);
         } else {
           toast.error(
             `You got ${res.score} out of ${questions.length} correct. 15 needed to pass.`,
@@ -239,13 +344,8 @@ export function AssessmentModal({
               duration: 4000,
             },
           );
+          onClose(); // Close directly if failed, no review
         }
-
-        // Switch to review screen
-        setScreen("review");
-        setCurrentIndex(0);
-        setDirection(0);
-        setShowAnswers(true);
       } else {
         toast.error(res.message);
       }
@@ -258,6 +358,23 @@ export function AssessmentModal({
 
   const resetQuiz = () => {
     initializeQuiz(questions);
+  };
+
+  // Intercept close attempts — show confirmation if quiz is in progress
+  const handleCloseAttempt = () => {
+    // If we're in quiz mode and the user has selected at least one answer, warn them
+    const hasSelectedAnswers = selectedAnswers.some((a) => a !== -1);
+    if (screen === "quiz" && hasSelectedAnswers && !result) {
+      setShowCloseConfirm(true);
+      return;
+    }
+    // Otherwise close directly (e.g. review mode, or no answers selected)
+    onClose();
+  };
+
+  const confirmClose = () => {
+    setShowCloseConfirm(false);
+    onClose();
   };
 
   // In review mode, determine per-option correctness
@@ -295,7 +412,10 @@ export function AssessmentModal({
     : "";
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => !open && handleCloseAttempt()}
+    >
       <DialogContent className="fixed inset-0 z-100 w-screen min-h-dvh max-w-none sm:max-w-none p-0 m-0 border-none rounded-none bg-background shadow-none overflow-hidden block translate-x-0 translate-y-0">
         <DialogHeader className="p-6 pb-0 sr-only">
           <DialogTitle>Lesson Assessment</DialogTitle>
@@ -525,7 +645,7 @@ export function AssessmentModal({
                     <div className="flex justify-center">
                       {canShowAnswerToggle && (
                         <button
-                          onClick={() => setShowAnswers((v) => !v)}
+                          onClick={handleToggleAnswers}
                           className={cn(
                             "flex items-center gap-2 px-5 py-2 rounded-full font-bold text-xs transition-all duration-200 border-2",
                             showAnswers
@@ -571,7 +691,10 @@ export function AssessmentModal({
                           <Button
                             onClick={handleSubmit}
                             disabled={
-                              selectedAnswers.includes(-1) || isSubmitting
+                              (!isReviewMode &&
+                                !showAnswers &&
+                                selectedAnswers.includes(-1)) ||
+                              isSubmitting
                             }
                             className="gap-2 rounded-full px-10 h-12 font-bold uppercase tracking-tight text-xs"
                           >
@@ -590,6 +713,7 @@ export function AssessmentModal({
                           onClick={handleNext}
                           disabled={
                             !isReviewMode &&
+                            !showAnswers &&
                             selectedAnswers[currentIndex] === -1
                           }
                           className="h-12 px-6 rounded-full flex items-center gap-1 bg-transparent hover:bg-transparent focus-visible:ring-0 shadow-none cursor-pointer text-foreground"
@@ -622,7 +746,7 @@ export function AssessmentModal({
             {/* Show/Hide toggle in mobile footer - always visible when passed */}
             {canShowAnswerToggle && (
               <button
-                onClick={() => setShowAnswers((v) => !v)}
+                onClick={handleToggleAnswers}
                 className={cn(
                   "flex items-center gap-1.5 px-4 py-2 rounded-full font-bold text-[11px] transition-all duration-200 border-2 shrink-0",
                   showAnswers
@@ -663,7 +787,12 @@ export function AssessmentModal({
               ) : (
                 <Button
                   onClick={handleSubmit}
-                  disabled={selectedAnswers.includes(-1) || isSubmitting}
+                  disabled={
+                    (!isReviewMode &&
+                      !showAnswers &&
+                      selectedAnswers.includes(-1)) ||
+                    isSubmitting
+                  }
                   className="gap-2 rounded-full px-8 font-bold uppercase tracking-tight text-xs shadow-lg shadow-primary/20"
                 >
                   {isSubmitting ? (
@@ -677,7 +806,11 @@ export function AssessmentModal({
             ) : (
               <Button
                 onClick={handleNext}
-                disabled={!isReviewMode && selectedAnswers[currentIndex] === -1}
+                disabled={
+                  !isReviewMode &&
+                  !showAnswers &&
+                  selectedAnswers[currentIndex] === -1
+                }
                 className="gap-2 rounded-full px-8 font-bold uppercase tracking-tight text-xs"
               >
                 Next
@@ -687,6 +820,31 @@ export function AssessmentModal({
           </div>
         </div>
       </DialogContent>
+
+      {/* Close Confirmation Alert Dialog */}
+      <AlertDialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+        <AlertDialogContent className="z-10001">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="size-5 text-amber-500" />
+              Leave Assessment?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Your selected options will be lost and you&apos;ll have to
+              re-enter them if you come back. Are you sure you want to close?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continue Assessment</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmClose}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              Yes, Close
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

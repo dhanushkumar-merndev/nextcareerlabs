@@ -1170,7 +1170,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
           onSuccess={() => {
             setOptimisticCompleted(true);
             triggerConfetti();
-            setIsAssessmentOpen(false);
+            // setIsAssessmentOpen(false); // DO NOT CLOSE - Switch to review mode handled by modal internally
 
             const slug = lessonData.Chapter.Course.slug;
             const cacheKeys = [
