@@ -7,7 +7,7 @@ export function EditCourseSkeleton() {
   return (
     <div className="px-0 lg:px-6 py-0 md:py-5 animate-in fade-in duration-500">
       {/* Header Skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3 md:mb-6 px-4 md:px-0">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3 md:mb-0 px-4 md:px-0">
         <div className="flex items-center gap-2">
           <Skeleton className="h-10 w-10 rounded-md" />
           <Skeleton className="h-9 w-32" />
