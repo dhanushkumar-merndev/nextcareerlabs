@@ -59,9 +59,9 @@ export async function getLessonContent(
       spriteCols: true,
       spriteRows: true,
       spriteInterval: true,
-      spriteWidth: true,
       spriteHeight: true,
       lowResKey: true,
+      duration: true,
       lessonProgress: {
         where: { userId: session.id },
         select: {
@@ -92,7 +92,7 @@ export async function getLessonContent(
 
   if (!lesson) return notFound();
 
-  const [enrollment, questions] = await Promise.all([
+  const [enrollment, progress] = await Promise.all([
     prisma.enrollment.findUnique({
       where: {
         userId_courseId: {
@@ -102,21 +102,30 @@ export async function getLessonContent(
       },
       select: { status: true },
     }),
-    prisma.question.findMany({
-      where: { lessonId },
-      orderBy: { order: "asc" },
-      select: {
-        id: true,
-        question: true,
-        options: true,
-        order: true,
-        // ✅ Include feedback ONLY if they passed, for the review screen
-        ...(lesson?.lessonProgress?.[0]?.quizPassed
-          ? { correctIdx: true, explanation: true }
-          : {}),
-      },
+    prisma.lessonProgress.findUnique({
+      where: { userId_lessonId: { userId: session.id, lessonId } },
+      select: { quizPassed: true, restrictionTime: true },
     }),
   ]);
+
+  const isQuizPassed = progress?.quizPassed ?? false;
+  const restriction = progress?.restrictionTime ?? 0;
+  const lessonThreshold = lesson.duration ? lesson.duration * 60 - 600 : 0; // 10 minutes before end
+  const canSeeMCQs = isQuizPassed || restriction >= lessonThreshold;
+
+  const questions = canSeeMCQs
+    ? await prisma.question.findMany({
+        where: { lessonId },
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          question: true,
+          options: true,
+          order: true,
+          ...(isQuizPassed ? { correctIdx: true, explanation: true } : {}),
+        },
+      })
+    : [];
 
   console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
 

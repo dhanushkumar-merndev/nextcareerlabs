@@ -158,10 +158,11 @@ export function SidebarContainer({
           {/* MOBILE SIDEBAR */}
           <div className="min-[1025px]:hidden border-t border-border pb-12 relative">
             {showSkeleton && (
-              <div className="absolute inset-0 z-10 p-4 space-y-4 bg-background">
+              <div className="absolute inset-0 z-10 py-4 space-y-4 bg-background">
                 <Skeleton className="h-8 w-full" />
                 <Skeleton className="h-16 w-full" />
                 <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-8 w-full" />
               </div>
             )}
             {course && <CourseSidebar course={course} />}

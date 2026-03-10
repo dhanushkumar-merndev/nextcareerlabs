@@ -21,7 +21,7 @@ export function LessonContentSkeleton() {
         </div>
 
         {/* Mobile Header Buttons */}
-        <div className="md:hidden order-2 flex items-center justify-between py-4 bg-background px-4">
+        <div className="md:hidden order-2 flex items-center justify-between py-4 bg-background ">
           <Skeleton className="h-9 w-32 rounded-full" />
           <Skeleton className="size-10 rounded-full" />
         </div>

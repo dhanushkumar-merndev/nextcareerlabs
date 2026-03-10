@@ -39,6 +39,11 @@ import {
 import { IconFileText } from "@tabler/icons-react";
 import { TriangleAlert } from "lucide-react";
 import { SupportTicketDialog } from "@/app/(users)/_components/SupportTicketDialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 interface iAppProps {
   lessonId: string;
@@ -294,7 +299,7 @@ function VideoPlayer({
 
       // ✅ 2. Track Coverage Delta
       const delta = currentTime - lastPositionRef.current;
-      if (delta > 0 && delta < 2.5) {
+      if (delta > 0 && delta < 5.0) {
         // Multi-tab safety: Only track if page is active
         if (document.visibilityState === "visible") {
           sessionDeltaRef.current += delta;
@@ -443,9 +448,9 @@ function VideoPlayer({
       // Calculate final delta from accumulated video progress
       let deltaToSync = 0;
       if (delta !== undefined) {
-        deltaToSync = Math.round(delta);
+        deltaToSync = delta;
       } else {
-        deltaToSync = Math.round(sessionDeltaRef.current);
+        deltaToSync = sessionDeltaRef.current;
       }
 
       if (deltaToSync === 0 && position === undefined) return;
@@ -1010,6 +1015,14 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     );
   }
 
+  const restriction =
+    lessonData?.lessonProgress?.[0]?.restrictionTime ??
+    lessonData?.lessonProgress?.[0]?.lastWatched ??
+    0;
+  const durationInSec = (lessonData.duration || 0) * 60;
+  const canStartAssessment =
+    quizPassed || restriction >= Math.max(0, durationInSec - 600);
+
   return (
     <div className="relative flex flex-col min-[1025px]:flex-row bg-background min-[1025px]:h-full overflow-hidden min-[1025px]:border-l border-border">
       <div className="flex-1 flex flex-col min-[1025px]:pl-6 min-[1025px]:overflow-y-auto">
@@ -1047,24 +1060,43 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         {/* MOBILE HEADER */}
         <div className="min-[1025px]:hidden order-2 flex items-center justify-between py-4 bg-background">
           <div className="flex items-center gap-2">
-            <Button
-              disabled={isPending || isLoadingMCQs || !hasVideo}
-              onClick={onSubmit}
-              variant="outline"
-              size="sm"
-              className="gap-2 rounded-full px-5 h-9 font-bold text-xs uppercase tracking-tight shadow-[0_2px_10px_rgba(var(--primary),0.2)]"
-            >
-              {isLoadingMCQs ? (
-                <Loader size={16} />
-              ) : hasVideo ? (
-                <>
-                  <CheckCircle className="size-4" />
-                  {isCompleted ? "Assessment" : "Start Assessment"}
-                </>
-              ) : (
-                "No Video"
+            <Popover>
+              <PopoverTrigger asChild>
+                <div className="flex items-center">
+                  <Button
+                    disabled={
+                      isPending ||
+                      isLoadingMCQs ||
+                      !hasVideo ||
+                      !canStartAssessment
+                    }
+                    onClick={onSubmit}
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 rounded-full px-5 h-9 font-bold text-xs uppercase tracking-tight shadow-[0_2px_10px_rgba(var(--primary),0.2)]"
+                  >
+                    {isLoadingMCQs ? (
+                      <Loader size={16} />
+                    ) : hasVideo ? (
+                      <>
+                        <CheckCircle className="size-4" />
+                        {isCompleted ? "Assessment" : "Start Assessment"}
+                      </>
+                    ) : (
+                      "No Video"
+                    )}
+                  </Button>
+                </div>
+              </PopoverTrigger>
+              {!canStartAssessment && (
+                <PopoverContent
+                  side="top"
+                  className="bg-accent text-sm text-accent-foreground border-accent-foreground/10 ml-2 px-4 py-2 rounded-xl shadow-xl font-medium w-fit max-w-[280px]"
+                >
+                  Complete watching the lesson to give assessment
+                </PopoverContent>
               )}
-            </Button>
+            </Popover>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -1120,23 +1152,42 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         {/* DESKTOP ACTION BAR */}
         <div className="hidden min-[1025px]:flex order-3 min-[1025px]:order-3 items-center justify-between gap-4 px-4 min-[1025px]:px-0 pt-6 min-[1025px]:pt-6 min-[1025px]:pb-0 min-[1025px]:border-t mb-0">
           <div className="flex items-center gap-2">
-            <Button
-              disabled={isPending || isLoadingMCQs || !hasVideo}
-              onClick={onSubmit}
-              variant="outline"
-              className="gap-2 rounded-full px-6"
-            >
-              {isLoadingMCQs ? (
-                <Loader size={16} />
-              ) : hasVideo ? (
-                <>
-                  <CheckCircle className="size-4" />
-                  {isCompleted ? "Assessment" : "Start Assessment"}
-                </>
-              ) : (
-                "No Video Available"
+            <Popover>
+              <PopoverTrigger asChild>
+                <div className="flex items-center">
+                  <Button
+                    disabled={
+                      isPending ||
+                      isLoadingMCQs ||
+                      !hasVideo ||
+                      !canStartAssessment
+                    }
+                    onClick={onSubmit}
+                    variant="outline"
+                    className="gap-2 rounded-full px-6"
+                  >
+                    {isLoadingMCQs ? (
+                      <Loader size={16} />
+                    ) : hasVideo ? (
+                      <>
+                        <CheckCircle className="size-4" />
+                        {isCompleted ? "Assessment" : "Start Assessment"}
+                      </>
+                    ) : (
+                      "No Video Available"
+                    )}
+                  </Button>
+                </div>
+              </PopoverTrigger>
+              {!canStartAssessment && (
+                <PopoverContent
+                  side="top"
+                  className="bg-accent text-accent-foreground border-accent-foreground/10 px-4 py-2 rounded-xl shadow-xl font-medium w-fit max-w-[280px]"
+                >
+                  Complete watching the lesson to give assessment
+                </PopoverContent>
               )}
-            </Button>
+            </Popover>
           </div>
 
           <div className="flex items-center gap-2">

@@ -136,14 +136,13 @@ export async function updateVideoProgress(
       const elapsedMs = Date.now() - existing.updatedAt.getTime();
       const elapsedSec = elapsedMs / 1000;
 
-      // Allow a 10s grace buffer for sync timing / late heartbeats
-      const maxPossibleDelta = elapsedSec + 10;
+      const maxPossibleDelta = elapsedSec + 15; // Increased buffer for sync timing
 
       if (actualWatchDelta > maxPossibleDelta) {
         console.warn(
           `[Security] Watch time anomaly for User ${session.id}, Lesson ${lessonId}. Requested: ${actualWatchDelta}s, Max allowed: ${maxPossibleDelta}s. Capping to elapsed.`,
         );
-        validatedDelta = Math.floor(elapsedSec);
+        validatedDelta = elapsedSec;
       }
     }
 
@@ -190,7 +189,7 @@ export async function updateVideoProgress(
           ),
         ),
         actualWatchTime: {
-          increment: Math.round(Math.max(0, validatedDelta)),
+          increment: Math.max(0, validatedDelta),
         },
       },
     });
@@ -307,7 +306,7 @@ export async function updateMultipleVideoProgress(
               ),
             ),
             actualWatchTime: {
-              increment: Math.round(update.delta),
+              increment: update.delta,
             },
           },
         });
@@ -336,7 +335,7 @@ export async function updateMultipleVideoProgress(
           const currentActual = progressMap.get(u.lessonId) || 0;
           const totalWatchTime = currentActual + u.delta;
           const maxAllowed = totalWatchTime * 1.5 + 30;
-          const validated = Math.min(u.restrictionTime!, maxAllowed);
+          const validated = Math.min(u.restrictionTime!, totalWatchTime + 60); // More headroom
 
           return prisma.$executeRaw`
               UPDATE "LessonProgress"
