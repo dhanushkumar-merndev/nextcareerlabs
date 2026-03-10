@@ -154,6 +154,22 @@ export function AssessmentModal({
       | null = null;
     if (initialPassed) {
       savedFeedback = loadFeedbackFromStorage(lessonId);
+
+      // ✅ If not in storage but available in questions (from server fetch), save it
+      if (!savedFeedback) {
+        const feedbackFromQuestions = qs
+          .filter((q) => q.correctIdx !== undefined)
+          .map((q) => ({
+            id: q.id,
+            correctIdx: q.correctIdx!,
+            explanation: q.explanation ?? null,
+          }));
+
+        if (feedbackFromQuestions.length > 0) {
+          saveFeedbackToStorage(lessonId, feedbackFromQuestions);
+          savedFeedback = feedbackFromQuestions;
+        }
+      }
     }
 
     const shuffled = shuffleArray(
@@ -237,6 +253,7 @@ export function AssessmentModal({
       // Animated reset to first question when hiding answers for a "serious" practice
       setDirection(-1);
       setCurrentIndex(0);
+      setSelectedAnswers(new Array(questions.length).fill(-1));
     }
   };
 

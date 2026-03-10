@@ -1408,13 +1408,17 @@ export function VideoPlayer({
           <div className="px-6 py-4 rounded-2xl flex flex-col items-center gap-2 animate-in fade-in zoom-in duration-200 border border-white/10">
             {(() => {
               const lv = volumeAnimation.level;
-              if (lv === 0)
-                return <VolumeX className="size-8 text-primary fill-white" />;
-              if (lv <= 0.33)
-                return <Volume className="size-8 text-primary fill-white" />;
-              if (lv <= 0.66)
-                return <Volume1 className="size-8 text-primary fill-white" />;
-              return <Volume2 className="size-8 text-primary fill-white" />;
+
+              const Icon =
+                lv === 0
+                  ? VolumeX
+                  : lv < 0.33
+                    ? Volume
+                    : lv < 0.66
+                      ? Volume1
+                      : Volume2;
+
+              return <Icon className="size-8 text-primary" />;
             })()}
             <span className="text-primary font-black text-2xl tabular-nums">
               {Math.round(volumeAnimation.level * 100)}%
@@ -1657,11 +1661,20 @@ export function VideoPlayer({
                   onClick={toggleMute}
                   className="hover:text-primary focus:outline-none p-1 sm:p-0"
                 >
-                  {isMuted || volume === 0 ? (
-                    <VolumeX className="w-5 h-5 sm:w-6 sm:h-6" />
-                  ) : (
-                    <Volume2 className="w-5 h-5 sm:w-6 sm:h-6" />
-                  )}
+                  {(() => {
+                    const lv = isMuted ? 0 : volume;
+
+                    const Icon =
+                      lv === 0
+                        ? VolumeX
+                        : lv < 0.33
+                          ? Volume
+                          : lv < 0.66
+                            ? Volume1
+                            : Volume2;
+
+                    return <Icon className="w-5 h-5 sm:w-6 sm:h-6" />;
+                  })()}
                 </button>
                 <div className="w-0 sm:group-hover/volume:w-20 transition-all duration-300 overflow-hidden hidden sm:block">
                   <Slider

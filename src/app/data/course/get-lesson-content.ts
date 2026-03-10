@@ -110,6 +110,10 @@ export async function getLessonContent(
         question: true,
         options: true,
         order: true,
+        // ✅ Include feedback ONLY if they passed, for the review screen
+        ...(lesson?.lessonProgress?.[0]?.quizPassed
+          ? { correctIdx: true, explanation: true }
+          : {}),
       },
     }),
   ]);
