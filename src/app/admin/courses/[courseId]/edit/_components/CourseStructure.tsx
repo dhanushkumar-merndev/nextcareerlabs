@@ -272,7 +272,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       collisionDetection={rectIntersection}
       onDragEnd={handleDragEnd}
     >
-      <Card className="p-0 border-none sm:border shadow-none sm:shadow-sm rounded-none sm:rounded-xl overflow-hidden">
+      <Card className="p-0  shadow-none sm:shadow-sm  overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between border-b px-4 py-4 sm:px-6 bg-muted/30">
           <CardTitle className="text-lg font-bold">Chapters</CardTitle>
           <NewChapterModel

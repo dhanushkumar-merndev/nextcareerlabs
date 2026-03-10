@@ -34,15 +34,12 @@ export function EditCourseClientWrapper({
   const [mounted, setMounted] = useState(false);
 
   const searchParams = useSearchParams();
-  const router = useRouter();
   const [activeTab, setActiveTab] = useState(
     searchParams.get("tab") || "basic-info",
   );
-
-  const getTime = () => new Date().toLocaleTimeString();
   const cacheKey = `admin_course_${courseId}`;
 
-  const { data: queryData, isLoading } = useQuery({
+  const { data: queryData } = useQuery({
     queryKey: [cacheKey],
     queryFn: async () => {
       const cached = chatCache.get<any>(cacheKey);
