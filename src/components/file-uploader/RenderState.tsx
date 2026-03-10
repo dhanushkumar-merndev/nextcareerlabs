@@ -86,7 +86,7 @@ export function RenderUploadedState({
     : undefined;
 
   return (
-    <div className="relative w-full md:max-w-[500px] lg:max-w-[700px] aspect-video bg-black overflow-hidden rounded-xl mx-auto">
+    <div className="relative group w-full md:max-w-[500px] lg:max-w-[700px] aspect-video bg-black overflow-hidden rounded-xl mx-auto">
       {fileType === "video" ? (
         <VideoPlayer
           sources={[
