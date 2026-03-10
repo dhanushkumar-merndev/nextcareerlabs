@@ -79,7 +79,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
     }
     startTransition(async () => {
       const { data: result, error } = await tryCatch(
-        editCourse(values, data.id)
+        editCourse(values, data.id),
       );
       if (error) {
         toast.error("An unexpected error occurred. Please try again later");
@@ -120,9 +120,13 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
         queryClient.invalidateQueries({ queryKey: ["chat_sidebar"] });
         queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         queryClient.invalidateQueries({ queryKey: ["all_courses"] });
-        queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
+        queryClient.invalidateQueries({
+          queryKey: ["admin_dashboard_recent_courses"],
+        });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
-        queryClient.invalidateQueries({ queryKey: [`admin_course_${data.id}`] });
+        queryClient.invalidateQueries({
+          queryKey: [`admin_course_${data.id}`],
+        });
         queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
         queryClient.invalidateQueries({ queryKey: ["admin_chat_sidebar"] });
 
@@ -138,9 +142,12 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
     });
   }
   return (
-    <div>
+    <div className="px-4 md:px-6">
       <Form {...form}>
-        <form className="space-y-6" onSubmit={form.handleSubmit((values) => onSubmit(values))}>
+        <form
+          className="space-y-6"
+          onSubmit={form.handleSubmit((values) => onSubmit(values))}
+        >
           <FormField
             control={form.control}
             name="title"
@@ -224,10 +231,13 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                     onChange={(val: string | null) => {
                       field.onChange(val ?? "");
                       // Auto-save to DB and invalidate caches
-                      onSubmit({
-                        ...form.getValues(),
-                        fileKey: val as string,
-                      }, true);
+                      onSubmit(
+                        {
+                          ...form.getValues(),
+                          fileKey: val as string,
+                        },
+                        true,
+                      );
                     }}
                     value={field.value}
                     fileTypeAccepted="image"
@@ -311,7 +321,8 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                   <FormMessage />
                 </FormItem>
               )}
-            /> <FormField
+            />{" "}
+            <FormField
               control={form.control}
               name="status"
               render={({ field }) => (

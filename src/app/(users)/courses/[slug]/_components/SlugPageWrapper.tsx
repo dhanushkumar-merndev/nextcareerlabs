@@ -242,6 +242,7 @@ function SlugPageContent({
             src={constructUrl(course.fileKey)}
             alt="Thumbnail"
             fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 70vw, 1000px"
             className={cn(
               "object-cover transition-opacity duration-500",
               imageLoaded ? "opacity-100" : "opacity-0",

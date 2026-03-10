@@ -46,9 +46,6 @@ import { EditChapter } from "./EditChapter";
 import { useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
 
-
-
-
 interface iAppProps {
   data: AdminCourseSingularData;
   setDirty: (dirty: boolean) => void;
@@ -63,7 +60,6 @@ interface SortableItemProps {
     chapterId?: string;
   };
 }
-
 
 function SortableItem({ children, id, className, data }: SortableItemProps) {
   const {
@@ -87,7 +83,7 @@ function SortableItem({ children, id, className, data }: SortableItemProps) {
       {...attributes}
       className={cn(
         className,
-        isDragging ? "relative z-50 pointer-events-none" : ""
+        isDragging ? "relative z-50 pointer-events-none" : "",
       )}
     >
       {children(listeners)}
@@ -98,17 +94,19 @@ function SortableItem({ children, id, className, data }: SortableItemProps) {
 export function CourseStructure({ data, setDirty }: iAppProps) {
   const queryClient = useQueryClient();
   const initialItems = useMemo(() => {
-    return data?.chapter?.map((chapter: any) => ({
-      id: chapter.id,
-      title: chapter.title,
-      order: chapter.position,
-      isOpen: true,
-      lessons: chapter.lesson.map((lesson: any) => ({
-        id: lesson.id,
-        title: lesson.title,
-        order: lesson.position,
-      })),
-    })) || [];
+    return (
+      data?.chapter?.map((chapter: any) => ({
+        id: chapter.id,
+        title: chapter.title,
+        order: chapter.position,
+        isOpen: true,
+        lessons: chapter.lesson.map((lesson: any) => ({
+          id: lesson.id,
+          title: lesson.title,
+          order: lesson.position,
+        })),
+      })) || []
+    );
   }, [data]);
   const invalidateAdminCaches = () => {
     const keys = [
@@ -116,7 +114,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       "admin_dashboard_enrollments",
       "admin_dashboard_recent_courses",
       "admin_analytics",
-      "admin_dashboard_all"
+      "admin_dashboard_all",
     ];
 
     keys.forEach((key) => {
@@ -132,7 +130,6 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     }
   };
   const [items, setItems] = useState(initialItems);
-
 
   useEffect(() => {
     setItems((prevItems) => {
@@ -161,7 +158,6 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     const changed = JSON.stringify(items) !== JSON.stringify(initialItems);
     setDirty(changed);
   }, [items, initialItems, setDirty]);
-
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -194,7 +190,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       toast.promise(
         reorderChapters(
           courseId,
-          updated.map((c) => ({ id: c.id, position: c.order }))
+          updated.map((c) => ({ id: c.id, position: c.order })),
         ).then((res) => {
           if (res.status === "success") invalidateAdminCaches();
           return res;
@@ -206,7 +202,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
             setItems(prev);
             return "Failed to reorder";
           },
-        }
+        },
       );
 
       return;
@@ -222,7 +218,9 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       const chapterIndex = items.findIndex((c) => c.id === chapterId);
       const chapter = items[chapterIndex];
 
-      const oldIndex = chapter.lessons.findIndex((l: any) => l.id === active.id);
+      const oldIndex = chapter.lessons.findIndex(
+        (l: any) => l.id === active.id,
+      );
       const newIndex = chapter.lessons.findIndex((l: any) => l.id === over.id);
 
       const prev = [...items];
@@ -242,7 +240,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
         reorderLessons(
           chapterId,
           updatedLessons.map((l) => ({ id: l.id, position: l.order })),
-          courseId
+          courseId,
         ).then((res) => {
           if (res.status === "success") invalidateAdminCaches();
           return res;
@@ -254,7 +252,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
             setItems(prev);
             return "Failed to reorder lessons";
           },
-        }
+        },
       );
     }
   }
@@ -265,9 +263,8 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
-
 
   return (
     <DndContext
@@ -275,13 +272,16 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       collisionDetection={rectIntersection}
       onDragEnd={handleDragEnd}
     >
-      <Card className="p-0">
-        <CardHeader className="flex items-center justify-between border-b px-3 py-3 sm:px-4">
-          <CardTitle>Chapters</CardTitle>
-          <NewChapterModel courseId={data?.id} onSuccess={invalidateAdminCaches} />
+      <Card className="p-0 border-none sm:border shadow-none sm:shadow-sm rounded-none sm:rounded-xl overflow-hidden">
+        <CardHeader className="flex flex-row items-center justify-between border-b px-4 py-4 sm:px-6 bg-muted/30">
+          <CardTitle className="text-lg font-bold">Chapters</CardTitle>
+          <NewChapterModel
+            courseId={data?.id}
+            onSuccess={invalidateAdminCaches}
+          />
         </CardHeader>
 
-        <CardContent className="p-2 sm:p-4">
+        <CardContent className="p-0 sm:p-6 space-y-4">
           <SortableContext items={items} strategy={verticalListSortingStrategy}>
             {items.map((item) => (
               <SortableItem
@@ -296,8 +296,8 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                       onOpenChange={() => {
                         setItems(
                           items.map((c) =>
-                            c.id === item.id ? { ...c, isOpen: !c.isOpen } : c
-                          )
+                            c.id === item.id ? { ...c, isOpen: !c.isOpen } : c,
+                          ),
                         );
                       }}
                     >

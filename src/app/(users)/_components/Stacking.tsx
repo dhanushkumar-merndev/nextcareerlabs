@@ -54,13 +54,13 @@ export default function Stacking() {
     },
   ];
 
- // Scroll Stacking
+  // Scroll Stacking
   useEffect(() => {
     const container = containerRef.current;
     const heading = headingRef.current;
     if (!container || !heading) return;
     const items = Array.from(
-      container.querySelectorAll<HTMLLIElement>(".stack-item")
+      container.querySelectorAll<HTMLLIElement>(".stack-item"),
     );
     const gap = 40;
     const cardStickyTop = 240;
@@ -123,12 +123,15 @@ export default function Stacking() {
       window.removeEventListener("resize", setup);
     };
   }, []);
-  
+
   return (
     <section className="pt-10 flex justify-center">
       <div className="w-full max-w-7xl px-4">
         {/* STICKY HEADING */}
-        <div ref={headingRef} className="sticky top-28 z-30 bg-background pb-6 will-change-transform text-center">
+        <div
+          ref={headingRef}
+          className="sticky top-28 z-30 bg-background pb-6 will-change-transform text-center"
+        >
           <h2 className="text-3xl md:text-5xl font-bold tracking-tight">
             Our Programs
           </h2>
@@ -139,21 +142,25 @@ export default function Stacking() {
             const isReverse = i % 2 !== 0;
 
             return (
-              <li key={i} className="stack-item sticky top-50 md:top-60 aspect-4/5 md:aspect-5/2 rounded-3xl bg-background border shadow-2xl transform-gpu origin-top overflow-hidden">
-                <div className={`h-full w-full flex flex-col md:flex-row ${isReverse ? "md:flex-row-reverse" : ""} transition-all duration-500`}>
-                  
+              <li
+                key={i}
+                className="stack-item sticky top-50 md:top-60 aspect-4/5 md:aspect-5/2 rounded-3xl bg-background border shadow-2xl transform-gpu origin-top overflow-hidden"
+              >
+                <div
+                  className={`h-full w-full flex flex-col md:flex-row ${isReverse ? "md:flex-row-reverse" : ""} transition-all duration-500`}
+                >
                   {/* IMAGE SECTION - Top 50% on Mobile, 55% Width on Desktop */}
                   <div className="w-full h-1/2 md:h-full md:w-[55%] p-4 md:p-8">
                     <div className="relative h-full w-full rounded-2xl overflow-hidden border bg-muted/20">
-                     <Image
-                      src={program.image}
-                      alt={program.title}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 55vw"
-                      className="object-cover transition-transform duration-700 group-hover:scale-105"
-                      loading="lazy"
-                     />
-                </div>
+                      <Image
+                        src={program.image}
+                        alt={program.title}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 55vw"
+                        className="object-cover transition-transform duration-700 group-hover:scale-105"
+                        loading="lazy"
+                      />
+                    </div>
                   </div>
 
                   {/* TEXT SECTION - Bottom 50% on Mobile, 45% Width on Desktop */}
@@ -166,7 +173,7 @@ export default function Stacking() {
                           alt={`${program.title} logo`}
                           width={48}
                           height={48}
-                          style={{ height: "auto" }}
+                          style={{ width: "auto", height: "auto" }}
                           className="w-8 md:w-12 object-contain"
                           loading="lazy"
                         />
@@ -190,9 +197,10 @@ export default function Stacking() {
                     <div className="flex justify-end pt-4 mt-auto">
                       <Link
                         href="/courses"
-                        className={buttonVariants({ 
-                          className: "group/btn px-6 rounded-full font-medium transition-all hover:pr-5", 
-                          variant: "outline" 
+                        className={buttonVariants({
+                          className:
+                            "group/btn px-6 rounded-full font-medium transition-all hover:pr-5",
+                          variant: "outline",
                         })}
                       >
                         Explore
@@ -200,7 +208,6 @@ export default function Stacking() {
                       </Link>
                     </div>
                   </div>
-
                 </div>
               </li>
             );

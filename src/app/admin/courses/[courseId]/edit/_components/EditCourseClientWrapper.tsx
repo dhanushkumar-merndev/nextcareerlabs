@@ -85,8 +85,8 @@ export function EditCourseClientWrapper({
       }
       return undefined;
     },
-    staleTime: 1800000,
-    refetchInterval: 1800000,
+    staleTime: 1800000, // 30 minutes (Rule Infinity)
+    refetchInterval: 1800000, // 30 minutes (Rule Infinity)
   });
 
   const hasLogged = useRef(false);

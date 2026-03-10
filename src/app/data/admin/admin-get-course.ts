@@ -113,7 +113,7 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
     return notFound();
   }
 
-  // Cache in Redis for 30 days
+  // Cache in Redis for 30 days (Rule Infinity)
   await setCache(cacheKey, data, 2592000);
 
   return {
