@@ -28,14 +28,18 @@ import { Badge } from "@/components/ui/badge";
 
 interface iAppProps {
   data: AdminCourseType;
+  isPriority?: boolean;
 }
 
-export function AdminCourseCard({ data }: iAppProps) {
+export function AdminCourseCard({ data, isPriority = false }: iAppProps) {
   const thumbnaiUrl = constructUrl(data.fileKey);
   return (
     <Card className="group relative py-0 gap-0">
       <div className="absolute top-2 left-2 z-10">
-        <Badge variant={data.status === "Published" ? "default" : "secondary"} className="rounded-lg">
+        <Badge
+          variant={data.status === "Published" ? "default" : "secondary"}
+          className="rounded-lg"
+        >
           {data.status}
         </Badge>
       </div>
@@ -80,7 +84,8 @@ export function AdminCourseCard({ data }: iAppProps) {
           width={600}
           height={400}
           className="w-full aspect-video h-full object-cover rounded-t-lg transition-transform duration-500 ease-out group-hover:scale-110"
-          priority
+          priority={isPriority}
+          loading={isPriority ? undefined : "lazy"}
           crossOrigin="anonymous"
         />
       </div>
@@ -98,7 +103,10 @@ export function AdminCourseCard({ data }: iAppProps) {
         <div className="mt-4 flex items-center gap-x-5">
           <div className="flex items-center  gap-x-2">
             <TimerIcon className="size-6 p-1 rounded-md text-primary bg-primary/10" />
-            <p className="text-sm text-muted-foreground"> {data.duration}h</p>
+            <p className="text-sm text-muted-foreground">
+              {" "}
+              {Math.round((data.duration || 0) / 3600)}h
+            </p>
           </div>
           <div className="flex items-center  gap-x-2">
             <School className="size-6 p-1 rounded-md text-primary bg-primary/10" />

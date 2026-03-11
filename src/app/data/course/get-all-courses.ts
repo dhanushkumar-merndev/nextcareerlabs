@@ -105,7 +105,7 @@ const getAllCoursesInternal = async (
       id: c.id,
       title: c.title,
       smallDescription: c.smallDescription,
-      duration: c.duration,
+      duration: (c.duration || 0) * 3600, // ✅ Hours -> Seconds
       level: c.level,
       fileKey: c.fileKey,
       category: c.category,
@@ -147,7 +147,7 @@ const getAllCoursesInternal = async (
       id: c.id,
       title: c.title,
       smallDescription: c.smallDescription,
-      duration: c.duration,
+      duration: (c.duration || 0) * 3600, // ✅ Hours -> Seconds
       level: c.level,
       fileKey: c.fileKey,
       category: c.category,

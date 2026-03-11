@@ -25,10 +25,9 @@ export async function adminGetCourses(
   const versionKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION;
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST;
 
-  const { version: currentVersion, data: cached } =
-    searchQuery || cursor
-      ? { version: await getGlobalVersion(versionKey), data: null } // Skip cache for search/pagination for now to keep it simple, or we could fetch version independently
-      : await getLatestVersionAndCache<any[]>(versionKey, cacheKey);
+  const { version: currentVersion, data: cached } = searchQuery
+    ? { version: await getGlobalVersion(versionKey), data: null }
+    : await getLatestVersionAndCache<any[]>(versionKey, cacheKey);
   const redisDuration = Date.now() - redisStartTime;
 
   // Smart Sync ONLY for first page and no search
@@ -51,7 +50,7 @@ export async function adminGetCourses(
       `[adminGetCourses] 🔍 Search mode: "${searchQuery}". Auth: ${authDuration}ms`,
     );
     const dbStartTime = Date.now();
-    // 🛡️ Native Database Pagination for search
+    // 🛡️ Native Database Pagination for search (Search results are ephemeral)
     const courses = await prisma.course.findMany({
       where: {
         OR: [
@@ -81,15 +80,17 @@ export async function adminGetCourses(
     const page = hasNextPage ? courses.slice(0, PAGE_SIZE) : courses;
     const nextCursor = hasNextPage ? page[page.length - 1].id : null;
 
-    console.log(
-      `[adminGetCourses] DB Search took ${Date.now() - dbStartTime}ms.`,
-    );
+    // ✅ Post-process: Normalize search results (Hours -> Seconds)
+    const normalizedPage = page.map((c: any) => ({
+      ...c,
+      duration: (c.duration || 0) * 3600,
+    }));
 
     return {
       data: {
-        courses: page,
+        courses: normalizedPage,
         nextCursor,
-        total: -1, // Total is expensive for large paginated search, returning -1
+        total: -1,
       },
       version: currentVersion,
     };
@@ -97,33 +98,14 @@ export async function adminGetCourses(
     console.log(
       `[adminGetCourses] 🔵 Redis HIT. Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
     );
-
-    // If we have cached the ENTIRE list (which we do for small/medium sets),
-    // we can still slice from memory to save a DB hit, but for 1M users we'd change this
-    const startIndex = cursor
-      ? cached.findIndex((c: any) => c.id === cursor) + 1
-      : 0;
-    const page = cached.slice(startIndex, startIndex + PAGE_SIZE);
-    const nextCursor =
-      startIndex + PAGE_SIZE < cached.length ? page[page.length - 1].id : null;
-
-    return {
-      data: {
-        courses: page,
-        nextCursor,
-        total: cached.length,
-      },
-      version: currentVersion,
-    };
+    allCourses = cached;
   } else {
-    console.log(`[adminGetCourses] 🗄️ Redis MISS. Fetching page from DB...`);
+    console.log(
+      `[adminGetCourses] 🗄️ Redis MISS. Fetching ALL courses from DB...`,
+    );
     const dbStartTime = Date.now();
 
-    // 🛡️ Native Database Pagination
-    const courses = await prisma.course.findMany({
-      take: PAGE_SIZE + 1,
-      cursor: cursor ? { id: cursor } : undefined,
-      skip: cursor ? 1 : 0,
+    const dbRaw = await prisma.course.findMany({
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -138,23 +120,36 @@ export async function adminGetCourses(
       },
     });
 
-    const hasNextPage = courses.length > PAGE_SIZE;
-    const page = hasNextPage ? courses.slice(0, PAGE_SIZE) : courses;
-    const nextCursor = hasNextPage ? page[page.length - 1].id : null;
+    // ✅ Post-process: Normalize all durations to seconds (Hours -> Seconds)
+    allCourses = dbRaw.map((c: any) => ({
+      ...c,
+      duration: (c.duration || 0) * 3600,
+    }));
 
+    await setCache(cacheKey, allCourses, 2592000); // 30 days
     console.log(
-      `[adminGetCourses] DB Fetch took ${Date.now() - dbStartTime}ms.`,
+      `[adminGetCourses] 🗄️ DB Fetch and Cache took ${Date.now() - dbStartTime}ms`,
     );
-
-    return {
-      data: {
-        courses: page,
-        nextCursor,
-        total: -1,
-      },
-      version: currentVersion,
-    };
   }
+
+  // ── Slicing Logic (Shared for HIT and fresh MISS) ─────────────────
+  const idx = cursor ? allCourses.findIndex((c: any) => c.id === cursor) : -1;
+  const startIndex = cursor && idx === -1 ? allCourses.length : idx + 1;
+
+  const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
+  const nextCursor =
+    startIndex + PAGE_SIZE < allCourses.length
+      ? (page[page.length - 1]?.id ?? null)
+      : null;
+
+  return {
+    data: {
+      courses: page,
+      nextCursor,
+      total: allCourses.length,
+    },
+    version: currentVersion,
+  };
 }
 
 export type AdminCourseType = any;

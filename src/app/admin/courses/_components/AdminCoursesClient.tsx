@@ -18,11 +18,10 @@ type AdminCoursesPage = {
 };
 
 export function AdminCoursesClient() {
-
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
   const [mounted, setMounted] = useState(false);
-  const hasLogged = useRef(false);
+  const hasLogged = useRef<string | null>(null);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.5,
@@ -32,16 +31,19 @@ export function AdminCoursesClient() {
   useEffect(() => {
     setMounted(true);
 
-    if (!hasLogged.current) {
+    const logKey = `admin_courses_${searchTitle || "all"}`;
+    if (hasLogged.current !== logKey) {
       const cached = chatCache.get<any>("admin_courses_list");
       if (cached) {
-        console.log(`%c[AdminCourses] LOCAL HIT (v${cached.version}). Rendering from storage.`, "color: #eab308; font-weight: bold");
+        console.log(
+          `%c[AdminCourses] LOCAL HIT (v${cached.version}). Rendering from device storage.`,
+          "color: #eab308; font-weight: bold",
+        );
       }
-      hasLogged.current = true;
+      hasLogged.current = logKey;
     }
-  }, []);
+  }, [searchTitle]);
 
-  const getTime = () => new Date().toLocaleTimeString();
   const cached = chatCache.get<any>("admin_courses_list");
 
   const {
@@ -61,88 +63,87 @@ export function AdminCoursesClient() {
     queryKey: ["admin_courses_list", searchTitle],
 
     placeholderData: (previousData) => {
-      // 🔹 1. If we have previousData, try to filter it locally for an instant feel
-      if (previousData && searchTitle) {
-        const q = searchTitle.toLowerCase();
-        const filteredPages = previousData.pages.map(page => ({
-          ...page,
-          courses: page.courses.filter((c: any) =>
-            c.title.toLowerCase().includes(q) ||
-            (c.smallDescription?.toLowerCase().includes(q))
-          )
-        }));
-
-        // If we found matches in the previous set, show them immediately
-        const hasMatches = filteredPages.some(p => p.courses.length > 0);
-        if (hasMatches) {
-          return {
-            ...previousData,
-            pages: filteredPages
-          } as InfiniteData<AdminCoursesPage, string | null>;
-        }
-      }
-
       if (previousData) return previousData;
-      if (typeof window === "undefined") return undefined;
-      // 🔹 2. Fallback to global cache if no previous data
+
+      // 🔹 SEARCH MODE → Local Filter for instant feel
       if (searchTitle && cached) {
         const q = searchTitle.toLowerCase();
-        const filtered = (cached.data?.data ?? cached.data?.courses ?? cached.data ?? []).filter((c: any) =>
-          c.title.toLowerCase().includes(q)
+        const filtered = (
+          cached.data?.data ??
+          cached.data?.courses ??
+          cached.data ??
+          []
+        ).filter(
+          (c: any) =>
+            c.title.toLowerCase().includes(q) ||
+            c.smallDescription?.toLowerCase().includes(q),
         );
 
         if (filtered.length > 0) {
           return {
-            pages: [{
-              courses: filtered,
-              nextCursor: null,
-              total: filtered.length
-            }],
-            pageParams: [null]
+            pages: [
+              {
+                courses: filtered.slice(0, 9),
+                nextCursor: null,
+                total: filtered.length,
+              },
+            ],
+            pageParams: [null],
           } as InfiniteData<AdminCoursesPage, string | null>;
         }
       }
 
-      // 🔹 3. NORMAL MODE → Show cached first page
+      // 🔹 NORMAL MODE → Show cached first page
       if (!searchTitle && cached) {
+        const courses =
+          cached.data?.data ?? cached.data?.courses ?? cached.data ?? [];
         return {
-          pages: [{
-            courses: cached.data.data,
-            nextCursor: cached.data.nextCursor,
-            total: cached.data.total ?? 0
-          }],
-          pageParams: [null]
+          pages: [
+            {
+              courses: courses,
+              nextCursor: cached.data.nextCursor || null,
+              total: cached.data.total ?? courses.length,
+            },
+          ],
+          pageParams: [null],
         };
       }
 
       return undefined;
     },
 
-    // Use localStorage data for first paint
     initialData: () => {
       if (typeof window === "undefined" || searchTitle) return undefined;
       const cached = chatCache.get<any>("admin_courses_list");
       if (cached) {
-        const courses = cached.data?.data ?? cached.data?.courses ?? cached.data ?? [];
+        const courses =
+          cached.data?.data ?? cached.data?.courses ?? cached.data ?? [];
         return {
-          pages: [{
-            courses: courses.slice(0, 9),
-            nextCursor: cached.data?.nextCursor ?? null,
-            total: cached.data?.total ?? courses.length
-          }],
-          pageParams: [null]
+          pages: [
+            {
+              courses: courses,
+              nextCursor: cached.data?.nextCursor ?? null,
+              total: cached.data?.total ?? courses.length,
+            },
+          ],
+          pageParams: [null],
         };
       }
       return undefined;
     },
 
+    initialDataUpdatedAt:
+      typeof window !== "undefined" && !searchTitle
+        ? cached?.timestamp
+        : undefined,
+
     queryFn: async ({ pageParam }) => {
-      // SEARCH MODE → no cache optimization
+      // SEARCH MODE
       if (searchTitle) {
         const result = await adminGetCoursesAction(
           undefined,
           pageParam ?? null,
-          searchTitle
+          searchTitle,
         );
 
         if ((result as any).status === "not-modified") {
@@ -156,23 +157,21 @@ export function AdminCoursesClient() {
         };
       }
 
-      // NORMAL MODE → cache + cursor support
+      // NORMAL MODE
       const cached = chatCache.get<any>("admin_courses_list");
-      const clientVersion = pageParam
-        ? undefined
-        : cached?.version;
-
-      if (!pageParam && !cached) {
-        console.log(`[${getTime()}] [Courses] Cache MISS. Fetching...`);
-      }
+      const clientVersion = pageParam ? undefined : cached?.version;
 
       const result = await adminGetCoursesAction(
         clientVersion,
-        pageParam ?? null
+        pageParam ?? null,
       );
 
-      // Server says cache is still valid
       if ((result as any).status === "not-modified") {
+        console.log(
+          `%c[AdminCourses] Server: NOT_MODIFIED (v${clientVersion})`,
+          "color: #eab308; font-weight: bold",
+        );
+        chatCache.touch("admin_courses_list");
         return {
           courses: cached?.data.data ?? [],
           nextCursor: cached?.data.nextCursor ?? null,
@@ -180,42 +179,64 @@ export function AdminCoursesClient() {
         };
       }
 
-      // Persist to cache with merge strategy
+      // Sync to cache
       if (!searchTitle) {
         const currentCache = chatCache.get<any>("admin_courses_list");
-
         let mergedCourses: any[] = [];
+        let finalCursor = (result as any).data?.nextCursor;
+
+        const newCourses = (result as any).data?.courses ?? [];
+        const existingData = currentCache?.data.data ?? [];
 
         if (pageParam) {
-          // APPENDING: Merge new page with existing cached data
-          const existingIds = new Set((currentCache?.data.data ?? []).map((c: any) => c.id));
-          const newUniqueCourses = ((result as any).data?.courses ?? []).filter((c: any) => !existingIds.has(c.id));
-
-          mergedCourses = [...(currentCache?.data.data ?? []), ...newUniqueCourses];
+          // APPENDING: Standard merge for subsequent pages
+          const existingIds = new Set(existingData.map((c: any) => c.id));
+          const newUniqueCourses = newCourses.filter(
+            (c: any) => !existingIds.has(c.id),
+          );
+          mergedCourses = [...existingData, ...newUniqueCourses];
         } else {
-          // FIRST PAGE FETCH: Reset with fresh data
-          mergedCourses = (result as any).data?.courses ?? [];
+          // FIRST PAGE REVALIDATION: Preserve the tail if the cache is longer than the new page
+          if (existingData.length > newCourses.length) {
+            const newIds = new Set(newCourses.map((c: any) => c.id));
+            const tail = existingData.filter((c: any) => !newIds.has(c.id));
+            mergedCourses = [...newCourses, ...tail];
+            // Keep the deeper cursor to avoid "silent restarts" of the infinite scroll
+            finalCursor = currentCache?.data.nextCursor || finalCursor;
+          } else {
+            mergedCourses = newCourses;
+          }
         }
 
-        console.log(`[${getTime()}] [Courses] Result: NEW_DATA. Updating cache.`);
-        chatCache.set("admin_courses_list", {
-          data: mergedCourses,
-          version: (result as any).version,
-          nextCursor: (result as any).data?.nextCursor,
-          total: (result as any).data?.total
-        }, undefined, (result as any).version, PERMANENT_TTL);
+        console.log(
+          `%c[AdminCourses] Server: NEW_DATA (v${(result as any).version}). Syncing ${mergedCourses.length} items to cache.`,
+          "color: #3b82f6; font-weight: bold",
+        );
+        chatCache.set(
+          "admin_courses_list",
+          {
+            data: mergedCourses,
+            version: (result as any).version,
+            nextCursor: finalCursor,
+            total: (result as any).data?.total || mergedCourses.length,
+          },
+          undefined,
+          (result as any).version,
+          PERMANENT_TTL,
+        );
       }
 
       return {
         courses: (result as any).data?.courses ?? [],
         nextCursor: (result as any).data?.nextCursor ?? null,
-        total: (result as any).data?.total ?? 0
+        total: (result as any).data?.total ?? 0,
       };
     },
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     staleTime: 1800000,
     refetchInterval: 1800000,
+    enabled: mounted,
   });
 
   const courses = data?.pages.flatMap((p) => p.courses) || [];
@@ -251,7 +272,11 @@ export function AdminCoursesClient() {
     return (
       <EmptyState
         title="No courses found"
-        description={searchTitle ? "Try searching for something else." : "Create a new course to get started."}
+        description={
+          searchTitle
+            ? "Try searching for something else."
+            : "Create a new course to get started."
+        }
         buttonText={searchTitle ? "View All Courses" : "Create Course"}
         href={searchTitle ? "/admin/courses" : "/admin/courses/create"}
       />
@@ -261,8 +286,12 @@ export function AdminCoursesClient() {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {courses.map((course: any) => (
-          <AdminCourseCard key={course.id} data={course} />
+        {courses.map((course: any, index: number) => (
+          <AdminCourseCard
+            key={course.id}
+            data={course}
+            isPriority={index < 6}
+          />
         ))}
       </div>
 
