@@ -8,6 +8,7 @@ import {
   invalidateCache,
   incrementGlobalVersion,
   GLOBAL_CACHE_KEYS,
+  dirtyCourse,
 } from "@/lib/redis";
 
 export async function updateLesson(
@@ -104,7 +105,7 @@ export async function updateLesson(
       invalidateCache(`lesson:${lessonId}`),
       invalidateCache(`lesson:questions:${lessonId}`),
       invalidateCache(`lesson:content:${lessonId}`),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      dirtyCourse(result.data.courseId),
     ]);
     console.log(
       `[updateLesson] Cache invalidation took ${Date.now() - cacheStartTime}ms`,

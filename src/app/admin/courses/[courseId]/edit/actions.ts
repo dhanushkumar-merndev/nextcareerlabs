@@ -18,6 +18,7 @@ import {
   invalidateCache,
   incrementGlobalVersion,
   GLOBAL_CACHE_KEYS,
+  dirtyCourse,
 } from "@/lib/redis";
 import { invalidateAdminsCache } from "@/app/data/notifications/actions";
 import { adminGetCourse } from "@/app/data/admin/admin-get-course";
@@ -62,7 +63,7 @@ export async function editCourse(
     await prisma.course.update({
       where: {
         id: courseId,
-        userId: user.user.id,
+        // userId: user.user.id, // Removed to allow any authorized admin
       },
       data: {
         ...result.data,
@@ -111,7 +112,7 @@ export async function editCourse(
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      await dirtyCourse(courseId, result.data.slug),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
@@ -133,10 +134,11 @@ export async function editCourse(
       status: "success",
       message: "Course updated successfully",
     };
-  } catch {
+  } catch (error) {
+    console.error("[editCourse] Error:", error);
     return {
       status: "error",
-      message: "Faild to update course",
+      message: "Failed to update course",
     };
   }
 }
@@ -146,9 +148,6 @@ export async function reorderLessons(
   lesson: { id: string; position: number }[],
   courseId: string,
 ): Promise<ApiResponse> {
-  console.log(
-    `[AdminCourseAction] Reordering lessons in chapter ${chapterId} (Course: ${courseId})`,
-  );
   try {
     if (!lesson || lesson.length === 0) {
       return {
@@ -156,14 +155,23 @@ export async function reorderLessons(
         message: "No lesson provided for reordering",
       };
     }
-    const updates = lesson.map((lesson) => {
+    // 🛡️ Verify chapter belongs to course
+    const chapter = await prisma.chapter.findFirst({
+      where: { id: chapterId, courseId: courseId },
+      select: { id: true },
+    });
+    if (!chapter) {
+      return { status: "error", message: "Chapter not found in this course" };
+    }
+
+    const updates = lesson.map((item) => {
       return prisma.lesson.update({
         where: {
-          id: lesson.id,
-          chapterId: chapterId,
+          id: item.id,
+          chapterId: chapterId, // Verify lesson belongs to this chapter
         },
         data: {
-          position: lesson.position,
+          position: item.position,
         },
       });
     });
@@ -183,7 +191,7 @@ export async function reorderLessons(
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      await dirtyCourse(courseId),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
@@ -223,7 +231,7 @@ export async function reorderChapters(
       return prisma.chapter.update({
         where: {
           id: chapter.id,
-          courseId: courseId,
+          courseId: courseId, // 🛡️ Scoping verified here
         },
         data: {
           position: chapter.position,
@@ -242,7 +250,7 @@ export async function reorderChapters(
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSE_VERSION(courseId)),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
@@ -253,10 +261,11 @@ export async function reorderChapters(
       status: "success",
       message: "Chapters reordered successfully",
     };
-  } catch {
+  } catch (error) {
+    console.error("[reorderChapters] Error:", error);
     return {
       status: "error",
-      message: "Faild to reorder chapters",
+      message: "Failed to reorder chapters",
     };
   }
 }
@@ -278,6 +287,13 @@ export async function createChapter(
     }
     const startTime = Date.now();
     await prisma.$transaction(async (tx) => {
+      // 🛡️ Verify chapter belongs to course
+      const course = await tx.course.findUnique({
+        where: { id: result.data.courseId },
+        select: { id: true },
+      });
+      if (!course) throw new Error("Course not found");
+
       const maxPosition = await tx.chapter.findFirst({
         where: {
           courseId: result.data.courseId,
@@ -316,7 +332,7 @@ export async function createChapter(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      await dirtyCourse(result.data.courseId),
     ]);
     console.log(
       `[createChapter] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
@@ -328,7 +344,8 @@ export async function createChapter(
       status: "success",
       message: "Chapter created successfully",
     };
-  } catch {
+  } catch (error) {
+    console.error("[createChapter] Error:", error);
     return {
       status: "error",
       message: "Failed to create chapter",
@@ -353,6 +370,13 @@ export async function createLesson(
     }
     const startTime = Date.now();
     await prisma.$transaction(async (tx) => {
+      // 🛡️ Verify chapter belongs to course or just verify existence of relationship
+      const chapter = await tx.chapter.findFirst({
+        where: { id: result.data.chapterId, courseId: result.data.courseId },
+        select: { id: true },
+      });
+      if (!chapter) throw new Error("Chapter not found in this course");
+
       const maxPosition = await tx.lesson.findFirst({
         where: {
           chapterId: result.data.chapterId,
@@ -397,7 +421,7 @@ export async function createLesson(
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
 
       // 2. Increment Versions (This triggers the yellow "UPDATE FOUND" on the client)
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      await dirtyCourse(result.data.courseId),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
@@ -414,7 +438,8 @@ export async function createLesson(
       status: "success",
       message: "Lesson created successfully",
     };
-  } catch {
+  } catch (error) {
+    console.error("[createLesson] Error:", error);
     return {
       status: "error",
       message: "Failed to create lesson",
@@ -440,6 +465,7 @@ export async function deleteLesson({
     const chapterWithLessons = await prisma.chapter.findUnique({
       where: {
         id: chapterId,
+        courseId: courseId, // 🛡️ Scoping check!
       },
       select: {
         lesson: {
@@ -467,7 +493,7 @@ export async function deleteLesson({
     const lessons = chapterWithLessons.lesson;
     const lessonFetchStart = Date.now();
     const lessonToDelete = await prisma.lesson.findUnique({
-      where: { id: lessonId },
+      where: { id: lessonId, chapterId: chapterId }, // 🛡️ Verify relationship
       select: { id: true, videoKey: true, thumbnailKey: true },
     });
     console.log(
@@ -477,15 +503,9 @@ export async function deleteLesson({
     if (!lessonToDelete) {
       return {
         status: "error",
-        message: "Lesson not found",
+        message: "Lesson not found in this chapter",
       };
     }
-
-    // cleanup files
-    const { deleteS3File } = await import("@/lib/s3-delete-utils");
-    if (lessonToDelete.videoKey) await deleteS3File(lessonToDelete.videoKey);
-    if (lessonToDelete.thumbnailKey)
-      await deleteS3File(lessonToDelete.thumbnailKey);
 
     const remainingLessons = lessons.filter((lesson) => lesson.id !== lessonId);
     const updates = remainingLessons.map((lesson, index) => {
@@ -508,6 +528,17 @@ export async function deleteLesson({
       `[deleteLesson] Transaction took ${Date.now() - transStartTime}ms`,
     );
 
+    // 🚀 After successful DB deletion, cleanup S3 files
+    try {
+      const { deleteS3File } = await import("@/lib/s3-delete-utils");
+      if (lessonToDelete.videoKey) await deleteS3File(lessonToDelete.videoKey);
+      if (lessonToDelete.thumbnailKey)
+        await deleteS3File(lessonToDelete.thumbnailKey);
+    } catch (cleanupError) {
+      console.error("[deleteLesson] S3 Cleanup Error:", cleanupError);
+      // Non-blocking for the user, but logged
+    }
+
     // Invalidate analytics and dashboard caches
     console.log(
       `[deleteLesson] Invalidating caches for CourseId=${courseId} and LessonId=${lessonId}`,
@@ -525,7 +556,7 @@ export async function deleteLesson({
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      await dirtyCourse(courseId),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
     ]);
     console.log(
@@ -578,7 +609,7 @@ export async function deleteChapter({
 
     const chapStartTime = Date.now();
     const chapterToDelete = await prisma.chapter.findUnique({
-      where: { id: chapterId },
+      where: { id: chapterId, courseId: courseId }, // 🛡️ Scoping verification!
       include: {
         lesson: {
           select: { videoKey: true, thumbnailKey: true },
@@ -601,7 +632,6 @@ export async function deleteChapter({
     });
 
     const { deleteS3File } = await import("@/lib/s3-delete-utils");
-    await Promise.all(Array.from(keysToDelete).map((key) => deleteS3File(key)));
 
     const remainingChapters = courseWithChapters.chapter.filter(
       (c) => c.id !== chapterId,
@@ -625,6 +655,17 @@ export async function deleteChapter({
       `[deleteChapter] Transaction took ${Date.now() - transStartTime}ms`,
     );
 
+    // 🚀 After successful DB deletion, cleanup S3 files
+    try {
+      if (keysToDelete.size > 0) {
+        await Promise.all(
+          Array.from(keysToDelete).map((key) => deleteS3File(key)),
+        );
+      }
+    } catch (cleanupError) {
+      console.error("[deleteChapter] S3 Cleanup Error:", cleanupError);
+    }
+
     // Invalidate analytics and dashboard caches
     await Promise.all([
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
@@ -633,10 +674,10 @@ export async function deleteChapter({
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSE_VERSION(courseId)),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -679,7 +720,7 @@ export async function editChapter({
     await prisma.chapter.update({
       where: {
         id: chapterId,
-        courseId,
+        courseId, // 🛡️ Scoping verified here
       },
       data: {
         title: name.trim(),
@@ -699,7 +740,7 @@ export async function editChapter({
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      await dirtyCourse(courseId),
     ]);
 
     // Revalidate the edit page
@@ -709,7 +750,8 @@ export async function editChapter({
       status: "success",
       message: "Chapter updated successfully",
     };
-  } catch {
+  } catch (error) {
+    console.error("[editChapter] Error:", error);
     return {
       status: "error",
       message: "Failed to update chapter",

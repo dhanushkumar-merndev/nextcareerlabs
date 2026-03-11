@@ -23,11 +23,13 @@ import { EditCourseSkeleton } from "./EditCourseSkeleton";
 interface EditCourseClientWrapperProps {
   data?: any;
   courseId: string;
+  initialServerData?: any;
 }
 
 export function EditCourseClientWrapper({
   data: propsData,
   courseId,
+  initialServerData,
 }: EditCourseClientWrapperProps) {
   const [basicDirty, setBasicDirty] = useState(false);
   const [structureDirty, setStructureDirty] = useState(false);
@@ -77,13 +79,11 @@ export function EditCourseClientWrapper({
     initialData: () => {
       if (typeof window === "undefined") return undefined;
       const cached = chatCache.get<any>(cacheKey);
-      if (cached) {
-        return cached.data;
-      }
+      if (cached) return cached.data;
       return undefined;
     },
-    staleTime: 1800000, // 30 minutes (Rule Infinity)
-    refetchInterval: 1800000, // 30 minutes (Rule Infinity)
+    staleTime: 1800000, // 30 minutes
+    refetchInterval: 1800000,
   });
 
   const hasLogged = useRef(false);
@@ -113,6 +113,10 @@ export function EditCourseClientWrapper({
     window.history.replaceState(null, "", url.toString());
   };
 
+  // 🚀 OPTIMIZATION: If we have data (locally cached or props),
+  // we can show the content immediately. We only show skeleton if we truly have nothing.
+  // Note: We check 'mounted' to ensure hydrated state matches server initial render (which is usually empty/skeleton)
+  // to avoid large layout shifts, but for "Edit" pages, usually users prefer instant feel.
   if (!data || !mounted) {
     return <EditCourseSkeleton />;
   }

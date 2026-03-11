@@ -72,7 +72,7 @@ export function CourseSidebar({ course }: iAppProps) {
         const duration = dbDuration || cachedDuration || localDuration || 0;
         totalChapterDuration += duration;
 
-        // 2. Get Restriction / Watched Time
+        // 2. Get Restriction / Watched Time (high-water-mark sources only)
         const cachedRestriction = chatCache.get<number>(
           `restriction_${lesson.id}`,
           userId,
@@ -80,15 +80,11 @@ export function CourseSidebar({ course }: iAppProps) {
         const localRestriction = parseFloat(
           secureStorage.getItem(`restriction-time-${lesson.id}`) || "0",
         );
-        const localProgress = parseFloat(
-          secureStorage.getItem(`video-progress-${lesson.id}`) || "0",
-        );
 
         const effectiveRestriction = Math.max(
           lesson.lessonProgress?.[0]?.restrictionTime || 0,
           cachedRestriction || 0,
           localRestriction,
-          localProgress,
         );
 
         // 3. Completion check
@@ -244,14 +240,10 @@ export function CourseSidebar({ course }: iAppProps) {
               const localRestriction = parseFloat(
                 secureStorage.getItem(`restriction-time-${lesson.id}`) || "0",
               );
-              const localProgress = parseFloat(
-                secureStorage.getItem(`video-progress-${lesson.id}`) || "0",
-              );
               const effectiveRestriction = Math.max(
                 lesson.lessonProgress?.[0]?.restrictionTime || 0,
                 cachedRestriction || 0,
                 localRestriction,
-                localProgress,
               );
               const isCompleted =
                 lesson.lessonProgress?.some((p: any) => p.completed) ||
@@ -327,14 +319,10 @@ export function CourseSidebar({ course }: iAppProps) {
                     secureStorage.getItem(`restriction-time-${lesson.id}`) ||
                       "0",
                   );
-                  const localProgress = parseFloat(
-                    secureStorage.getItem(`video-progress-${lesson.id}`) || "0",
-                  );
                   const effectiveRestriction = Math.max(
                     lesson.lessonProgress?.[0]?.restrictionTime || 0,
                     cachedRestriction || 0,
                     localRestriction,
-                    localProgress,
                   );
                   const isCompleted =
                     lesson.lessonProgress?.some((p: any) => p.completed) ||

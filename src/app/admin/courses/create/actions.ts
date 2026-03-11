@@ -9,14 +9,20 @@ import { ApiResponse } from "@/lib/types/auth";
 import { courseSchema, CourseSchemaType } from "@/lib/zodSchemas";
 import { fixedWindow, request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
-import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from "@/lib/redis";
+import {
+  invalidateCache,
+  incrementGlobalVersion,
+  GLOBAL_CACHE_KEYS,
+} from "@/lib/redis";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
 
 export async function CreateCourse(
-  values: CourseSchemaType
+  values: CourseSchemaType,
 ): Promise<ApiResponse> {
-  console.log(`[AdminCourseAction] Creating course: ${values.title} (Slug: ${values.slug})`);
+  console.log(
+    `[AdminCourseAction] Creating course: ${values.title} (Slug: ${values.slug})`,
+  );
   const session = await requireAdmin();
   try {
     const req = await request();
@@ -82,8 +88,8 @@ export async function CreateCourse(
         data: {
           name: `${validation.data.title} Group`,
           courseId: createdCourse.id,
-          imageUrl: validation.data.fileKey
-        }
+          imageUrl: validation.data.fileKey,
+        },
       });
     }
 
@@ -98,7 +104,9 @@ export async function CreateCourse(
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      incrementGlobalVersion(
+        GLOBAL_CACHE_KEYS.SLUG_VERSION(createdCourse.slug),
+      ),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),

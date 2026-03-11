@@ -8,6 +8,7 @@ import {
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
   getVersions,
+  getUserPendingProgress,
 } from "@/lib/redis";
 
 export async function getLessonContent(
@@ -135,9 +136,36 @@ export async function getLessonContent(
 
   const result = { lesson, questions };
 
+  // ── Tier 4: Merge Pending Redis Progress ─────────────────────────
+  const pending = await getUserPendingProgress(session.id);
+  const pendingLesson = pending[lessonId];
+  if (pendingLesson) {
+    console.log(
+      `[Lesson] 🔄 Merging pending Redis progress for lesson:${lessonId}`,
+    );
+    if (result.lesson.lessonProgress[0]) {
+      result.lesson.lessonProgress[0].lastWatched = pendingLesson.lastWatched;
+      result.lesson.lessonProgress[0].restrictionTime = Math.max(
+        result.lesson.lessonProgress[0].restrictionTime,
+        pendingLesson.restrictionTime,
+      );
+      // Actual watch time is accumulated, but mainly we care about the high-water marks for UI
+    } else {
+      // If no progress in DB yet, create a synthetic one
+      result.lesson.lessonProgress[0] = {
+        completed: false,
+        quizPassed: false,
+        lessonId: lessonId,
+        lastWatched: pendingLesson.lastWatched,
+        actualWatchTime: pendingLesson.delta,
+        restrictionTime: pendingLesson.restrictionTime,
+      } as any;
+    }
+  }
+
   // ✅ Don't await cache write — let it happen in background
   setCache(cacheKey, result, 2592000).catch(console.error);
-  console.log(`[Lesson] 💾 CACHED in Redis (30 min) → lesson:${lessonId}`);
+  console.log(`[Lesson] 💾 CACHED in Redis (30 days) → lesson:${lessonId}`);
 
   return { ...result, version: currentVersion };
 }

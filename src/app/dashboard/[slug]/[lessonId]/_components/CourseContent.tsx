@@ -1030,7 +1030,7 @@ function VideoPlayer({
 }
 export function CourseContent({ lessonId, userId }: iAppProps) {
   const queryClient = useQueryClient();
-  const [isPending, startTransition] = useTransition();
+  const [isPending] = useTransition();
   const { triggerConfetti } = useConfetti2();
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
   const [isMobileDescriptionOpen, setIsMobileDescriptionOpen] = useState(false);
@@ -1038,21 +1038,36 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
 
+  // ✅ Optimization: Instant Local + Background Version Check
+  const cacheKey = `lesson_content_${lessonId}`;
+  const cached = useMemo(
+    () => chatCache.get<any>(cacheKey, userId),
+    [lessonId, userId],
+  );
+
   const { data: lesson, isLoading } = useQuery({
     queryKey: ["lesson_content", lessonId],
     queryFn: async () => {
-      const cacheKey = `lesson_content_${lessonId}`;
-      const cached = chatCache.get<any>(cacheKey, userId);
-      if (cached) return cached.data;
-      const result = (await getLessonContent(lessonId)) as any;
+      // Pass cached version for cheap server-side version check
+      // If versions match, server returns "not-modified" (no DB hit)
+      const clientVersion = cached?.version;
+      const result = (await getLessonContent(lessonId, clientVersion)) as any;
+
+      if (result?.status === "not-modified" && cached) {
+        chatCache.touch(cacheKey, userId);
+        return cached.data;
+      }
+
       if (result && result.status !== "error") {
         chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
       }
       return result;
     },
+    initialData: cached?.data,
+    initialDataUpdatedAt: cached?.timestamp,
     staleTime: 1800000, // 30 mins
     refetchOnWindowFocus: true,
-    refetchOnMount: false, // Trust source page
+    refetchOnMount: true, // ✅ Trigger version check in background if stale
   });
 
   const rawData = lesson as any;
@@ -1077,8 +1092,10 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     quizPassed ||
     optimisticCompleted ||
     cachedEligibility ||
-    lessonData?.lessonProgress?.some((p: any) => p.completed);
-
+    lessonData?.lessonProgress?.some((p: any) => p.completed) ||
+    (rawData?.lesson?.duration > 0 &&
+      (lessonData?.lessonProgress?.[0]?.restrictionTime || 0) >=
+        rawData?.lesson?.duration * 60 * 0.9); // 90% threshold
   // ✅ Seed assessment eligibility cache on mount/update if completed
   useEffect(() => {
     if (isCompleted) {
@@ -1107,7 +1124,12 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     }
   }, [hasVideo]);
 
-  if (isLoading) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
     return <LessonContentSkeleton />;
   }
 

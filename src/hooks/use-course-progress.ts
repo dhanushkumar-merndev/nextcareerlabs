@@ -51,6 +51,9 @@ export function useCourseProgress({
           totalCourseDuration += duration;
 
           // 2. Get Restriction / Watched Time (chatCache (1-day) > secureStorage > DB)
+          // NOTE: Only use high-water-mark sources (restrictionTime, restriction-time-{id})
+          // Do NOT use video-progress-{id} — that's the current playback position,
+          // not max watched, and changes on every navigation causing progress flicker.
           const cachedRestriction = chatCache.get<number>(
             `restriction_${lesson.id}`,
             userId,
@@ -58,15 +61,11 @@ export function useCourseProgress({
           const localRestriction = parseFloat(
             secureStorage.getItem(`restriction-time-${lesson.id}`) || "0",
           );
-          const localProgress = parseFloat(
-            secureStorage.getItem(`video-progress-${lesson.id}`) || "0",
-          );
 
           const effectiveRestriction = Math.max(
             lesson.lessonProgress?.[0]?.restrictionTime || 0,
             cachedRestriction || 0,
             localRestriction,
-            localProgress,
           );
 
           // 3. Completion Check

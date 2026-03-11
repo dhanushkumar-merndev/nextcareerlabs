@@ -1,4 +1,3 @@
-import { requireAdmin } from "@/app/data/admin/require-admin";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 
 import { SiteHeader } from "@/components/sidebar/site-header";
@@ -9,7 +8,6 @@ export default async function AdminLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  await requireAdmin();
   return (
     <SidebarProvider
       style={

@@ -81,9 +81,11 @@ export const GLOBAL_CACHE_KEYS = {
   ADMIN_DASHBOARD_ALL: "global:admin:dashboard:all",
   ADMIN_DASHBOARD_VERSION: "global:version:admin:dashboard:all",
   AUTH_SESSION_VERSION: "global:version:auth_session",
+  COURSE_VERSION: (courseId: string) => `course:version:${courseId}`,
+  SLUG_VERSION: (slug: string) => `slug:version:${slug}`,
 };
 
-const OPERATION_TIMEOUT = 500;
+const OPERATION_TIMEOUT = 2000; // Increased for critical version checks
 
 async function withTimeout<T>(
   promise: Promise<T>,
@@ -198,24 +200,62 @@ export async function getGlobalVersion(key: string): Promise<string> {
   // Use redis.get directly to avoid JSON.parse overhead in withTimeout (handled here)
   const version = await withTimeout(redis.get(key), null);
 
-  // Auto-initialize if null to prevent "Server: 0" vs "Client: null" mismatches
   if (version === null) {
-    const newVersion = Date.now().toString();
-    await setCache(key, newVersion, 86400 * 30); // Store for 30 days
-    console.log(
-      `[Redis] Initialized missing version key="${key}" value="${newVersion}"`,
-    );
-    return newVersion;
+    // 🛡️ DONT generate a new timestamp on every null/timeout!
+    // That causes an "Initialization Storm" where one slow request invalidates everyone's cache.
+    // We only initialize if we are 100% sure it's intended (e.g. via increment)
+    return "0";
   } else {
     // Handle potential double quotes from previous JSON.stringify storage
     const cleanVersion =
       version.startsWith('"') && version.endsWith('"')
         ? version.slice(1, -1)
         : version;
-    console.log(
-      `[Redis] getGlobalVersion key="${key}" value="${cleanVersion}"`,
-    );
     return cleanVersion;
+  }
+}
+
+/**
+ * Fetches both the global version and the cached data in a single mget call.
+ * This saves one round-trip to Redis, which is critical for cold start performance.
+ */
+export async function getLatestVersionAndCache<T>(
+  versionKey: string,
+  cacheKey: string,
+): Promise<{ version: string; data: T | null }> {
+  if (!redis) return { version: "0", data: null };
+
+  try {
+    const [version, cachedData] = await withTimeout(
+      redis.mget(versionKey, cacheKey),
+      [null, null],
+    );
+
+    // Initial version if missing
+    let cleanVersion = "0";
+    if (version === null) {
+      cleanVersion = Date.now().toString();
+      await setCache(versionKey, cleanVersion, 86400 * 30);
+      console.log(`[Redis] Initialized version key="${versionKey}"`);
+    } else {
+      cleanVersion =
+        version.startsWith('"') && version.endsWith('"')
+          ? version.slice(1, -1)
+          : version;
+    }
+
+    let parsedData: T | null = null;
+    if (cachedData) {
+      try {
+        parsedData = JSON.parse(cachedData);
+      } catch (e) {
+        console.error(`[Redis] Failed to parse cache for key="${cacheKey}"`);
+      }
+    }
+
+    return { version: cleanVersion, data: parsedData };
+  } catch (error) {
+    return { version: "0", data: null };
   }
 }
 
@@ -279,4 +319,82 @@ export async function invalidateUserEnrollmentCache(userId: string) {
   ]);
 
   console.log(`[Redis] User Enrollment Cache Invalidated for userId=${userId}`);
+}
+/**
+ * Redis-First Progress Tracking (Write-Behind Cache)
+ */
+export async function setUserPendingProgress(
+  userId: string,
+  lessonId: string,
+  data: {
+    lastWatched: number;
+    delta: number;
+    restrictionTime: number;
+    timestamp: number;
+  },
+) {
+  if (!redis) return;
+  const key = `user:progress:pending:${userId}`;
+
+  // Get existing pending to accumulate delta
+  const existingRaw = await withTimeout(redis.hget(key, lessonId), null);
+  let finalData = data;
+
+  if (existingRaw) {
+    try {
+      const existing = JSON.parse(existingRaw);
+      finalData = {
+        ...data,
+        delta: existing.delta + data.delta, // Accumulate delta
+        restrictionTime: Math.max(
+          existing.restrictionTime,
+          data.restrictionTime,
+        ), // High-water mark
+        lastWatched: data.lastWatched, // Latest is always correct
+      };
+    } catch (e) {}
+  }
+
+  await withTimeout(redis.hset(key, lessonId, JSON.stringify(finalData)), null);
+  // Set TTL to 1 day to prevent orphan leak
+  await withTimeout(redis.expire(key, 86400), null);
+}
+
+export async function getUserPendingProgress(userId: string) {
+  if (!redis) return {};
+  const key = `user:progress:pending:${userId}`;
+  const data = await withTimeout(redis.hgetall(key), {});
+
+  const result: Record<string, any> = {};
+  for (const [lessonId, val] of Object.entries(data)) {
+    try {
+      result[lessonId] = JSON.parse(val as string);
+    } catch (e) {}
+  }
+  return result;
+}
+
+export async function clearUserPendingProgress(
+  userId: string,
+  lessonIds: string[],
+) {
+  if (!redis || lessonIds.length === 0) return;
+  const key = `user:progress:pending:${userId}`;
+  await withTimeout(redis.hdel(key, ...lessonIds), null);
+}
+
+/**
+ * [Million-User Scale] Partial Cache Invalidation
+ * Increments specific course versions (ID and Slug) to avoid global invalidation storms.
+ */
+export async function dirtyCourse(courseId: string, slug?: string) {
+  if (!redis) return;
+  const syncs: Promise<any>[] = [
+    incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSE_VERSION(courseId)),
+  ];
+  if (slug) {
+    syncs.push(incrementGlobalVersion(GLOBAL_CACHE_KEYS.SLUG_VERSION(slug)));
+  }
+  await Promise.all(syncs);
+  console.log(`[Redis] Dirtied courseId=${courseId} slug=${slug || "N/A"}`);
 }

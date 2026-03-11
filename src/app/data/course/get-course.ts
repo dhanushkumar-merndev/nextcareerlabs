@@ -14,11 +14,11 @@ export async function getIndividualCourse(
   clientVersion?: string,
   userId?: string,
 ) {
-  const versionKeys = [GLOBAL_CACHE_KEYS.COURSES_VERSION];
+  const versionKeys = [GLOBAL_CACHE_KEYS.SLUG_VERSION(slug)];
   if (userId) versionKeys.push(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
 
-  const [coursesV, userV = ""] = await getVersions(versionKeys);
-  const currentVersion = userId ? `${coursesV}:${userV}` : coursesV;
+  const [slugV, userV = ""] = await getVersions(versionKeys);
+  const currentVersion = userId ? `${slugV}:${userV}` : slugV;
 
   // Smart Sync: If client has the latest version, don't re-fetch
   if (clientVersion && clientVersion === currentVersion) {

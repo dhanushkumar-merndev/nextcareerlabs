@@ -37,6 +37,30 @@ export async function submitQuiz(
       return { success: false, error: "Not authenticated" };
     }
 
+    // 🛡️ Security Check: Verify Enrollment
+    const enrollment = await db.enrollment.findFirst({
+      where: {
+        userId: session.user.id,
+        Course: {
+          chapter: {
+            some: {
+              lesson: {
+                some: { id: lessonId },
+              },
+            },
+          },
+        },
+        status: "Granted",
+      },
+    });
+
+    if (!enrollment) {
+      return {
+        success: false,
+        error: "Forbidden: You are not enrolled in this course",
+      };
+    }
+
     // Fetch questions from database
     const questions = await db.question.findMany({
       where: { lessonId },

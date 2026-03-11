@@ -31,6 +31,7 @@ import { useSignOut } from "@/hooks/use-signout";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect } from "react";
+import { TroubleshootButton } from "@/components/sidebar/troubleshoot-button";
 
 export function NavUser() {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -56,20 +57,20 @@ export function NavUser() {
   }, []);
 
   const { session, isLoading: isPending } = useSmartSession();
-  
+
   if (!mounted || isPending) {
     return (
-        <SidebarMenu>
-            <SidebarMenuItem>
-                <SidebarMenuButton size="lg">
-                    <Skeleton className="h-8 w-8 rounded-2xl" />
-                    <div className="grid flex-1 text-left text-sm leading-tight gap-1">
-                        <Skeleton className="h-4 w-24" />
-                        <Skeleton className="h-3 w-32" />
-                    </div>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton size="lg">
+            <Skeleton className="h-8 w-8 rounded-2xl" />
+            <div className="grid flex-1 text-left text-sm leading-tight gap-1">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-32" />
+            </div>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
     );
   }
 
@@ -89,7 +90,7 @@ export function NavUser() {
                   src={
                     session?.user.image ??
                     `https://avatar.vercel.sh/${encodeURIComponent(
-                      session?.user.email ?? ""
+                      session?.user.email ?? "",
                     )}`
                   }
                   alt={session?.user.name}
@@ -105,7 +106,7 @@ export function NavUser() {
                 <span className="truncate font-medium">
                   {
                     (session?.user.name?.trim() || session?.user.email)?.split(
-                      "@"
+                      "@",
                     )[0]
                   }
                 </span>
@@ -188,6 +189,10 @@ export function NavUser() {
                 Courses
               </DropdownMenuItem>
             </DropdownMenuGroup>
+
+            <DropdownMenuSeparator />
+
+            <TroubleshootButton />
 
             <DropdownMenuSeparator />
 

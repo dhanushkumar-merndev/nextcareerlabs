@@ -80,6 +80,7 @@ export async function getUserDashboardData(clientVersion?: string) {
         lessonId: true,
         completed: true,
         actualWatchTime: true,
+        restrictionTime: true,
       },
     });
 
@@ -108,14 +109,14 @@ export async function getUserDashboardData(clientVersion?: string) {
 
           if (
             progress?.completed ||
-            (duration > 0 && restriction >= duration * 0.95)
+            (duration > 0 && restriction >= duration * 0.9)
           ) {
             courseCompletedCount++;
           }
 
           lessonsProgress.push({
             id: lesson.id,
-            duration: lesson.duration || 0,
+            duration: (lesson.duration || 0) * 60, // Normalize to seconds
             restrictionTime: restriction,
             completed: progress?.completed || false,
           });

@@ -8,6 +8,7 @@ import {
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
   getVersions,
+  getUserPendingProgress,
 } from "@/lib/redis";
 
 export async function getCourseSidebarData(
@@ -15,11 +16,11 @@ export async function getCourseSidebarData(
   clientVersion?: string,
 ) {
   const session = await requireUser();
-  const [coursesVersion, userVersion] = await getVersions([
-    GLOBAL_CACHE_KEYS.COURSES_VERSION,
+  const [slugV, userVersion] = await getVersions([
+    GLOBAL_CACHE_KEYS.SLUG_VERSION(slug),
     GLOBAL_CACHE_KEYS.USER_VERSION(session.id),
   ]);
-  const currentVersion = `${coursesVersion}_${userVersion}`;
+  const currentVersion = `${slugV}_${userVersion}`;
 
   // Smart Sync – version match means client local cache is fresh
   if (clientVersion && clientVersion === currentVersion) {
@@ -129,12 +130,51 @@ export async function getCourseSidebarData(
     "color: #f97316",
   );
 
+  // ✅ Normalize durations to seconds (Store is in minutes, UI needs seconds)
+  course.duration = (course.duration || 0) * 60;
+  course.chapter.forEach((chapter) => {
+    chapter.lesson.forEach((lesson) => {
+      lesson.duration = (lesson.duration || 0) * 60;
+    });
+  });
+
   const result = { course };
 
-  // ── Cache in Redis: 30 min hot TTL ────────────────────────────────
-  await setCache(cacheKey, result, 1800); // 30 minutes Redis TTL
+  // ── Tier 4: Merge Pending Redis Progress ─────────────────────────
+  const pending = await getUserPendingProgress(session.id);
+  if (Object.keys(pending).length > 0) {
+    console.log(
+      `[Sidebar] 🔄 Merging pending Redis progress for ${Object.keys(pending).length} lessons`,
+    );
+    course.chapter.forEach((chapter) => {
+      chapter.lesson.forEach((lesson) => {
+        const p = pending[lesson.id];
+        if (p) {
+          if (lesson.lessonProgress[0]) {
+            lesson.lessonProgress[0].lastWatched = p.lastWatched;
+            lesson.lessonProgress[0].restrictionTime = Math.max(
+              lesson.lessonProgress[0].restrictionTime,
+              p.restrictionTime,
+            );
+          } else {
+            // Synthetic progress for UI
+            lesson.lessonProgress[0] = {
+              completed: false,
+              quizPassed: false,
+              lessonId: lesson.id,
+              lastWatched: p.lastWatched,
+              restrictionTime: p.restrictionTime,
+            } as any;
+          }
+        }
+      });
+    });
+  }
+
+  // ── Cache in Redis: 30 days TTL ────────────────────────────────
+  await setCache(cacheKey, result, 2592000); // 30 days Redis TTL
   console.log(
-    `%c[Sidebar] 💾 CACHED in Redis (30 min) → sidebar:${slug}`,
+    `%c[Sidebar] 💾 CACHED in Redis (30 days) → sidebar:${slug}`,
     "color: #8b5cf6",
   );
 

@@ -76,9 +76,14 @@ export async function GET(req: Request) {
                   lesson: {
                     select: {
                       id: true,
+                      duration: true,
                       lessonProgress: {
                         where: { userId: user.id },
-                        select: { completed: true },
+                        select: {
+                          completed: true,
+                          restrictionTime: true,
+                          lastWatched: true,
+                        },
                       },
                     },
                   },
@@ -90,9 +95,26 @@ export async function GET(req: Request) {
       }),
       prisma.lessonProgress.findMany({
         where: { userId: user.id },
-        select: { lessonId: true, completed: true },
+        select: {
+          lessonId: true,
+          completed: true,
+          restrictionTime: true,
+        },
       }),
     ]);
+
+    // ✅ Post-process: Normalize all durations to seconds (Store is minutes, UI needs seconds)
+    enrollments.forEach((e: any) => {
+      const course = e.Course;
+      if (course) {
+        course.duration = (course.duration || 0) * 60;
+        course.chapter?.forEach((chapter: any) => {
+          chapter.lesson?.forEach((lesson: any) => {
+            lesson.duration = (lesson.duration || 0) * 60;
+          });
+        });
+      }
+    });
     const duration = Date.now() - startTime;
     console.log(
       `%c[api/enrolled-courses] DB HIT (${duration}ms).`,

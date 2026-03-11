@@ -14,7 +14,7 @@ export const auth = betterAuth({
     "http://localhost:3000",
     `https://${env.NEXT_PUBLIC_APP_DOMAIN}`,
     `https://www.${env.NEXT_PUBLIC_APP_DOMAIN}`,
-  ],  
+  ],
 
   database: prismaAdapter(prisma, {
     provider: "postgresql",
@@ -24,16 +24,32 @@ export const auth = betterAuth({
     storage: {
       get: async (key: string) => {
         if (!redis) return null;
-        return await redis.get(key);
+        const start = Date.now();
+        const val = await redis.get(key);
+        if (process.env.NODE_ENV === "development") {
+          console.log(
+            `[BetterAuth:Cache] GET ${key} -> ${val ? "HIT" : "MISS"} (${Date.now() - start}ms)`,
+          );
+        }
+        return val;
       },
       set: async (key: string, value: string, ttl?: number) => {
         if (!redis) return;
+        const start = Date.now();
         // Better Auth uses seconds for TTL
         await redis.set(key, value, "EX", ttl || 2592000); // Default 30 days
+        if (process.env.NODE_ENV === "development") {
+          console.log(
+            `[BetterAuth:Cache] SET ${key} (${Date.now() - start}ms)`,
+          );
+        }
       },
       delete: async (key: string) => {
         if (!redis) return;
         await redis.del(key);
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[BetterAuth:Cache] DEL ${key}`);
+        }
       },
     },
   },
@@ -143,37 +159,44 @@ export const auth = betterAuth({
   ],
   databaseHooks: {
     user: {
-        create: {
-            after: async () => {
-                const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } = await import("./redis");
-                await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
-                console.log("[Auth Hook] New user joined. Invalidated analytics cache.");
-            }
-        }
+      create: {
+        after: async () => {
+          const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } =
+            await import("./redis");
+          await incrementGlobalVersion(
+            GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION,
+          );
+          console.log(
+            "[Auth Hook] New user joined. Invalidated analytics cache.",
+          );
+        },
+      },
     },
     session: {
-        create: {
+      create: {
         after: async (session) => {
-                 await prisma.session.deleteMany({
-                  where: {
-                    userId: session.userId,
-                    NOT: {
-                      id: session.id,
-                    },
-                  },
-                });  
-                const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } = await import("./redis");
-                await incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
-                console.log("[Auth Hook] Session created. Syncing all clients...");
-            }
+          await prisma.session.deleteMany({
+            where: {
+              userId: session.userId,
+              NOT: {
+                id: session.id,
+              },
+            },
+          });
+          const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } =
+            await import("./redis");
+          await incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
+          console.log("[Auth Hook] Session created. Syncing all clients...");
         },
-        delete: {
-            after: async () => {
-                const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } = await import("./redis");
-                await incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
-                console.log("[Auth Hook] Session deleted. Syncing all clients...");
-            }
-        }
-    }
-  }
+      },
+      delete: {
+        after: async () => {
+          const { incrementGlobalVersion, GLOBAL_CACHE_KEYS } =
+            await import("./redis");
+          await incrementGlobalVersion(GLOBAL_CACHE_KEYS.AUTH_SESSION_VERSION);
+          console.log("[Auth Hook] Session deleted. Syncing all clients...");
+        },
+      },
+    },
+  },
 });

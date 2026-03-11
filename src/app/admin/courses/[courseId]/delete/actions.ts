@@ -11,6 +11,7 @@ import {
   incrementGlobalVersion,
   GLOBAL_CACHE_KEYS,
   CHAT_CACHE_KEYS,
+  dirtyCourse,
 } from "@/lib/redis";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
@@ -122,7 +123,7 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      dirtyCourse(courseId, course.slug),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),

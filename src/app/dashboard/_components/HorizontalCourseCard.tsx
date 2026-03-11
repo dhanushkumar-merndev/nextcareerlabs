@@ -62,11 +62,10 @@ export function HorizontalCourseCard({
           secureStorage.getItem(`duration-${lp.id}`) || "0",
         );
         // DB duration is in minutes, Video duration is in seconds. Normalize to seconds.
-        const duration =
-          cachedDuration || localDuration || lp.duration || 0 || 0;
+        const duration = lp.duration || cachedDuration || localDuration || 0;
         totalCourseDuration += duration;
 
-        // 2. Get Restriction / Watched Time (chatCache (1-day) > secureStorage > DB)
+        // 2. Get Restriction / Watched Time (high-water-mark sources only)
         const cachedRestriction = chatCache.get<number>(
           `restriction_${lp.id}`,
           userId,
@@ -74,23 +73,18 @@ export function HorizontalCourseCard({
         const localRestriction = parseFloat(
           secureStorage.getItem(`restriction-time-${lp.id}`) || "0",
         );
-        // Note: we also check video-progress if restriction is missing or lower
-        const localProgress = parseFloat(
-          secureStorage.getItem(`video-progress-${lp.id}`) || "0",
-        );
 
         const effectiveRestriction = Math.max(
           lp.restrictionTime,
           cachedRestriction || 0,
           localRestriction,
-          localProgress,
         );
 
-        // 3. Simple completion check (if restriction >= duration * 0.95 or lp.completed)
+        // 3. Simple completion check (if restriction >= duration * 0.9 or lp.completed)
         // This makes it feel "live" if they just finished a video
         const isLocallyCompleted =
           lp.completed ||
-          (duration > 0 && effectiveRestriction >= duration * 0.95);
+          (duration > 0 && effectiveRestriction >= duration * 0.9);
 
         if (isLocallyCompleted) {
           completedCount++;

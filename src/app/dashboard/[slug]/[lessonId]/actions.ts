@@ -9,9 +9,117 @@ import {
   invalidateCache,
   GLOBAL_CACHE_KEYS,
   incrementGlobalVersion,
+  setUserPendingProgress,
+  getUserPendingProgress,
+  clearUserPendingProgress,
+  redis,
 } from "@/lib/redis";
 import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
 
+/**
+ * [Million-User Scale] Internal Sync Logic
+ * Flushes pending Redis progress to Postgres
+ */
+async function flushPendingProgress(userId: string) {
+  const pending = await getUserPendingProgress(userId);
+  const lessonIds = Object.keys(pending);
+  if (lessonIds.length === 0) return;
+
+  console.log(
+    `[Flush] Found ${lessonIds.length} pending lessons for User=${userId}. Syncing to DB...`,
+  );
+
+  try {
+    // 🛡️ Batch UPSERT using Raw SQL for maximum performance
+    // We process each lesson in the pending set
+    for (const [lessonId, data] of Object.entries(pending)) {
+      const p = data as any;
+      await prisma.$executeRaw`
+        INSERT INTO "LessonProgress" ("id", "userId", "lessonId", "lastWatched", "actualWatchTime", "restrictionTime", "updatedAt", "completed", "quizPassed")
+        VALUES (gen_random_uuid(), ${userId}, ${lessonId}, ${Math.round(p.lastWatched)}, ${Math.round(p.delta)}, ${Math.round(p.restrictionTime)}, NOW(), false, false)
+        ON CONFLICT ("userId", "lessonId")
+        DO UPDATE SET
+          "lastWatched" = EXCLUDED."lastWatched",
+          "actualWatchTime" = "LessonProgress"."actualWatchTime" + EXCLUDED."actualWatchTime",
+          "restrictionTime" = GREATEST("LessonProgress"."restrictionTime", EXCLUDED."restrictionTime"),
+          "updatedAt" = NOW();
+      `;
+    }
+
+    // Clear the pending set after successful DB sync
+    await clearUserPendingProgress(userId, lessonIds);
+    console.log(`[Flush] ✅ Sync complete for User=${userId}`);
+  } catch (error) {
+    console.error(`[Flush] ❌ Sync failed for User=${userId}:`, error);
+  }
+}
+
+/**
+ * Manually trigger a sync (e.g., on page leave or tab switch)
+ */
+export async function syncProgressAction(): Promise<ApiResponse> {
+  const session = await requireUser();
+  await flushPendingProgress(session.id);
+  return { status: "success", message: "Progress synced" };
+}
+
+/**
+ * Update video progress with Redis-First Write-Behind
+ */
+export async function updateVideoProgress(
+  lessonId: string,
+  lastWatched: number,
+  actualWatchDelta = 0,
+  restrictionTime?: number,
+): Promise<ApiResponse> {
+  const session = await requireUser();
+
+  // 🛡️ Security Check: Verify Enrollment
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {
+      userId: session.id,
+      Course: {
+        chapter: { some: { lesson: { some: { id: lessonId } } } },
+      },
+      status: "Granted",
+    },
+  });
+
+  if (!enrollment) {
+    return { status: "error", message: "Forbidden: Not enrolled" };
+  }
+
+  try {
+    // ── Tier 1: Fast Redis Write ──────────────────────────────────
+    await setUserPendingProgress(session.id, lessonId, {
+      lastWatched,
+      delta: actualWatchDelta,
+      restrictionTime: restrictionTime ?? 0,
+      timestamp: Date.now(),
+    });
+
+    // ── Tier 2: Throttled DB Flush ────────────────────────────────
+    // Only flush to DB if no flush has happened in the last 30 seconds
+    const lockKey = `lock:sync:${session.id}`;
+    const hasLock = await redis?.get(lockKey);
+
+    if (!hasLock) {
+      // Set lock for 30 seconds and trigger background flush
+      await redis?.set(lockKey, "1", "EX", 30);
+
+      // We don't 'await' the flush to keep the heartbeat response instant
+      flushPendingProgress(session.id).catch(console.error);
+    }
+
+    // ── Tier 3: Fragmented Invalidation ───────────────────────────
+    await invalidateCache(`user:lesson:${session.id}:${lessonId}`);
+
+    return { status: "success", message: "Progress saved to cache" };
+  } catch (error) {
+    console.error("Error in updateVideoProgress:", error);
+    return { status: "error", message: "Failed to save progress" };
+  }
+}
 /**
  * Mark a lesson as completed
  */
@@ -97,135 +205,6 @@ export async function markLessonComplete(
     return {
       status: "error",
       message: "Something went wrong",
-    };
-  }
-}
-
-/**
- * Update video progress with atomic increment for watch time
- */
-export async function updateVideoProgress(
-  lessonId: string,
-  lastWatched: number,
-  actualWatchDelta = 0,
-  restrictionTime?: number,
-): Promise<ApiResponse> {
-  const session = await requireUser();
-
-  console.log(
-    `[updateVideoProgress] Start: User=${session.id}, Lesson=${lessonId}, LastWatched=${lastWatched}, Delta=${actualWatchDelta}, Restriction=${restrictionTime}`,
-  );
-  try {
-    const startTime = Date.now();
-    // ✅ 1. Fetch current state for sanity check
-    const existing = await prisma.lessonProgress.findUnique({
-      where: {
-        userId_lessonId: { userId: session.id, lessonId },
-      },
-      select: { updatedAt: true, actualWatchTime: true },
-    });
-    console.log(
-      `[updateVideoProgress] Fetch existing state took ${Date.now() - startTime}ms`,
-    );
-
-    // ✅ 2. Sanity Check: Prevent "accelerated" watch time
-    // If the user says they watched 60 seconds but only 5 seconds passed since the last sync,
-    // they are likely manipulating the client state.
-    let validatedDelta = actualWatchDelta;
-    if (existing && actualWatchDelta > 0) {
-      const elapsedMs = Date.now() - existing.updatedAt.getTime();
-      const elapsedSec = elapsedMs / 1000;
-
-      const maxPossibleDelta = elapsedSec + 15; // Increased buffer for sync timing
-
-      if (actualWatchDelta > maxPossibleDelta) {
-        console.warn(
-          `[Security] Watch time anomaly for User ${session.id}, Lesson ${lessonId}. Requested: ${actualWatchDelta}s, Max allowed: ${maxPossibleDelta}s. Capping to elapsed.`,
-        );
-        validatedDelta = elapsedSec;
-      }
-    }
-
-    // ✅ 3. Fetch lesson to calculate security caps
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
-      select: { duration: true },
-    });
-
-    const lessonDuration = lesson?.duration ? lesson.duration : 1000000; // DB duration is in seconds
-
-    // ✅ "PRECISE" SYNC: Trust the client's high-water mark exactly (capped only by duration)
-    const validatedRestriction =
-      restrictionTime !== undefined
-        ? Math.round(Math.min(restrictionTime, lessonDuration))
-        : undefined;
-
-    // ✅ 4. Atomic update with capped values (Rounded for precision)
-    await prisma.lessonProgress.upsert({
-      where: {
-        userId_lessonId: {
-          userId: session.id,
-          lessonId,
-        },
-      },
-      create: {
-        userId: session.id,
-        lessonId,
-        lastWatched: Math.round(
-          Math.min(lastWatched, validatedRestriction ?? lessonDuration),
-        ),
-        actualWatchTime: Math.round(Math.max(0, validatedDelta)),
-        restrictionTime: validatedRestriction ?? 0,
-      },
-      update: {
-        lastWatched: Math.round(
-          Math.min(
-            lastWatched,
-            validatedRestriction ??
-              (existing ? (existing as any).restrictionTime : lessonDuration) ??
-              lessonDuration,
-          ),
-        ),
-        actualWatchTime: {
-          increment: Math.max(0, validatedDelta),
-        },
-      },
-    });
-
-    // ✅ 5. Update restrictionTime only if the new value is higher (high-water mark)
-    if (validatedRestriction !== undefined && validatedRestriction > 0) {
-      await prisma.$executeRaw`
-        UPDATE "LessonProgress"
-        SET "restrictionTime" = GREATEST("restrictionTime", ${validatedRestriction})
-        WHERE "userId" = ${session.id} AND "lessonId" = ${lessonId}
-      `;
-    }
-
-    console.log(
-      `[updateVideoProgress] Core logic execution (Security + Upsert + Raw Update) took ${Date.now() - startTime}ms`,
-    );
-
-    // ✅ Invalidate caches so refresh/sidebar reflects new progress
-    console.log(
-      `[updateVideoProgress] Invalidating specific lesson/sidebar cache for User=${session.id}`,
-    );
-    await Promise.all([
-      invalidateCache(`user:lesson:${session.id}:${lessonId}`),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
-    ]);
-
-    // Revalidate the lesson page to ensure UI is fresh
-    revalidatePath(`/dashboard/[slug]/${lessonId}`, "page");
-
-    return {
-      status: "success",
-      message: "Progress updated",
-    };
-  } catch (error) {
-    console.error("Error updating video progress:", error);
-    return {
-      status: "error",
-      message: "Failed to update progress",
     };
   }
 }
@@ -378,6 +357,21 @@ export async function submitQuizAttempt(
   }
 > {
   const session = await requireUser();
+
+  // 🛡️ Security Check: Verify Enrollment
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {
+      userId: session.id,
+      Course: {
+        chapter: { some: { lesson: { some: { id: lessonId } } } },
+      },
+      status: "Granted",
+    },
+  });
+
+  if (!enrollment) {
+    return { status: "error", message: "Forbidden: Not enrolled" };
+  }
 
   console.log(
     `[submitQuizAttempt] Start: User=${session.id}, Lesson=${lessonId}, Slug=${slug}`,

@@ -1,4 +1,3 @@
-
 "use client";
 
 import dynamic from "next/dynamic";
@@ -9,8 +8,8 @@ const DynamicChatLayout = dynamic(
   () => import("./ChatLayout").then((mod) => mod.ChatLayout),
   {
     ssr: false,
-    loading: () => <div className="flex-1 min-h-0 bg-muted/20 animate-pulse" />,
-  }
+    loading: () => <div className="flex-1 min-h-0 bg-muted/10 animate-pulse" />,
+  },
 );
 
 export function ChatLayoutLoader(props: ComponentProps<typeof ChatLayout>) {

@@ -7,6 +7,7 @@ import {
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
   incrementGlobalVersion,
+  getLatestVersionAndCache,
 } from "@/lib/redis";
 
 const PAGE_SIZE = 9;
@@ -16,10 +17,19 @@ export async function adminGetCourses(
   cursor?: string | null,
   searchQuery?: string,
 ) {
+  const authStartTime = Date.now();
   await requireAdmin();
-  const currentVersion = await getGlobalVersion(
-    GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION,
-  );
+  const authDuration = Date.now() - authStartTime;
+
+  const redisStartTime = Date.now();
+  const versionKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION;
+  const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST;
+
+  const { version: currentVersion, data: cached } =
+    searchQuery || cursor
+      ? { version: await getGlobalVersion(versionKey), data: null } // Skip cache for search/pagination for now to keep it simple, or we could fetch version independently
+      : await getLatestVersionAndCache<any[]>(versionKey, cacheKey);
+  const redisDuration = Date.now() - redisStartTime;
 
   // Smart Sync ONLY for first page and no search
   if (
@@ -29,107 +39,31 @@ export async function adminGetCourses(
     clientVersion === currentVersion
   ) {
     console.log(
-      `[adminGetCourses] Version Match (${clientVersion}). Returning NOT_MODIFIED (Skipping Redis Data Fetch).`,
+      `[adminGetCourses] ✨ Smart Sync Match (v${clientVersion}). Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
     );
     return { status: "not-modified", version: currentVersion };
   }
 
-  if (!searchQuery && !cursor) {
-    console.log(
-      `[adminGetCourses] Version Mismatch (Client: ${clientVersion || "None"}, Server: ${currentVersion}). Checking Redis...`,
-    );
-  }
-
-  // Check Redis cache
-  const redisStartTime = Date.now();
-  const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST;
-  const cachedRaw = await getCache<any[]>(cacheKey);
-  const cached = Array.isArray(cachedRaw) ? cachedRaw : null;
-
-  if (cachedRaw && !cached) {
-    console.warn(
-      `[adminGetCourses] Redis cache for "${cacheKey}" is NOT an array. Forcing fresh fetch.`,
-    );
-  }
-
-  console.log(
-    `[adminGetCourses] Redis cache lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
-  );
-
   let allCourses: any[];
 
   if (searchQuery) {
-    if (cached) {
-      console.log(
-        `[adminGetCourses] Redis Cache filter for "${searchQuery}"...`,
-      );
-      const q = searchQuery.toLowerCase();
-      allCourses = cached.filter(
-        (c) =>
-          c.title.toLowerCase().includes(q) ||
-          c.smallDescription?.toLowerCase().includes(q) ||
-          c.slug.toLowerCase().includes(q),
-      );
-    } else {
-      console.log(`[adminGetCourses] Searching DB for "${searchQuery}"...`);
-      const startTime = Date.now();
-      allCourses = await prisma.course.findMany({
-        where: {
-          OR: [
-            { title: { contains: searchQuery, mode: "insensitive" } },
-            {
-              smallDescription: { contains: searchQuery, mode: "insensitive" },
-            },
-            { slug: { contains: searchQuery, mode: "insensitive" } },
-          ],
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          id: true,
-          title: true,
-          smallDescription: true,
-          duration: true,
-          level: true,
-          status: true,
-          fileKey: true,
-          category: true,
-          slug: true,
-        },
-      });
-      const duration = Date.now() - startTime;
-      console.log(`[adminGetCourses] DB Search took ${duration}ms.`);
-    }
-  } else if (cached) {
-    console.log(`[adminGetCourses] Redis Cache HIT. Preparing page...`);
-
-    // Smart Sync: If no search/cursor, return first page immediately from Redis
-    if (!cursor) {
-      const firstPage = cached.slice(0, PAGE_SIZE);
-      const nextCursor =
-        cached.length > PAGE_SIZE ? firstPage[firstPage.length - 1].id : null;
-
-      return {
-        data: {
-          courses: firstPage,
-          nextCursor,
-          total: cached.length,
-        },
-        version: currentVersion,
-      };
-    }
-
-    allCourses = cached;
-  } else {
     console.log(
-      `[adminGetCourses] Redis Cache MISS. Fetching from Prisma DB...`,
+      `[adminGetCourses] 🔍 Search mode: "${searchQuery}". Auth: ${authDuration}ms`,
     );
-    const startTime = Date.now();
-    allCourses = await prisma.course.findMany({
-      orderBy: {
-        createdAt: "desc",
+    const dbStartTime = Date.now();
+    // 🛡️ Native Database Pagination for search
+    const courses = await prisma.course.findMany({
+      where: {
+        OR: [
+          { title: { contains: searchQuery, mode: "insensitive" } },
+          { smallDescription: { contains: searchQuery, mode: "insensitive" } },
+          { slug: { contains: searchQuery, mode: "insensitive" } },
+        ],
       },
+      take: PAGE_SIZE + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      orderBy: { createdAt: "desc" },
       select: {
         id: true,
         title: true,
@@ -142,33 +76,85 @@ export async function adminGetCourses(
         slug: true,
       },
     });
-    const duration = Date.now() - startTime;
-    console.log(`[adminGetCourses] DB Fetch took ${duration}ms.`);
 
-    // Cache in Redis for 30 days (effective forever)
-    await setCache(cacheKey, allCourses, 2592000);
+    const hasNextPage = courses.length > PAGE_SIZE;
+    const page = hasNextPage ? courses.slice(0, PAGE_SIZE) : courses;
+    const nextCursor = hasNextPage ? page[page.length - 1].id : null;
+
+    console.log(
+      `[adminGetCourses] DB Search took ${Date.now() - dbStartTime}ms.`,
+    );
+
+    return {
+      data: {
+        courses: page,
+        nextCursor,
+        total: -1, // Total is expensive for large paginated search, returning -1
+      },
+      version: currentVersion,
+    };
+  } else if (cached && Array.isArray(cached)) {
+    console.log(
+      `[adminGetCourses] 🔵 Redis HIT. Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
+    );
+
+    // If we have cached the ENTIRE list (which we do for small/medium sets),
+    // we can still slice from memory to save a DB hit, but for 1M users we'd change this
+    const startIndex = cursor
+      ? cached.findIndex((c: any) => c.id === cursor) + 1
+      : 0;
+    const page = cached.slice(startIndex, startIndex + PAGE_SIZE);
+    const nextCursor =
+      startIndex + PAGE_SIZE < cached.length ? page[page.length - 1].id : null;
+
+    return {
+      data: {
+        courses: page,
+        nextCursor,
+        total: cached.length,
+      },
+      version: currentVersion,
+    };
+  } else {
+    console.log(`[adminGetCourses] 🗄️ Redis MISS. Fetching page from DB...`);
+    const dbStartTime = Date.now();
+
+    // 🛡️ Native Database Pagination
+    const courses = await prisma.course.findMany({
+      take: PAGE_SIZE + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        smallDescription: true,
+        duration: true,
+        level: true,
+        status: true,
+        fileKey: true,
+        category: true,
+        slug: true,
+      },
+    });
+
+    const hasNextPage = courses.length > PAGE_SIZE;
+    const page = hasNextPage ? courses.slice(0, PAGE_SIZE) : courses;
+    const nextCursor = hasNextPage ? page[page.length - 1].id : null;
+
+    console.log(
+      `[adminGetCourses] DB Fetch took ${Date.now() - dbStartTime}ms.`,
+    );
+
+    return {
+      data: {
+        courses: page,
+        nextCursor,
+        total: -1,
+      },
+      version: currentVersion,
+    };
   }
-
-  // Cursor Pagination
-  const startIndex = cursor
-    ? allCourses.findIndex((c) => c.id === cursor) + 1
-    : 0;
-
-  const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
-
-  const nextCursor =
-    startIndex + PAGE_SIZE < allCourses.length
-      ? (page[page.length - 1]?.id ?? null)
-      : null;
-
-  return {
-    data: {
-      courses: page,
-      nextCursor,
-      total: allCourses.length,
-    },
-    version: currentVersion,
-  };
 }
 
 export type AdminCourseType = any;

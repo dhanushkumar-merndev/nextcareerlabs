@@ -8,6 +8,7 @@ import {
   setCache,
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
+  getLatestVersionAndCache,
 } from "@/lib/redis";
 
 export type CourseData = {
@@ -37,26 +38,31 @@ export type CourseData = {
 };
 
 export async function adminGetCourse(id: string, clientVersion?: string) {
+  const authStartTime = Date.now();
   await requireAdmin();
+  const authDuration = Date.now() - authStartTime;
 
-  let currentVersion = await getGlobalVersion(
-    GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION,
-  );
+  // Use pipelined version and data fetch
+  const redisStartTime = Date.now();
+  const cacheKey = GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(id);
+  const versionKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION;
+
+  const { version: currentVersion, data: cached } =
+    await getLatestVersionAndCache<CourseData>(versionKey, cacheKey);
+  const redisDuration = Date.now() - redisStartTime;
 
   // Smart Sync
   if (clientVersion && clientVersion === currentVersion) {
     console.log(
-      `[adminGetCourse] Version Match (${clientVersion}). Returning NOT_MODIFIED.`,
+      `[adminGetCourse] ✨ Smart Sync Match (v${clientVersion}). Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
     );
     return { status: "not-modified", version: currentVersion };
   }
 
-  // Check Redis cache
-  const cacheKey = GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(id);
-  const cached = await getCache<CourseData>(cacheKey);
-
   if (cached) {
-    console.log(`[adminGetCourse] Redis Cache HIT for ID: ${id}`);
+    console.log(
+      `[adminGetCourse] 🔵 Redis HIT. Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
+    );
     return {
       data: cached,
       version: currentVersion,
@@ -64,8 +70,10 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
     };
   }
 
-  console.log(`[adminGetCourse] Redis Cache MISS. Fetching from Prisma DB...`);
-  const startTime = Date.now();
+  console.log(
+    `[adminGetCourse] 🗄️ Redis MISS. Auth: ${authDuration}ms, Redis: ${redisDuration}ms. Fetching DB...`,
+  );
+  const dbStartTime = Date.now();
   const data = (await prisma.course.findUnique({
     where: {
       id: id,
@@ -106,21 +114,25 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
       },
     },
   })) as CourseData | null;
-  const duration = Date.now() - startTime;
-  console.log(`[adminGetCourse] DB Fetch took ${duration}ms for ID: ${id}`);
+  const dbDuration = Date.now() - dbStartTime;
+  console.log(`[adminGetCourse] DB Fetch took ${dbDuration}ms for ID: ${id}`);
 
   if (!data) {
     return notFound();
   }
 
   // Cache in Redis for 30 days (Rule Infinity)
+  const cacheSetStart = Date.now();
   await setCache(cacheKey, data, 2592000);
+  console.log(
+    `[adminGetCourse] Redis Cache Updated. Time: ${Date.now() - cacheSetStart}ms`,
+  );
 
   return {
     data: data,
     version: currentVersion,
     source: "DB",
-    computeTime: duration,
+    computeTime: dbDuration,
   };
 }
 
