@@ -15,6 +15,10 @@ import {
   incrementGlobalVersionDebounced,
   GLOBAL_CACHE_KEYS,
   getVersions,
+  setBufferedArchiveStatus,
+  getBufferedArchiveStatus,
+  getDirtyArchiveThreads,
+  clearDirtyArchiveThreads,
 } from "@/lib/redis";
 import { TicketResponse } from "@/lib/types/components";
 async function getSession() {
@@ -164,7 +168,10 @@ export async function sendNotificationAction(data: {
       (data.fileUrl || data.imageUrl) &&
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
       (data.fileUrl || data.imageUrl) &&
-        incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION, 60),
+        incrementGlobalVersionDebounced(
+          GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION,
+          60,
+        ),
     ]);
     console.log(
       `[sendNotificationAction] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
@@ -185,12 +192,20 @@ export async function sendNotificationAction(data: {
 export async function invalidateAdminsCache() {
   try {
     await Promise.all([
-      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION, 30),
-      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION, 30),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+      incrementGlobalVersionDebounced(
+        GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION,
+        30,
+      ),
+      incrementGlobalVersionDebounced(
+        GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION,
+        30,
+      ),
+      // [Redis-First Archive] SIDEBAR CACHE is NO LONGER invalidated immediately.
+      // We rely on debounced version increments and Redis Overlays.
+      // invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
     ]);
     console.log(
-      `[AdminSync] Incremented global admin chat version and invalidated shared sidebar cache.`,
+      `[AdminSync] Incremented global admin chat versions (Debounced).`,
     );
   } catch (error) {
     console.error(
@@ -238,7 +253,10 @@ export async function replyToTicketAction(data: {
     (data.fileUrl || data.imageUrl) &&
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
     (data.fileUrl || data.imageUrl) &&
-      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION, 60),
+      incrementGlobalVersionDebounced(
+        GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION,
+        60,
+      ),
   ]);
 
   // Mark all messages in thread as read for admin? Or just specific ones?
@@ -265,14 +283,6 @@ export async function getThreadsAction(clientVersion?: string) {
 
   const currentVersion = isAdmin ? adminChatV : userChatV;
 
-  // If client already has the latest version, don't download everything
-  if (clientVersion && clientVersion === currentVersion) {
-    console.log(
-      `[getThreadsAction] Version Match (${clientVersion}) for user ${session.user.id}. Returning NOT_MODIFIED.`,
-    );
-    return { status: "not-modified", version: currentVersion };
-  }
-
   const cacheKey = isAdmin
     ? GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR
     : CHAT_CACHE_KEYS.THREADS(session.user.id);
@@ -281,12 +291,34 @@ export async function getThreadsAction(clientVersion?: string) {
   const cachedData = await getCache<any>(cacheKey);
   const redisDuration = Date.now() - redisStartTime;
 
-  if (cachedData && cachedData.version === currentVersion) {
-    console.log(
-      `%c[getThreadsAction] REDIS HIT (${redisDuration}ms) for User=${session.user.id}. Version: ${currentVersion}. Key: ${cacheKey}`,
-      "color: #eab308; font-weight: bold",
-    );
-    return cachedData;
+  if (cachedData) {
+    if (cachedData.version === currentVersion) {
+      console.log(
+        `%c[getThreadsAction] REDIS HIT (${redisDuration}ms) for User=${session.user.id}. Version: ${currentVersion}. Key: ${cacheKey}`,
+        "color: #eab308; font-weight: bold",
+      );
+
+      // ⚡ [Redis Overlay] Merge clean overrides onto cached threads
+      // This allows "Archive" to be 0-DB-Hit while still showing fresh state.
+      const overrides = await getBufferedArchiveStatus(session.user.id);
+      if (Object.keys(overrides).length > 0) {
+        cachedData.threads = cachedData.threads.map((t: any) => ({
+          ...t,
+          archived:
+            overrides[t.threadId] !== undefined
+              ? overrides[t.threadId]
+              : t.archived,
+        }));
+      }
+
+      return cachedData;
+    } else {
+      console.log(
+        `[getThreadsAction] Version mismatch. Cache: ${cachedData.version}, Current: ${currentVersion}. Key: ${cacheKey}`,
+      );
+    }
+  } else {
+    console.log(`[getThreadsAction] Redis Cache NULL for Key: ${cacheKey}`);
   }
 
   console.log(
@@ -397,15 +429,7 @@ export async function getThreadsAction(clientVersion?: string) {
   }
 
   // 2. PARALLEL FETCH REMAINING DATA
-  const [
-    latestMsgs,
-    unresolvedTicketsResults,
-    studentMsgs,
-    groups,
-    userStates,
-    enrollmentData,
-    latestNotification,
-  ] = await Promise.all([
+  const p = await Promise.all([
     // Latest Messages (The big one)
     threadIds.length > 0
       ? prisma.notification.findMany({
@@ -485,26 +509,78 @@ export async function getThreadsAction(clientVersion?: string) {
       orderBy: { createdAt: "desc" },
       select: { createdAt: true },
     }),
+    // Redis Overrides
+    getBufferedArchiveStatus(session.user.id),
   ]);
+
+  const [
+    latestMsgs,
+    unresolvedTicketsResults,
+    studentMsgs,
+    groups,
+    userStates,
+    enrollmentData,
+    latestNotification,
+    redisOverrides,
+  ] = p as any;
+
   console.log(
     `[getThreadsAction] Big Parallel Fetch took ${Date.now() - dbStartTime}ms (Threads: ${threadIds.length})`,
   );
 
   // Transform Maps
   const unresolvedMap: Record<string, number> = {};
-  unresolvedTicketsResults.forEach((msg) => {
+
+  // ⚡ [Redis-First Archive] Sync-on-Read (1-Minute Debounce)
+  // Logic: 20 clicks -> 1 write. Only sync if last toggle was > 60s ago.
+  (async () => {
+    const dirtyMap = await getDirtyArchiveThreads(session.user.id);
+    const now = Date.now();
+    const threadsToSync = Object.entries(dirtyMap)
+      .filter(([_, lastUpdate]) => now - lastUpdate > 60000)
+      .map(([tid]) => tid);
+
+    if (threadsToSync.length > 0) {
+      console.log(
+        `[Redis-First Archive] Syncing ${threadsToSync.length} stable threads to DB for User=${session.user.id}`,
+      );
+      try {
+        await Promise.all(
+          threadsToSync.map((tid) =>
+            prisma.userThreadState.upsert({
+              where: {
+                userId_threadId: { userId: session.user.id, threadId: tid },
+              },
+              update: { archived: redisOverrides[tid] },
+              create: {
+                userId: session.user.id,
+                threadId: tid,
+                archived: redisOverrides[tid],
+              },
+            }),
+          ),
+        );
+        await clearDirtyArchiveThreads(session.user.id, threadsToSync);
+      } catch (e) {
+        console.error("[getThreadsAction] Archive sync failed:", e);
+      }
+    }
+  })();
+  unresolvedTicketsResults.forEach((msg: { threadId: string | number }) => {
     if (msg.threadId)
       unresolvedMap[msg.threadId] = (unresolvedMap[msg.threadId] || 0) + 1;
   });
 
   const studentMap: Record<string, any> = {};
   if (isAdmin) {
-    studentMsgs.forEach((m) => {
+    studentMsgs.forEach((m: { threadId: string | number; sender: any }) => {
       if (m.threadId) studentMap[m.threadId] = m.sender;
     });
   }
 
-  const enrollmentCourses = enrollmentData.map((e) => e.Course);
+  const enrollmentCourses = enrollmentData.map(
+    (e: { Course: any }) => e.Course,
+  );
   const stateMap = new Map((userStates as any[]).map((s) => [s.threadId, s]));
 
   // Combine results in memory
@@ -578,7 +654,7 @@ export async function getThreadsAction(clientVersion?: string) {
   });
 
   const uniqueGroupsMap = new Map<string, any>();
-  groups.forEach((g) => {
+  groups.forEach((g: { courseId: any; id: any; name: any }) => {
     const key = g.courseId ? g.id : `GLOBAL_NAME_${g.name}`;
     if (!uniqueGroupsMap.has(key)) uniqueGroupsMap.set(key, g);
   });
@@ -617,9 +693,16 @@ export async function getThreadsAction(clientVersion?: string) {
   const allThreadsMap = new Map<string, any>();
   [...threadDetails, ...groupThreads].forEach((t) => {
     const state = stateMap.get(t.threadId);
+
+    // Redis-First: Override DB state with binary buffer if present
+    const isArchived =
+      redisOverrides[t.threadId] !== undefined
+        ? redisOverrides[t.threadId]
+        : (state?.archived ?? false);
+
     const merged = {
       ...t,
-      archived: state?.archived ?? false,
+      archived: isArchived,
       hidden: state?.hidden ?? false,
       muted: state?.muted ?? false,
     };
@@ -721,10 +804,17 @@ export async function getThreadMessagesAction(
       console.log(
         `[getThreadMessagesAction] Redis Cache HIT for thread ${threadId}.`,
       );
+      
+      // ⚡ [Redis Overlay] Merge fresh archive status into cached state
+      const overrides = await getBufferedArchiveStatus(session.user.id);
+      if (overrides[threadId] !== undefined) {
+        cached.state.isArchived = overrides[threadId];
+      }
+
       return cached;
     }
     console.log(
-      `[getThreadMessagesAction] Redis Cache MISS for thread ${threadId}. Fetching from Prisma DB...`,
+      `[getThreadMessagesAction] Redis Cache ${cached ? "VERSION MISMATCH" : "NULL"} for thread ${threadId}. Key: ${cacheKey}`,
     );
   }
 
@@ -735,16 +825,12 @@ export async function getThreadMessagesAction(
   const windowEnd = new Date(referenceDate.getTime() - searchWindow);
 
   const mainDbStart = Date.now();
-  const [messages, state, oldestEver] = await Promise.all([
+  const [messages, state, oldestEver, redisOverrides] = await Promise.all([
     prisma.notification.findMany({
       where: {
         threadId: threadId as string,
         createdAt: {
           lt: referenceDate,
-          // If it's an initial load, we don't strictly enforce a 7-day floor
-          // UNLESS we want to keep the "one-week segment" logic.
-          // To ensure we get data even if it's old, we'll take the top 50
-          // but still use the window as a hint if preferred.
         },
       },
       include: {
@@ -759,7 +845,7 @@ export async function getThreadMessagesAction(
         },
       },
       orderBy: { createdAt: "desc" },
-      take: 50, // Performance safety: limit to 50 messages per segment
+      take: 50,
     }),
     prisma.userThreadState.findUnique({
       where: {
@@ -774,6 +860,7 @@ export async function getThreadMessagesAction(
       orderBy: { createdAt: "asc" },
       select: { createdAt: true },
     }),
+    getBufferedArchiveStatus(session.user.id),
   ]);
   console.log(
     `[getThreadMessagesAction] DB Fetch (Msgs + State + Oldest) took ${Date.now() - mainDbStart}ms (Count: ${messages.length})`,
@@ -792,15 +879,45 @@ export async function getThreadMessagesAction(
     messages.map((m) => signMessageAttachments(m)),
   );
 
+  const redisArchiveStatus = redisOverrides[threadId];
+
   const result = {
     messages: [...signedMessages].reverse(),
     state: {
       isMuted: state?.muted ?? false,
-      isArchived: state?.archived ?? false,
+      isArchived:
+        redisArchiveStatus !== undefined
+          ? redisArchiveStatus
+          : (state?.archived ?? false),
       isHidden: state?.hidden ?? false,
     },
     nextCursor,
   };
+
+  // ⚡ [Redis-First Archive] Sync-on-Read (1-Minute Debounce) for single thread
+  (async () => {
+    const dirtyMap = await getDirtyArchiveThreads(session.user.id);
+    const lastUpdate = dirtyMap[threadId];
+    if (lastUpdate && Date.now() - lastUpdate > 60000) {
+      console.log(
+        `[Redis-First Archive] Syncing stable thread ${threadId} to DB for User=${session.user.id}`,
+      );
+      try {
+        await prisma.userThreadState.upsert({
+          where: { userId_threadId: { userId: session.user.id, threadId } },
+          update: { archived: redisArchiveStatus },
+          create: {
+            userId: session.user.id,
+            threadId,
+            archived: redisArchiveStatus,
+          },
+        });
+        await clearDirtyArchiveThreads(session.user.id, [threadId]);
+      } catch (e) {
+        console.error("[getThreadMessagesAction] Archive sync failed:", e);
+      }
+    }
+  })();
 
   if (cacheKey) {
     await setCache(cacheKey, result, 2592000); // 30 Days
@@ -1129,42 +1246,42 @@ export async function archiveThreadAction(threadId: string) {
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
 
-  const state = await prisma.userThreadState.findUnique({
-    where: {
-      userId_threadId: {
-        userId: session.user.id,
-        threadId: threadId,
+  // 1. Get current status to toggle (Check Redis first, then DB)
+  const [redisStatuses, dbState] = await Promise.all([
+    getBufferedArchiveStatus(session.user.id),
+    prisma.userThreadState.findUnique({
+      where: {
+        userId_threadId: {
+          userId: session.user.id,
+          threadId: threadId,
+        },
       },
-    },
-  });
-
-  const newArchivedStatus = !(state?.archived ?? false);
-
-  await prisma.userThreadState.upsert({
-    where: {
-      userId_threadId: {
-        userId: session.user.id,
-        threadId: threadId,
-      },
-    },
-    update: { archived: newArchivedStatus },
-    create: {
-      userId: session.user.id,
-      threadId: threadId,
-      archived: newArchivedStatus,
-    },
-  });
-
-  // Invalidate
-  const isAdmin = session.user.role === "admin";
-  await Promise.all([
-    invalidateCache(CHAT_CACHE_KEYS.THREADS(session.user.id)),
-    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
-    incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(session.user.id)),
-    isAdmin && invalidateAdminsCache(),
+    }),
   ]);
 
-  revalidatePath("/admin/resources");
+  const currentStatus =
+    redisStatuses[threadId] !== undefined
+      ? redisStatuses[threadId]
+      : (dbState?.archived ?? false);
+
+  const newArchivedStatus = !currentStatus;
+
+  // 2. SET REDIS IMMEDIATELY (Redis-First)
+  await setBufferedArchiveStatus(session.user.id, threadId, newArchivedStatus);
+
+  // 3. INVALIDATE CACHES
+  // [Redis-First Archive] Optimization: 0-DB-HIT Read Path
+  // We NO LONGER invalidate any caches or increment versions for archive toggles.
+  // The 'Redis Overlay' in getThreads/getThreadMessages handles the fresh state
+  // even on a cache HIT. This prevents the ~200ms DB hits the user noted.
+  /*
+  await Promise.all([
+    invalidateCache(CHAT_CACHE_KEYS.MESSAGES(threadId)),
+    ...
+  ]);
+  */
+
+  // revalidatePath("/admin/resources");
   return { success: true, archived: newArchivedStatus };
 }
 

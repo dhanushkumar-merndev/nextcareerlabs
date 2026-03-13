@@ -50,6 +50,8 @@ export const CHAT_CACHE_KEYS = {
   MESSAGES: (threadId: string) => `chat:messages:${threadId}`,
   VERSION: (userId: string) => `chat:version:${userId}`,
   PARTICIPANTS: (groupId: string) => `chat:participants:${groupId}`,
+  ARCHIVE_STATUS: (userId: string) => `chat:archive_status:${userId}`,
+  ARCHIVE_DIRTY: (userId: string) => `chat:archive_dirty:${userId}`,
 };
 
 export const GLOBAL_CACHE_KEYS = {
@@ -381,6 +383,66 @@ export async function clearUserPendingProgress(
   if (!redis || lessonIds.length === 0) return;
   const key = `user:progress:pending:${userId}`;
   await withTimeout(redis.hdel(key, ...lessonIds), null);
+}
+
+/**
+ * ⚡ [Redis-First Archive]
+ * Stores the toggle state in Redis instantly. DB sync will happen later.
+ */
+export async function setBufferedArchiveStatus(
+  userId: string,
+  threadId: string,
+  isArchived: boolean,
+) {
+  if (!redis) return;
+  const statusKey = CHAT_CACHE_KEYS.ARCHIVE_STATUS(userId);
+  const dirtyKey = CHAT_CACHE_KEYS.ARCHIVE_DIRTY(userId);
+
+  const pipeline = redis.pipeline();
+  pipeline.hset(statusKey, threadId, isArchived ? "1" : "0");
+  // Store the timestamp of the last toggle
+  pipeline.hset(dirtyKey, threadId, Date.now().toString());
+  pipeline.expire(statusKey, 86400 * 7); 
+  pipeline.expire(dirtyKey, 86400 * 7);
+
+  await withTimeout(pipeline.exec(), null);
+}
+
+export async function getBufferedArchiveStatus(userId: string) {
+  if (!redis) return {};
+  const data = await withTimeout(
+    redis.hgetall(CHAT_CACHE_KEYS.ARCHIVE_STATUS(userId)),
+    {},
+  );
+  const result: Record<string, boolean> = {};
+  for (const [tid, val] of Object.entries(data)) {
+    result[tid] = val === "1";
+  }
+  return result;
+}
+
+export async function getDirtyArchiveThreads(userId: string) {
+  if (!redis) return {};
+  const data = await withTimeout(
+    redis.hgetall(CHAT_CACHE_KEYS.ARCHIVE_DIRTY(userId)),
+    {},
+  );
+  const result: Record<string, number> = {};
+  for (const [tid, val] of Object.entries(data)) {
+    result[tid] = parseInt(val as string);
+  }
+  return result;
+}
+
+export async function clearDirtyArchiveThreads(
+  userId: string,
+  threadIds: string[],
+) {
+  if (!redis || threadIds.length === 0) return;
+  await withTimeout(
+    redis.hdel(CHAT_CACHE_KEYS.ARCHIVE_DIRTY(userId), ...threadIds),
+    null,
+  );
 }
 
 /**

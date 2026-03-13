@@ -207,12 +207,16 @@ export function ChatLayout({
   // Memoize handleSelectThread to prevent auto-select effect from running repeatedly
   // Also sync URL when user manually selects a thread
   const handleSelectThread = useCallback(
-    (thread: { id: string; name: string; image?: string; type?: string }) => {
+    (thread: { id: string; name: string; image?: string; type?: string } | null) => {
       setSelectedThread(thread);
 
       // Silent URL update to avoid redundant server-side render
       const url = new URL(window.location.href);
-      url.searchParams.set("threadId", thread.id);
+      if (thread) {
+        url.searchParams.set("threadId", thread.id);
+      } else {
+        url.searchParams.delete("threadId");
+      }
       window.history.replaceState(null, "", url.toString());
     },
     [],
@@ -266,7 +270,7 @@ export function ChatLayout({
               isAdmin={isAdmin}
               currentUserId={currentUserId}
               onRemoveThread={handleRemoveThread}
-              onBack={() => setSelectedThread(null)}
+              onBack={() => handleSelectThread(null)}
               externalPresence={(sidebarData as any)?.presence || null}
             />
           </div>

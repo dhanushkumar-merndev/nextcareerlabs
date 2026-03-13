@@ -198,12 +198,13 @@ export function ChatWindow({
       lastThreadId.current = threadId;
       setInputText("");
       setImageUrl("");
-      setIsArchived(false);
+      // Correctly initialize archive state from current threadState to prevent flicker
+      setIsArchived(threadState?.isArchived || false);
       setIsBanned(false);
 
       setShowGroupInfo(false);
     }
-  }, [threadId]);
+  }, [threadId, threadState]);
 
   // Cross-Tab Sync: Listen for storage changes from other tabs (participants)
   useEffect(() => {
@@ -1206,6 +1207,11 @@ export function ChatWindow({
 
     try {
       await archiveThreadAction(threadId);
+      
+      // ⚡ [Mobile UI] Automatically navigate back to sidebar on successful archive
+      // This ensures the "deleted" feel the user requested.
+      onBack?.();
+      
       chatCache.invalidate(`messages_${threadId}`, currentUserId);
       chatCache.invalidate(
         getSidebarLocalKey(isAdmin),
@@ -1249,6 +1255,10 @@ export function ChatWindow({
       if (onRemoveThread) onRemoveThread(threadId);
 
       await deleteThreadMessagesAction(threadId); // Now deletes from DB!
+      
+      // ⚡ [Mobile UI] Navigate back to sidebar on successful deletion
+      onBack?.();
+
       chatCache.invalidate(`messages_${threadId}`, currentUserId);
       chatCache.invalidate(
         getSidebarLocalKey(isAdmin),

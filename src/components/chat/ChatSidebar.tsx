@@ -64,9 +64,12 @@ export function ChatSidebar({
     const handleThreadUpdate = (e: any) => {
       const { threadId, archived, muted, lastMessage, updatedAt, hidden } = e.detail;
 
-      // AUTO-SWITCH VIEW IF CURRENT THREAD IS UNARCHIVED
-      if (threadId === selectedThreadId && archived === false && viewRef.current === "archived") {
-        setView("recent");
+      // AUTO-SWITCH VIEW IF CURRENT THREAD IS ARCHIVED/UNARCHIVED
+      if (threadId === selectedThreadId && archived !== undefined) {
+        onSelectThread(null as any);
+        if (archived === false && viewRef.current === "archived") {
+          setView("recent");
+        }
       }
 
       queryClient.setQueryData(getSidebarKey(currentUserId, isAdmin), (old: any) => {
