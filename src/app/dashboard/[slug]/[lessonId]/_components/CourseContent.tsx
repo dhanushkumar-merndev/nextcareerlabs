@@ -248,9 +248,9 @@ function VideoPlayer({
 
   const [resumeTime, setResumeTime] = useState(initialTime);
   useEffect(() => {
-    const localProgress = secureStorage.getItem(`video-progress-${lessonId}`);
+    const localProgress = secureStorage.getItem(`video-progress-${lessonId}_${userId}`);
     const needsSync =
-      secureStorage.getItem(`needs-sync-${lessonId}`) === "true";
+      secureStorage.getItem(`needs-sync-${lessonId}_${userId}`) === "true";
 
     if (localProgress) {
       const parsedLocal = parseFloat(localProgress);
@@ -267,13 +267,13 @@ function VideoPlayer({
   const restrictionTimeRef = useRef<number>(initialRestrictionTime);
   useEffect(() => {
     const localRestriction = parseFloat(
-      secureStorage.getItem(`restriction-time-${lessonId}`) || "0",
+      secureStorage.getItem(`restriction-time-${lessonId}_${userId}`) || "0",
     );
     const effective = Math.max(initialRestrictionTime, localRestriction);
     restrictionTimeRef.current = effective;
     // Persist so we always have the highest known
     secureStorage.setItemTracked(
-      `restriction-time-${lessonId}`,
+      `restriction-time-${lessonId}_${userId}`,
       effective.toString(),
     );
   }, [lessonId, initialRestrictionTime]);
@@ -304,7 +304,7 @@ function VideoPlayer({
         undefined,
         ONE_DAY_TTL,
       );
-      secureStorage.setItemTracked(`duration-${lessonId}`, duration.toString());
+      secureStorage.setItemTracked(`duration-${lessonId}_${userId}`, duration.toString());
     },
     [lessonId, userId],
   );
@@ -315,7 +315,7 @@ function VideoPlayer({
       if (currentTime > restrictionTimeRef.current) {
         restrictionTimeRef.current = currentTime;
         secureStorage.setItemTracked(
-          `restriction-time-${lessonId}`,
+          `restriction-time-${lessonId}_${userId}`,
           currentTime.toString(),
         );
         // ✅ Real-time dashboard override (1 day TTL)
@@ -390,7 +390,7 @@ function VideoPlayer({
 
       // ✅ 3. Periodic Position Save (localStorage only - every 5 seconds)
       const lastSavedTime = parseFloat(
-        secureStorage.getItem(`video-progress-${lessonId}`) || "0",
+        secureStorage.getItem(`video-progress-${lessonId}_${userId}`) || "0",
       );
 
       if (Math.abs(currentTime - lastSavedTime) >= 1) {
@@ -416,7 +416,7 @@ function VideoPlayer({
       if (maxTime > restrictionTimeRef.current) {
         restrictionTimeRef.current = maxTime;
         secureStorage.setItemTracked(
-          `restriction-time-${lessonId}`,
+          `restriction-time-${lessonId}_${userId}`,
           maxTime.toString(),
         );
         // ✅ Real-time dashboard override (1 day TTL)
@@ -477,14 +477,14 @@ function VideoPlayer({
       getEncryptionKey(userId),
     ).toString();
 
-    secureStorage.setItemTracked(`unsynced-delta-${lessonId}`, encrypted);
-    setCookie(`unsynced-delta-${lessonId}`, encrypted);
+    secureStorage.setItemTracked(`unsynced-delta-${lessonId}_${userId}`, encrypted);
+    setCookie(`unsynced-delta-${lessonId}_${userId}`, encrypted);
   };
 
   const loadUnsyncedDelta = (): number => {
     // Check localStorage first, then cookie
-    const localData = secureStorage.getItem(`unsynced-delta-${lessonId}`);
-    const encryptedData = localData || getCookie(`unsynced-delta-${lessonId}`);
+    const localData = secureStorage.getItem(`unsynced-delta-${lessonId}_${userId}`);
+    const encryptedData = localData || getCookie(`unsynced-delta-${lessonId}_${userId}`);
 
     if (!encryptedData) return 0;
 
@@ -506,8 +506,8 @@ function VideoPlayer({
   const clearLocalDelta = () => {
     sessionDeltaRef.current = 0;
     lastSavedDeltaRef.current = 0;
-    secureStorage.removeItemTracked(`unsynced-delta-${lessonId}`);
-    deleteCookie(`unsynced-delta-${lessonId}`);
+    secureStorage.removeItemTracked(`unsynced-delta-${lessonId}_${userId}`);
+    deleteCookie(`unsynced-delta-${lessonId}_${userId}`);
   };
 
   /* ============================================================
@@ -585,7 +585,7 @@ function VideoPlayer({
 
         // ✅ Clear local state and mark as clean
         clearLocalDelta();
-        secureStorage.removeItemTracked(`needs-sync-${lessonId}`);
+        secureStorage.removeItemTracked(`needs-sync-${lessonId}_${userId}`);
         sessionDeltaRef.current = 0;
       } else if (response.status === "success" && specificLessonId) {
         // Update specific lesson cache
@@ -630,10 +630,10 @@ function VideoPlayer({
         }
 
         // Clear specific lesson delta and mark as clean
-        secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}`);
-        secureStorage.removeItemTracked(`needs-sync-${specificLessonId}`);
+        secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}_${userId}`);
+        secureStorage.removeItemTracked(`needs-sync-${specificLessonId}_${userId}`);
         const expires = new Date(0).toUTCString();
-        document.cookie = `unsynced-delta-${specificLessonId}=; expires=${expires}; path=/; SameSite=Lax`;
+        document.cookie = `unsynced-delta-${specificLessonId}_${userId}=; expires=${expires}; path=/; SameSite=Lax`;
       }
     } finally {
       isSyncingRef.current = false;
@@ -653,16 +653,16 @@ function VideoPlayer({
 
       // ✅ CRITICAL: CLEAR STORAGE IMMEDIATELY to prevent doubling if another process/mount starts
       if (previousDelta > 0) {
-        secureStorage.removeItemTracked(`unsynced-delta-${lessonId}`);
-        deleteCookie(`unsynced-delta-${lessonId}`);
+        secureStorage.removeItemTracked(`unsynced-delta-${lessonId}_${userId}`);
+        deleteCookie(`unsynced-delta-${lessonId}_${userId}`);
       }
 
       sessionDeltaRef.current = 0; // Start session delta at 0, previous is handled separately
       lastSavedDeltaRef.current = 0;
 
-      const savedTime = secureStorage.getItem(`video-progress-${lessonId}`);
+      const savedTime = secureStorage.getItem(`video-progress-${lessonId}_${userId}`);
       const needsSync =
-        secureStorage.getItem(`needs-sync-${lessonId}`) === "true";
+        secureStorage.getItem(`needs-sync-${lessonId}_${userId}`) === "true";
 
       // ✅ Robust fallback: If we "need sync", trust the local saved time (intent).
       // Otherwise use server time + delta as a safe baseline.
@@ -683,7 +683,7 @@ function VideoPlayer({
 
       // 2. Global Sync: Find other unsynced deltas in localStorage
       try {
-        const keys = secureStorage.keysByPrefix("unsynced-delta-");
+        const keys = secureStorage.keysByPrefix(`unsynced-delta-`).filter(k => k.endsWith(`_${userId}`));
         const updatesToBatch: Array<{
           lessonId: string;
           lastWatched: number;
@@ -706,10 +706,10 @@ function VideoPlayer({
 
         for (const key of keys) {
           if (!key.includes(lessonId)) {
-            const otherLessonId = key.replace("unsynced-delta-", "");
+            const otherLessonId = key.replace("unsynced-delta-", "").replace(`_${userId}`, "");
             const rawDelta = secureStorage.getItem(key);
             const rawPos = secureStorage.getItem(
-              `video-progress-${otherLessonId}`,
+              `video-progress-${otherLessonId}_${userId}`,
             );
 
             let otherDelta = 0;
@@ -725,7 +725,7 @@ function VideoPlayer({
             const otherPosition = rawPos ? parseFloat(rawPos) : 0;
 
             const otherRestriction = parseFloat(
-              secureStorage.getItem(`restriction-time-${otherLessonId}`) || "0",
+              secureStorage.getItem(`restriction-time-${otherLessonId}_${userId}`) || "0",
             );
 
             if (otherDelta > 0 || otherRestriction > 0) {
@@ -786,8 +786,8 @@ function VideoPlayer({
 
               // ✅ Clear others (current was cleared immediately)
               if (u.lessonId !== lessonId) {
-                secureStorage.removeItemTracked(`unsynced-delta-${u.lessonId}`);
-                deleteCookie(`unsynced-delta-${u.lessonId}`);
+                secureStorage.removeItemTracked(`unsynced-delta-${u.lessonId}_${userId}`);
+                deleteCookie(`unsynced-delta-${u.lessonId}_${userId}`);
               }
             });
           }
@@ -964,8 +964,8 @@ function VideoPlayer({
      VIDEO POSITION TRACKING (localStorage for resume)
   ============================================================ */
   const saveProgress = (time: number) => {
-    secureStorage.setItemTracked(`video-progress-${lessonId}`, time.toString());
-    secureStorage.setItemTracked(`needs-sync-${lessonId}`, "true"); // Mark dirty
+    secureStorage.setItemTracked(`video-progress-${lessonId}_${userId}`, time.toString());
+    secureStorage.setItemTracked(`needs-sync-${lessonId}_${userId}`, "true"); // Mark dirty
   };
 
   /* ============================================================
@@ -1143,7 +1143,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
 
   // Use the highest known restriction time (DB vs Local vs Cache)
   const localRestriction = parseFloat(
-    secureStorage.getItem(`restriction-time-${lessonId}`) || "0",
+    secureStorage.getItem(`restriction-time-${lessonId}_${userId}`) || "0",
   );
   const cachedRestriction = chatCache.get<number>(
     `restriction_${lessonId}`,

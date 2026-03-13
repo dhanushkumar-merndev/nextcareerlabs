@@ -45,7 +45,7 @@ export function useCourseProgress({
             userId,
           )?.data;
           const localDuration = parseFloat(
-            secureStorage.getItem(`duration-${lesson.id}`) || "0",
+            secureStorage.getItem(`duration-${lesson.id}_${userId}`) || "0",
           );
           const duration = dbDuration || cachedDuration || localDuration || 0;
           totalCourseDuration += duration;
@@ -59,7 +59,7 @@ export function useCourseProgress({
             userId,
           )?.data;
           const localRestriction = parseFloat(
-            secureStorage.getItem(`restriction-time-${lesson.id}`) || "0",
+            secureStorage.getItem(`restriction-time-${lesson.id}_${userId}`) || "0",
           );
 
           const effectiveRestriction = Math.max(

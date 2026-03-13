@@ -59,7 +59,7 @@ export function HorizontalCourseCard({
           userId,
         )?.data;
         const localDuration = parseFloat(
-          secureStorage.getItem(`duration-${lp.id}`) || "0",
+          secureStorage.getItem(`duration-${lp.id}_${userId}`) || "0",
         );
         // DB duration is in minutes, Video duration is in seconds. Normalize to seconds.
         const duration = lp.duration || cachedDuration || localDuration || 0;
@@ -71,7 +71,7 @@ export function HorizontalCourseCard({
           userId,
         )?.data;
         const localRestriction = parseFloat(
-          secureStorage.getItem(`restriction-time-${lp.id}`) || "0",
+          secureStorage.getItem(`restriction-time-${lp.id}_${userId}`) || "0",
         );
 
         const effectiveRestriction = Math.max(

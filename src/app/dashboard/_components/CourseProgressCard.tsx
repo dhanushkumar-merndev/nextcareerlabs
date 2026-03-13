@@ -21,7 +21,7 @@ interface iAppProps {
       smallDescription: string;
       slug: string;
       chapter: any[];
-    }
+    };
   };
   isPriority?: boolean;
 }
@@ -90,7 +90,14 @@ export function CourseProgressCard({ data, isPriority = false }: iAppProps) {
         {/* Buttons */}
         <div className="mt-4 flex items-center gap-2">
           <Link
-            href={`/dashboard/${course.slug}`}
+            href={(() => {
+            const firstLesson = course.chapter
+              ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))?.[0]
+              ?.lesson?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))?.[0];
+            return firstLesson
+              ? `/dashboard/${course.slug}/${firstLesson.id}`
+              : `/dashboard/${course.slug}`;
+          })()}
             className={buttonVariants({ className: "w-1/2 rounded-lg" })}
           >
             Watch Now
