@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import { BackConfirm } from "./BackConfirm";
 import { EditCourseForm } from "./EditCourseForm";
@@ -23,13 +22,11 @@ import { EditCourseSkeleton } from "./EditCourseSkeleton";
 interface EditCourseClientWrapperProps {
   data?: any;
   courseId: string;
-  initialServerData?: any;
 }
 
 export function EditCourseClientWrapper({
   data: propsData,
   courseId,
-  initialServerData,
 }: EditCourseClientWrapperProps) {
   const [basicDirty, setBasicDirty] = useState(false);
   const [structureDirty, setStructureDirty] = useState(false);
@@ -44,7 +41,9 @@ export function EditCourseClientWrapper({
   const { data: queryData } = useQuery({
     queryKey: [cacheKey],
     queryFn: async () => {
+      // ⚡ Try local cache first for sub-millisecond feel
       const cached = chatCache.get<any>(cacheKey);
+
       const result = await adminGetCourseAction(courseId, cached?.version);
 
       if ((result as any).status === "not-modified" && cached) {
@@ -113,11 +112,9 @@ export function EditCourseClientWrapper({
     window.history.replaceState(null, "", url.toString());
   };
 
-  // 🚀 OPTIMIZATION: If we have data (locally cached or props),
-  // we can show the content immediately. We only show skeleton if we truly have nothing.
-  // Note: We check 'mounted' to ensure hydrated state matches server initial render (which is usually empty/skeleton)
-  // to avoid large layout shifts, but for "Edit" pages, usually users prefer instant feel.
-  if (!data || !mounted) {
+  // 🛡️ HYDRATION GUARD: Must render same as server on first pass.
+  // We use the same container classes in Skeleton to minimize flicker.
+  if (!mounted || !data) {
     return <EditCourseSkeleton />;
   }
   return (

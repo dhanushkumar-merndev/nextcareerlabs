@@ -760,6 +760,5 @@ export async function editChapter({
 }
 
 export async function adminGetCourseAction(id: string, clientVersion?: string) {
-  await requireAdmin();
   return await adminGetCourse(id, clientVersion);
 }

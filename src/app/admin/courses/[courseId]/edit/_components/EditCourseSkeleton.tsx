@@ -5,15 +5,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function EditCourseSkeleton() {
   return (
-    <div className="px-0 lg:px-6 py-0 md:py-5 animate-in fade-in duration-500">
+    <div className="px-4 lg:px-6 py-2 md:py-5 animate-in fade-in duration-500">
       {/* Header Skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3 md:mb-0 px-4 md:px-0">
+      <h1 className="text-3xl font-bold mb-3 md:mb-6 flex flex-col sm:flex-row sm:items-center gap-2">
         <div className="flex items-center gap-2">
           <Skeleton className="h-10 w-10 rounded-md" />
           <Skeleton className="h-9 w-32" />
         </div>
         <Skeleton className="h-9 w-64 sm:ml-2" />
-      </div>
+      </h1>
 
       {/* Tabs Skeleton */}
       <div className="w-full p-4 md:px-0">

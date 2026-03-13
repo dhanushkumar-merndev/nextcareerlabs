@@ -39,17 +39,32 @@ export type CourseData = {
 
 export async function adminGetCourse(id: string, clientVersion?: string) {
   const authStartTime = Date.now();
-  await requireAdmin();
-  const authDuration = Date.now() - authStartTime;
 
-  // Use pipelined version and data fetch
-  const redisStartTime = Date.now();
+  // Parallelize auth and cache fetch for maximum speed
   const cacheKey = GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(id);
   const versionKey = GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION;
 
-  const { version: currentVersion, data: cached } =
-    await getLatestVersionAndCache<CourseData>(versionKey, cacheKey);
-  const redisDuration = Date.now() - redisStartTime;
+  let redisDuration = 0;
+  let authDuration = 0;
+
+  const [_, redisResult] = await Promise.all([
+    (async () => {
+      const res = await requireAdmin();
+      authDuration = Date.now() - authStartTime;
+      return res;
+    })(),
+    (async () => {
+      const start = Date.now();
+      const res = await getLatestVersionAndCache<CourseData>(
+        versionKey,
+        cacheKey,
+      );
+      redisDuration = Date.now() - start;
+      return res;
+    })(),
+  ]);
+
+  const { version: currentVersion, data: cached } = redisResult;
 
   // Smart Sync
   if (clientVersion && clientVersion === currentVersion) {

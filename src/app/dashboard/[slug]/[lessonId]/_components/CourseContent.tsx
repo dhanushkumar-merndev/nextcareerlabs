@@ -1128,7 +1128,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     setMounted(true);
   }, []);
 
-  if (!mounted) {
+  if (!mounted || isLoading) {
     return <LessonContentSkeleton />;
   }
 
