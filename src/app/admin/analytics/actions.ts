@@ -9,7 +9,11 @@ import {
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
   incrementGlobalVersion,
+  incrementGlobalVersionDebounced,
   invalidateCache,
+  withCache,
+  checkRateLimit,
+  getOrSetWithStampedePrevention,
 } from "@/lib/redis";
 
 export async function getAdminAnalytics(
@@ -20,7 +24,13 @@ export async function getAdminAnalytics(
   console.log(
     `[AdminAnalyticsAction] Fetching analytics (Range: ${startDate || "default"} to ${endDate || "default"}, ClientVersion: ${clientVersion || "none"})`,
   );
-  await requireAdmin();
+  const session = await requireAdmin();
+  
+  // Rate Limit: 30 requests per minute for Dashboard queries
+  const rl = await checkRateLimit(`action:getAdminAnalytics:${session.user.id}`, 30, 60);
+  if (!rl.success) {
+    throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
+  }
 
   const isCustomRange = !!startDate || !!endDate;
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:chart`;
@@ -29,7 +39,8 @@ export async function getAdminAnalytics(
   );
 
   if (!currentVersion || currentVersion === "null") {
-    await incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION);
+    // 🛡️ [Million-User Scale] Debounced invalidation for initial setup
+    await incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION, 60);
     currentVersion = await getGlobalVersion(
       GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION,
     );
@@ -158,7 +169,12 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
   console.log(
     `[AdminAnalyticsAction] Fetching static analytics (ClientVersion: ${clientVersion || "none"})`,
   );
-  await requireAdmin();
+  const session = await requireAdmin();
+
+  const rl = await checkRateLimit(`action:getAdminStaticAnalytics:${session.user.id}`, 30, 60);
+  if (!rl.success) {
+    throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
+  }
 
   let currentVersion = await getGlobalVersion(
     GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION,
@@ -169,121 +185,112 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
   }
 
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`;
-  const redisStartTime = Date.now();
-  const cached = await getCache<any>(cacheKey);
-  const redisDuration = Date.now() - redisStartTime;
-  if (cached) {
-    console.log(
-      `%c[getAdminStaticAnalytics] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
-      "color: #eab308; font-weight: bold",
-    );
-    return { data: cached, version: currentVersion };
-  }
-
-  try {
-    const startTime = Date.now();
-    const [
-      totalUsers,
-      totalEnrollments,
-      totalCourses,
-      totalLessons,
-      recentUsers,
-      enrollmentStats,
-      courseEnrollment,
-      totalImages,
-      totalPdfs,
-      totalChapters,
-    ] = await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({
-        where: {
-          enrollment: {
-            some: {
-              status: "Granted",
+  
+  // Use stampede prevention for the heavy DB fetch if cache is missing
+  return await getOrSetWithStampedePrevention(
+    cacheKey,
+    async () => {
+      const startTime = Date.now();
+      const [
+        totalUsers,
+        totalEnrollments,
+        totalCourses,
+        totalLessons,
+        recentUsers,
+        enrollmentStats,
+        courseEnrollment,
+        totalImages,
+        totalPdfs,
+        totalChapters,
+      ] = await Promise.all([
+        prisma.user.count(),
+        prisma.user.count({
+          where: {
+            enrollment: {
+              some: {
+                status: "Granted",
+              },
             },
           },
-        },
-      }),
-      prisma.course.count(),
-      prisma.lesson.count(),
-      prisma.user.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          image: true,
-          createdAt: true,
-        },
-      }),
-      prisma.enrollment.groupBy({
-        by: ["status"],
-        _count: { _all: true },
-      }),
-      prisma.enrollment.groupBy({
-        by: ["courseId"],
-        _count: { _all: true },
-        orderBy: { _count: { courseId: "desc" } },
-        take: 5,
-      }),
-      prisma.notification.count({
-        where: { imageUrl: { not: null } },
-      }),
-      prisma.notification.count({
-        where: { fileUrl: { not: null } },
-      }),
-      prisma.chapter.count(),
-    ]);
+        }),
+        prisma.course.count(),
+        prisma.lesson.count(),
+        prisma.user.findMany({
+          orderBy: { createdAt: "desc" },
+          take: 5,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            image: true,
+            createdAt: true,
+          },
+        }),
+        prisma.enrollment.groupBy({
+          by: ["status"],
+          _count: { _all: true },
+        }),
+        prisma.enrollment.groupBy({
+          by: ["courseId"],
+          _count: { _all: true },
+          orderBy: { _count: { courseId: "desc" } },
+          take: 5,
+        }),
+        prisma.notification.count({
+          where: { imageUrl: { not: null } },
+        }),
+        prisma.notification.count({
+          where: { fileUrl: { not: null } },
+        }),
+        prisma.chapter.count(),
+      ]);
 
-    const enrollRatio =
-      totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
+      const enrollRatio =
+        totalUsers > 0 ? Math.round((totalEnrollments / totalUsers) * 100) : 0;
 
-    const enrollmentChartData = enrollmentStats.map((item) => ({
-      name: item.status,
-      value: item._count._all,
-    }));
+      const enrollmentChartData = enrollmentStats.map((item) => ({
+        name: item.status,
+        value: item._count._all,
+      }));
 
-    const courseIds = courseEnrollment.map((p) => p.courseId);
-    const coursesDetails = await prisma.course.findMany({
-      where: { id: { in: courseIds } },
-      select: { id: true, title: true },
-    });
+      const courseIds = courseEnrollment.map((p) => p.courseId);
+      const coursesDetails = await prisma.course.findMany({
+        where: { id: { in: courseIds } },
+        select: { id: true, title: true },
+      });
 
-    const popularCoursesChartData = courseEnrollment.map((p) => {
-      const course = coursesDetails.find((c) => c.id === p.courseId);
-      return {
-        name: course?.title || "Unknown",
-        value: p._count._all,
+      const popularCoursesChartData = courseEnrollment.map((p) => {
+        const course = coursesDetails.find((c) => c.id === p.courseId);
+        return {
+          name: course?.title || "Unknown",
+          value: p._count._all,
+        };
+      });
+
+      const result = {
+        totalUsers,
+        totalCourses,
+        totalEnrollments,
+        totalLessons,
+        totalChapters,
+        totalImages,
+        totalPdfs,
+        enrollRatio,
+        recentUsers,
+        enrollmentChartData,
+        popularCoursesChartData,
       };
-    });
 
-    const result = {
-      totalUsers,
-      totalCourses,
-      totalEnrollments,
-      totalLessons,
-      totalChapters,
-      totalImages,
-      totalPdfs,
-      enrollRatio,
-      recentUsers,
-      enrollmentChartData,
-      popularCoursesChartData,
-    };
+      const dbDuration = Date.now() - startTime;
+      console.log(
+        `%c[getAdminStaticAnalytics] DB HIT (${dbDuration}ms).`,
+        "color: #eab308; font-weight: bold",
+      );
 
-    await setCache(cacheKey, result, 86400); // 24 hours
-    const dbDuration = Date.now() - startTime;
-    console.log(
-      `%c[getAdminStaticAnalytics] DB HIT (${dbDuration}ms).`,
-      "color: #eab308; font-weight: bold",
-    );
-
-    return { data: result, version: currentVersion };
-  } catch (error) {
-    console.error("[getAdminStaticAnalytics Error]", error);
-    return null;
-  }
+      return result;
+    },
+    2592000, // 30 days
+  ).then(data => ({ data, version: currentVersion }));
 }
 
 /**
@@ -292,7 +299,13 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
  */
 export async function getAdminSuccessRate() {
   console.log(`[AdminAnalyticsAction] Calculating platform success rate`);
-  await requireAdmin();
+  const session = await requireAdmin();
+
+  const rl = await checkRateLimit(`action:getAdminSuccessRate:${session.user.id}`, 30, 60);
+  if (!rl.success) {
+    throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
+  }
+
   return await getAverageProgressCached();
 }
 
@@ -302,65 +315,50 @@ export async function getAdminSuccessRate() {
 async function getAverageProgressCached() {
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_AVERAGE_PROGRESS;
 
-  // 1️⃣ Check cache first
-  const cached = await getCache<{ value: number; lastUpdated: string }>(
+  return await getOrSetWithStampedePrevention(
     cacheKey,
-  );
-  if (cached) {
-    return cached;
-  }
-
-  const startTime = Date.now();
-
-  try {
-    // 2️⃣ Run all counts in parallel (faster)
-    const [totalCompleted, totalGrantedEnrollments, totalLessons] =
-      await Promise.all([
-        prisma.lessonProgress.count({
-          where: {
-            completed: true,
-            User: {
-              enrollment: {
-                some: { status: "Granted" },
+    async () => {
+      const startTime = Date.now();
+      const [totalCompleted, totalGrantedEnrollments, totalLessons] =
+        await Promise.all([
+          prisma.lessonProgress.count({
+            where: {
+              completed: true,
+              User: {
+                enrollment: {
+                  some: { status: "Granted" },
+                },
               },
             },
-          },
-        }),
-        prisma.enrollment.count({
-          where: { status: "Granted" },
-        }),
-        prisma.lesson.count(),
-      ]);
+          }),
+          prisma.enrollment.count({
+            where: { status: "Granted" },
+          }),
+          prisma.lesson.count(),
+        ]);
 
-    const totalPotential = totalLessons * totalGrantedEnrollments;
+      const totalPotential = totalLessons * totalGrantedEnrollments;
 
-    const averageProgress =
-      totalPotential > 0
-        ? Math.round((totalCompleted / totalPotential) * 100)
-        : 0;
+      const averageProgress =
+        totalPotential > 0
+          ? Math.round((totalCompleted / totalPotential) * 100)
+          : 0;
 
-    const result = {
-      value: averageProgress,
-      lastUpdated: new Date().toISOString(),
-    };
+      const result = {
+        value: averageProgress,
+        lastUpdated: new Date().toISOString(),
+      };
 
-    // 3️⃣ Cache for 24 hours (86400 seconds)
-    await setCache(cacheKey, result, 86400);
+      console.log(
+        `[AverageProgress OPTIMIZED] Computed + Cached in ${
+          Date.now() - startTime
+        }ms`,
+      );
 
-    console.log(
-      `[AverageProgress OPTIMIZED] Computed + Cached in ${
-        Date.now() - startTime
-      }ms`,
-    );
-
-    return result;
-  } catch (error) {
-    console.error("[getAverageProgressCached Error]", error);
-    return {
-      value: 0,
-      lastUpdated: new Date().toISOString(),
-    };
-  }
+      return result;
+    },
+    2592000, // 30 days
+  );
 }
 
 import { getUserDashboardData } from "@/app/dashboard/actions";
@@ -390,46 +388,40 @@ export async function getUserAnalyticsAdmin(
     }
 
     const startTime = Date.now();
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        image: true,
-      },
-    });
+    // ⚡ [Million-User Scale] Secondary Cache: User Object
+    // Even if clientVersion is missing (hard refresh), we hit Redis before DB.
+    const user = await withCache(`admin:user_lookup:${userId}`, async () => {
+      return await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          image: true,
+        },
+      });
+    }, 3600); // 1 hour cache
     const duration = Date.now() - startTime;
     console.log(
-      `[getUserAnalyticsAdmin] DB Fetch took ${duration}ms for User ID: ${userId}`,
+      `[getUserAnalyticsAdmin] User Fetch (Redis-First) took ${duration}ms for User ID: ${userId}`,
     );
 
-    if (!user) return null;
+    if (!user) {
+      return { status: "error", message: "User not found" };
+    }
 
     // Reuse logic from getUserDashboardData and normalize for client
-    const dashboardData = await getUserDashboardData(userId);
+    // Pass userId as the second argument (overriddenUserId)
+    const dashboardData = await getUserDashboardData(undefined, userId);
 
-    if (!dashboardData) {
-      console.error(
-        `[getUserAnalyticsAdmin] Failed: getUserDashboardData returned null for ${userId}`,
-      );
-      return null;
+    if (!dashboardData?.data) {
+      throw new Error(`Failed to fetch dashboard data for user: ${userId}`);
     }
 
-    if (!dashboardData.data) {
-      console.error(
-        `[getUserAnalyticsAdmin] Failed: dashboardData.data is missing for ${userId}`,
-        dashboardData,
-      );
-      return null;
-    }
-
-    console.log(
-      `[getUserAnalyticsAdmin] Success: Returning data for ${userId}`,
-    );
     return {
+      status: "success",
       user,
       ...dashboardData.data,
       totalLessonsCompleted: dashboardData.data.totalCompletedLessons,
@@ -438,7 +430,7 @@ export async function getUserAnalyticsAdmin(
     };
   } catch (error) {
     console.error(`[getUserAnalyticsAdmin] Critical Error:`, error);
-    return null;
+    return { status: "error", message: error instanceof Error ? error.message : "Something went wrong" };
   }
 }
 
@@ -507,7 +499,12 @@ export async function getAllUsers(
   console.log(
     `[AdminAnalyticsAction] Fetching user list (Search: ${search || "none"}, Page: ${page}, Role: ${roleFilter || "all"}, EnrolledOnly: ${enrolledOnly})`,
   );
-  await requireAdmin();
+  const session = await requireAdmin();
+
+  const rl = await checkRateLimit(`action:getAllUsers:${session.user.id}`, 30, 60);
+  if (!rl.success) {
+    throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
+  }
   try {
     const isDefaultFetch =
       page === 1 &&
@@ -673,9 +670,9 @@ export async function updateUserRole(userId: string, newRole: string) {
       // Invalidate specifically for this user
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(userId)),
       invalidateCache(`user:dashboard:${userId}`),
-      // Invalidate global analytics as user counts/roles might affect metrics
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      // 🛡️ [Million-User Scale] Debounced: Prevent thundering herd on admin analytic views
+      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION, 60),
+      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION, 60),
     ]);
     console.log(
       `[updateUserRole] Cache invalidation took ${Date.now() - cacheStartTime}ms`,

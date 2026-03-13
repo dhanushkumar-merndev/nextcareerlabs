@@ -2,7 +2,7 @@
 
 import { prisma as db } from '@/lib/db';
 import { uploadTranscriptionToS3 } from '@/lib/s3-transcription-upload';
-import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS } from '@/lib/redis';
+import { invalidateCache, incrementGlobalVersion, GLOBAL_CACHE_KEYS, checkRateLimit } from '@/lib/redis';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { env } from '@/lib/env';
@@ -28,6 +28,12 @@ export async function storeTranscription(
 
     if (!session?.user || session.user.role !== 'admin') {
       return { success: false, error: 'Unauthorized' };
+    }
+
+    // Rate Limit: 10 requests per minute for transcription mutations
+    const rl = await checkRateLimit(`action:storeTranscription:${session.user.id}`, 10, 60);
+    if (!rl.success) {
+      return { success: false, error: `Rate limit exceeded. Try again in ${rl.reset} seconds.` };
     }
 
     // Upload VTT to S3. Group with video if videoKey provided.
@@ -151,6 +157,12 @@ export async function deleteTranscription(lessonId: string): Promise<{
 
     if (!session?.user || session.user.role !== 'admin') {
       return { success: false, error: 'Unauthorized' };
+    }
+
+    // Rate Limit: 10 requests per minute for mutations
+    const rl = await checkRateLimit(`action:deleteTranscription:${session.user.id}`, 10, 60);
+    if (!rl.success) {
+      return { success: false, error: `Rate limit exceeded. Try again in ${rl.reset} seconds.` };
     }
 
     const startTime = Date.now();

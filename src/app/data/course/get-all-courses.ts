@@ -8,6 +8,7 @@ import {
   getVersions,
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
+  getOrSetWithStampedePrevention,
 } from "@/lib/redis";
 import { CoursesServerResult, PublicCourseType } from "@/lib/types/course";
 
@@ -117,50 +118,51 @@ const getAllCoursesInternal = async (
     console.log(`[getAllCourses] REDIS HIT (v${cached.version})`);
     allCourses = cached.data;
   } else {
-    console.log(`[getAllCourses] REDIS MISS -> DB Computation`);
-    const dbRaw = await prisma.course.findMany({
-      where: { status: "Published" },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        smallDescription: true,
-        duration: true,
-        level: true,
-        fileKey: true,
-        category: true,
-        slug: true,
-        chapter: {
-          orderBy: { position: "asc" },
-          take: 1,
+    console.log(`[getAllCourses] REDIS MISS -> DB Computation with stampede prevention`);
+    allCourses = await getOrSetWithStampedePrevention(
+      cacheKey,
+      async () => {
+        const dbStartTime = Date.now();
+        const dbRaw = await prisma.course.findMany({
+          where: { status: "Published" },
+          orderBy: { createdAt: "desc" },
           select: {
-            lesson: {
+            id: true,
+            title: true,
+            smallDescription: true,
+            duration: true,
+            level: true,
+            fileKey: true,
+            category: true,
+            slug: true,
+            chapter: {
               orderBy: { position: "asc" },
               take: 1,
-              select: { id: true },
+              select: {
+                lesson: {
+                  orderBy: { position: "asc" },
+                  take: 1,
+                  select: { id: true },
+                },
+              },
             },
           },
-        },
+        });
+        const normalized = dbRaw.map((c) => ({
+          id: c.id,
+          title: c.title,
+          smallDescription: c.smallDescription,
+          duration: (c.duration || 0) * 3600, // ✅ Hours -> Seconds
+          level: c.level,
+          fileKey: c.fileKey,
+          category: c.category,
+          slug: c.slug,
+          firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
+        }));
+        console.log(`[getAllCourses] DB Computation took ${Date.now() - dbStartTime}ms`);
+        return normalized;
       },
-    });
-    allCourses = dbRaw.map((c) => ({
-      id: c.id,
-      title: c.title,
-      smallDescription: c.smallDescription,
-      duration: (c.duration || 0) * 3600, // ✅ Hours -> Seconds
-      level: c.level,
-      fileKey: c.fileKey,
-      category: c.category,
-      slug: c.slug,
-      firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
-    }));
-    await setCache(
-      cacheKey,
-      { data: allCourses, version: currentVersion },
-      2592000,
-    );
-    console.log(
-      `[getAllCourses] DB Computation took ${Date.now() - startTime}ms`,
+      2592000, // 30 days
     );
   }
 

@@ -13,6 +13,7 @@ import {
   incrementGlobalVersion,
   invalidateAllAdminCache,
   invalidateUserEnrollmentCache,
+  checkRateLimit,
 } from "@/lib/redis";
 
 export async function getRequestsAction(
@@ -41,7 +42,13 @@ export async function updateEnrollmentStatusAction(
   console.log(
     `[AdminRequestAction] Updating enrollment ${enrollmentId} to status ${status}`,
   );
-  await requireAdmin();
+  const session = await requireAdmin();
+
+  // Rate Limit: 20 requests per minute for enrollment updates
+  const rl = await checkRateLimit(`action:updateEnrollmentStatus:${session.user.id}`, 20, 60);
+  if (!rl.success) {
+    throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
+  }
 
   try {
     const updateStartTime = Date.now();
@@ -182,7 +189,13 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
 
 export async function unbanUserAction(userId: string): Promise<ApiResponse> {
   console.log(`[AdminRequestAction] Unbanning user ${userId}`);
-  await requireAdmin();
+  const session = await requireAdmin();
+
+  // Rate Limit: 10 requests per minute for unbanning
+  const rl = await checkRateLimit(`action:unbanUser:${session.user.id}`, 10, 60);
+  if (!rl.success) {
+    throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
+  }
 
   try {
     const startTime = Date.now();
@@ -272,7 +285,13 @@ export async function deleteEnrollmentAction(
   enrollmentId: string,
 ): Promise<ApiResponse> {
   console.log(`[AdminRequestAction] Deleting enrollment ${enrollmentId}`);
-  await requireAdmin();
+  const session = await requireAdmin();
+
+  // Rate Limit: 20 requests per minute for enrollment deletions
+  const rl = await checkRateLimit(`action:deleteEnrollment:${session.user.id}`, 20, 60);
+  if (!rl.success) {
+    throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
+  }
 
   try {
     const startTime = Date.now();

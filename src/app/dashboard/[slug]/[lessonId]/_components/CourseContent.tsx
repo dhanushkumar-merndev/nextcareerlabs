@@ -826,7 +826,6 @@ function VideoPlayer({
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // We only heartbeat the position now, delta is session-based
       if (document.visibilityState === "visible") {
         saveProgress(lastPositionRef.current);
       }

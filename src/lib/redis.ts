@@ -385,16 +385,208 @@ export async function clearUserPendingProgress(
 
 /**
  * [Million-User Scale] Partial Cache Invalidation
- * Increments specific course versions (ID and Slug) to avoid global invalidation storms.
  */
 export async function dirtyCourse(courseId: string, slug?: string) {
   if (!redis) return;
-  const syncs: Promise<any>[] = [
-    incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSE_VERSION(courseId)),
-  ];
+  const pipeline = redis.pipeline();
+  pipeline.set(
+    GLOBAL_CACHE_KEYS.COURSE_VERSION(courseId),
+    JSON.stringify(Date.now().toString()),
+    "EX",
+    86400 * 7,
+  );
   if (slug) {
-    syncs.push(incrementGlobalVersion(GLOBAL_CACHE_KEYS.SLUG_VERSION(slug)));
+    pipeline.set(
+      GLOBAL_CACHE_KEYS.SLUG_VERSION(slug),
+      JSON.stringify(Date.now().toString()),
+      "EX",
+      86400 * 7,
+    );
   }
-  await Promise.all(syncs);
+  await withTimeout(pipeline.exec(), null);
   console.log(`[Redis] Dirtied courseId=${courseId} slug=${slug || "N/A"}`);
+}
+
+/**
+ * 🛡️ PRODUCTION: Redis-Based Rate Limiting (Sliding Window)
+ * Prevents abuse and protects backend resources.
+ */
+export async function checkRateLimit(
+  key: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<{ success: boolean; limit: number; remaining: number; reset: number }> {
+  if (!redis) return { success: true, limit, remaining: limit, reset: 0 };
+
+  const now = Date.now();
+  const windowMs = windowSeconds * 1000;
+  const clearBefore = now - windowMs;
+  const redisKey = `ratelimit:${key}`;
+
+  try {
+    const pipeline = redis.pipeline();
+    pipeline.zremrangebyscore(redisKey, 0, clearBefore); // Remove old entries
+    pipeline.zadd(redisKey, now, now.toString()); // Add current attempt
+    pipeline.zcard(redisKey); // Count recent attempts
+    pipeline.expire(redisKey, windowSeconds + 1); // Set TTL slightly above window
+
+    const results = await withTimeout(pipeline.exec(), null);
+    if (!results) return { success: true, limit, remaining: limit, reset: 0 };
+
+    // results structure: [[err, res], [err, res], ...]
+    const count = (results[2][1] as number) || 0;
+    const remaining = Math.max(0, limit - count);
+
+    // Get the oldest timestamp in the window to calculate reset time
+    const oldestResult = await redis.zrange(redisKey, 0, 0, "WITHSCORES");
+    const oldestTimestamp = oldestResult.length > 0 ? parseInt(oldestResult[1]) : now;
+    const reset = Math.ceil((oldestTimestamp + windowMs - now) / 1000);
+
+    if (count > limit) {
+      return { success: false, limit, remaining, reset };
+    }
+
+    return { success: true, limit, remaining, reset };
+  } catch (error) {
+    console.warn(`[Redis] Rate limit check failed for ${key}:`, error);
+    return { success: true, limit, remaining: limit, reset: 0 }; // Fail open
+  }
+}
+
+/**
+ * 🔒 PRODUCTION: Distributed-Lock to prevent Thundering Herd
+ */
+export async function withDistributedLock<T>(
+  lockKey: string,
+  task: () => Promise<T>,
+  ttlSeconds: number = 10,
+): Promise<T | null> {
+  if (!redis) return await task();
+
+  const fullKey = `lock:${lockKey}`;
+  const lockValue = Date.now().toString();
+
+  // NX: Only set if not exists, EX: Set expiry
+  const acquired = await redis.set(fullKey, lockValue, "EX", ttlSeconds, "NX");
+
+  if (acquired !== "OK") {
+    // Lock failed, another process is working on it
+    return null;
+  }
+
+  try {
+    return await task();
+  } finally {
+    // Release lock ONLY if it's still ours (using Lua script for atomicity)
+    const script = `
+      if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+      else
+        return 0
+      end
+    `;
+    await redis.eval(script, 1, fullKey, lockValue);
+  }
+}
+
+/**
+ * 🚀 PRODUCTION: Cache-Stampede Prevention (Stale-while-revalidate)
+ */
+export async function getOrSetWithStampedePrevention<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  ttlSeconds: number = 1800,
+): Promise<T> {
+  if (!redis) return await fetcher();
+
+  const cached = await getCache<{ data: T; expiresAt: number }>(key);
+  const now = Date.now();
+
+  if (cached) {
+    // If it's near expiration (e.g., within 10% of TTL or 60s), revalidate in background
+    const threshold = Math.min(60, ttlSeconds * 0.1) * 1000;
+    if (now > cached.expiresAt - threshold) {
+      // Background revalidation
+      withDistributedLock(`revalidate:${key}`, async () => {
+        const newData = await fetcher();
+        await setCache(key, { data: newData, expiresAt: Date.now() + ttlSeconds * 1000 }, ttlSeconds + 60);
+      }).catch(() => {}); // Non-blocking
+    }
+    return cached.data;
+  }
+
+  // Cold cache, use lock to ensure only one fetcher runs
+  let result = await withDistributedLock(`fetch:${key}`, async () => {
+    const data = await fetcher();
+    await setCache(key, { data, expiresAt: Date.now() + ttlSeconds * 1000 }, ttlSeconds + 60);
+    return data;
+  });
+
+  // If another process got the lock, wait a bit and check cache again
+  if (result === null) {
+    for (let i = 0; i < 5; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      const retryCached = await getCache<{ data: T }>(key);
+      if (retryCached) return retryCached.data;
+    }
+    // Fallback to direct fetch if still null
+    return await fetcher();
+  }
+
+  return result;
+}
+
+/**
+ * 🛡️ PRODUCTION: Debounced Global Version Increment
+ * Prevents "Version Storms" where high frequency actions (like lesson progress heartbeats) 
+ * would constantly invalidate thousands of admin sessions at once.
+ */
+export async function incrementGlobalVersionDebounced(key: string, windowSeconds: number = 60) {
+  if (!redis) return;
+
+  const lockKey = `debounce:version:${key}`;
+  const now = Date.now();
+
+  // We use a distributed lock as a debounce flag
+  const acquired = await redis.set(lockKey, "1", "EX", windowSeconds, "NX");
+  
+  if (acquired === "OK") {
+    // Only increment if we won the debounce slot
+    const nextVersion = now.toString();
+    await setCache(key, nextVersion, 86400 * 7);
+    console.log(`[Redis] Debounced Increment for version key="${key}" (Next in ${windowSeconds}s)`);
+  }
+}
+
+/**
+ * ⚡ PRODUCTION: High-Frequency Security Cache
+ * Used to wrap database lookups that happen on every request (e.g., Enrollment status checks).
+ */
+export async function withCache<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  ttlSeconds: number = 3600
+): Promise<T> {
+  if (!redis) return await fetcher();
+
+  const cached = await getCache<T>(key);
+  if (cached !== null) return cached;
+
+  // Cache miss: use lock to prevent thundering herd on DB
+  const result = await withDistributedLock(`fetch:security:${key}`, async () => {
+    const data = await fetcher();
+    if (data !== null) {
+      await setCache(key, data, ttlSeconds);
+    }
+    return data;
+  });
+
+  if (result === null) {
+    // Another process is fetching, wait a bit or fallback
+    await new Promise(r => setTimeout(r, 100));
+    const retry = await getCache<T>(key);
+    return retry !== null ? retry : await fetcher();
+  }
+
+  return result;
 }

@@ -33,7 +33,7 @@ export const courseSchema = z.object({
   duration: z
     .number()
     .min(1, { message: "Duration must be greater than 0" })
-    .max(500, { message: "Duration must be less than 500 characters" }),
+    .max(1000000, { message: "Duration is too long" }),
 
   level: z.enum(courseLevels, { message: "Level must be selected" }),
 

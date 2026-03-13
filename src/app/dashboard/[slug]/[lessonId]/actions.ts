@@ -9,6 +9,9 @@ import {
   invalidateCache,
   GLOBAL_CACHE_KEYS,
   incrementGlobalVersion,
+  incrementGlobalVersionDebounced,
+  withCache,
+  checkRateLimit,
   setUserPendingProgress,
   getUserPendingProgress,
   clearUserPendingProgress,
@@ -74,18 +77,29 @@ export async function updateVideoProgress(
 ): Promise<ApiResponse> {
   const session = await requireUser();
 
-  // 🛡️ Security Check: Verify Enrollment
-  const enrollment = await prisma.enrollment.findFirst({
-    where: {
-      userId: session.id,
-      Course: {
-        chapter: { some: { lesson: { some: { id: lessonId } } } },
-      },
-      status: "Granted",
-    },
-  });
+  // 🛡️ [Million-User Scale] Rate Limit: 10 per minute per student
+  const rl = await checkRateLimit(`action:updateVideoProgress:${session.id}`, 10, 60);
+  if (!rl.success) {
+    return { status: "error", message: "Updating too frequently" };
+  }
 
-  if (!enrollment) {
+  // 🛡️ [Million-User Scale] Security Check: Cached Enrollment Verify
+  // This prevents hitting the DB on every 5s heartbeat per student.
+  const isEnrolled = await withCache(`enrollment:verify:${session.id}:${lessonId}`, async () => {
+    const enrollment = await prisma.enrollment.findFirst({
+      where: {
+        userId: session.id,
+        Course: {
+          chapter: { some: { lesson: { some: { id: lessonId } } } },
+        },
+        status: "Granted",
+      },
+      select: { id: true },
+    });
+    return !!enrollment;
+  }, 3600); // Cache for 1 hour
+
+  if (!isEnrolled) {
     return { status: "error", message: "Forbidden: Not enrolled" };
   }
 
@@ -98,21 +112,17 @@ export async function updateVideoProgress(
       timestamp: Date.now(),
     });
 
-    // ── Tier 2: Throttled DB Flush ────────────────────────────────
-    // Only flush to DB if no flush has happened in the last 30 seconds
-    const lockKey = `lock:sync:${session.id}`;
-    const hasLock = await redis?.get(lockKey);
+    // ── Tier 2: Synchronous DB Flush ─────────────────────────────
+    // [Million-User Scale] In "Sync-on-Leave" mode, we MUST await the flush 
+    // to ensure the dashboard reflects the latest progress immediately.
+    await flushPendingProgress(session.id);
 
-    if (!hasLock) {
-      // Set lock for 30 seconds and trigger background flush
-      await redis?.set(lockKey, "1", "EX", 30);
-
-      // We don't 'await' the flush to keep the heartbeat response instant
-      flushPendingProgress(session.id).catch(console.error);
-    }
-
-    // ── Tier 3: Fragmented Invalidation ───────────────────────────
-    await invalidateCache(`user:lesson:${session.id}:${lessonId}`);
+    // ── Tier 3: Extensive Invalidation ────────────────────────────
+    await Promise.all([
+      invalidateCache(`user:lesson:${session.id}:${lessonId}`),
+      // Invalidate the entire dashboard so the progress percentage updates
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+    ]);
 
     return { status: "success", message: "Progress saved to cache" };
   } catch (error) {
@@ -189,7 +199,8 @@ export async function markLessonComplete(
       invalidateCache(`user:sidebar:${session.id}:${slug}`),
       invalidateCache(`user:lesson:${session.id}:${lessonId}`),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      // 🛡️ [Million-User Scale] Debounced: Only update admin analytics once every 60s
+      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION, 60),
     ]);
 
     // Revalidate the entire course dashboard to ensure everything is fresh
@@ -462,7 +473,8 @@ export async function submitQuizAttempt(
       invalidateCache(`user:sidebar:${session.id}:${slug}`),
       invalidateCache(`user:lesson:${session.id}:${lessonId}`),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      // 🛡️ [Million-User Scale] Debounced: Only update admin analytics once every 60s
+      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION, 60),
     ]);
 
     revalidatePath(`/dashboard/${slug}`, "layout");

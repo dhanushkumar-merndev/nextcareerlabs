@@ -8,6 +8,8 @@ import {
   getGlobalVersion,
   incrementGlobalVersion,
   getLatestVersionAndCache,
+  getOrSetWithStampedePrevention,
+  checkRateLimit,
 } from "@/lib/redis";
 
 const PAGE_SIZE = 9;
@@ -101,34 +103,40 @@ export async function adminGetCourses(
     allCourses = cached;
   } else {
     console.log(
-      `[adminGetCourses] 🗄️ Redis MISS. Fetching ALL courses from DB...`,
+      `[adminGetCourses] 🗄️ Redis MISS. Fetching courses with stampede prevention...`,
     );
-    const dbStartTime = Date.now();
+    
+    allCourses = await getOrSetWithStampedePrevention(
+      cacheKey,
+      async () => {
+        const dbStartTime = Date.now();
+        const dbRaw = await prisma.course.findMany({
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            smallDescription: true,
+            duration: true,
+            level: true,
+            status: true,
+            fileKey: true,
+            category: true,
+            slug: true,
+          },
+        });
 
-    const dbRaw = await prisma.course.findMany({
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        smallDescription: true,
-        duration: true,
-        level: true,
-        status: true,
-        fileKey: true,
-        category: true,
-        slug: true,
+        // ✅ Post-process: Normalize all durations to seconds (Hours -> Seconds)
+        const normalized = dbRaw.map((c: any) => ({
+          ...c,
+          duration: (c.duration || 0) * 3600,
+        }));
+
+        console.log(
+          `[adminGetCourses] 🗄️ DB Fetch took ${Date.now() - dbStartTime}ms`,
+        );
+        return normalized;
       },
-    });
-
-    // ✅ Post-process: Normalize all durations to seconds (Hours -> Seconds)
-    allCourses = dbRaw.map((c: any) => ({
-      ...c,
-      duration: (c.duration || 0) * 3600,
-    }));
-
-    await setCache(cacheKey, allCourses, 2592000); // 30 days
-    console.log(
-      `[adminGetCourses] 🗄️ DB Fetch and Cache took ${Date.now() - dbStartTime}ms`,
+      2592000, // 30 days
     );
   }
 

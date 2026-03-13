@@ -92,14 +92,12 @@ export function AnalyticsClient() {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [router]);
 
-  const getTime = () => new Date().toLocaleTimeString();
-
   // 1. Static Analytics (Counts, Distribution, Popular Courses, Recent Users)
   const { data: staticDataRaw, isLoading: isStaticLoading } = useQuery({
     queryKey: ["admin_static_analytics"],
     queryFn: async () => {
       const cached = chatCache.get<any>("admin_static_analytics");
-      const result = await getAdminStaticAnalytics(cached?.version);
+      const result = (await getAdminStaticAnalytics(cached?.version)) as any;
 
       if (result?.status === "not-modified" && cached) {
         return cached.data;
@@ -125,8 +123,8 @@ export function AnalyticsClient() {
       if (typeof window === "undefined") return undefined;
       return chatCache.get<any>("admin_static_analytics")?.data;
     },
-    staleTime: 3600000,
-    refetchInterval: 3600000,
+    staleTime: 1800000, // 30 mins
+    refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: false,
   });
 
@@ -137,11 +135,11 @@ export function AnalyticsClient() {
     queryKey: ["admin_analytics_growth"],
     queryFn: async () => {
       const cached = chatCache.get<any>("admin_analytics_growth");
-      const result = await getAdminAnalytics(
+      const result = (await getAdminAnalytics(
         undefined,
         undefined,
         cached?.version,
-      );
+      )) as any;
 
       if (result?.status === "not-modified" && cached) {
         return cached.data;
@@ -167,7 +165,7 @@ export function AnalyticsClient() {
       if (typeof window === "undefined") return undefined;
       return chatCache.get<any>("admin_analytics_growth")?.data;
     },
-    staleTime: 1800000,
+    staleTime: 1800000, // 30 mins
     refetchOnWindowFocus: false,
   });
 

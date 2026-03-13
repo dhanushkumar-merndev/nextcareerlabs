@@ -12,6 +12,7 @@ import {
   CHAT_CACHE_KEYS,
   getGlobalVersion,
   incrementGlobalVersion,
+  incrementGlobalVersionDebounced,
   GLOBAL_CACHE_KEYS,
   getVersions,
 } from "@/lib/redis";
@@ -163,7 +164,7 @@ export async function sendNotificationAction(data: {
       (data.fileUrl || data.imageUrl) &&
         invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
       (data.fileUrl || data.imageUrl) &&
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION, 60),
     ]);
     console.log(
       `[sendNotificationAction] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
@@ -184,8 +185,8 @@ export async function sendNotificationAction(data: {
 export async function invalidateAdminsCache() {
   try {
     await Promise.all([
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION, 30),
+      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION, 30),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
     ]);
     console.log(
@@ -237,7 +238,7 @@ export async function replyToTicketAction(data: {
     (data.fileUrl || data.imageUrl) &&
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
     (data.fileUrl || data.imageUrl) &&
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersionDebounced(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION, 60),
   ]);
 
   // Mark all messages in thread as read for admin? Or just specific ones?

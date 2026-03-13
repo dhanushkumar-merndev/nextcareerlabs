@@ -16,6 +16,7 @@
 
 "use server";
 import { getAllCourses } from "@/app/data/course/get-all-courses";
+import { checkRateLimit } from "@/lib/redis";
 
 export async function getAllCoursesAction(
   clientVersion?: string,
@@ -24,6 +25,13 @@ export async function getAllCoursesAction(
   searchQuery?: string,
   onlyAvailable?: boolean,
 ) {
+  // Rate Limit: 60 requests per minute for public course browsing
+  const rlKey = userId ? `action:getAllCourses:${userId}` : `action:getAllCourses:ip`;
+  const rl = await checkRateLimit(rlKey, 60, 60);
+  if (!rl.success) {
+    throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
+  }
+
   console.log(
     `[getAllCoursesAction] Fetching courses (Search: ${searchQuery || "none"}, Cursor: ${cursor || "none"}, User: ${userId || "Guest"}, Version: ${clientVersion || "none"})`,
   );

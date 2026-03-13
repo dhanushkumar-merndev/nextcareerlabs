@@ -130,11 +130,11 @@ export async function getCourseSidebarData(
     "color: #f97316",
   );
 
-  // ✅ Normalize durations to seconds
-  course.duration = (course.duration || 0) * 3600; // Hours -> Seconds
+  // ✅ Standardize durations to seconds
+  // Courses/Lessons are stored in seconds from video processor
+  course.duration = course.duration || 0;
   course.chapter.forEach((chapter) => {
     chapter.lesson.forEach((lesson) => {
-      // Lessons are already in seconds from Uploader/DB
       lesson.duration = lesson.duration || 0;
     });
   });
