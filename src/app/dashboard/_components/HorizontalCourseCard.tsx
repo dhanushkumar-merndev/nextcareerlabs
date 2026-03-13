@@ -22,6 +22,7 @@ interface HorizontalCourseCardProps {
     completedLessons: number;
     slug: string;
     level: string;
+    firstLessonId?: string | null;
     lessonsProgress?: Array<{
       id: string;
       duration: number;
@@ -183,7 +184,13 @@ export function HorizontalCourseCard({
           size="sm"
           className="rounded-full px-8 font-bold uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 h-10 w-full md:w-auto"
         >
-          <Link href={`/dashboard/${course.slug}`}>
+          <Link
+            href={
+              course.firstLessonId
+                ? `/dashboard/${course.slug}/${course.firstLessonId}`
+                : `/dashboard/${course.slug}`
+            }
+          >
             <Play className="size-3 mr-2 fill-current" />
             {liveProgress > 0 ? (isCompleted ? "Review" : "Resume") : "Start"}
           </Link>

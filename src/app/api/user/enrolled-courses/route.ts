@@ -73,9 +73,11 @@ export async function GET(req: Request) {
               chapter: {
                 select: {
                   id: true,
+                  position: true,
                   lesson: {
                     select: {
                       id: true,
+                      position: true,
                       duration: true,
                       lessonProgress: {
                         where: { userId: user.id },
@@ -109,6 +111,18 @@ export async function GET(req: Request) {
       const course = e.Course;
       if (course) {
         course.duration = (course.duration || 0); // Already in seconds
+
+        // Calculate firstLessonId
+        const sortedChapters = [...(course.chapter || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+        let firstLessonId: string | null = null;
+        if (sortedChapters.length > 0) {
+          const sortedLessons = [...(sortedChapters[0].lesson || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+          if (sortedLessons.length > 0) {
+            firstLessonId = sortedLessons[0].id;
+          }
+        }
+        course.firstLessonId = firstLessonId;
+
         course.chapter?.forEach((chapter: any) => {
           chapter.lesson?.forEach((lesson: any) => {
             lesson.duration = (lesson.duration || 0); // Already in seconds

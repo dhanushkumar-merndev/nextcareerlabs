@@ -59,9 +59,10 @@ export async function getUserDashboardData(
                 chapter: {
                   include: {
                     lesson: {
-                      select: { id: true, duration: true },
+                      select: { id: true, duration: true, position: true },
                     },
                   },
+                  orderBy: { position: "asc" },
                 },
               },
             },
@@ -100,9 +101,19 @@ export async function getUserDashboardData(
 
           const lessonsProgress: any[] = [];
 
-          course.chapter.forEach((chapter: any) => {
-            totalLessons += chapter.lesson.length;
-            chapter.lesson.forEach((lesson: any) => {
+          // Sort chapters and find first lesson
+          const sortedChapters = [...course.chapter].sort((a, b) => a.position - b.position);
+          let firstLessonId: string | null = null;
+
+          sortedChapters.forEach((chapter: any, chIdx: number) => {
+            const sortedLessons = [...chapter.lesson].sort((a, b) => a.position - b.position);
+            
+            if (chIdx === 0 && sortedLessons.length > 0) {
+              firstLessonId = sortedLessons[0].id;
+            }
+
+            totalLessons += sortedLessons.length;
+            sortedLessons.forEach((lesson: any) => {
               const progress = progressMap.get(lesson.id) as any;
               const duration = (lesson.duration || 0); // Already in seconds (normalized by client/form)
               const restriction = progress?.restrictionTime || 0;
@@ -143,6 +154,7 @@ export async function getUserDashboardData(
             actualWatchTime: courseRestrictionSum,
             slug: course.slug,
             level: course.level,
+            firstLessonId,
             lessonsProgress, // ✅ New: detailed for client-side "real-time" sync
           };
         });

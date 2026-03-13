@@ -21,6 +21,7 @@ interface iAppProps {
       smallDescription: string;
       slug: string;
       chapter: any[];
+      firstLessonId?: string | null;
     };
   };
   isPriority?: boolean;
@@ -58,7 +59,11 @@ export function CourseProgressCard({ data, isPriority = false }: iAppProps) {
       <CardContent className="p-4 space-y-3">
         {/* Title */}
         <Link
-          href={`/dashboard/${course.slug}`}
+          href={
+            course.firstLessonId
+              ? `/dashboard/${course.slug}/${course.firstLessonId}`
+              : `/dashboard/${course.slug}`
+          }
           className="font-medium text-lg line-clamp-2 hover:underline group-hover:text-primary transition-colors"
         >
           {course.title}
@@ -90,14 +95,11 @@ export function CourseProgressCard({ data, isPriority = false }: iAppProps) {
         {/* Buttons */}
         <div className="mt-4 flex items-center gap-2">
           <Link
-            href={(() => {
-            const firstLesson = course.chapter
-              ?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))?.[0]
-              ?.lesson?.sort((a: any, b: any) => (a.position ?? 0) - (b.position ?? 0))?.[0];
-            return firstLesson
-              ? `/dashboard/${course.slug}/${firstLesson.id}`
-              : `/dashboard/${course.slug}`;
-          })()}
+            href={
+              course.firstLessonId
+                ? `/dashboard/${course.slug}/${course.firstLessonId}`
+                : `/dashboard/${course.slug}`
+            }
             className={buttonVariants({ className: "w-1/2 rounded-lg" })}
           >
             Watch Now
