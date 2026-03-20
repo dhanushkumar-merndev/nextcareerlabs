@@ -120,6 +120,7 @@ export async function editCourse(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
       invalidateAdminsCache(),
     ]);
     console.log(
@@ -196,6 +197,7 @@ export async function reorderLessons(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
     console.log(
       `[reorderLessons] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
@@ -254,6 +256,7 @@ export async function reorderChapters(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -332,6 +335,7 @@ export async function createChapter(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
       await dirtyCourse(result.data.courseId),
     ]);
     console.log(
@@ -428,6 +432,7 @@ export async function createLesson(
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
     console.log(
       `[createLesson] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
@@ -558,6 +563,7 @@ export async function deleteLesson({
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       await dirtyCourse(courseId),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
     console.log(
       `[deleteLesson] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
@@ -678,6 +684,7 @@ export async function deleteChapter({
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
 
     revalidatePath(`/admin/courses/${courseId}/edit`);
@@ -740,6 +747,7 @@ export async function editChapter({
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
       await dirtyCourse(courseId),
     ]);
 

@@ -131,6 +131,7 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ];
 
     // Invalidate Chat Caches for all groups associated with this course

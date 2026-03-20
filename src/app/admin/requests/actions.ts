@@ -339,6 +339,7 @@ export async function deleteEnrollmentAction(
 
       // Versions (The triggers)
       incrementGlobalVersion(CHAT_CACHE_KEYS.VERSION(enrollment.userId)),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
 
     revalidatePath("/admin/requests");

@@ -3,7 +3,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { ChevronDown, Menu, X } from "lucide-react";
 import {
   DropdownMenu,
@@ -401,15 +400,13 @@ export function Navbar() {
         {/* PROFILE */}
         {session && (
           <div className="flex flex-col items-center py-6 border-b px-4 text-center">
-            <Image
+            <img
               src={
                 session.user.image ??
                 `https://avatar.vercel.sh/${session.user.email}`
               }
               alt="profile"
-              width={70}
-              height={70}
-              className="rounded-full border"
+              className="w-[70px] h-[70px] rounded-full border"
               crossOrigin="anonymous"
             />
 

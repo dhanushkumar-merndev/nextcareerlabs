@@ -28,7 +28,6 @@ import {
   IconPlayerPlay,
 } from "@tabler/icons-react";
 import { CheckIcon, TimerIcon } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { JSX } from "react";
 import { EnrollmentButton } from "./EnrollmentButton";
@@ -238,16 +237,13 @@ function SlugPageContent({
       <div className="order-1 lg:col-span-2">
         <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg bg-accent">
           {!imageLoaded && <Skeleton className="absolute inset-0 z-10" />}
-          <Image
+          <img
             src={constructUrl(course.fileKey)}
             alt="Thumbnail"
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 70vw, 1000px"
             className={cn(
-              "object-cover transition-opacity duration-500",
+              "w-full h-full object-cover transition-opacity duration-500",
               imageLoaded ? "opacity-100" : "opacity-0",
             )}
-            priority
             crossOrigin="anonymous"
             onLoad={() => setImageLoaded(true)}
           />

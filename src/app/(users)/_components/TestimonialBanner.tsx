@@ -2,7 +2,6 @@
 
 "use client";
 import { useState } from "react";
-import Image from "next/image";
 import { Testimonial } from "@/lib/types/components";
 
 /* ================= DATA ================= */
@@ -113,12 +112,10 @@ function TestimonialCard({ t }: { t: Testimonial }) {
       {/* Optional image */}
       {t.image && (
         <div className="relative w-full aspect-video">
-          <Image
+          <img
             src={t.image}
             alt="testimonial media"
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            className="w-full h-full object-cover"
             crossOrigin="anonymous"
           />
         </div>

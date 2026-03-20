@@ -21,7 +21,6 @@ import {
   Trash,
 } from "lucide-react";
 
-import Image from "next/image";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -78,14 +77,10 @@ export function AdminCourseCard({ data, isPriority = false }: iAppProps) {
       </div>
 
       <div className="relative w-full group overflow-hidden rounded-t-lg">
-        <Image
+        <img
           src={thumbnaiUrl}
           alt="Thumbnail Url"
-          width={600}
-          height={400}
           className="w-full aspect-video h-full object-cover rounded-t-lg transition-transform duration-500 ease-out group-hover:scale-110"
-          priority={isPriority}
-          loading={isPriority ? undefined : "lazy"}
           crossOrigin="anonymous"
         />
       </div>

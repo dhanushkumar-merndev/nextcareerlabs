@@ -6,7 +6,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { CrownIcon } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useCourseProgress } from "@/hooks/use-course-progress";
 
@@ -44,15 +43,10 @@ export function CourseProgressCard({ data, isPriority = false }: iAppProps) {
       </Badge>
 
       {/* Thumbnail */}
-      <Image
+      <img
         src={thumbnailUrl}
         alt={course.title}
-        width={600}
-        height={400}
-        style={{ height: "auto" }}
         className="w-full aspect-video h-full object-cover rounded-t-xl"
-        priority={isPriority}
-        loading={isPriority ? undefined : "lazy"}
         crossOrigin="anonymous"
       />
 

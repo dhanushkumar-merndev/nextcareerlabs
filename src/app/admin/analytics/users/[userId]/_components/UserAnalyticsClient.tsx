@@ -10,7 +10,6 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { BookOpen, Calendar, Clock, Mail, User } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import { formatIST } from "@/lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
@@ -280,11 +279,9 @@ export function UserAnalyticsClient({
                   <div className="flex flex-col md:flex-row md:items-center gap-6 px-8 py-4">
                     <div className="w-full md:w-32 aspect-video rounded-lg bg-muted relative overflow-hidden shrink-0 border border-border/20">
                       {course.imageUrl ? (
-                        <Image
+                        <img
                           src={constructUrl(course.imageUrl)}
                           alt={course.title}
-                          width={320}
-                          height={180}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           crossOrigin="anonymous"
                         />

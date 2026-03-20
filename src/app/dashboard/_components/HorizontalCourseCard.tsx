@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { Play } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { secureStorage } from "@/lib/secure-storage";
@@ -127,13 +126,10 @@ export function HorizontalCourseCard({
     <div className="group relative flex flex-col md:flex-row md:items-center gap-8 p-4 px-6 rounded-2xl border border-border/40 bg-card/40 backdrop-blur-sm transition-all duration-300 hover:bg-card/60 hover:border-primary/20">
       {/* Thumbnail */}
       <div className="relative w-full md:w-32 aspect-video rounded-xl overflow-hidden shrink-0 border border-border/20 shadow-md">
-        <Image
+        <img
           src={thumbnailUrl}
           alt={course.title}
-          fill
-          sizes="(max-width: 768px) 100vw, 128px"
-          priority={index === 0}
-          className="object-cover group-hover:scale-110 transition-transform duration-500"
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
           crossOrigin="anonymous"
         />
         <div className="absolute top-1 right-1">

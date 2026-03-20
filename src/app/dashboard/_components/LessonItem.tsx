@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Play, Check } from "lucide-react";
 import Link from "next/link";
-import Image from "next/image";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { memo } from "react";
 
@@ -55,16 +54,15 @@ export const LessonItem = memo(function LessonItem({
       <div className="flex items-center gap-3 w-full min-w-0">
         {/* THUMBNAIL CONTAINER */}
         <div className="relative shrink-0 w-24 md:w-20 aspect-video rounded-lg overflow-hidden border bg-muted">
-          <Image
+          <img
             src={thumbnail}
             alt={lesson.title}
-            fill
-            sizes="(max-width: 768px) 100px, 80px"
             className={cn(
-              "object-cover transition-transform duration-500 group-hover:scale-105",
+              "w-full h-full object-cover transition-transform duration-500 group-hover:scale-105",
               isActive ? "opacity-40" : "opacity-90",
             )}
             loading="lazy"
+            crossOrigin="anonymous"
           />
 
           {/* Active Overlay */}

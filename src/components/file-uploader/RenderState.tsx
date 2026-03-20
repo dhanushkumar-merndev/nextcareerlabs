@@ -1,7 +1,6 @@
 import { cn } from "@/lib/utils";
 import { CloudUploadIcon, ImageIcon, Loader2, XIcon } from "lucide-react";
 import { Button } from "../ui/button";
-import Image from "next/image";
 import CircularProgressColorDemo from "@/components/ui/progress-10";
 import { useEffect, useRef } from "react";
 import { VideoPlayer } from "../video-player/VideoPlayer";
@@ -99,14 +98,12 @@ export function RenderUploadedState({
           spriteMetadata={spriteProps}
         />
       ) : (
-        <Image
-          src={previewUrl}
-          alt="Upload File"
-          fill
-          className="object-cover"
-          sizes="(max-width: 500px) 100vw, 500px"
-          loading="eager"
-        />
+          <img
+            src={previewUrl}
+            alt="Upload File"
+            className="w-full h-full object-cover"
+            crossOrigin="anonymous"
+          />
       )}
 
       {/* Delete Button */}

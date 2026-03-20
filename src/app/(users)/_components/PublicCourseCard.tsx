@@ -7,7 +7,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { CrownIcon, School, TimerIcon } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { CoursesProps } from "@/lib/types/course";
@@ -37,14 +36,14 @@ export function PublicCourseCard({
           transition={{ duration: 0.4, ease: "easeOut" }}
           className="w-full h-full"
         >
-          <Image
-            src={thumbnaiUrl}
+          <img
+            src={thumbnaiUrl || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=2070&auto=format&fit=crop"}
             alt={data.title}
-            width={600}
-            height={400}
             className="w-full h-full object-cover"
-            priority={isPriority}
-            loading={isPriority ? undefined : "lazy"}
+            crossOrigin="anonymous"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?q=80&w=2070&auto=format&fit=crop";
+            }}
           />
         </motion.div>
       </div>

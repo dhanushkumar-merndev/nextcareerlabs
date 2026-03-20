@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
-import Image from "next/image";
 
 import { cn, getHighResImage } from "@/lib/utils";
 
@@ -38,28 +37,20 @@ function AvatarImage({
   className,
   src,
   alt = "",
-  width,
-  height,
   ...props
 }: AvatarImageProps) {
   if (!src) {
     return null;
   }
 
-  const isFixed = width && height;
-
   return (
-    <Image
+    <img
       data-slot="avatar-image"
       alt={alt}
       className={cn("aspect-square size-full object-cover", className)}
-      width={isFixed ? width : undefined}
-      height={isFixed ? height : undefined}
-      fill={!isFixed}
-      sizes={!isFixed ? "(max-width: 768px) 128px, 128px" : undefined}
       src={getHighResImage(src)}
       crossOrigin="anonymous"
-      {...props}
+      {...(props as any)}
     />
   );
 }
