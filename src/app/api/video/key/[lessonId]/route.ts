@@ -2,6 +2,17 @@ import { prisma } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
+export async function OPTIONS(req: NextRequest) {
+  return new NextResponse(null, {
+    headers: {
+      "Access-Control-Allow-Origin": req.headers.get("origin") || "*",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Credentials": "true",
+    },
+  });
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ lessonId: string }> }
@@ -54,12 +65,14 @@ export async function GET(
     // 3. Convert stored Base64 key back to 16-byte buffer
     const keyBuffer = Buffer.from(lesson.videoEncryptionKey, 'base64');
 
-    // 4. Return the binary key
+    // 4. Return the binary key with CORS headers
     return new NextResponse(keyBuffer, {
       headers: {
         "Content-Type": "application/octet-stream",
         "Content-Length": keyBuffer.length.toString(),
-        "Cache-Control": "private, max-age=3600" // Cache for the session to prevent repeated hits
+        "Cache-Control": "private, max-age=3600",
+        "Access-Control-Allow-Origin": req.headers.get("origin") || "*",
+        "Access-Control-Allow-Credentials": "true",
       }
     });
 

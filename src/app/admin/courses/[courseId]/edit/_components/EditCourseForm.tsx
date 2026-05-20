@@ -63,12 +63,32 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
       smallDescription: data.smallDescription ?? undefined,
       slug: data.slug,
       status: data.status as CourseSchemaType["status"],
+      isFree: data.isFree ?? true,
+      freeChaptersCount: data.freeChaptersCount ?? 0,
+      price: data.price ?? null,
     },
   });
+
+  const isFree = form.watch("isFree");
+  const chapterCount = data.chapter?.length ?? 0;
+  const chapterOptions = Array.from({ length: chapterCount }, (_, i) => i + 1);
 
   useEffect(() => {
     setDirty(form.formState.isDirty);
   }, [form.formState.isDirty, setDirty]);
+
+  useEffect(() => {
+    const subscription = form.watch((value, info) => {
+      if (info.name === "isFree") {
+        if (value.isFree === true) {
+          form.setValue("price", null);
+        } else {
+          form.setValue("freeChaptersCount", 0);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   function onSubmit(values: CourseSchemaType, skipRedirect = false) {
     if (!values.fileKey) {
@@ -263,7 +283,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                         <SelectValue placeholder="Select Categories" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className="max-h-60 overflow-y-auto">
                       {courseCategories.map((category) => (
                         <SelectItem key={category} value={category}>
                           {category}
@@ -290,7 +310,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                         <SelectValue placeholder="Select Value" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className="max-h-60 overflow-y-auto">
                       {courseLevels.map((level) => (
                         <SelectItem key={level} value={level}>
                           {level}
@@ -337,7 +357,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className="max-h-60 overflow-y-auto">
                       {courseStatus.map((status) => (
                         <SelectItem key={status} value={status}>
                           {status}
@@ -349,6 +369,88 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                 </FormItem>
               )}
             />
+          </div>
+
+          <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+            <h3 className="font-semibold text-lg">Pricing</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="isFree"
+                render={({ field }) => (
+                  <FormItem className="w-full">
+                    <FormLabel>Course Type</FormLabel>
+                    <Select
+                      onValueChange={(val) => field.onChange(val === "free")}
+                      defaultValue={field.value ? "free" : "paid"}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select Type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent className="max-h-60 overflow-y-auto">
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {isFree ? (
+                <FormField
+                  control={form.control}
+                  name="freeChaptersCount"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel>Free Chapters (Consecutive from start)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={chapterCount === 0 ? "No chapters yet" : `1-${chapterCount}`}
+                          type="number"
+                          min={0}
+                          max={chapterCount}
+                          disabled={chapterCount === 0}
+                          {...field}
+                          onChange={(e) => {
+                            const val = Math.min(Math.max(0, Number(e.target.value)), chapterCount);
+                            field.onChange(val);
+                          }}
+                          value={field.value ?? 0}
+                        />
+                      </FormControl>
+                      {chapterCount === 0 && (
+                        <p className="text-xs text-muted-foreground">Add chapters first to enable free preview</p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="price"
+                  render={({ field }) => (
+                    <FormItem className="w-full">
+                      <FormLabel>Price (₹)</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter amount"
+                          type="number"
+                          min={0}
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+            </div>
           </div>
 
           <Button className="cursor-pointer" type="submit" disabled={isPending}>

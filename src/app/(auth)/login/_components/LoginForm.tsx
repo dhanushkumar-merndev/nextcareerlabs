@@ -70,6 +70,7 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const reason = searchParams.get("reason");
   const callbackUrl = searchParams.get("callbackUrl");
+  const redirectParam = searchParams.get("redirect");
   const authFailure = searchParams.get("auth_failure");
 
   const hasShownToast = useRef(false);
@@ -129,7 +130,7 @@ export function LoginForm() {
     // Google signin
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/",
+      callbackURL: redirectParam || callbackUrl || "/",
     });
   });
 }
@@ -170,7 +171,8 @@ async function signInWithEmail() {
         type: "sign-in",
         fetchOptions: {
           onSuccess: () => {
-            router.push(`/verify-request?email=${normalizedEmail}`);
+            const redirectUrl = redirectParam || callbackUrl || "";
+            router.push(`/verify-request?email=${normalizedEmail}${redirectUrl ? `&redirect=${encodeURIComponent(redirectUrl)}` : ""}`);
           },
           onError: () => {
             toast.error("Failed to send OTP");

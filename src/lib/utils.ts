@@ -7,12 +7,12 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getHighResImage(url: string | null | undefined): string {
   if (!url) return "";
-  
-  // Google profile images often have size parameters like =s96-c
+
   if (url.includes("googleusercontent.com")) {
-    return url.replace(/=s\d+-c/, "=s256-c");
+    const highRes = url.replace(/=s\d+-c/, "=s256-c");
+    return `/api/avatar?url=${encodeURIComponent(highRes)}`;
   }
-  
+
   return url;
 }
 export function formatIST(date: Date | string | number) {

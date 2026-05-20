@@ -26,5 +26,10 @@ export default arcjet({
     shield({
       mode: "LIVE",
     }),
+    fixedWindow({
+      mode: "LIVE",
+      window: "1m",
+      max: 100,
+    }),
   ],
 });

@@ -10,6 +10,7 @@ import { CrownIcon, School, TimerIcon } from "lucide-react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { CoursesProps } from "@/lib/types/course";
+import { useSmartSession } from "@/hooks/use-smart-session";
 
 // PublicCourseCard component
 export function PublicCourseCard({
@@ -17,6 +18,8 @@ export function PublicCourseCard({
   enrollmentStatus = null,
   isPriority = false,
 }: CoursesProps & { isPriority?: boolean }) {
+  const { session } = useSmartSession();
+  const isLoggedIn = !!session?.user?.id;
   const thumbnaiUrl = constructUrl(data.fileKey || "");
   return (
     <Card className="group relative py-0 gap-0 shadow-lg border border-border/50 rounded-lg h-full flex flex-col overflow-hidden">
@@ -69,16 +72,17 @@ export function PublicCourseCard({
             <School className="size-6 p-1 rounded-md text-primary bg-primary/10" />
             <p className="text-sm text-muted-foreground">{data.category}</p>
           </div>
+          {data.isFree ? (
+            <Badge variant="outline" className="border-primary text-primary bg-transparent hover:bg-transparent">
+              Free
+            </Badge>
+          ) : null}
         </div>
         <div className="mt-auto pt-4">
-          {enrollmentStatus === "Granted" ? (
+          {enrollmentStatus === "Granted" || data.isFree ? (
             <div className="flex items-center gap-2">
               <Link
-                href={
-                  data.firstLessonId
-                    ? `/dashboard/${data.slug}/${data.firstLessonId}`
-                    : `/dashboard/${data.slug}`
-                }
+                href={isLoggedIn ? `/dashboard/${data.slug}` : `/login?redirect=/dashboard/${data.slug}`}
                 className={buttonVariants({ className: "w-1/2" })}
               >
                 Watch Now

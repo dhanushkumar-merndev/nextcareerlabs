@@ -61,6 +61,7 @@ export async function getCourseSidebarData(
       level: true,
       category: true,
       slug: true,
+      isFree: true,
       chapter: {
         orderBy: {
           position: "asc",
@@ -108,7 +109,7 @@ export async function getCourseSidebarData(
     };
   }
 
-  const enrollment = await prisma.enrollment.findUnique({
+  let enrollment = await prisma.enrollment.findUnique({
     where: {
       userId_courseId: {
         userId: session.id,
@@ -118,11 +119,29 @@ export async function getCourseSidebarData(
   });
 
   if (!enrollment || enrollment.status !== "Granted") {
-    return {
-      status: "not-enrolled" as const,
-      course: null,
-      version: currentVersion,
-    };
+    if (course.isFree) {
+      enrollment = await prisma.enrollment.upsert({
+        where: {
+          userId_courseId: {
+            userId: session.id,
+            courseId: course.id,
+          },
+        },
+        update: { status: "Granted", grantedAt: new Date() },
+        create: {
+          userId: session.id,
+          courseId: course.id,
+          status: "Granted",
+          grantedAt: new Date(),
+        },
+      });
+    } else {
+      return {
+        status: "not-enrolled" as const,
+        course: null,
+        version: currentVersion,
+      };
+    }
   }
 
   console.log(

@@ -85,6 +85,7 @@ export async function getLessonContent(
             select: {
               slug: true,
               title: true,
+              isFree: true,
             },
           },
         },
@@ -131,7 +132,25 @@ export async function getLessonContent(
   console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
 
   if (!enrollment || enrollment.status !== "Granted") {
-    return notFound();
+    if (lesson.Chapter.Course.isFree) {
+      await prisma.enrollment.upsert({
+        where: {
+          userId_courseId: {
+            userId: session.id,
+            courseId: lesson.Chapter.courseId,
+          },
+        },
+        update: { status: "Granted", grantedAt: new Date() },
+        create: {
+          userId: session.id,
+          courseId: lesson.Chapter.courseId,
+          status: "Granted",
+          grantedAt: new Date(),
+        },
+      });
+    } else {
+      return notFound();
+    }
   }
 
   const result = { lesson, questions };

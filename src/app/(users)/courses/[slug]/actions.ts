@@ -115,6 +115,7 @@ export async function enrollInCourseAction(
         id: true,
         title: true,
         slug: true,
+        isFree: true,
       },
     });
 
@@ -147,20 +148,50 @@ export async function enrollInCourseAction(
           message: "Access request is already pending",
         };
       }
-      // If Rejected or Revoked, we allow re-requesting by updating the status to Pending
+      // If Rejected or Revoked, we allow re-requesting
+      // For free courses, auto-grant; for paid courses, set to Pending
+      const newStatus = course.isFree ? "Granted" : "Pending";
+      if (!course.isFree) {
+        const userWithPhone = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { phoneNumber: true },
+        });
+        if (!userWithPhone?.phoneNumber) {
+          return {
+            status: "error",
+            message: "Please complete your profile with a phone number before requesting access to paid courses.",
+          };
+        }
+      }
       await prisma.enrollment.update({
         where: { id: existingEnrollment.id },
         data: {
-          status: "Pending",
+          status: newStatus,
+          grantedAt: course.isFree ? new Date() : null,
           updatedAt: new Date(),
         },
       });
     } else {
+      // For free courses, auto-grant access; for paid courses, require admin approval
+      if (!course.isFree) {
+        const userWithPhone = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { phoneNumber: true },
+        });
+        if (!userWithPhone?.phoneNumber) {
+          return {
+            status: "error",
+            message: "Please complete your profile with a phone number before requesting access to paid courses.",
+          };
+        }
+      }
+      const newStatus = course.isFree ? "Granted" : "Pending";
       await prisma.enrollment.create({
         data: {
           userId: user.id,
           courseId: course.id,
-          status: "Pending",
+          status: newStatus,
+          grantedAt: course.isFree ? new Date() : null,
         },
       });
     }
@@ -168,13 +199,16 @@ export async function enrollInCourseAction(
     // Invalidate caches to show updated status immediately (Admin & User side)
     await Promise.all([
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-      invalidateUserEnrollmentCache(user.id), // 🔹 UNIFIED: Invalidate all user enrollment related keys
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(user.id)),
+      invalidateUserEnrollmentCache(user.id),
+      invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(user.id, "latest")),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
       incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
       invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),
+      invalidateCache(`user:enrollment-map:${user.id}:*`),
     ]);
 
     // Invalidate Local Storage Keys (Next.js server-side can't directly manipulate localStorage, 
@@ -191,7 +225,10 @@ export async function enrollInCourseAction(
 
     return {
       status: "success",
-      message: "Access requested successfully. Please wait for admin approval.",
+      enrollmentStatus: course.isFree ? "Granted" : "Pending",
+      message: course.isFree
+        ? "You now have access to this free course. Happy learning!"
+        : "Access requested successfully. Please wait for admin approval.",
     };
   } catch (error) {
     return {

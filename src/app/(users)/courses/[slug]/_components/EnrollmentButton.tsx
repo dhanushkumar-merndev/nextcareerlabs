@@ -17,27 +17,29 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { chatCache } from "@/lib/chat-cache";
 import { useSmartSession } from "@/hooks/use-smart-session";
+import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 
-// Enrollment Button Component
 export function EnrollmentButton({
   courseId,
   slug,
   status,
+  isFree,
 }: {
   courseId: string;
   slug?: string;
   status: string | null;
+  isFree: boolean;
 }) {
   const queryClient = useQueryClient();
   const { session } = useSmartSession();
   const [isPending, startTransition] = useTransition();
   const [currentStatus, setCurrentStatus] = useState(status);
-  // useEffect to sync status with local state
+  const [showPhoneDialog, setShowPhoneDialog] = useState(false);
+
   useEffect(() => {
     setCurrentStatus(status);
   }, [status]);
 
-  // request access to the course
   function onSubmit() {
     if (isPending || currentStatus === "Pending") return;
     if (!session) {
@@ -45,6 +47,16 @@ export function EnrollmentButton({
       return;
     }
 
+    // If paid course and no phone, show dialog
+    if (!isFree && !session?.user?.phoneNumber) {
+      setShowPhoneDialog(true);
+      return;
+    }
+
+    doEnroll();
+  }
+
+  function doEnroll() {
     startTransition(async () => {
       const { data: result, error } = await tryCatch(
         enrollInCourseAction(courseId)
@@ -56,12 +68,11 @@ export function EnrollmentButton({
 
       if (result.status === "success") {
         toast.success(result.message);
-        setCurrentStatus("Pending");
+        setCurrentStatus(result.enrollmentStatus ?? "Pending");
 
         const uid = session?.user?.id;
         if (uid) {
-          // 🔹 BROAD INVALIDATION: Clear ALL user-facing caches using standardized logic
-          chatCache.setNeedsSync(uid); // 🔹 NEW: Force immediate re-fetch on all dashboard pages
+          chatCache.setNeedsSync(uid);
           chatCache.invalidateUserDashboardData(uid);
           chatCache.invalidateAllCourseData();
           chatCache.invalidate(`user_enrolled_courses_${uid}`, uid);
@@ -70,16 +81,14 @@ export function EnrollmentButton({
 
           if (slug) {
             chatCache.invalidate(`course_${slug}`, uid);
-            chatCache.invalidate(`course_${slug}`, undefined); // guest cache
+            chatCache.invalidate(`course_${slug}`, undefined);
           }
         }
 
-        // We wrap queryClient in setTimeout to let React finish rendering the current transition
         setTimeout(() => {
           queryClient.invalidateQueries({
             predicate: (query) => {
               const key = query.queryKey[0] as string;
-              // ✅ ADD missing query keys:
               return key === "all_courses" ||
                 key.startsWith("available_courses") ||
                 key === "enrolled_courses" ||
@@ -91,7 +100,6 @@ export function EnrollmentButton({
             }
           });
 
-          // If slug provided, invalidate specific course detail
           if (slug && uid) {
             queryClient.invalidateQueries({ queryKey: ["course_detail", slug, uid] });
           }
@@ -101,35 +109,43 @@ export function EnrollmentButton({
       }
     });
   }
-  // Determine button state based on current status
+
   const isActuallyPending = currentStatus === "Pending";
-  // Return button with appropriate state and variant
   return (
-    // Button component with loading states
-    <Button
-      onClick={onSubmit}
-      disabled={isPending || isActuallyPending || currentStatus === "Pending" || currentStatus === "Rejected" || currentStatus === "Revoked"}
-      className="w-full"
-      variant={
-        currentStatus === "Pending" ? "outline" :
-          (currentStatus === "Rejected" || currentStatus === "Revoked") ? "destructive" :
-            "default"
-      }
-    >
-      {isPending ? (
-        <>
-          <Loader2 className="size-4 animate-spin" />
-          Loading...
-        </>
-      ) : currentStatus === "Pending" ? (
-        "Pending Approval"
-      ) : currentStatus === "Rejected" ? (
-        "Request Rejected"
-      ) : currentStatus === "Revoked" ? (
-        "Access Revoked"
-      ) : (
-        "Request Access"
-      )}
-    </Button>
+    <>
+      <Button
+        onClick={onSubmit}
+        disabled={isPending || isActuallyPending || currentStatus === "Pending" || currentStatus === "Rejected" || currentStatus === "Revoked"}
+        className="w-full"
+        variant={
+          currentStatus === "Pending" ? "outline" :
+            (currentStatus === "Rejected" || currentStatus === "Revoked") ? "destructive" :
+              "default"
+        }
+      >
+        {isPending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            Loading...
+          </>
+        ) : currentStatus === "Pending" ? (
+          "Pending Approval"
+        ) : currentStatus === "Rejected" ? (
+          "Request Rejected"
+        ) : currentStatus === "Revoked" ? (
+          "Access Revoked"
+        ) : (
+          "Request Access"
+        )}
+      </Button>
+
+      <PhoneNumberDialog
+        isOpen={showPhoneDialog}
+        onSuccess={() => {
+          setShowPhoneDialog(false);
+          doEnroll();
+        }}
+      />
+    </>
   );
 }

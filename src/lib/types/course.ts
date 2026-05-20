@@ -20,6 +20,9 @@ export type PublicCourseType = {
   slug: string;
   firstLessonId?: string | null;
   enrollmentStatus?: string | null;
+  isFree: boolean;
+  freeChaptersCount: number;
+  price: number | null;
 };
 
 export type Course = PublicCourseType;

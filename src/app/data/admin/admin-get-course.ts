@@ -22,6 +22,9 @@ export type CourseData = {
   category: string;
   slug: string;
   description: string | null;
+  isFree: boolean;
+  freeChaptersCount: number;
+  price: number | null;
   chapter: {
     id: string;
     title: string;
@@ -104,6 +107,9 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
       category: true,
       slug: true,
       description: true,
+      isFree: true,
+      freeChaptersCount: true,
+      price: true,
       chapter: {
         orderBy: {
           position: "asc",
@@ -134,6 +140,11 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
 
   if (!data) {
     return notFound();
+  }
+
+  // Convert Decimal price to number for client safety
+  if (data.price) {
+    (data as any).price = Number(data.price);
   }
 
   // Cache in Redis for 30 days (Rule Infinity)

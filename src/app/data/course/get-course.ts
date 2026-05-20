@@ -52,6 +52,9 @@ export async function getIndividualCourse(
       id: true,
       slug: true,
       description: true,
+      isFree: true,
+      freeChaptersCount: true,
+      price: true,
       chapter: {
         select: {
           title: true,
@@ -76,6 +79,11 @@ export async function getIndividualCourse(
   console.log(
     `[getIndividualCourse] DB Computation took ${Date.now() - startTime}ms`,
   );
+
+  // Convert Decimal price to number for client safety
+  if (course?.price) {
+    (course as any).price = Number(course.price);
+  }
 
   // Cache in Redis for 30 days
   await setCache(cacheKey, course, 2592000); // 30 days

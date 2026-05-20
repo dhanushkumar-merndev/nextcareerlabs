@@ -202,6 +202,7 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
       enrollmentStatus={enrollmentStatus}
       slug={slug}
       router={router}
+      currentUserId={currentUserId ?? undefined}
     />
   );
 }
@@ -211,11 +212,13 @@ function SlugPageContent({
   enrollmentStatus,
   slug,
   router,
+  currentUserId,
 }: {
   course: any;
   enrollmentStatus: string | null;
   slug: string;
   router: any;
+  currentUserId?: string;
 }) {
   const [imageLoaded, setImageLoaded] = useState(false);
 
@@ -269,6 +272,11 @@ function SlugPageContent({
               <TimerIcon className="size-4" />
               <span>{course.duration} hours</span>
             </Badge>
+            {course.isFree ? (
+              <Badge variant="outline" className="border-primary text-primary bg-transparent hover:bg-transparent">
+                Free
+              </Badge>
+            ) : null}
           </div>
         </div>
         <Separator className="my-8" />
@@ -303,6 +311,14 @@ function SlugPageContent({
               Lessons
             </div>
           </div>
+          {course.isFree && course.freeChaptersCount > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700">
+              <span className="font-medium">Free Preview:</span> First{" "}
+              {course.freeChaptersCount} chapter
+              {course.freeChaptersCount > 1 ? "s" : ""} available without
+              enrollment
+            </div>
+          )}
           {/* Course Chapters */}
           <div className="space-y-4">
             {course.chapter.map((chapter: any, index: number) => (
@@ -415,6 +431,7 @@ function SlugPageContent({
                         0,
                       )} Lessons`}
                     />
+
                   </div>
                 </div>
 
@@ -444,7 +461,7 @@ function SlugPageContent({
                 </div>
                 <div>
                   {/* Enrollment Button */}
-                  {enrollmentStatus === "Granted" ? (
+                  {enrollmentStatus === "Granted" || course.isFree ? (
                     <Link
                       className={buttonVariants({ className: "w-full" })}
                       href={(() => {
@@ -457,6 +474,9 @@ function SlugPageContent({
                             (a: any, b: any) =>
                               (a.position ?? 0) - (b.position ?? 0),
                           )?.[0];
+                        if (!currentUserId) {
+                          return `/login?redirect=/dashboard/${course.slug}${firstLesson ? `/${firstLesson.id}` : ""}`;
+                        }
                         return firstLesson
                           ? `/dashboard/${course.slug}/${firstLesson.id}`
                           : `/dashboard/${course.slug}`;
@@ -469,6 +489,7 @@ function SlugPageContent({
                       courseId={course.id}
                       slug={slug}
                       status={enrollmentStatus}
+                      isFree={course.isFree}
                     />
                   )}
                   <Button

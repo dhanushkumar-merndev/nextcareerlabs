@@ -25,6 +25,7 @@ function VerifyRequest() {
   const [emailPending, startEmailTransition] = useTransition();
   const params = useSearchParams();
   const email = params.get("email") as string;
+  const redirectUrl = params.get("redirect");
   const isOtpCompleted = otp.length === 6;
   // Check if email is valid
   if (!email) {
@@ -44,7 +45,7 @@ function VerifyRequest() {
             toast.success("Email Verified");
             // Use window.location for a hard redirect to ensure session cookies 
             // are properly recognized by the server and pre-fetch caches are cleared.
-            window.location.href = "/";
+            window.location.href = redirectUrl || "/";
           },
           onError: (ctx) => {
             const message = ctx.error?.message || "Error verifying email or OTP";

@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/rich-text-editor/Editor";
 import { Uploader } from "@/components/file-uploader/Uploader";
-import { useTransition } from "react";
+import { useTransition, useEffect } from "react";
 import { tryCatch } from "@/hooks/try-catch";
 import { CreateCourse } from "./actions";
 import { toast } from "sonner";
@@ -67,8 +67,26 @@ export default function CourseCreationPage() {
       smallDescription: "",
       slug: "",
       status: "Draft",
+      isFree: false,
+      freeChaptersCount: 0,
+      price: null,
     },
   });
+  const isFree = form.watch("isFree");
+
+  useEffect(() => {
+    const subscription = form.watch((value, info) => {
+      if (info.name === "isFree") {
+        if (value.isFree === true) {
+          form.setValue("price", null);
+        } else {
+          form.setValue("freeChaptersCount", 0);
+        }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+
   function onSubmit(values: CourseSchemaType) {
     if (!values.fileKey) {
       form.setError("fileKey", { message: "File must be selected" });
@@ -341,6 +359,82 @@ export default function CourseCreationPage() {
                     </FormItem>
                   )}
                 />
+              </div>
+
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                <h3 className="font-semibold text-lg">Pricing</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="isFree"
+                    render={({ field }) => (
+                      <FormItem className="w-full">
+                        <FormLabel>Course Type</FormLabel>
+                        <Select
+                          onValueChange={(val) => field.onChange(val === "free")}
+                          defaultValue={field.value ? "free" : "paid"}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select Type" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="max-h-60 overflow-y-auto">
+                            <SelectItem value="free">Free</SelectItem>
+                            <SelectItem value="paid">Paid</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {isFree ? (
+                    <FormField
+                      control={form.control}
+                      name="freeChaptersCount"
+                      render={({ field }) => (
+                        <FormItem className="w-full">
+                          <FormLabel>Free Chapters (Consecutive)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Set after adding chapters"
+                              type="number"
+                              min={0}
+                              max={0}
+                              disabled
+                              {...field}
+                              value={0}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-muted-foreground">Add chapters in the course, then edit to set free preview</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="price"
+                      render={({ field }) => (
+                        <FormItem className="w-full">
+                          <FormLabel>Price (₹)</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter amount"
+                              type="number"
+                              min={0}
+                              {...field}
+                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
+                              value={field.value ?? ""}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
               </div>
 
               <Button

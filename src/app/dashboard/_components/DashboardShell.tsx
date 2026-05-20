@@ -6,7 +6,6 @@ import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 import { AppSidebar } from "./DashboardAppSidebar";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { SiteHeader } from "@/components/sidebar/site-header";
-import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 
 export function DashboardShell({
   children,
@@ -20,10 +19,8 @@ export function DashboardShell({
   const { data: enrolledCourses, isLoading: enrolledLoading } =
     useEnrolledCourses(session?.user?.id, sessionLoading);
 
-  // HYDRATION FIX: Use state initialized from server hint to ensure initial render match
   const [isEnrolled, setIsEnrolled] = useState(isEnrolledHint ?? false);
   const [mounted, setMounted] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -36,7 +33,6 @@ export function DashboardShell({
       if (actualEnrollment !== isEnrolled) {
         setIsEnrolled(actualEnrollment);
 
-        // PERSISTENCE FIX: Sync the cookie from the client too
         if (typeof document !== "undefined") {
           document.cookie = `is_enrolled=${actualEnrollment}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
         }
@@ -44,18 +40,8 @@ export function DashboardShell({
     }
   }, [mounted, enrolledCourses, enrolledLoading, isEnrolled]);
 
-  const isComplete = !!session?.user?.phoneNumber;
-
   return (
     <>
-      {mounted && session && !hasSubmitted && (
-        <PhoneNumberDialog
-          isOpen={!isComplete}
-          requireName={!session.user.name}
-          onSuccess={() => setHasSubmitted(true)}
-        />
-      )}
-
       <AppSidebar variant="inset" isEnrolled={isEnrolled} />
 
       <SidebarInset className="overflow-hidden">

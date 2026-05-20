@@ -28,7 +28,10 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
         const response = await fetch(
           `/api/user/enrolled-courses${clientVersion ? `?version=${clientVersion}` : ""}`,
         );
-        if (!response.ok) throw new Error("Failed to fetch enrolled courses");
+        if (!response.ok) {
+          console.error("[useEnrolledCourses] Response not ok:", response.status, response.statusText);
+          throw new Error(`Failed to fetch: ${response.status}`);
+        }
 
         const result = await response.json();
 

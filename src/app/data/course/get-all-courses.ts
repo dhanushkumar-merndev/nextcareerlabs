@@ -89,6 +89,9 @@ const getAllCoursesInternal = async (
         fileKey: true,
         category: true,
         slug: true,
+        isFree: true,
+        freeChaptersCount: true,
+        price: true,
         chapter: {
           orderBy: { position: "asc" },
           take: 1,
@@ -111,6 +114,9 @@ const getAllCoursesInternal = async (
       fileKey: c.fileKey,
       category: c.category,
       slug: c.slug,
+      isFree: c.isFree ?? true,
+      freeChaptersCount: c.freeChaptersCount ?? 0,
+      price: c.price ? Number(c.price) : null,
       firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
     }));
     console.log(`[getAllCourses] DB Search took ${Date.now() - startTime}ms`);
@@ -135,6 +141,9 @@ const getAllCoursesInternal = async (
             fileKey: true,
             category: true,
             slug: true,
+            isFree: true,
+            freeChaptersCount: true,
+            price: true,
             chapter: {
               orderBy: { position: "asc" },
               take: 1,
@@ -157,6 +166,9 @@ const getAllCoursesInternal = async (
           fileKey: c.fileKey,
           category: c.category,
           slug: c.slug,
+          isFree: c.isFree ?? true,
+          freeChaptersCount: c.freeChaptersCount ?? 0,
+          price: c.price ? Number(c.price) : null,
           firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
         }));
         console.log(`[getAllCourses] DB Computation took ${Date.now() - dbStartTime}ms`);

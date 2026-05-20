@@ -37,11 +37,15 @@ if (typeof window !== "undefined") {
   (videojs as any).Vhs.xhr.beforeRequest = (options: any) => {
     if (options.uri.includes("/api/video/key/")) {
       options.withCredentials = true;
+      // Also handle production domain redirect to localhost when in dev
+      const isProductionDomain = options.uri.includes("nextcareerlabs.online") || 
+                                 options.uri.includes("www.nextcareerlabs.online");
       if (
         options.uri.includes("storage.dev") ||
         options.uri.includes("amazonaws.com") ||
         options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN) ||
-        options.uri.includes("localhost")
+        options.uri.includes("localhost") ||
+        isProductionDomain
       ) {
         try {
           const url = new URL(options.uri);
@@ -862,11 +866,14 @@ export function VideoPlayer({
         playerRef.current.currentTime(newTime);
         triggerSeekAnimation("backward", 10);
       } else {
-        const newTime = Math.min(
+        const forwardJump = Math.min(
           playerRef.current.duration(),
           playerRef.current.currentTime() + 10,
         );
-        playerRef.current.currentTime(newTime);
+        const finalJump = restrictSeeking
+          ? Math.min(forwardJump, maxWatchedTime)
+          : forwardJump;
+        playerRef.current.currentTime(finalJump);
         triggerSeekAnimation("forward", 10);
       }
       resetControlsTimeout();
@@ -1849,11 +1856,14 @@ export function VideoPlayer({
               onClick={(e) => {
                 e.stopPropagation();
                 if (!playerRef.current) return;
-                const newTime = Math.min(
+                const forwardJump = Math.min(
                   playerRef.current.duration(),
                   playerRef.current.currentTime() + 10,
                 );
-                playerRef.current.currentTime(newTime);
+                const finalJump = restrictSeeking
+                  ? Math.min(forwardJump, maxWatchedTime)
+                  : forwardJump;
+                playerRef.current.currentTime(finalJump);
                 triggerSeekAnimation("forward", 10);
                 resetControlsTimeout();
               }}
