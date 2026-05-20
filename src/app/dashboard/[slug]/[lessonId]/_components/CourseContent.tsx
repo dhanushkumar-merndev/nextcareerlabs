@@ -5,7 +5,7 @@ import { RenderDescription } from "@/components/rich-text-editor/RenderDescripti
 import { Button } from "@/components/ui/button";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { BookIcon, CheckCircle, ChevronRight, X } from "lucide-react";
+import { BookIcon, CheckCircle, ChevronRight, Sparkles, X } from "lucide-react";
 import { updateVideoProgress, updateMultipleVideoProgress } from "../actions";
 
 import {
@@ -28,6 +28,7 @@ import { AssessmentModal } from "./AssessmentModal";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import Loader from "@/components/ui/Loader";
+import { toast } from "sonner";
 import { LessonContentSkeleton } from "./lessonSkeleton";
 import {
   Drawer,
@@ -44,6 +45,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { checkAndInvalidateAssessmentEligibility } from "../invalidate-assessment";
 
 interface iAppProps {
@@ -98,6 +107,7 @@ function VideoPlayer({
   initialRestrictionTime?: number;
   durationInSec: number;
   slug: string;
+  isFree?: boolean;
 }) {
   console.log("[DEBUG] VideoPlayer render", { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
@@ -975,7 +985,7 @@ function VideoPlayer({
     return (
       <div className="aspect-video bg-muted rounded-lg flex flex-col items-center justify-center border relative group overflow-hidden">
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10 p-6 bg-background/50">
-          <BookIcon className="size-16 text-primary/40 mb-4 animate-pulse" />
+          <BookIcon className="size-16 text-primary/40 mb-4 animate-shine" />
           <p className="text-muted-foreground font-medium">
             This lesson does not have a video yet
           </p>
@@ -1036,6 +1046,8 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   const [optimisticCompleted, setOptimisticCompleted] = useState(false);
   const [isAssessmentOpen, setIsAssessmentOpen] = useState(false);
   const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [showUnlockDialog, setShowUnlockDialog] = useState(false);
 
   // ✅ Optimization: Instant Local + Background Version Check
   const cacheKey = `lesson_content_${lessonId}`;
@@ -1080,6 +1092,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   const [isLoadingMCQs, setIsLoadingMCQs] = useState(false);
 
   const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
+  const isFreeCourse = lessonData?.Chapter?.Course?.isFree;
 
   const cachedEligibility = chatCache.get<boolean>(
     `assessment_eligible_${lessonId}`,
@@ -1189,8 +1202,54 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     questionsCount: questions.length,
   });
 
+  async function confirmUnlock() {
+    if (isUnlocking) return;
+    setIsUnlocking(true);
+    setShowUnlockDialog(false);
+    try {
+      const maxTime = (effectiveDuration || 0) * 60 || 999999;
+      const res = await updateVideoProgress(lessonId, 0, 0, maxTime);
+      if (res.status === "error") {
+        toast.error(res.message);
+        return;
+      }
+      secureStorage.setItemTracked(`restriction-time-${lessonId}_${userId}`, maxTime.toString());
+      chatCache.set(`restriction_${lessonId}`, maxTime, userId, undefined, 86400);
+      queryClient.invalidateQueries({ queryKey: ["lesson_content", lessonId] });
+      setOptimisticCompleted(true);
+      toast.success("Full access unlocked! You can now seek freely.");
+    } catch (e) {
+      toast.error("Failed to unlock. Please try again.");
+    } finally {
+      setIsUnlocking(false);
+    }
+  }
+
   return (
-    <div className="relative flex flex-col min-[1025px]:flex-row bg-background min-[1025px]:h-full overflow-hidden min-[1025px]:border-l border-border">
+    <>
+      <AlertDialog open={showUnlockDialog} onOpenChange={setShowUnlockDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unlock Full Access</AlertDialogTitle>
+            <AlertDialogDescription>
+              Paid courses have time-based restrictions — you must watch through the content to unlock progressively. Since this is a <strong>free course</strong>, you can unlock full access now with one click.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setShowUnlockDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={confirmUnlock}
+              className="bg-gradient-to-r from-purple-600 via-pink-500 to-orange-400 text-white hover:opacity-90 border-0"
+            >
+              Unlock Now
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div className="relative flex flex-col min-[1025px]:flex-row bg-background min-[1025px]:h-full overflow-hidden min-[1025px]:border-l border-border">
       <div className="flex-1 flex flex-col min-[1025px]:pl-6 min-[1025px]:overflow-y-auto">
         {/* VIDEO */}
         <div className="order-1 min-[1025px]:order-1 w-full relative">
@@ -1265,6 +1324,20 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
                 </PopoverContent>
               )}
             </Popover>
+            {isFreeCourse && !isCompleted && (
+              <Button
+                onClick={() => setShowUnlockDialog(true)}
+                disabled={isUnlocking}
+                className="gap-2 rounded-full px-4 h-8 text-[10px] font-bold uppercase tracking-tight bg-gradient-to-r from-purple-600 via-pink-500 to-orange-400 text-white hover:opacity-90 animate-shine shadow-lg shadow-purple-500/30 border-0"
+              >
+                {isUnlocking ? (
+                  <Loader size={12} />
+                ) : (
+                  <Sparkles className="size-3" />
+                )}
+                Unlock
+              </Button>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -1356,6 +1429,20 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
                 </PopoverContent>
               )}
             </Popover>
+            {isFreeCourse && !isCompleted && (
+              <Button
+                onClick={() => setShowUnlockDialog(true)}
+                disabled={isUnlocking}
+                className="gap-2 rounded-full px-5 h-9 text-xs font-bold uppercase tracking-tight bg-gradient-to-r from-purple-600 via-pink-500 to-orange-400 text-white hover:opacity-90 animate-shine shadow-lg shadow-purple-500/30 border-0"
+              >
+                {isUnlocking ? (
+                  <Loader size={14} />
+                ) : (
+                  <Sparkles className="size-4" />
+                )}
+                Unlock Full Access
+              </Button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -1458,5 +1545,6 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         lessonName={lessonData.title}
       />
     </div>
+    </>
   );
 }

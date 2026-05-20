@@ -439,9 +439,7 @@ export async function submitQuizAttempt(
         },
         update: {
           // 🛡️ Protection: only update to 'true', never downgrade if they already passed
-          quizPassed: {
-            set: passed || undefined, // Prisma trick: only set if passed is true, otherwise keep existing
-          },
+          ...(passed ? { quizPassed: true } : {}),
         },
       });
 

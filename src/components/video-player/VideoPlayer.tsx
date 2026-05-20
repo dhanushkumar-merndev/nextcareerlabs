@@ -437,7 +437,7 @@ export function VideoPlayer({
               player.duration() || 0,
               (player.currentTime() || 0) + 10,
             );
-            const finalJump = restrictSeeking
+            const finalJump = restrictSeeking && maxWatchedTime > 0
               ? Math.min(forwardJump, maxWatchedTime)
               : forwardJump;
             player.currentTime(finalJump);
@@ -454,7 +454,7 @@ export function VideoPlayer({
               player.duration() || 0,
               (player.currentTime() || 0) + 5,
             );
-            const finalRightJump = restrictSeeking
+            const finalRightJump = restrictSeeking && maxWatchedTime > 0
               ? Math.min(rightJump, maxWatchedTime)
               : rightJump;
             player.currentTime(finalRightJump);
@@ -870,7 +870,7 @@ export function VideoPlayer({
           playerRef.current.duration(),
           playerRef.current.currentTime() + 10,
         );
-        const finalJump = restrictSeeking
+        const finalJump = restrictSeeking && maxWatchedTime > 0
           ? Math.min(forwardJump, maxWatchedTime)
           : forwardJump;
         playerRef.current.currentTime(finalJump);
@@ -1860,7 +1860,7 @@ export function VideoPlayer({
                   playerRef.current.duration(),
                   playerRef.current.currentTime() + 10,
                 );
-                const finalJump = restrictSeeking
+                const finalJump = restrictSeeking && maxWatchedTime > 0
                   ? Math.min(forwardJump, maxWatchedTime)
                   : forwardJump;
                 playerRef.current.currentTime(finalJump);
