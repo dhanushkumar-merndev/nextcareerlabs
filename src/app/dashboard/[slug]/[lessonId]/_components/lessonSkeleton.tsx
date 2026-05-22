@@ -20,22 +20,29 @@ export function LessonContentSkeleton() {
           <Skeleton className="h-8 min-[1025px]:h-10 w-2/3 rounded-lg" />
         </div>
 
-        {/* Mobile Header Buttons */}
+        {/* Mobile Header */}
         <div className="min-[1025px]:hidden order-2 flex items-center justify-between py-4 bg-background px-4">
-          <Skeleton className="h-9 w-32 rounded-full" />
           <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-32 rounded-full" />
+            <Skeleton className="h-8 w-20 rounded-full" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="size-10 rounded-full" />
             <Skeleton className="size-10 rounded-full" />
             <Skeleton className="size-10 rounded-full" />
           </div>
         </div>
 
-        {/* Action Buttons Row */}
-        <div className="hidden min-[1025px]:flex order-3 min-[1025px]:order-3 items-center justify-between gap-4 pt-6 pb-6 border-t mt-2">
+        {/* Desktop Action Bar */}
+        <div className="hidden min-[1025px]:flex order-3 min-[1025px]:order-3 items-center justify-between gap-4 px-4 min-[1025px]:px-0 pt-6 min-[1025px]:pt-6 min-[1025px]:pb-0 min-[1025px]:border-t mb-0">
           <div className="flex items-center gap-2">
-            <Skeleton className="h-10 w-40 rounded-full" />
+            <Skeleton className="h-10 w-44 rounded-full" />
+            <Skeleton className="h-10 w-36 rounded-full" />
           </div>
           <div className="flex items-center gap-2">
-            <Skeleton className="h-10 w-40 rounded-full" />
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <Skeleton className="h-10 w-36 rounded-full" />
           </div>
         </div>
       </div>

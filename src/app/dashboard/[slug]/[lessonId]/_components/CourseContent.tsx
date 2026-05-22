@@ -5,7 +5,7 @@ import { RenderDescription } from "@/components/rich-text-editor/RenderDescripti
 import { Button } from "@/components/ui/button";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { BookIcon, CheckCircle, ChevronRight, Sparkles, X } from "lucide-react";
+import { BookIcon, Bot, CheckCircle, ChevronRight, Sparkles, X } from "lucide-react";
 import { updateVideoProgress, updateMultipleVideoProgress } from "../actions";
 
 import {
@@ -53,6 +53,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { FloatingChat } from "@/components/ai-chat/FloatingChat";
 import { checkAndInvalidateAssessmentEligibility } from "../invalidate-assessment";
 
 interface iAppProps {
@@ -88,6 +89,8 @@ function VideoPlayer({
   initialRestrictionTime = 0,
   durationInSec,
   slug,
+  seekSignal,
+  seekKey,
 }: {
   thumbnailkey: string;
   videoKey: string;
@@ -108,6 +111,8 @@ function VideoPlayer({
   durationInSec: number;
   slug: string;
   isFree?: boolean;
+  seekSignal?: { time: number; key: number } | null;
+  seekKey?: number;
 }) {
   console.log("[DEBUG] VideoPlayer render", { lessonId, videoKey: !!videoKey });
   const thumbnailUrl = constructUrl(thumbnailkey);
@@ -1030,6 +1035,8 @@ function VideoPlayer({
           restrictSeeking={!isCompleted}
           initialMaxTime={restrictionTimeRef.current}
           onRestrictionUpdate={onRestrictionUpdate}
+          seekTo={seekSignal?.time}
+          seekKey={seekSignal?.key}
         />
       )}
       {/* Transparent overlay — blocks native browser video context menu on mobile */}
@@ -1048,6 +1055,15 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   const [isSupportOpen, setIsSupportOpen] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [showUnlockDialog, setShowUnlockDialog] = useState(false);
+  const [seekSignal, setSeekSignal] = useState<{ time: number; key: number } | null>(null);
+
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ time: number }>) => {
+      setSeekSignal({ time: e.detail.time, key: Date.now() });
+    };
+    window.addEventListener("video-seek", handler as EventListener);
+    return () => window.removeEventListener("video-seek", handler as EventListener);
+  }, []);
 
   // ✅ Optimization: Instant Local + Background Version Check
   const cacheKey = `lesson_content_${lessonId}`;
@@ -1093,6 +1109,18 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
 
   const quizPassed = lessonData?.lessonProgress?.some((p: any) => p.quizPassed);
   const isFreeCourse = lessonData?.Chapter?.Course?.isFree;
+  const [vttText, setVttText] = useState<string | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
+  useEffect(() => {
+    const vttUrl = lessonData?.transcription?.vttUrl;
+    if (vttUrl && !vttText) {
+      fetch(vttUrl)
+        .then((r) => r.text())
+        .then(setVttText)
+        .catch(() => {});
+    }
+  }, [lessonData?.transcription?.vttUrl, vttText]);
 
   const cachedEligibility = chatCache.get<boolean>(
     `assessment_eligible_${lessonId}`,
@@ -1274,6 +1302,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             }
             durationInSec={effectiveDuration}
             slug={lessonData.Chapter?.Course?.slug}
+            seekSignal={seekSignal}
           />
         </div>
 
@@ -1340,6 +1369,15 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-purple-400 rounded-full bg-purple-400/10 hover:bg-purple-400/20 hover:text-purple-300! relative"
+              onClick={() => setIsChatOpen(true)}
+            >
+              <Bot className="size-5" />
+              <span className="absolute -top-1.5 -right-1.5 text-[8px] font-bold bg-background text-primary border border-primary px-1 rounded-sm leading-tight">NEW</span>
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -1449,6 +1487,15 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
             <Button
               variant="ghost"
               size="icon"
+              className="text-purple-400 rounded-full h-10 w-10 bg-purple-400/10 hover:bg-purple-400/20! hover:text-purple-300! shrink-0 relative"
+              onClick={() => setIsChatOpen(true)}
+            >
+              <Bot className="size-5" />
+              <span className="absolute -top-1.5 -right-1.5 text-[8px] font-bold bg-background text-primary border border-primary px-1 rounded-sm leading-tight">NEW</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               className="text-amber-500 rounded-full h-10 w-10 bg-amber-500/10 hover:bg-amber-500/20! hover:text-amber-500! shrink-0"
               onClick={() => setIsSupportOpen(true)}
             >
@@ -1543,6 +1590,13 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         initialTitle=""
         courseName={lessonData.Chapter.Course.title}
         lessonName={lessonData.title}
+      />
+
+      <FloatingChat
+        lessonId={lessonId}
+        vttText={vttText || undefined}
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
       />
     </div>
     </>

@@ -17,6 +17,7 @@ export const env = createEnv({
     AWS_REGION: z.string().min(1),
     S3_BUCKET_NAME: z.string().min(1),
     REDIS_URL: z.string().min(1),
+    GROQ_API_KEY: z.string().min(1),
   },
   client: {
     NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES: z.string().min(1),

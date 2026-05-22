@@ -113,6 +113,10 @@ interface VideoPlayerProps {
   initialMaxTime?: number;
   /** Called when maxWatchedTime increases (for localStorage sync) */
   onRestrictionUpdate?: (maxTime: number) => void;
+  /** External seek signal — seek to this time (seconds) when key changes */
+  seekTo?: number;
+  /** Unique key that changes on each seek request to force re-run */
+  seekKey?: number;
 }
 
 export function VideoPlayer({
@@ -132,6 +136,8 @@ export function VideoPlayer({
   restrictSeeking = false,
   initialMaxTime = 0,
   onRestrictionUpdate,
+  seekTo,
+  seekKey,
 }: VideoPlayerProps) {
   console.log("[DEBUG] VideoPlayer (Custom) render", {
     src: !!src,
@@ -571,6 +577,13 @@ export function VideoPlayer({
       playerRef.current.src(currentSources);
     }
   }, [sources, src, type]);
+
+  // External seek signal
+  useEffect(() => {
+    if (seekTo !== undefined && seekTo >= 0 && playerRef.current) {
+      playerRef.current.currentTime(seekTo);
+    }
+  }, [seekKey]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (containerRef.current) {
