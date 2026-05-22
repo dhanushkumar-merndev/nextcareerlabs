@@ -1,28 +1,100 @@
+/* eslint-disable @next/next/no-img-element */
 /* This component is used to display the public course card */
 
 "use client";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { CrownIcon, School, TimerIcon } from "lucide-react";
+import { CrownIcon, Loader2, School, TimerIcon } from "lucide-react";
 import Link from "next/link";
 import { motion } from "motion/react";
 import { CoursesProps } from "@/lib/types/course";
 import { useSmartSession } from "@/hooks/use-smart-session";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTransition, useState } from "react";
+import { enrollInCourseAction } from "@/app/(users)/courses/[slug]/actions";
+import { tryCatch } from "@/hooks/try-catch";
+import { toast } from "sonner";
+import { chatCache } from "@/lib/chat-cache";
+import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
 
 // PublicCourseCard component
 export function PublicCourseCard({
   data,
   enrollmentStatus = null,
-  isPriority = false,
-}: CoursesProps & { isPriority?: boolean }) {
+}: CoursesProps) {
   const { session } = useSmartSession();
+  const queryClient = useQueryClient();
   const isLoggedIn = !!session?.user?.id;
   const thumbnaiUrl = constructUrl(data.fileKey || "");
+  const [isPending, startTransition] = useTransition();
+  const [localStatus, setLocalStatus] = useState<string | null>(null);
+  const [showPhoneDialog, setShowPhoneDialog] = useState(false);
+
+  const displayStatus = localStatus ?? enrollmentStatus;
+
+  function onEnroll() {
+    if (isPending) return;
+    if (!session?.user?.id) {
+      window.location.assign(`/login?redirect=/courses/${data.slug}`);
+      return;
+    }
+    if (!data.isFree && !session?.user?.phoneNumber) {
+      setShowPhoneDialog(true);
+      return;
+    }
+    doEnroll();
+  }
+
+  function doEnroll() {
+    startTransition(async () => {
+      const { data: result, error } = await tryCatch(
+        enrollInCourseAction(data.id)
+      );
+      if (error) {
+        toast.error("Failed to enroll. Please try again later");
+        return;
+      }
+
+      if (result.status === "success") {
+        toast.success(result.message);
+        setLocalStatus(result.enrollmentStatus ?? "Granted");
+
+        const uid = session.user.id;
+        chatCache.setNeedsSync(uid);
+        chatCache.invalidateUserDashboardData(uid);
+        chatCache.invalidateAllCourseData();
+        chatCache.invalidate(`user_enrolled_courses_${uid}`, uid);
+        chatCache.invalidate(`available_courses_${uid}`, uid);
+        chatCache.invalidate(`course_${data.slug}`, uid);
+        chatCache.invalidate(`course_${data.slug}`, undefined);
+
+        setTimeout(() => {
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey[0] as string;
+              return key === "all_courses" ||
+                key.startsWith("available_courses") ||
+                key === "enrolled_courses" ||
+                key === "user_dashboard" ||
+                key === "chat_sidebar" ||
+                key === "my_courses" ||
+                key === "user_resources" ||
+                key === "user_resources_access";
+            },
+          });
+        }, 50);
+      } else if (result.status === "error") {
+        toast.error(result.message);
+      }
+    });
+  }
+
   return (
-    <Card className="group relative py-0 gap-0 shadow-lg border border-border/50 rounded-lg h-full flex flex-col overflow-hidden">
+    <>
+      <Card className="group relative py-0 gap-0 shadow-lg border border-border/50 rounded-lg h-full flex flex-col overflow-hidden">
       {/* Badge */}
       <Badge className="absolute top-2 right-2 z-10">
         <CrownIcon className="size-2" />
@@ -79,7 +151,7 @@ export function PublicCourseCard({
           ) : null}
         </div>
         <div className="mt-auto pt-4">
-          {enrollmentStatus === "Granted" || data.isFree ? (
+          {displayStatus === "Granted" ? (
             <div className="flex items-center gap-2">
               <Link
                 href={isLoggedIn ? `/dashboard/${data.slug}` : `/login?redirect=/dashboard/${data.slug}`}
@@ -98,32 +170,70 @@ export function PublicCourseCard({
                 Learn More
               </Link>
             </div>
+          ) : !displayStatus ? (
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={onEnroll}
+                disabled={isPending}
+                className="w-1/2"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : data.isFree ? (
+                  "Enroll Now"
+                ) : (
+                  "Request Access"
+                )}
+              </Button>
+
+              <Link
+                href={`/courses/${data.slug}`}
+                className={buttonVariants({
+                  className: "w-1/2",
+                  variant: "outline",
+                })}
+              >
+                Learn More
+              </Link>
+            </div>
           ) : (
             <Link
               href={`/courses/${data.slug}`}
               className={buttonVariants({
                 className: "w-full",
                 variant:
-                  enrollmentStatus === "Pending"
+                  displayStatus === "Pending"
                     ? "secondary"
-                    : enrollmentStatus === "Rejected" ||
-                        enrollmentStatus === "Revoked"
+                    : displayStatus === "Rejected" ||
+                        displayStatus === "Revoked"
                       ? "destructive"
                       : "default",
               })}
             >
-              {enrollmentStatus === "Pending"
+              {displayStatus === "Pending"
                 ? "Pending Approval"
-                : enrollmentStatus === "Rejected"
+                : displayStatus === "Rejected"
                   ? "Request Rejected"
-                  : enrollmentStatus === "Revoked"
+                  : displayStatus === "Revoked"
                     ? "Access Revoked"
                     : "Learn More"}
             </Link>
           )}
         </div>
       </CardContent>
-    </Card>
+      </Card>
+
+      <PhoneNumberDialog
+        isOpen={showPhoneDialog}
+        onSuccess={() => {
+          setShowPhoneDialog(false);
+          doEnroll();
+        }}
+      />
+    </>
   );
 }
 

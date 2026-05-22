@@ -23,14 +23,6 @@ export function CourseSearch() {
 
   // This useEffect is used to update the search value when the URL query param changes
   useEffect(() => {
-    const urlValue = searchParams.get("title") || "";
-    if (urlValue !== value && !isPending) {
-      setValue(urlValue);
-    }
-  }, [searchParams, value, isPending]);
-
-  // This useEffect is used to update the search value when the URL query param changes
-  useEffect(() => {
     const timer = setTimeout(() => {
       const currentTitle = searchParams.get("title") || "";
       if (currentTitle === value) return;

@@ -4,7 +4,7 @@ import { getAllCoursesAction } from "@/app/(users)/courses/actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { PublicCourseCard, PublicCourseCardSkeleton } from "../../../(users)/_components/PublicCourseCard";
-import { useEffect, useState, useRef } from "react";
+import { useEffect } from "react";
 import { useInView } from "react-intersection-observer";
 import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
@@ -22,16 +22,11 @@ export function AvailableCoursesClient() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
-  const [mounted, setMounted] = useState(false);
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.5,
     rootMargin: "0px",
   });
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const cacheKey = `available_courses_${safeUserId || 'guest'}`;
   const cached = chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId);

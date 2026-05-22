@@ -29,7 +29,7 @@ function VerifyRequest() {
   const isOtpCompleted = otp.length === 6;
   // Check if email is valid
   if (!email) {
-    window.location.href = "/login";
+    window.location.assign("/login");
     return null;
   }
   // Verify OTP

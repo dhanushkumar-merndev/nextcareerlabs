@@ -8,7 +8,7 @@
  */
 
 "use client";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
 import { useTransition, useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { Loader2 } from "lucide-react";
 import { chatCache } from "@/lib/chat-cache";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { PhoneNumberDialog } from "@/app/(users)/_components/PhoneNumberDialog";
+import Link from "next/link";
 
 export function EnrollmentButton({
   courseId,
@@ -43,7 +44,7 @@ export function EnrollmentButton({
   function onSubmit() {
     if (isPending || currentStatus === "Pending") return;
     if (!session) {
-      window.location.href = "/login?reason=enroll";
+      window.location.assign("/login?reason=enroll");
       return;
     }
 
@@ -111,6 +112,16 @@ export function EnrollmentButton({
   }
 
   const isActuallyPending = currentStatus === "Pending";
+  if (currentStatus === "Granted") {
+    return (
+      <Link
+        href={session?.user?.id ? `/dashboard/${slug}` : `/login?redirect=/dashboard/${slug}`}
+        className={buttonVariants({ className: "w-full" })}
+      >
+        Watch Course
+      </Link>
+    );
+  }
   return (
     <>
       <Button
@@ -134,6 +145,8 @@ export function EnrollmentButton({
           "Request Rejected"
         ) : currentStatus === "Revoked" ? (
           "Access Revoked"
+        ) : isFree ? (
+          "Enroll Now"
         ) : (
           "Request Access"
         )}

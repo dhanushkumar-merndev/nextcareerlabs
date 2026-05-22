@@ -25,7 +25,7 @@ export function SupportFooterLink() {
   };
 
   // Map enrollments to courses if needed
-  const coursesList = enrolledCourses?.map((e: any) => e.Course) || [];
+  const coursesList = enrolledCourses?.map((e: { Course: { slug: string } }) => e.Course) || [];
 
   return (
     <>

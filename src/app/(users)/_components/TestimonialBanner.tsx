@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 /* This component is used to display the testimonials */
 
 "use client";

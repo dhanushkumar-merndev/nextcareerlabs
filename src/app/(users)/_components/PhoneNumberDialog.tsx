@@ -1,7 +1,7 @@
 /* This component is used to display the phone number dialog */
 
 "use client";
-import { useTransition, useState } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";

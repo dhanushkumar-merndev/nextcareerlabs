@@ -93,7 +93,7 @@ function shuffleArray<T>(array: T[]): T[] {
 interface Question {
   id: string;
   question: string;
-  options: any; // string[]
+  options: string[];
   explanation?: string | null;
   correctIdx?: number;
 }
@@ -366,8 +366,8 @@ export function AssessmentModal({
       } else {
         toast.error(res.message);
       }
-    } catch (error) {
-      toast.error("An unexpected error occurred");
+    } catch {
+      toast.error("An unexpected error occurred" );
     } finally {
       setIsSubmitting(false);
     }

@@ -2,6 +2,8 @@
 import { requireUser } from "../user/require-user";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import {
   getCache,
   setCache,
@@ -148,6 +150,23 @@ export async function getLessonContent(
           grantedAt: new Date(),
         },
       });
+      // Bust caches so enrollment reflects immediately everywhere
+      const { incrementGlobalVersion, invalidateCache, invalidateUserEnrollmentCache } = await import("@/lib/redis");
+      await Promise.all([
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+        invalidateUserEnrollmentCache(session.id),
+        invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(session.id, "latest")),
+      ]);
+      // Set is_enrolled cookie so server-rendered layout sees enrollment immediately
+      const cookieStore = await cookies();
+      cookieStore.set("is_enrolled", "true", {
+        path: "/",
+        maxAge: 30 * 24 * 60 * 60,
+        sameSite: "lax",
+      });
+      revalidatePath("/dashboard", "layout");
+      revalidatePath(`/courses`);
     } else {
       return notFound();
     }

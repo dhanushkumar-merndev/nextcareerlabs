@@ -41,13 +41,13 @@ export async function getSlugPageDataAction(slug: string, clientVersion?: string
     return null;
   }
 
-  if ((result as any).status === "not-modified") {
+  if ("status" in result && result.status === "not-modified") {
     console.log(`[SlugAction] Version match for ${slug}`);
     return { status: "not-modified", version: result.version };
   }
 
-  const course = (result as any).course || ((result as any).id ? result : null);
-  if (!course || !(course as any).id) {
+  const course = "course" in result ? result.course : null;
+  if (!course || !course.id) {
     console.error(`[SlugAction] Could not find course in result for ${slug}`, result);
     return null;
   }
@@ -55,16 +55,16 @@ export async function getSlugPageDataAction(slug: string, clientVersion?: string
   if (course && "id" in course) {
     let enrollmentStatus = null;
     if (finalUserId) {
-      enrollmentStatus = await checkIfCourseBought((course as any).id, finalUserId);
+      enrollmentStatus = await checkIfCourseBought(course.id, finalUserId);
     }
 
     return {
-      course: (result as any).course || result,
+      course: "course" in result ? result.course : result,
       enrollmentStatus,
       isProfileComplete: true,
       requireName: false,
-      version: (result as any).version || (result as any).currentVersion,
-      instantSync: (result as any).instantSync ?? false
+      version: result.version,
+      instantSync: false,
     };
   }
   return null;
@@ -230,7 +230,7 @@ export async function enrollInCourseAction(
         ? "You now have access to this free course. Happy learning!"
         : "Access requested successfully. Please wait for admin approval.",
     };
-  } catch (error) {
+  } catch  {
     return {
       status: "error",
       message: "Failed to Enroll in Course",

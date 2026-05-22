@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import {  GLOBAL_CACHE_KEYS, getGlobalVersion, incrementGlobalVersion } from "@/lib/redis";
+import {  GLOBAL_CACHE_KEYS, getGlobalVersion } from "@/lib/redis";
 import { clearOtherSessionsOnce } from "@/lib/session-cleanup";
 
 

@@ -1,6 +1,7 @@
 export interface ChatSession {
   id: string;
   lessonId: string;
+  userId: string;
   title: string;
   createdAt: number;
   updatedAt: number;
@@ -15,7 +16,7 @@ export interface ChatMessage {
 }
 
 const DB_NAME = "course-chat";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -25,6 +26,13 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains("sessions")) {
         const store = db.createObjectStore("sessions", { keyPath: "id" });
         store.createIndex("lessonId", "lessonId", { unique: false });
+        store.createIndex("userId_lessonId", ["userId", "lessonId"], { unique: false });
+      } else {
+        // Migration from v1 → v2: add userId index
+        const store = req.transaction!.objectStore("sessions");
+        if (!store.indexNames.contains("userId_lessonId")) {
+          store.createIndex("userId_lessonId", ["userId", "lessonId"], { unique: false });
+        }
       }
       if (!db.objectStoreNames.contains("messages")) {
         const store = db.createObjectStore("messages", { keyPath: "id" });
@@ -36,23 +44,24 @@ function openDb(): Promise<IDBDatabase> {
   });
 }
 
-export async function getSessions(lessonId: string): Promise<ChatSession[]> {
+export async function getSessions(lessonId: string, userId: string): Promise<ChatSession[]> {
   const db = await openDb();
   const tx = db.transaction("sessions", "readonly");
   const store = tx.objectStore("sessions");
-  const index = store.index("lessonId");
+  const index = store.index("userId_lessonId");
   return new Promise((resolve, reject) => {
-    const req = index.getAll(lessonId);
+    const req = index.getAll([userId, lessonId]);
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
     tx.oncomplete = () => db.close();
   });
 }
 
-export async function createSession(lessonId: string, title?: string): Promise<ChatSession> {
+export async function createSession(lessonId: string, userId: string, title?: string): Promise<ChatSession> {
   const session: ChatSession = {
     id: crypto.randomUUID(),
     lessonId,
+    userId,
     title: title || `Session ${new Date().toLocaleString()}`,
     createdAt: Date.now(),
     updatedAt: Date.now(),

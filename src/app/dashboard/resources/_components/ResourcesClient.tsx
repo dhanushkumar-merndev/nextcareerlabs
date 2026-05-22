@@ -6,17 +6,12 @@ import { useSmartSession } from "@/hooks/use-smart-session";
 import { ChatLayoutLoader } from "@/components/chat/ChatLayoutLoader";
 import { Card, CardContent } from "@/components/ui/card";
 import { redirect } from "next/navigation";
-import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function ResourcesClient() {
   const { session, isLoading: sessionLoading } = useSmartSession();
   const userId = session?.user.id;
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const isHydrated = typeof window !== "undefined";
 
   const { data: hasAccess, isLoading: checkingAccess } = useQuery({
     queryKey: ["user_resources_access", userId],
@@ -37,6 +32,7 @@ export function ResourcesClient() {
 
         if (result.status === "not-modified") {
           chatCache.touch(cacheKey, userId);
+          chatCache.clearSync(userId);
           return cached?.data ?? false;
         }
 
@@ -48,6 +44,7 @@ export function ResourcesClient() {
             result.version,
             PERMANENT_TTL,
           );
+          chatCache.clearSync(userId);
           return result.hasAccess;
         }
       } catch (e) {
@@ -70,7 +67,7 @@ export function ResourcesClient() {
     refetchOnWindowFocus: true,
   });
 
-  if (!mounted || sessionLoading || checkingAccess) {
+  if (!isHydrated || sessionLoading || checkingAccess) {
     return (
       <Card className="flex-1 min-h-0 border-0 shadow-none bg-transparent">
         <CardContent className="p-0 h-full min-h-0">
@@ -80,7 +77,7 @@ export function ResourcesClient() {
     );
   }
 
-  if (hasAccess === false && !checkingAccess && mounted) {
+  if (hasAccess === false && !checkingAccess && isHydrated) {
     redirect("/dashboard");
   }
 

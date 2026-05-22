@@ -1,7 +1,7 @@
 /* This component is used to display the footer */
 
 import Link from "next/link";
-import { Mail, Youtube, Facebook, Instagram, GraduationCap } from "lucide-react";
+import { Mail, Youtube, Facebook, Instagram } from "lucide-react";
 import { getAllPublishedCourses } from "@/app/data/course/get-course";
 import { SupportFooterLink } from "./SupportFooterLink";
 import { Skeleton } from "@/components/ui/skeleton";

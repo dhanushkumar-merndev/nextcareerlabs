@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 /**
  * SlugPageWrapper Component
  *
@@ -37,6 +38,8 @@ import { getSlugPageDataAction } from "../actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { useState, useEffect, useRef } from "react";
+
+type CourseCacheData = { enrollmentStatus?: string | null; isFree?: boolean; firstLessonId?: string | null }; 
 import { SlugPageSkeleton } from "./SlugPageSkeleton";
 import { useRouter } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -49,24 +52,19 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
   const currentUserId = session?.user?.id;
   const router = useRouter();
   const queryClient = useQueryClient();
-  // ✅ ADD inside SlugPageWrapper component
   const { triggerIfSingleStatusChanged } = usePendingDetection(currentUserId);
-  // Used to avoid hydration mismatch
-  const [mounted, setMounted] = useState(false);
+  const isHydrated = typeof window !== "undefined";
   const hasLogged = useRef<string | null>(null);
 
-  // Mark component as mounted + Persistent Logging
+  // Persistent Logging
   useEffect(() => {
-    setMounted(true);
-
-    // 🔹 PERSISTENT LOGGING (SPA COMPATIBLE)
     const logKey = `${slug}_${currentUserId || "guest"}`;
     if (hasLogged.current !== logKey) {
       const cacheKey = `course_${slug}`;
       let cached = currentUserId
-        ? chatCache.get<any>(cacheKey, currentUserId)
+        ? chatCache.get<{ enrollmentStatus?: string | null; isFree?: boolean; firstLessonId?: string | null }>(cacheKey, currentUserId)
         : null;
-      if (!cached) cached = chatCache.get<any>(cacheKey, undefined);
+      if (!cached) cached = chatCache.get<{ enrollmentStatus?: string | null; isFree?: boolean; firstLessonId?: string | null }>(cacheKey, undefined);
 
       if (cached) {
         console.log(
@@ -84,9 +82,9 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
   const cachedEntry =
     typeof window !== "undefined"
       ? currentUserId
-        ? (chatCache.get<any>(cacheKey, currentUserId) ??
-          chatCache.get<any>(cacheKey, undefined))
-        : chatCache.get<any>(cacheKey, undefined)
+        ? (chatCache.get<CourseCacheData>(cacheKey, currentUserId) ??
+          chatCache.get<CourseCacheData>(cacheKey, undefined))
+        : chatCache.get<CourseCacheData>(cacheKey, undefined)
       : null;
 
   const { data, isLoading } = useQuery({
@@ -101,7 +99,7 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
         currentUserId,
       );
       // Checks if the course data is not modified
-      if (result && (result as any).status === "not-modified" && cachedEntry) {
+      if (result && "status" in result && result.status === "not-modified" && cachedEntry) {
         console.log(
           `%c[SlugPage] Server: NOT_MODIFIED (v${clientVersion})`,
           "color: #eab308; font-weight: bold",
@@ -111,7 +109,7 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
         return cachedEntry.data;
       }
 
-      const isData = result && !(result as any).status;
+      const isData = result && !("status" in result);
       if (isData) {
         console.log(
           `%c[SlugPage] Server: NEW_DATA -> Updating cache`,
@@ -120,7 +118,7 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
 
         if (currentUserId) {
           const oldStatus = cachedEntry?.data?.enrollmentStatus;
-          const newStatus = (result as any).enrollmentStatus;
+          const newStatus = result && "enrollmentStatus" in result ? result.enrollmentStatus : null;
           if (oldStatus === "Pending" && newStatus !== "Pending") {
             chatCache.invalidateUserDashboardData(currentUserId);
 
@@ -150,7 +148,7 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
           cacheKey,
           result,
           currentUserId,
-          (result as any).version,
+          (result && "version" in result ? result.version : undefined),
           PERMANENT_TTL,
         );
         if (currentUserId) chatCache.clearSync(currentUserId);
@@ -159,23 +157,18 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
       return result;
     },
 
-    initialData: () => cachedEntry?.data, // ✅ single read
-    initialDataUpdatedAt: cachedEntry?.timestamp ?? undefined, // ✅ single read
+    initialData: () => cachedEntry?.data,
+    initialDataUpdatedAt: cachedEntry?.timestamp ?? undefined,
 
     staleTime: (() => {
       if (!cachedEntry) return 0;
-      const age = Date.now() - (cachedEntry.timestamp || 0);
       const isPending = cachedEntry.data?.enrollmentStatus === "Pending";
       const needsSync = currentUserId
         ? chatCache.needsSync(currentUserId) ||
           chatCache.hasAnyPending(currentUserId)
         : false;
-      const hasAnyPending = currentUserId
-        ? chatCache.hasAnyPending(currentUserId)
-        : false;
-      if (isPending || hasAnyPending || needsSync) return 0;
-      if (age < 1800000) return 1800000 - age;
-      return 0;
+      if (isPending || needsSync) return 0;
+      return 30 * 60 * 1000;
     })(),
 
     placeholderData: (previousData) => previousData ?? cachedEntry?.data,
@@ -187,12 +180,11 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
   // This allows us to render the page immediately on the client if cache exists,
   // even before hydration completes.
 
-  const rawData = (data as any) || cachedEntry?.data;
-  // Resiliency: Handle new format {course, enrollmentStatus...} or old raw course object
-  const course = rawData?.course || (rawData?.id ? rawData : null);
-  const enrollmentStatus = rawData?.enrollmentStatus || null;
+  const rawData = (data as Record<string, unknown>) || cachedEntry?.data;
+  const course = (rawData?.course ?? (rawData?.id ? rawData : null)) as CourseType | null;
+  const enrollmentStatus = (rawData?.enrollmentStatus as string | null) ?? null;
 
-  if (!mounted || (!course && isLoading)) {
+  if (!isHydrated || (!course && isLoading)) {
     return <SlugPageSkeleton />;
   }
 
@@ -207,6 +199,10 @@ export function SlugPageWrapper({ slug }: { slug: string }) {
   );
 }
 
+type LessonT = { id: string; title: string; position?: number };
+type ChapterT = { id: string; title: string; position?: number; lesson: LessonT[] };
+type CourseType = { id: string; slug: string; title: string; fileKey: string | null; smallDescription?: string; description?: string | null; level?: string; duration?: number; isFree: boolean; freeChaptersCount: number; category?: string; chapter: ChapterT[] };
+
 function SlugPageContent({
   course,
   enrollmentStatus,
@@ -214,10 +210,10 @@ function SlugPageContent({
   router,
   currentUserId,
 }: {
-  course: any;
+  course: CourseType | null;
   enrollmentStatus: string | null;
   slug: string;
-  router: any;
+  router: ReturnType<typeof useRouter>;
   currentUserId?: string;
 }) {
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -241,7 +237,7 @@ function SlugPageContent({
         <div className="relative aspect-video w-full overflow-hidden rounded-xl shadow-lg bg-accent">
           {!imageLoaded && <Skeleton className="absolute inset-0 z-10" />}
           <img
-            src={constructUrl(course.fileKey)}
+            src={constructUrl(course.fileKey ?? '')}
             alt="Thumbnail"
             className={cn(
               "w-full h-full object-cover transition-opacity duration-500",
@@ -303,7 +299,7 @@ function SlugPageContent({
               chapters |{" "}
               <span className="text-primary">
                 {course.chapter.reduce(
-                  (total: number, chapter: any) =>
+                  (total: number, chapter: ChapterT) =>
                     total + chapter.lesson.length,
                   0,
                 ) || 0}
@@ -321,7 +317,7 @@ function SlugPageContent({
           )}
           {/* Course Chapters */}
           <div className="space-y-4">
-            {course.chapter.map((chapter: any, index: number) => (
+            {course.chapter.map((chapter: ChapterT, index: number) => (
               <Collapsible key={chapter.id} defaultOpen={index === 0}>
                 <Card className="p-0 overflow-hidden border-2 transition-all duration-200 hover:shadow-md gap-0">
                   <CollapsibleTrigger className="w-full">
@@ -359,7 +355,7 @@ function SlugPageContent({
                     <div className="border-t bg-muted/20">
                       <div className="p-6 pt-4 space-y-3">
                         {chapter.lesson.map(
-                          (lesson: any, lessonIndex: number) => (
+                          (lesson: LessonT, lessonIndex: number) => (
                             <div
                               key={lesson.id}
                               className="flex items-center gap-4 rounded-lg p-3 hover:bg-accent transition-colors group"
@@ -407,13 +403,13 @@ function SlugPageContent({
                     <FeatureRow
                       icon={<IconChartBar className="size-4" />}
                       title="Level"
-                      value={course.level}
+                      value={course.level ?? ''}
                     />
 
                     <FeatureRow
                       icon={<IconCategory className="size-4" />}
                       title="Category"
-                      value={course.category}
+                      value={course.category ?? ''}
                     />
 
                     <FeatureRow
@@ -426,7 +422,7 @@ function SlugPageContent({
                       icon={<IconBook className="size-4" />}
                       title="Total Lessons"
                       value={`${course.chapter.reduce(
-                        (total: number, chapter: any) =>
+                        (total: number, chapter: ChapterT) =>
                           total + chapter.lesson.length,
                         0,
                       )} Lessons`}
@@ -461,17 +457,17 @@ function SlugPageContent({
                 </div>
                 <div>
                   {/* Enrollment Button */}
-                  {enrollmentStatus === "Granted" || course.isFree ? (
+                  {enrollmentStatus === "Granted" ? (
                     <Link
                       className={buttonVariants({ className: "w-full" })}
                       href={(() => {
                         const firstLesson = course.chapter
                           ?.sort(
-                            (a: any, b: any) =>
+                            (a: ChapterT, b: ChapterT) =>
                               (a.position ?? 0) - (b.position ?? 0),
                           )?.[0]
                           ?.lesson?.sort(
-                            (a: any, b: any) =>
+                            (a: LessonT, b: LessonT) =>
                               (a.position ?? 0) - (b.position ?? 0),
                           )?.[0];
                         if (!currentUserId) {

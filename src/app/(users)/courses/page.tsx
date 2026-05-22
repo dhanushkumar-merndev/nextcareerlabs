@@ -11,8 +11,6 @@
 
 import { CoursesClient } from "./_components/CoursesClient";
 import { CourseSearch } from "./_components/CourseSearch";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
 import { Suspense } from "react";
 import { PublicCourseCardSkeleton } from "../_components/PublicCourseCard";
 
@@ -28,11 +26,6 @@ function CoursesSkeleton() {
 }
 
 export default async function PublicCoursesRoute() {
-  // Get session on server to handle enrollment status on first-paint
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
   return (
     <div className="mt-5 px-4 lg:px-6 md:mb-40">
       {/* Header + Search */}

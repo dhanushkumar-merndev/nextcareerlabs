@@ -5,6 +5,7 @@ import { Bot, X, Send, ChevronDown, Maximize2, Minimize2, Menu, Plus, Trash2, Lo
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 import { getSessions, createSession, getMessages, saveMessages, updateSessionTimestamp, updateSessionTitle, deleteSession } from "@/lib/chat-db";
 import type { ChatSession, ChatMessage as DBChatMessage } from "@/lib/chat-db";
 
@@ -19,10 +20,18 @@ const fmtTime = (t: string) => t.replace(/\.\d+$/, "");
 
 const trimTimestamp = (t: string) => t.replace(/[.,!?:;\s]+$/g, "").trim();
 
-function TimestampBadge({ start, end }: { start: string; end: string }) {
+function TimestampBadge({ start, end, videoDuration, restrictionTime }: { start: string; end: string; videoDuration?: number; restrictionTime?: number }) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     const secs = Math.max(0, toSeconds(start) - 3);
+    if (videoDuration !== undefined && secs > videoDuration) {
+      toast.error("Watch the full video to use this feature");
+      return;
+    }
+    if (restrictionTime !== undefined && secs > restrictionTime) {
+      toast.error("Watch more of the video to use this feature");
+      return;
+    }
     window.dispatchEvent(new CustomEvent("video-seek", { detail: { time: secs } }));
   };
   return (
@@ -36,7 +45,7 @@ function TimestampBadge({ start, end }: { start: string; end: string }) {
   );
 }
 
-function MarkdownWithTimestamps({ content }: { content: string }) {
+function MarkdownWithTimestamps({ content, videoDuration, restrictionTime }: { content: string; videoDuration?: number; restrictionTime?: number }) {
   const segments = useMemo(() => {
     const all: { type: "text" | "badge"; text?: string; start?: string; end?: string }[] = [];
     let last = 0;
@@ -69,7 +78,7 @@ function MarkdownWithTimestamps({ content }: { content: string }) {
     <>
       {segments.map((seg, i) =>
         seg.type === "badge" ? (
-          <TimestampBadge key={i} start={seg.start!} end={seg.end!} />
+          <TimestampBadge key={i} start={seg.start!} end={seg.end!} videoDuration={videoDuration} restrictionTime={restrictionTime} />
         ) : (
           <ReactMarkdown key={i} remarkPlugins={[remarkGfm]} components={{ p: ({ children }) => <>{children}</> }}>
             {seg.text!}
@@ -87,13 +96,16 @@ interface Message {
 
 interface FloatingChatProps {
   lessonId: string;
+  userId: string;
   vttText?: string;
-  remaining?: number;
+  remaining?: string;
   isOpen: boolean;
   onClose: () => void;
+  videoDuration?: number;
+  restrictionTime?: number;
 }
 
-export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: FloatingChatProps) {
+export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onClose, videoDuration, restrictionTime }: FloatingChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -118,14 +130,14 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
 
   // Load sessions
   useEffect(() => {
-    if (!lessonId) return;
-    getSessions(lessonId).then((existing) => {
+    if (!lessonId || !userId) return;
+    getSessions(lessonId, userId).then((existing) => {
       setSessions(existing);
       if (existing.length > 0) {
         setCurrentSessionId(existing[0].id);
       }
     }).finally(() => setIsDbReady(true));
-  }, [lessonId]);
+  }, [lessonId, userId]);
 
   // Load messages when session changes
   const isNewSessionRef = useRef(false);
@@ -155,12 +167,12 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
   }, []);
 
   const handleNewSession = useCallback(async () => {
-    const s = await createSession(lessonId);
+    const s = await createSession(lessonId, userId);
     setSessions((prev) => [s, ...prev]);
     setCurrentSessionId(s.id);
     setShowSessionList(false);
     hasNamed.current = false;
-  }, [lessonId]);
+  }, [lessonId, userId]);
 
   const handleDeleteSession = useCallback(async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
@@ -346,7 +358,7 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
     // Create session on first message
     let sessionId = currentSessionId;
     if (!sessionId) {
-      const s = await createSession(lessonId);
+      const s = await createSession(lessonId, userId);
       isNewSessionRef.current = true;
       setSessions((prev) => [s, ...prev]);
       setCurrentSessionId(s.id);
@@ -401,7 +413,7 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, lessonId, vttText]);
+  }, [input, isLoading, messages, lessonId, userId, vttText]);
 
   // Save messages to IndexedDB when they change
   const lastSavedCount = useRef(0);
@@ -453,6 +465,13 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleNewSession(); }}
+            className="size-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center shrink-0 transition-all active:scale-95"
+            title="New session"
+          >
+            <Plus className="size-3.5 text-white" />
+          </button>
           <div className="relative">
             <button
               onClick={(e) => { e.stopPropagation(); setShowSessionList((v) => !v); }}
@@ -472,13 +491,6 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
                   <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/50">
                     <span className="text-xs font-semibold text-muted-foreground">Sessions</span>
                     <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleNewSession(); }}
-                        className="size-5 rounded-md bg-primary/10 hover:bg-primary/20 flex items-center justify-center transition-all active:scale-90"
-                        title="New session"
-                      >
-                        <Plus className="size-3 text-primary" />
-                      </button>
                       {sessions.length > 0 && (
                       <button
                         onClick={async (e) => { e.stopPropagation(); await Promise.all(sessions.map((s) => deleteSession(s.id))); handleNewSession(); setShowSessionList(false); }}
@@ -490,7 +502,7 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
                       )}
                     </div>
                   </div>
-                  <div className="max-h-48 overflow-y-auto">
+                  <div className="max-h-[176px] overflow-y-auto">
                     {sessions.map((s) => (
                       <div
                         key={s.id}
@@ -576,7 +588,7 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
                   : "bg-muted/60 text-card-foreground rounded-bl-sm border border-border/60 shadow-sm prose prose-sm dark:prose-invert max-w-none prose-strong:text-foreground prose-strong:font-bold",
               )}
             >
-              {msg.role === "user" ? msg.content : <MarkdownWithTimestamps content={msg.content} />}
+              {msg.role === "user" ? msg.content : <MarkdownWithTimestamps content={msg.content} videoDuration={videoDuration} restrictionTime={restrictionTime} />}
               {msg.role === "assistant" && (
                 <button
                   onClick={() => {
@@ -596,7 +608,7 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
         {isLoading && streamingText && (
           <div className="flex justify-start">
             <div className="max-w-[85%] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed bg-card text-card-foreground border border-border/50 shadow-sm prose prose-sm dark:prose-invert max-w-none prose-strong:text-foreground prose-strong:font-bold">
-              <MarkdownWithTimestamps content={streamingText} />
+              <MarkdownWithTimestamps content={streamingText} videoDuration={videoDuration} restrictionTime={restrictionTime} />
               <span className="inline-block w-1.5 h-4 bg-primary ml-0.5 animate-pulse rounded-sm" />
             </div>
           </div>

@@ -15,7 +15,6 @@ import {
   setUserPendingProgress,
   getUserPendingProgress,
   clearUserPendingProgress,
-  redis,
 } from "@/lib/redis";
 import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
 
@@ -322,7 +321,6 @@ export async function updateMultipleVideoProgress(
         restrictionUpdates.map((u) => {
           const currentActual = progressMap.get(u.lessonId) || 0;
           const totalWatchTime = currentActual + u.delta;
-          const maxAllowed = totalWatchTime * 1.5 + 30;
           const validated = Math.min(u.restrictionTime!, totalWatchTime + 60); // More headroom
 
           return prisma.$executeRaw`

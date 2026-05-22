@@ -118,8 +118,8 @@ export default function TermsPage() {
           </h1>
 
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed italic">
-            "Transparency, security, and mutual respect are the foundation of our
-            community guidelines."
+            &quot;Transparency, security, and mutual respect are the foundation of our
+            community guidelines.&quot;
           </p>
         </motion.div>
       </section>

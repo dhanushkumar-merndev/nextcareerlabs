@@ -14,9 +14,9 @@ import {
   PublicCourseCard,
   PublicCourseCardSkeleton,
 } from "../../_components/PublicCourseCard";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useInView } from "react-intersection-observer";
-import { CoursesCacheWithCursor, PublicCourseType } from "@/lib/types/course";
+import { CoursesCacheWithCursor, CoursesServerResult, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
 import { usePendingDetection } from "@/hooks/use-pending-detection";
@@ -28,7 +28,7 @@ type CoursesPage = {
 };
 
 // CoursesClient Component
-export function CoursesClient({ initialData }: { initialData?: any }) {
+export function CoursesClient({ initialData }: { initialData?: CoursesServerResult }) {
   const { session, isLoading: isSessionPending } = useSmartSession();
   const queryClient = useQueryClient();
   const currentUserId = session?.user?.id;
@@ -39,19 +39,17 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   const searchTitle = searchParams.get("title");
 
   // Used to avoid hydration mismatch
-  const [mounted, setMounted] = useState(false);
+  const isHydrated = typeof window !== "undefined";
   const hasLogged = useRef<string | null>(null);
 
   // Normalize userId
   const safeUserId = currentUserId ?? undefined;
 
-  // Mark component as mounted + Persistent Logging (SPA Compatible)
+  // Persistent Logging (SPA Compatible)
   useEffect(() => {
-    setMounted(true);
-
     const logKey = `all_courses_${safeUserId || "guest"}`;
     if (hasLogged.current !== logKey) {
-      const cached = chatCache.get<any>("all_courses", safeUserId);
+      const cached =       chatCache.get<CoursesCacheWithCursor>("all_courses", safeUserId);
       if (cached) {
         console.log(
           `%c[Courses] LOCAL HIT (v${cached.version || cached.data?.version}) from storage`,
@@ -72,7 +70,6 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     "all_courses",
     safeUserId,
   );
-  const coursesInCache = cached?.data?.data ?? [];
 
   // 🔹 DYNAMIC STALE TIME:
   // 30s if: 1. Mutation flag set, OR 2. Any pending enrollment exists in local cache.
@@ -108,7 +105,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       if (searchTitle && cached) {
         const q = searchTitle.toLowerCase();
         const filtered = cached.data.data
-          .filter((c: any) => c.title.toLowerCase().includes(q))
+          .filter((c: PublicCourseType) => c.title.toLowerCase().includes(q))
           .slice(0, 9);
 
         return {
@@ -195,7 +192,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
       }
 
       // NORMAL MODE → cache + cursor support
-      const cached = chatCache.get<any>("all_courses", safeUserId);
+      const cached =       chatCache.get<CoursesCacheWithCursor>("all_courses", safeUserId);
 
       // Send version only for first page
       const clientVersion = pageParam ? undefined : cached?.version;
@@ -269,10 +266,10 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
         if (safeUserId) {
           const oldData = currentCache?.data?.data || [];
           const oldPending = oldData.filter(
-            (c: any) => c.enrollmentStatus === "Pending",
+            (c: PublicCourseType) => c.enrollmentStatus === "Pending",
           );
           const newPending = result.courses.filter(
-            (c: any) => c.enrollmentStatus === "Pending",
+            (c: PublicCourseType) => c.enrollmentStatus === "Pending",
           );
 
           // If pending count dropped, it likely means someone was approved
@@ -325,7 +322,7 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     refetchOnWindowFocus: true,
     // 🔹 OPTIMIZATION: Wait for session to be stable before starting background sync
     // This prevents the "Double Fetch" (Guest then User) on refresh
-    enabled: mounted && !isSessionPending,
+    enabled: !isSessionPending,
   });
 
   // Flatten all pages into a single array
@@ -337,10 +334,10 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
     if (inView && hasNextPage && !isFetchingNextPage && !isLoading) {
       fetchNextPage();
     }
-  }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage]);
+  }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage, isLoading]);
 
   // Initial loading skeleton (only if we have NO courses to show)
-  if ((!mounted && !initialData) || (isLoading && courses.length === 0)) {
+  if ((!isHydrated && !initialData) || (isLoading && courses.length === 0)) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {Array.from({ length: 9 }).map((_, i) => (
@@ -359,12 +356,11 @@ export function CoursesClient({ initialData }: { initialData?: any }) {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {courses.map((course, index) => (
+        {courses.map((course) => (
           <PublicCourseCard
             key={course.id}
             data={course}
             enrollmentStatus={course.enrollmentStatus ?? null}
-            isPriority={index < 6}
           />
         ))}
       </div>

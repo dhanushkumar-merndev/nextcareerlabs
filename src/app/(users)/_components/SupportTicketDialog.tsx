@@ -51,7 +51,7 @@ export function SupportTicketDialog({
   courseName?: string;
   lessonName?: string;
 }) {
-  const [isPending, startTransition] = useTransition();
+  const [isPending,] = useTransition();
   const queryClient = useQueryClient();
   const currentUserId = userId;
   const [courseId, setCourseId] = useState<string>(
@@ -114,17 +114,10 @@ export function SupportTicketDialog({
     summaryPlaceholderMap[courseId] ||
     `Summary of issue regarding ${categoryName}...`;
 
-  useEffect(() => {
-    if (open) {
-      if (initialCategory) setCourseId(initialCategory);
-      if (initialTitle) setTitle(initialTitle);
-    }
-  }, [open, initialCategory, initialTitle]);
   const [limitStatus, setLimitStatus] = useState<{
     limitReached: boolean;
     count: number;
   }>({ limitReached: false, count: 0 });
-  const isLimitChecking = open && limitStatus.count === 0;
   // Check ticket limit when dialog opens
   useEffect(() => {
     let mounted = true;
@@ -269,7 +262,7 @@ export function SupportTicketDialog({
           queryKey: ["user_dashboard", currentUserId],
         });
         chatCache.invalidate(`user_dashboard_${currentUserId}`, currentUserId);
-      } catch (error) {
+      } catch {
         toast.error("Failed to raise ticket. Please try again.");
         queryClient.invalidateQueries({
           queryKey: getSidebarKey(currentUserId!, false),
@@ -291,7 +284,7 @@ export function SupportTicketDialog({
           </DialogTitle>
           {/* Dialog Description */}
           <DialogDescription className="text-center">
-            Having trouble? Describe your issue and we'll help you out.
+            Having trouble? Describe your issue and we&apos;ll help you out.
           </DialogDescription>
           <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-[10px] font-medium text-center">
             Please mention all the required details and information. Cannot be

@@ -2,10 +2,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 
+type EnrolledCacheData = {
+  enrollments: { id: string; courseId: string; status: string; course: { slug: string; title: string; fileKey: string | null; isFree: boolean } }[];
+  version?: string;
+};
+
 export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
   const getCached = () => {
     if (typeof window === "undefined" || !userId) return undefined;
-    const cached = chatCache.get<any>("user_enrolled_courses", userId);
+    const cached = chatCache.get<EnrolledCacheData>("user_enrolled_courses", userId);
     if (cached) {
       console.log(
         `%c[EnrolledCourses] LOCAL HIT (v${cached.version}). Rendering from device storage.`,
@@ -21,13 +26,14 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
       if (!userId) return [];
 
       const cacheKey = "user_enrolled_courses";
-      const cached = chatCache.get<any>(cacheKey, userId);
+      const cached = chatCache.get<EnrolledCacheData>(cacheKey, userId);
       const clientVersion = cached?.version;
 
       try {
         const response = await fetch(
           `/api/user/enrolled-courses${clientVersion ? `?version=${clientVersion}` : ""}`,
         );
+
         if (!response.ok) {
           console.error("[useEnrolledCourses] Response not ok:", response.status, response.statusText);
           throw new Error(`Failed to fetch: ${response.status}`);
@@ -71,7 +77,7 @@ export function useEnrolledCourses(userId?: string, sessionLoading?: boolean) {
     initialData: () => getCached()?.data?.enrollments,
     initialDataUpdatedAt:
       typeof window !== "undefined" && userId
-        ? chatCache.get<any>("user_enrolled_courses", userId)?.timestamp
+        ? chatCache.get<EnrolledCacheData>("user_enrolled_courses", userId)?.timestamp
         : undefined,
     staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins

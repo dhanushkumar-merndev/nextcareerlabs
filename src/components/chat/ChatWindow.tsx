@@ -77,11 +77,11 @@ export function ChatWindow({
   currentUserId,
   onRemoveThread,
   onBack,
-  externalPresence,
+  _externalPresence,
 }: ChatWindowProps) {
   const queryClient = useQueryClient();
   const SIDEBAR_KEY = getSidebarKey(currentUserId, isAdmin);
-  const { session, user } = useSmartSession();
+  const { user } = useSmartSession();
   const [inputText, setInputText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [fileUrl, setFileUrl] = useState("");
@@ -184,7 +184,15 @@ export function ChatWindow({
   const loading = isLoading || (isPending && !data);
 
   const messages = useMemo(
-    () => data?.pages.flatMap((page: any) => page.messages) || [],
+    () => {
+      const flat = data?.pages.flatMap((page: any) => page.messages) || [];
+      const seen = new Set<string>();
+      return flat.filter((msg: any) => {
+        if (seen.has(msg.id)) return false;
+        seen.add(msg.id);
+        return true;
+      });
+    },
     [data?.pages],
   );
   const threadState = useMemo(
@@ -1986,7 +1994,7 @@ export function ChatWindow({
           )}
 
           {/* INPUT */}
-          {true ? (
+          {isAdmin ? (
             <div className="p-4 bg-background border-t shrink-0">
               {imageUrl && (
                 <div className="flex items-center gap-2 mb-2 p-2 bg-muted rounded-lg w-fit">

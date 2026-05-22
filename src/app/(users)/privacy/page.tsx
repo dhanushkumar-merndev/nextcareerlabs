@@ -117,8 +117,8 @@ export default function PrivacyPage() {
           </h1>
 
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed italic">
-            "Your trust is our most valuable asset. We are committed to protecting
-            your personal data with the highest standards of security."
+            &quot;Your trust is our most valuable asset. We are committed to protecting
+            your personal data with the highest standards of security.&quot;
           </p>
         </motion.div>
       </section>
@@ -251,7 +251,7 @@ export default function PrivacyPage() {
               Privacy Concerns?
             </h3>
             <p className="text-muted-foreground">
-              We're here to answer any questions you have about your data.
+              We&apos;re here to answer any questions you have about your data.
             </p>
           </div>
 
