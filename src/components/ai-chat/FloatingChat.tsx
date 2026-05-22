@@ -570,29 +570,25 @@ export function FloatingChat({ lessonId, vttText, remaining, isOpen, onClose }: 
           <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
             <div
               className={cn(
-                "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed transition-shadow",
+                "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed transition-shadow relative group",
                 msg.role === "user"
                   ? "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-br-sm shadow-md shadow-primary/25"
                   : "bg-muted/60 text-card-foreground rounded-bl-sm border border-border/60 shadow-sm prose prose-sm dark:prose-invert max-w-none prose-strong:text-foreground prose-strong:font-bold",
               )}
             >
-              {msg.role === "user" ? (
-                msg.content
-              ) : (
-                <div className="relative group">
-                  <MarkdownWithTimestamps content={msg.content} />
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(msg.content);
-                      setCopiedIdx(i);
-                      setTimeout(() => setCopiedIdx(null), 2000);
-                    }}
-                    className="absolute -bottom-1 -right-1 opacity-0 group-hover:opacity-100 transition-all size-5 rounded bg-muted/80 hover:bg-muted flex items-center justify-center"
-                    title="Copy response"
-                  >
-                    {copiedIdx === i ? <Check className="size-3" /> : <Copy className="size-3" />}
-                  </button>
-                </div>
+              {msg.role === "user" ? msg.content : <MarkdownWithTimestamps content={msg.content} />}
+              {msg.role === "assistant" && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(msg.content);
+                    setCopiedIdx(i);
+                    setTimeout(() => setCopiedIdx(null), 2000);
+                  }}
+                  className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-all size-5 rounded bg-muted/80 hover:bg-muted flex items-center justify-center"
+                  title="Copy response"
+                >
+                  {copiedIdx === i ? <Check className="size-3" /> : <Copy className="size-3" />}
+                </button>
               )}
             </div>
           </div>

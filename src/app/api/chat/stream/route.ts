@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkChatQuota } from "@/lib/chat-limits";
+import { getTranscriptSummaries } from "@/lib/transcript-summary";
 
 const models = [
   groq("meta-llama/llama-4-scout-17b-16e-instruct"),
@@ -56,9 +57,23 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: quota.reason }), { status: 429 });
     }
 
-    let systemPrompt = `You are a helpful course assistant for the course "${lesson.Chapter.Course.title}". You are watching the video and answering based on its transcript provided below.
+    // Generate chunk summaries (not counted against user quota — system overhead)
+    let contextText = "";
+    if (vttText) {
+      const summaries = await getTranscriptSummaries(lessonId, vttText);
+      contextText = summaries.map((s) => s.text).join("\n");
+    }
 
-CRITICAL: You MUST include the timestamp [HH:MM:SS.mmm] for EVERY piece of information you reference. The timestamps are shown like [HH:MM:SS.mmm --> HH:MM:SS.mmm]. Always cite the closest start timestamp. Example: "Vishwanath M. Patel is the moderator [00:01:06]" instead of just stating the fact without a timestamp. Keep responses concise and educational.
+    let systemPrompt = `You are a helpful course assistant for the course "${lesson.Chapter.Course.title}". You are watching a video and answering based on its transcript.
+
+CRITICAL: For EVERY piece of information you reference, you MUST cite the timestamp [HH:MM:SS]. Do NOT put timestamps inline in sentences. Instead, add a "## References" section at the very bottom of your response. Example:
+
+## References
+- Vishwanath M. Patel is the moderator [00:01:06]
+- Naseer Hussain Patel is the trainer, 7 years DevOps experience [00:07:35]
+- Course is 70% practical / 30% theoretical [00:09:20]
+
+Keep responses concise and educational.
 
 When the user asks for a summary or formatted output, follow these rules:
 - Use ## for major sections, ### for subsections
@@ -66,7 +81,6 @@ When the user asks for a summary or formatted output, follow these rules:
 - Use --- horizontal dividers between major sections
 - Merge all speaker/people info into ONE table with columns: Role, Name, Background
 - Never repeat the same person across sections
-- Remove inline timestamps like [00:00:07.280] from sentences in summaries (they break reading flow)
 - Group related points together into meaningful bullets (no single-line shallow bullets)
 - Extract course structure visually (e.g. 70% practical / 30% theory)
 - Bold key numbers, years of experience, and notable achievements
@@ -74,11 +88,8 @@ When the user asks for a summary or formatted output, follow these rules:
 - Remove filler phrases like "the session aims to" or "he explains that"
 - Use markdown tables where appropriate`;
 
-    if (vttText) {
-      const transcriptText = parseVttToText(vttText);
-      if (transcriptText) {
-        systemPrompt += `\n\n=== VIDEO TRANSCRIPT (with timestamps) ===\n${transcriptText.slice(0, 20000)}\n=== END TRANSCRIPT ===`;
-      }
+    if (contextText) {
+      systemPrompt += `\n\n=== TRANSCRIPT SUMMARIES ===\n${contextText}\n=== END SUMMARIES ===`;
     }
 
     const userMessages = messages.filter((m: any) => m.role !== "system");
@@ -116,28 +127,4 @@ When the user asks for a summary or formatted output, follow these rules:
     console.error("Chat API error:", error);
     return new Response(JSON.stringify({ error: "Internal server error" }), { status: 500 });
   }
-}
-
-function parseVttToText(vtt: string): string {
-  const lines = vtt.split("\n");
-  const textLines: string[] = [];
-  let inCue = false;
-  let lastWasTimestamp = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.includes("-->")) {
-      if (!lastWasTimestamp) textLines.push("");
-      textLines.push(`[${trimmed.replace(/\.\d+/g, "")}]`);
-      inCue = true;
-      lastWasTimestamp = true;
-      continue;
-    }
-    if (inCue && trimmed && !trimmed.startsWith("WEBVTT") && !trimmed.startsWith("NOTE")) {
-      textLines.push(trimmed);
-      lastWasTimestamp = false;
-    }
-  }
-
-  return textLines.join("\n").trim();
 }
