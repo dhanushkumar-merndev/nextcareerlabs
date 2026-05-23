@@ -61,6 +61,7 @@ export async function getCourseSidebarData(
       category: true,
       slug: true,
       isFree: true,
+      smallDescription: true,
       chapter: {
         orderBy: {
           position: "asc",

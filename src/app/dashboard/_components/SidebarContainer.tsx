@@ -12,10 +12,7 @@ import {
 } from "@/app/data/course/get-course-sidebar-data";
 import { chatCache } from "@/lib/chat-cache";
 
-type SidebarCourse = Extract<
-  CourseSidebarDataType,
-  { course: NonNullable<unknown> }
->["course"];
+type SidebarCourse = NonNullable<CourseSidebarDataType["course"]>;
 type SidebarCacheData = { course: SidebarCourse };
 // chatCache.get returns: { data: SidebarCacheData, version?: string, timestamp?: number } | null
 
@@ -70,11 +67,11 @@ export function SidebarContainer({
       // ✅ success branch — result has .course and .version
       chatCache.set<SidebarCacheData>(
         cacheKey,
-        { course: result.course },
+        { course: result.course as SidebarCourse },
         userId,
         result.version,
       );
-      return result.course;
+      return result.course as SidebarCourse;
     },
     initialData: cached?.data.course,
     initialDataUpdatedAt: cached?.timestamp,

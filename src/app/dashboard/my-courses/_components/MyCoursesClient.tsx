@@ -45,7 +45,7 @@ export function MyCoursesClient() {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {enrolledCourses.map((e: { Course: CourseSidebarDataType["course"] }) => (
+      {enrolledCourses.map((e: { Course: NonNullable<CourseSidebarDataType["course"]> }) => (
         <CourseProgressCard key={e.Course.id} data={e} />
       ))}
     </div>

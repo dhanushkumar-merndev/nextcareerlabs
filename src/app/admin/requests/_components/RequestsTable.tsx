@@ -503,8 +503,8 @@ export function RequestsTable({
       BATCH_SIZE,
       "All",
       debouncedSearch,
-    ) as CachedEnrollments;
-    const newData = result.data as Request[];
+    ) as { data: Request[]; totalCount: number };
+    const newData = result.data;
 
     setData((prev) => [...prev, ...newData]);
     setHasMore(data.length + newData.length < result.totalCount);

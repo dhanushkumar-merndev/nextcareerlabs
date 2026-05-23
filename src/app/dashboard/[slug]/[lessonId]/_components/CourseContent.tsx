@@ -76,11 +76,11 @@ interface LessonProgressData {
 interface VttCue {
   startTime: number;
   endTime: number;
-  url?: string;
-  x?: number;
-  y?: number;
-  w?: number;
-  h?: number;
+  url: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 }
 
 interface LessonContentData {

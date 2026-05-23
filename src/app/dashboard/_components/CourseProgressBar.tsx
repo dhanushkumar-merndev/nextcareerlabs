@@ -6,7 +6,7 @@ import { useCourseProgress } from "@/hooks/use-course-progress";
 import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { Play } from "lucide-react";
 
-export function CourseProgressBar({ course }: { course: CourseSidebarDataType["course"] }) {
+export function CourseProgressBar({ course }: { course: NonNullable<CourseSidebarDataType["course"]> }) {
   const { completedLessons, totalLessons, progressPercentage } = useCourseProgress({ courseData: course });
 
   return (

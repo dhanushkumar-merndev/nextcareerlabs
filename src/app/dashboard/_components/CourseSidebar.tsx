@@ -23,44 +23,9 @@ import {
 import { secureStorage } from "@/lib/secure-storage";
 import { chatCache } from "@/lib/chat-cache";
 import { useSmartSession } from "@/hooks/use-smart-session";
+import type { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 
-interface LessonProgress {
-  completed: boolean;
-  quizPassed: boolean;
-  lessonId: string;
-  id: string;
-  restrictionTime: number;
-  lastWatched: string;
-}
-
-interface Lesson {
-  id: string;
-  title: string;
-  position: number;
-  description: string;
-  thumbnailKey: string;
-  duration: number;
-  lessonProgress: LessonProgress[];
-}
-
-interface Chapter {
-  id: string;
-  title: string;
-  position: number;
-  lesson: Lesson[];
-}
-
-interface CourseData {
-  id: string;
-  title: string;
-  fileKey: string;
-  duration: number;
-  level: string;
-  category: string;
-  slug: string;
-  isFree: boolean;
-  chapter: Chapter[];
-}
+type CourseData = NonNullable<CourseSidebarDataType["course"]>;
 
 interface iAppProps {
   course: CourseData;

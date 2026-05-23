@@ -14,7 +14,7 @@ import type { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar
 // CourseProgressCard - fix interface
 interface iAppProps {
   data: {
-    Course: CourseSidebarDataType["course"];
+    Course: NonNullable<CourseSidebarDataType["course"]>;
   };
 }
 
@@ -24,6 +24,9 @@ export function CourseProgressCard({ data }: iAppProps) {
 
   const { completedLessons, totalLessons, progressPercentage } =
     useCourseProgress({ courseData: course });
+
+  const firstLessonId =
+    course.chapter?.[0]?.lesson?.[0]?.id ?? null;
 
   return (
     <Card className="group relative py-0 gap-0 hover:shadow-lg transition-all rounded-xl">
@@ -45,8 +48,8 @@ export function CourseProgressCard({ data }: iAppProps) {
         {/* Title */}
         <Link
           href={
-            course.firstLessonId
-              ? `/dashboard/${course.slug}/${course.firstLessonId}`
+            firstLessonId
+              ? `/dashboard/${course.slug}/${firstLessonId}`
               : `/dashboard/${course.slug}`
           }
           className="font-medium text-lg line-clamp-2 hover:underline group-hover:text-primary transition-colors"
@@ -81,8 +84,8 @@ export function CourseProgressCard({ data }: iAppProps) {
         <div className="mt-4 flex items-center gap-2">
           <Link
             href={
-              course.firstLessonId
-                ? `/dashboard/${course.slug}/${course.firstLessonId}`
+              firstLessonId
+                ? `/dashboard/${course.slug}/${firstLessonId}`
                 : `/dashboard/${course.slug}`
             }
             className={buttonVariants({ className: "w-1/2 rounded-lg" })}
