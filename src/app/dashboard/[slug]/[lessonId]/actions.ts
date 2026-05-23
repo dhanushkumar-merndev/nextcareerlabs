@@ -39,23 +39,27 @@ async function flushPendingProgress(userId: string) {
   );
 
   try {
-    // 🛡️ Batch UPSERT using Raw SQL for maximum performance
-    // We process each lesson in the pending set
-    for (const [lessonId, data] of Object.entries(pending)) {
-      const p = data as PendingProgressData;
-      await prisma.$executeRaw`
-        INSERT INTO "LessonProgress" ("id", "userId", "lessonId", "lastWatched", "actualWatchTime", "restrictionTime", "updatedAt", "completed", "quizPassed")
-        VALUES (gen_random_uuid(), ${userId}, ${lessonId}, ${Math.round(p.lastWatched)}, ${Math.round(p.delta)}, ${Math.round(p.restrictionTime)}, NOW(), false, false)
-        ON CONFLICT ("userId", "lessonId")
-        DO UPDATE SET
-          "lastWatched" = EXCLUDED."lastWatched",
-          "actualWatchTime" = "LessonProgress"."actualWatchTime" + EXCLUDED."actualWatchTime",
-          "restrictionTime" = GREATEST("LessonProgress"."restrictionTime", EXCLUDED."restrictionTime"),
-          "updatedAt" = NOW();
-      `;
+    // Batch all upserts into a single multi-VALUES INSERT
+    const entries = Object.entries(pending) as [string, PendingProgressData][];
+    const values: string[] = [];
+    const params: unknown[] = [];
+
+    for (let i = 0; i < entries.length; i++) {
+      const [lessonId, p] = entries[i];
+      const base = i * 5;
+      values.push(
+        `(gen_random_uuid(), $${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, NOW(), false, false)`,
+      );
+      params.push(userId, lessonId, Math.round(p.lastWatched), Math.round(p.delta), Math.round(p.restrictionTime));
     }
 
-    // Clear the pending set after successful DB sync
+    if (values.length > 0) {
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO "LessonProgress" ("id", "userId", "lessonId", "lastWatched", "actualWatchTime", "restrictionTime", "updatedAt", "completed", "quizPassed") VALUES ${values.join(", ")} ON CONFLICT ("userId", "lessonId") DO UPDATE SET "lastWatched" = EXCLUDED."lastWatched", "actualWatchTime" = "LessonProgress"."actualWatchTime" + EXCLUDED."actualWatchTime", "restrictionTime" = GREATEST("LessonProgress"."restrictionTime", EXCLUDED."restrictionTime"), "updatedAt" = NOW()`,
+        ...params,
+      );
+    }
+
     await clearUserPendingProgress(userId, lessonIds);
     console.log(`[Flush] ✅ Sync complete for User=${userId}`);
   } catch (error) {

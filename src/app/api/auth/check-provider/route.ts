@@ -1,33 +1,38 @@
 /**
  * POST /api/auth/provider-check
  *
- * Determines the appropriate authentication provider for a user
- * based on their email address.
- *
- * Logic:
- * - New user → allow Email OTP login
- * - Existing user with Google account → enforce Google login
- * - Existing user without Google → allow Email OTP login
- * - Banned user → block access entirely
+ * Determines the appropriate authentication provider for a user.
+ * Returns a consistent response to prevent email enumeration.
  */
 
 import { prisma } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { checkRateLimit } from "@/lib/redis";
 
 export async function POST(req: Request) {
   try {
-    // Parse request body
     const { email } = await req.json();
 
-    // Validate email input
     if (!email || typeof email !== "string") {
       return NextResponse.json(
         { error: "Email is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Fetch minimal user data (lean query)
+    // Rate limit: 5 checks per IP per minute
+    const rl = await checkRateLimit(
+      `provider-check:ip`,
+      5,
+      60,
+    );
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again shortly." },
+        { status: 429 },
+      );
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
       select: {
@@ -38,34 +43,21 @@ export async function POST(req: Request) {
       },
     });
 
-    // New user → allow email OTP flow
-    if (!user) {
-      return NextResponse.json({ provider: "email" });
+    if (user?.banned) {
+      return NextResponse.json(
+        { error: "Account unavailable" },
+        { status: 403 },
+      );
     }
 
-    // Banned user → block access
-    if (user.banned) {
-      return NextResponse.json({
-        provider: "banned",
-        message:
-          "You have been banned from this application. Please contact support",
-      });
-    }
-
-    // Check if Google provider is linked
-    const hasGoogle = user.accounts.some(
-      acc => acc.providerId === "google"
-    );
-
-    // Decide auth provider
-    return NextResponse.json({
-      provider: hasGoogle ? "google" : "email",
-    });
+    // Always return "email" to prevent enumeration.
+    // If the user has Google, the actual Google login flow
+    // will handle the redirect on the auth page.
+    return NextResponse.json({ provider: "email" });
   } catch {
-    // Fallback error response
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -10,6 +10,7 @@ import {
   GLOBAL_CACHE_KEYS,
   getVersions,
   getUserPendingProgress,
+  withDistributedLock,
 } from "@/lib/redis";
 
 export async function getLessonContent(
@@ -35,143 +36,124 @@ export async function getLessonContent(
 
   // ── Tier 2: Redis ─────────────────────────────────────────────────
   const cacheKey = `user:lesson:${session.id}:${lessonId}:${currentVersion}`;
-  const redisStartTime = Date.now();
   const cached = await getCache<unknown>(cacheKey);
-  console.log(
-    `[Lesson] Redis cache lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
-  );
   if (cached) {
     return { ...cached, version: currentVersion };
   }
 
-  // ── Tier 3: Database ──────────────────────────────────────────────
+  // ── Tier 3: Database (distributed lock prevents stampedes) ─────
   console.log(`[Lesson] 🗄️  DB COMPUTE → lesson:${lessonId}`);
   const dbStart = Date.now();
 
-  // ✅ Parallel: lesson fetch first, then enrollment + MCQs concurrently
-  const lesson = await prisma.lesson.findUnique({
-    where: { id: lessonId },
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      thumbnailKey: true,
-      videoKey: true,
-      position: true,
-      spriteKey: true,
-      spriteCols: true,
-      spriteRows: true,
-      spriteInterval: true,
-      spriteHeight: true,
-      lowResKey: true,
-      duration: true,
-      lessonProgress: {
-        where: { userId: session.id },
-        select: {
-          completed: true,
-          quizPassed: true,
-          lessonId: true,
-          lastWatched: true,
-          actualWatchTime: true,
-          restrictionTime: true,
+  const result = await withDistributedLock(`fetch:${cacheKey}`, async () => {
+    const recheck = await getCache<unknown>(cacheKey);
+    if (recheck) return recheck;
+
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: {
+        id: true, title: true, description: true, thumbnailKey: true,
+        videoKey: true, position: true, spriteKey: true, spriteCols: true,
+        spriteRows: true, spriteInterval: true, spriteHeight: true,
+        lowResKey: true, duration: true,
+        lessonProgress: {
+          where: { userId: session.id },
+          select: {
+            completed: true, quizPassed: true, lessonId: true,
+            lastWatched: true, actualWatchTime: true, restrictionTime: true,
+          },
         },
-      },
-      transcription: {
-        select: { vttUrl: true },
-      },
-      Chapter: {
-        select: {
-          courseId: true,
-          Course: {
-            select: {
-              slug: true,
-              title: true,
-              isFree: true,
-            },
+        transcription: { select: { vttUrl: true } },
+        Chapter: {
+          select: {
+            courseId: true,
+            Course: { select: { slug: true, title: true, isFree: true } },
           },
         },
       },
-    },
-  });
+    });
 
-  if (!lesson) return notFound();
+    if (!lesson) throw new Error("NOT_FOUND");
 
-  const [enrollment, progress] = await Promise.all([
-    prisma.enrollment.findUnique({
-      where: {
-        userId_courseId: {
-          userId: session.id,
-          courseId: lesson.Chapter.courseId,
-        },
-      },
-      select: { status: true },
-    }),
-    prisma.lessonProgress.findUnique({
-      where: { userId_lessonId: { userId: session.id, lessonId } },
-      select: { completed: true, quizPassed: true, restrictionTime: true },
-    }),
-  ]);
-
-  const isQuizPassed = progress?.quizPassed ?? false;
-
-  // ✅ MCQs are now always fetched if enrollment is granted
-  // The client controls when to SHOW them (via canStartAssessment)
-  const questions = await prisma.question.findMany({
-    where: { lessonId },
-    orderBy: { order: "asc" },
-    select: {
-      id: true,
-      question: true,
-      options: true,
-      order: true,
-      ...(isQuizPassed ? { correctIdx: true, explanation: true } : {}),
-    },
-  });
-
-  console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
-
-  if (!enrollment || enrollment.status !== "Granted") {
-    if (lesson.Chapter.Course.isFree) {
-      await prisma.enrollment.upsert({
+    const [enrollment, progress] = await Promise.all([
+      prisma.enrollment.findUnique({
         where: {
           userId_courseId: {
             userId: session.id,
             courseId: lesson.Chapter.courseId,
           },
         },
-        update: { status: "Granted", grantedAt: new Date() },
-        create: {
-          userId: session.id,
-          courseId: lesson.Chapter.courseId,
-          status: "Granted",
-          grantedAt: new Date(),
-        },
-      });
-      // Bust caches so enrollment reflects immediately everywhere
-      const { incrementGlobalVersion, invalidateCache, invalidateUserEnrollmentCache } = await import("@/lib/redis");
-      await Promise.all([
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
-        invalidateUserEnrollmentCache(session.id),
-        invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(session.id, "latest")),
-      ]);
-      // Set is_enrolled cookie so server-rendered layout sees enrollment immediately
-      const cookieStore = await cookies();
-      cookieStore.set("is_enrolled", "true", {
-        path: "/",
-        maxAge: 30 * 24 * 60 * 60,
-        sameSite: "lax",
-      });
-      revalidatePath("/dashboard", "layout");
-      revalidatePath(`/courses`);
-    } else {
-      return notFound();
+        select: { status: true },
+      }),
+      prisma.lessonProgress.findUnique({
+        where: { userId_lessonId: { userId: session.id, lessonId } },
+        select: { completed: true, quizPassed: true, restrictionTime: true },
+      }),
+    ]);
+
+    const isQuizPassed = progress?.quizPassed ?? false;
+    const questions = await prisma.question.findMany({
+      where: { lessonId },
+      orderBy: { order: "asc" },
+      select: {
+        id: true, question: true, options: true, order: true,
+        ...(isQuizPassed ? { correctIdx: true, explanation: true } : {}),
+      },
+    });
+
+    console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
+
+    if (!enrollment || enrollment.status !== "Granted") {
+      if (lesson.Chapter.Course.isFree) {
+        await prisma.enrollment.upsert({
+          where: {
+            userId_courseId: {
+              userId: session.id,
+              courseId: lesson.Chapter.courseId,
+            },
+          },
+          update: { status: "Granted", grantedAt: new Date() },
+          create: {
+            userId: session.id,
+            courseId: lesson.Chapter.courseId,
+            status: "Granted",
+            grantedAt: new Date(),
+          },
+        });
+        const { incrementGlobalVersion, invalidateCache, invalidateUserEnrollmentCache } = await import("@/lib/redis");
+        await Promise.all([
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+          incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+          invalidateUserEnrollmentCache(session.id),
+          invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(session.id, "latest")),
+        ]);
+        const cookieStore = await cookies();
+        cookieStore.set("is_enrolled", "true", {
+          path: "/",
+          maxAge: 30 * 24 * 60 * 60,
+          sameSite: "lax",
+        });
+        revalidatePath("/dashboard", "layout");
+        revalidatePath(`/courses`);
+      } else {
+        throw new Error("NOT_ENROLLED");
+      }
     }
+
+    const cached = { lesson, questions };
+    await setCache(cacheKey, cached, 2592000).catch(console.error);
+    console.log(`[Lesson] 💾 CACHED in Redis (30 days) → lesson:${lessonId}`);
+    return cached;
+  });
+
+  if (!result) {
+    const recheck = await getCache<unknown>(cacheKey);
+    if (recheck) return { ...recheck, version: currentVersion };
+    return notFound();
   }
 
-  const result = { lesson, questions };
 
-  // ── Tier 4: Merge Pending Redis Progress ─────────────────────────
+  // ── Tier 4: Merge Pending Redis Progress (transient, never cached) ──
   const pending = await getUserPendingProgress(session.id);
   const pendingLesson = pending[lessonId];
   if (pendingLesson) {
@@ -184,9 +166,7 @@ export async function getLessonContent(
         result.lesson.lessonProgress[0].restrictionTime,
         pendingLesson.restrictionTime,
       );
-      // Actual watch time is accumulated, but mainly we care about the high-water marks for UI
     } else {
-      // If no progress in DB yet, create a synthetic one
       result.lesson.lessonProgress[0] = {
         completed: false,
         quizPassed: false,
@@ -197,10 +177,6 @@ export async function getLessonContent(
       } as (typeof result.lesson.lessonProgress)[0];
     }
   }
-
-  // ✅ Don't await cache write — let it happen in background
-  setCache(cacheKey, result, 2592000).catch(console.error);
-  console.log(`[Lesson] 💾 CACHED in Redis (30 days) → lesson:${lessonId}`);
 
   return { ...result, version: currentVersion };
 }

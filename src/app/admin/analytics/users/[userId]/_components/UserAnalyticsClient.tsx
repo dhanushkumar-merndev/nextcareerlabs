@@ -267,7 +267,7 @@ export function UserAnalyticsClient({
                 className="block group active:scale-[0.99] transition-all"
               >
                 <Card className="overflow-hidden border-border/40 group-hover:border-primary/40 group-hover:shadow-lg group-hover:bg-primary/5 transition-all duration-300">
-                  <div className="flex flex-col md:flex-row md:items-center gap-6 px-8 py-4">
+                  <div className="flex flex-col md:flex-row md:items-center gap-6 px-6">
                     <div className="w-full md:w-32 aspect-video rounded-lg bg-muted relative overflow-hidden shrink-0 border border-border/20">
                       {c.imageUrl ? (
                         <img

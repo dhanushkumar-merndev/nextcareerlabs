@@ -5,16 +5,23 @@ import { redirect } from "next/navigation";
 import { AuthSession } from "@/lib/types/auth";
 import { cache } from "react";
 import { getCache, setCache } from "@/lib/redis";
+import { createHash } from "crypto";
+
+function extractSessionToken(cookieHeader: string): string | null {
+  const match = cookieHeader.match(
+    /(?:better-auth\.session_token|next-auth\.session-token)=([^;]+)/,
+  );
+  return match ? match[1] : null;
+}
 
 export const requireAdmin = cache(async () => {
   const startTime = Date.now();
   const h = await headers();
 
-  // 🚀 FAST-PATH: Redis Session Cache (Bypass DB/Auth Provider)
-  // We only cache the 'success' state for 2 minutes to keep it secure but snappy.
-  const sessionCookie = h.get("cookie");
-  const cacheKey = sessionCookie
-    ? `fast_session:${Buffer.from(sessionCookie).toString("base64").slice(0, 32)}`
+  const cookieHeader = h.get("cookie");
+  const sessionToken = cookieHeader ? extractSessionToken(cookieHeader) : null;
+  const cacheKey = sessionToken
+    ? `fast_session:${createHash("sha256").update(sessionToken).digest("hex").slice(0, 32)}`
     : null;
 
   if (cacheKey) {
@@ -52,7 +59,6 @@ export const requireAdmin = cache(async () => {
     redirect("/not-admin");
   }
 
-  // Cache successfully verified admin sessions for 120 seconds
   if (cacheKey) {
     await setCache(cacheKey, session, 120);
   }

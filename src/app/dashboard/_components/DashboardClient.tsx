@@ -193,7 +193,7 @@ export function DashboardClient({
           <p className="text-sm text-muted-foreground/60 font-medium">
             Detailed breakdown of learning progress for each course.
           </p>
-        </div>
+        </div>  
 
         {data.coursesProgress?.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-12 rounded-3xl border border-dashed border-border/20 bg-muted/5">
@@ -211,6 +211,7 @@ export function DashboardClient({
             ))}
           </div>
         )}
+        
       </div>
     </div>
   );
