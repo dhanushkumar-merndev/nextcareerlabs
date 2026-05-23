@@ -124,7 +124,7 @@ export function SidebarContainer({
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden min-h-0">
         {/* DESKTOP SIDEBAR */}
-        <div className="hidden min-[1025px]:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-[calc(100vh-7.1rem)] min-h-0">
+        <div className="hidden min-[1025px]:block w-80 shrink-0 bg-background/50 backdrop-blur-sm h-full min-h-0 border-r border-border">
           {showSkeleton ? (
             <div className="absolute inset-0 z-10 p-4 space-y-6 bg-background">
               <Skeleton className="h-6 w-40" />

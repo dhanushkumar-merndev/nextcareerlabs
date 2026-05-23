@@ -1353,7 +1353,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="relative flex flex-col min-[1025px]:flex-row bg-background min-[1025px]:h-full overflow-hidden min-[1025px]:border-l border-border">
+      <div className="relative flex flex-col min-[1025px]:flex-row bg-background min-[1025px]:h-full overflow-hidden">
       <div className="flex-1 flex flex-col min-[1025px]:pl-6 min-[1025px]:overflow-y-auto">
         {/* VIDEO */}
         <div className="order-1 min-[1025px]:order-1 w-full relative">
