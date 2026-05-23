@@ -133,13 +133,13 @@ type StaticAnalyticsData = {
   totalLessons: number;
   totalPdfs: number;
   totalImages: number;
-  enrollmentChartData: unknown[];
-  popularCoursesChartData: unknown[];
+  enrollmentChartData: Array<{ name: string; value: number }>;
+  popularCoursesChartData: Array<{ name: string; value: number }>;
   recentUsers: Array<{ id: string; image?: string; name?: string; email?: string; createdAt: string }>;
 };
 
 type GrowthAnalyticsData = {
-  chartData: unknown[];
+  chartData: Array<{ name: string; value: number }>;
 };
 
   const staticData = staticDataRaw as StaticAnalyticsData | null;

@@ -373,28 +373,29 @@ export function RequestsTable({
             `%c[RequestsTable] SERVER HIT: NOT_MODIFIED. Syncing from device storage.`,
             "color: #eab308; font-weight: bold",
           );
-        } else {
-          console.log(
-            `%c[RequestsTable] SERVER HIT: NEW_DATA. Syncing ${result.data.length} items.`,
-            "color: #eab308; font-weight: bold",
-          );
-          const serverData = Array.isArray(result.data)
-            ? (result.data as Request[])
-            : [];
-          setData(serverData);
-          setTotalCount(result.totalCount);
-          versionRef.current = result.version;
-
-          // Persist to secureStorage
-          secureStorage.setItemTracked(
-            "admin_enrollment_requests",
-            JSON.stringify({ data: serverData, totalCount: result.totalCount }),
-          );
-          secureStorage.setItemTracked(
-            "admin_enrollment_version",
-            result.version,
-          );
+          return;
         }
+
+        console.log(
+          `%c[RequestsTable] SERVER HIT: NEW_DATA. Syncing ${result.data.length} items.`,
+          "color: #eab308; font-weight: bold",
+        );
+        const serverData = Array.isArray(result.data)
+          ? (result.data as Request[])
+          : [];
+        setData(serverData);
+        setTotalCount(result.totalCount);
+        versionRef.current = result.version;
+
+        // Persist to secureStorage
+        secureStorage.setItemTracked(
+          "admin_enrollment_requests",
+          JSON.stringify({ data: serverData, totalCount: result.totalCount }),
+        );
+        secureStorage.setItemTracked(
+          "admin_enrollment_version",
+          result.version,
+        );
         secureStorage.setItemTracked(
           "admin_enrollment_last_sync",
           Date.now().toString(),
@@ -480,6 +481,7 @@ export function RequestsTable({
         "All",
         debouncedSearch,
       );
+      if ("status" in result && result.status === "not-modified") return;
       const searchData = Array.isArray(result.data)
         ? (result.data as Request[])
         : [];
@@ -501,7 +503,7 @@ export function RequestsTable({
       BATCH_SIZE,
       "All",
       debouncedSearch,
-    );
+    ) as CachedEnrollments;
     const newData = result.data as Request[];
 
     setData((prev) => [...prev, ...newData]);

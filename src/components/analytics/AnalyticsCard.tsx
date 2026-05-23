@@ -46,8 +46,8 @@ interface AnalyticsCardProps {
   value: string | number;
   icon:
     | IconName
-    | React.ForwardRefExoticComponent<Record<string, never>>
-    | React.ComponentType<Record<string, never>>;
+    | React.ForwardRefExoticComponent<{ className?: string; size?: number }>
+    | React.ComponentType<{ className?: string; size?: number }>;
   description?: string;
   lastUpdated?: string | Date;
 }
@@ -99,7 +99,6 @@ export function AnalyticsCard({
         <div className="p-2 rounded-md bg-primary/10 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-primary/20">
           {IconComponent && (
             <IconComponent
-              ref={iconRef}
               className="size-6 text-primary"
               size={24}
             />

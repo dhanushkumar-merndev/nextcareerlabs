@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { transcodeToHLS, compressAudio } from "@/lib/client-video-processor";
-import { env } from "@/lib/env";
 import { Loader2 } from "lucide-react";
 import { SpriteGenerator } from "@/lib/video/sprite-generator";
 
@@ -104,7 +103,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     activeXHRs.current.clear();
 
     // 3. Unlock processing flag
-    (window as any).__PROCESSING_VIDEO__ = false;
+    (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
 
     // 4. Reset state to empty
     setFileState(prev => {
@@ -171,7 +170,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         baseKey: value ? (value.startsWith('hls/') ? value.split('/')[1] : value.replace(/\.[^/.]+$/, "")) : null
       }));
     }
-  }, [value]);
+  }, [fileState.key, value]);
 
   // Safety: Prevent closing tab during upload/processing
   useEffect(() => {
@@ -212,7 +211,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           onDurationChange?.(Math.round(duration));
 
           // LOCK: Start Memory-Intensive Phase
-          (window as any).__PROCESSING_VIDEO__ = true;
+          (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = true;
 
           // Combined HLS transcode + audio compression in a single FFmpeg session
           let encryptionMetadata = null;
@@ -264,7 +263,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           setFileState((s) => ({ ...s, spriteGenerating: true, spriteUploadProgress: 0 }));
           toast.info("Generating thumbnails...");
 
-          let spriteResult: any = null;
+          let spriteResult: { combinedBlob: Blob | null; vttBlob: Blob | null; previewLowBlob?: Blob; spriteFileName: string } | null = null;
           try {
             // Dynamic Interval based on duration for premium experience
             let interval = 10;
@@ -334,7 +333,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             uploadRequests.push({
               fileName: spriteResult.spriteFileName,
               contentType: "application/octet-stream",
-              size: spriteResult.combinedBlob.size,
+              size: spriteResult.combinedBlob!.size,
               isImage: false,
               isKeyDirect: true,
               customKey: `sprites/${baseKey}/${spriteResult.spriteFileName}`,
@@ -346,7 +345,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             uploadRequests.push({
               fileName: "thumbnails.vtt",
               contentType: "text/vtt",
-              size: spriteResult.vttBlob.size,
+              size: spriteResult.vttBlob!.size,
               isImage: false,
               isKeyDirect: true,
               customKey: vttKey,
@@ -461,14 +460,14 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           // Sprites
           if (spriteResult) {
             const binaryIdx = currentIndex++;
-            uploadQueue.push(() => uploadFileToS3(binaryIdx, spriteResult.combinedBlob, "application/octet-stream"));
+            uploadQueue.push(() => uploadFileToS3(binaryIdx, spriteResult!.combinedBlob!, "application/octet-stream"));
 
             const vttIdx = currentIndex++;
-            uploadQueue.push(() => uploadFileToS3(vttIdx, spriteResult.vttBlob, "text/vtt"));
+            uploadQueue.push(() => uploadFileToS3(vttIdx, spriteResult!.vttBlob!, "text/vtt"));
 
             if (spriteResult.previewLowBlob) {
               const lowIdx = currentIndex++;
-              uploadQueue.push(() => uploadFileToS3(lowIdx, spriteResult.previewLowBlob, "image/jpeg"));
+              uploadQueue.push(() => uploadFileToS3(lowIdx, spriteResult!.previewLowBlob!, "image/jpeg"));
             }
           }
 
@@ -477,10 +476,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
 
           // Cleanup HLS blobs from memory
           segments.length = 0;
-          if (spriteResult) {
-            spriteResult.combinedBlob = null;
-            spriteResult.vttBlob = null;
-          }
+          spriteResult = null;
 
 
           const finalKey = `${baseKey}.${file.name.split(".").pop()}`;
@@ -512,15 +508,11 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           onChange?.(finalKey);
           toast.success("Video processed and uploaded successfully");
           // UNLOCK: Finished Memory-Intensive Phase
-          (window as any).__PROCESSING_VIDEO__ = false;
+          (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
 
           // Cleanup HLS blobs from memory
           segments.length = 0;
-          if (spriteResult) {
-            spriteResult.combinedBlob = null;
-            spriteResult.vttBlob = null;
-            spriteResult.previewLowBlob = null;
-          }
+          spriteResult = null;
 
         } else {
           // Image Upload (Keep existing flow)
@@ -570,12 +562,12 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             xhr.send(file);
           });
         }
-      } catch (error: any) {
-        console.error("[Uploader] Error during upload process:", error);
+      } catch (error) {
+        const uploadErr = error as Error | null;
         // Don't show error toast if it was a user-initiated cancel
-        if (isCancelled() || error?.message === "Upload cancelled" || error?.name === "AbortError") return;
+        if (isCancelled() || uploadErr?.message === "Upload cancelled" || uploadErr?.name === "AbortError") return;
         toast.error("Something went wrong during upload");
-        (window as any).__PROCESSING_VIDEO__ = false;
+        (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
         setFileState((prevState) => ({
           ...prevState,
           uploading: false,
@@ -587,7 +579,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         }));
       }
     },
-    [onChange, onDurationChange, onSpriteChange, fileTypeAccepted]
+    [fileTypeAccepted, onDurationChange, lessonId, onChange, onSpriteChange, onEncryptionChange]
   );
 
 

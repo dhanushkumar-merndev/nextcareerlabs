@@ -1,12 +1,26 @@
 /* eslint-disable @next/next/no-img-element */
 import { AdminCourseType } from "@/app/data/admin/admin-get-courses";
+import { constructUrl } from "@/hooks/use-construct-url";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
+import { Pencil, Eye, Trash, MoreVertical, TimerIcon, School, ArrowRight } from "lucide-react";
 
 interface iAppProps {
   data: AdminCourseType;
 }
 
 export function AdminCourseCard({ data }: iAppProps) {
-  const thumbnaiUrl = constructUrl(data.fileKey);
+  const thumbnaiUrl = constructUrl(data.fileKey ?? "");
   return (
     <Card className="group relative py-0 gap-0">
       <div className="absolute top-2 left-2 z-10">

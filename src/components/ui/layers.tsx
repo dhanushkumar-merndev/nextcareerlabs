@@ -50,7 +50,7 @@ const LayersIcon = forwardRef<LayersIconHandle, LayersIconProps>(
               if (isMounted.current) {
                 await controls.start("secondState");
               }
-            } catch (e) {
+            } catch {
               // Ignore
             }
           }
@@ -61,7 +61,7 @@ const LayersIcon = forwardRef<LayersIconHandle, LayersIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("normal");
-            } catch (e) {
+            } catch {
               // Ignore
             }
           }

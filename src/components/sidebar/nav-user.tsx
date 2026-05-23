@@ -29,7 +29,6 @@ import { HomeIcon, Tv2 } from "lucide-react";
 import { useSignOut } from "@/hooks/use-signout";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEffect } from "react";
 import { TroubleshootButton } from "@/components/sidebar/troubleshoot-button";
 
 export function NavUser() {
@@ -81,7 +80,7 @@ export function NavUser() {
                       session?.user.email ?? "",
                     )}`
                   }
-                  alt={session?.user.name}
+                  alt={session?.user.name ?? undefined}
                 />
                 <AvatarFallback className="rounded-full">
                   {(session?.user.name?.trim() || session?.user.email)

@@ -58,7 +58,7 @@ const CircleCheckIcon = forwardRef<CircleCheckIconHandle, CircleCheckIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("animate");
-            } catch (e) {
+            } catch {
               // Ignore
             }
           }
@@ -69,7 +69,7 @@ const CircleCheckIcon = forwardRef<CircleCheckIconHandle, CircleCheckIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("normal");
-            } catch (e) {
+            } catch {
               // Ignore
             }
           }

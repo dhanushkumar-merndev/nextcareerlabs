@@ -357,7 +357,7 @@ export async function replyToTicketAction(data: {
 
 // NEW ACTIONS
 
-export async function getThreadsAction(_clientVersion?: string) {
+export async function getThreadsAction() {
   const session = await getSession();
   if (!session)
     return { threads: [], version: "0", enrolledCourses: [], presence: null };
@@ -1066,12 +1066,12 @@ import { S3 } from "@/lib/S3Client";
 import { env } from "@/lib/env";
 import { tigris } from "@/lib/tigris";
 
-async function signMessageAttachments(
-  msg: Record<string, unknown>,
-): Promise<Record<string, unknown>> {
+async function signMessageAttachments<T extends Record<string, unknown>>(
+  msg: T,
+): Promise<T> {
   if (!msg) return msg;
 
-  const signedMsg = { ...msg };
+  const signedMsg = { ...msg } as Record<string, string | null | undefined>;
 
   if (signedMsg.imageUrl && !signedMsg.imageUrl.startsWith("http")) {
     try {
@@ -1101,7 +1101,7 @@ async function signMessageAttachments(
     }
   }
 
-  return signedMsg;
+  return signedMsg as unknown as T;
 }
 
 export async function deleteMessageAction(id: string) {
@@ -1506,7 +1506,7 @@ export async function deleteThreadMessagesAction(threadId: string) {
   return { success: true };
 }
 
-export async function getChatVersionAction(_threadId?: string) {
+export async function getChatVersionAction() {
   const session = await getSession();
   if (!session) return { version: null };
 

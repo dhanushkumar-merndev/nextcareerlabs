@@ -59,7 +59,7 @@ const ClipboardCheckIcon = forwardRef<
         if (isMounted.current) {
           try {
             await controls.start("animate");
-          } catch (e) {
+          } catch {
             // Ignore
           }
         }
@@ -70,7 +70,7 @@ const ClipboardCheckIcon = forwardRef<
         if (isMounted.current) {
           try {
             await controls.start("normal");
-          } catch (e) {
+          } catch {
             // Ignore
           }
         }

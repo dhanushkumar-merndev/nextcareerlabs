@@ -58,7 +58,7 @@ const ChartColumnIncreasingIcon = forwardRef<
             opacity: 1,
             transition: { delay: i * 0.1, duration: 0.3 },
           }));
-        } catch (e) {
+        } catch {
           // Ignore
         }
       },
@@ -68,7 +68,7 @@ const ChartColumnIncreasingIcon = forwardRef<
         if (isMounted.current) {
           try {
             await controls.start("visible");
-          } catch (e) {
+          } catch {
             // Ignore
           }
         }

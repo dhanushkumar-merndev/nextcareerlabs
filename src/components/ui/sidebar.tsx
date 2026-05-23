@@ -105,7 +105,7 @@ function SidebarProvider({
     if (!isMobile && isLessonPage && open) {
       setOpen(false);
     }
-  }, [pathname, isMobile, isLessonPage]);
+  }, [pathname, isMobile, isLessonPage, open, setOpen]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {

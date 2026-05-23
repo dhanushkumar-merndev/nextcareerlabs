@@ -39,7 +39,7 @@ const FILE_TEXT = forwardRef<FileTextIconHandle, FileTextIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("animate");
-            } catch (e) {
+            } catch {
               // Ignore
             }
           }
@@ -50,7 +50,7 @@ const FILE_TEXT = forwardRef<FileTextIconHandle, FileTextIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("normal");
-            } catch (e) {
+            } catch {
               // Ignore
             }
           }

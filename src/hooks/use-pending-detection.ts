@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
 
 interface CourseWithStatus {
-  enrollmentStatus: string | null;
+  enrollmentStatus?: string | null;
 }
 
 export function usePendingDetection(safeUserId: string | undefined) {
@@ -37,7 +37,7 @@ export function usePendingDetection(safeUserId: string | undefined) {
             });
         }
     };
-    const triggerIfSingleStatusChanged = (oldStatus: string | null, newStatus: string | null) => {
+    const triggerIfSingleStatusChanged = (oldStatus: string | null | undefined, newStatus: string | null | undefined) => {
     if (oldStatus === "Pending" && newStatus !== "Pending") {
         triggerIfStatusChanged(
             [{ enrollmentStatus: "Pending" }],

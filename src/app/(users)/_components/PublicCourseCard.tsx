@@ -62,7 +62,7 @@ export function PublicCourseCard({
         toast.success(result.message);
         setLocalStatus(result.enrollmentStatus ?? "Granted");
 
-        const uid = session.user.id;
+        const uid = session!.user.id;
         chatCache.setNeedsSync(uid);
         chatCache.invalidateUserDashboardData(uid);
         chatCache.invalidateAllCourseData();

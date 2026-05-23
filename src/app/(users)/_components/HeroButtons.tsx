@@ -2,18 +2,21 @@
 
 "use client";
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
 export default function HeroButtons() {
     const { session } = useSmartSession();
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []); // eslint-disable-line react-hooks/set-state-in-effect
 
     // Determine the dashboard link based on role
     const dashboardLink = session?.user?.role === "admin" ? "/admin" : "/dashboard";
     const dashboardLabel = session?.user?.role === "admin" ? "Go to Admin Dashboard" : "Go to Dashboard";
 
-    // Show "Get Started" on server + initial client render (avoids hydration mismatch)
-    const showDashboard = !!session;
+    // Always show "Get Started" during SSR to match server HTML
+    const showDashboard = mounted && !!session;
 
     return (
         <div className="flex flex-col items-center gap-4 justify-center max-w-lg mx-auto pt-4 md:flex-row sm:justify-center">

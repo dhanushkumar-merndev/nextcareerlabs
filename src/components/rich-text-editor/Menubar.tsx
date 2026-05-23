@@ -7,7 +7,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Toggle } from "@/components/ui/toggle";
 import {
   AlignCenter,
   AlignLeft,
@@ -23,7 +22,6 @@ import {
   Strikethrough,
   Undo,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
 interface iAppProps {

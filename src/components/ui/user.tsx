@@ -61,7 +61,7 @@ const UserIcon = forwardRef<UserIconHandle, UserIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("animate");
-            } catch (e) {
+            } catch {
               // Ignore
             }
           }
@@ -72,7 +72,7 @@ const UserIcon = forwardRef<UserIconHandle, UserIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("normal");
-            } catch (e) {
+            } catch {
               // Ignore
             }
           }

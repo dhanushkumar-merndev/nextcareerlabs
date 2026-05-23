@@ -27,8 +27,10 @@ interface EnrollmentWithRelations {
 }
 
 interface CachedEnrollments {
+  status?: undefined;
   data: EnrollmentWithRelations[];
   totalCount: number;
+  version: string;
 }
 
 export async function adminGetEnrollmentRequests(
@@ -37,7 +39,7 @@ export async function adminGetEnrollmentRequests(
   status?: EnrollmentStatus | "All",
   search?: string,
   clientVersion?: string,
-) {
+): Promise<CachedEnrollments | { status: "not-modified"; version: string }> {
   await requireAdmin();
 
   const baseWhere: Prisma.EnrollmentWhereInput = {};

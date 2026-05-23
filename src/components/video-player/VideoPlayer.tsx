@@ -22,8 +22,9 @@ import {
 
 // Silence Video.js deprecation warnings for beforeRequest (which we use for surgical URL rewriting)
 if (typeof window !== "undefined") {
-  const originalWarn = (videojs as any).log.warn;
-  (videojs as any).log.warn = (...args: any[]) => {
+  const vjs = videojs as unknown as { log: { warn: (...args: unknown[]) => void } };
+  const originalWarn = vjs.log.warn;
+  vjs.log.warn = (...args: unknown[]) => {
     if (
       typeof args[0] === "string" &&
       args[0].includes("beforeRequest is deprecated")
@@ -34,28 +35,22 @@ if (typeof window !== "undefined") {
 }
 
 if (typeof window !== "undefined") {
-  (videojs as any).Vhs.xhr.beforeRequest = (options: any) => {
-    if (options.uri.includes("/api/video/key/")) {
+  const vjsxhr = videojs as unknown as { Vhs: { xhr: { beforeRequest: (options: Record<string, unknown>) => Record<string, unknown> } } };
+  vjsxhr.Vhs.xhr.beforeRequest = (options) => {
+    if (typeof options.uri === "string" && options.uri.includes("/api/video/key/")) {
       options.withCredentials = true;
-      // Also handle production domain redirect to localhost when in dev
-      const isProductionDomain = options.uri.includes("nextcareerlabs.online") || 
-                                 options.uri.includes("www.nextcareerlabs.online");
       if (
-        options.uri.includes("storage.dev") ||
-        options.uri.includes("amazonaws.com") ||
-        options.uri.includes(env.NEXT_PUBLIC_APP_DOMAIN) ||
-        options.uri.includes("localhost") ||
-        isProductionDomain
+        (options.uri as string).includes("storage.dev") ||
+        (options.uri as string).includes("amazonaws.com") ||
+        (options.uri as string).includes(env.NEXT_PUBLIC_APP_DOMAIN) ||
+        (options.uri as string).includes("localhost")
       ) {
         try {
-          const url = new URL(options.uri);
+          const url = new URL(options.uri as string);
           const newUri = `${window.location.origin}${url.pathname}`;
-          console.log(
-            "VideoPlayer-Global: Redirecting key request to origin:",
-            newUri,
-          );
+          console.log("VideoPlayer-Global: Redirecting key request to origin:", newUri);
           return { ...options, uri: newUri };
-        } catch (e) {
+        } catch {
           return options;
         }
       }
@@ -88,7 +83,7 @@ export interface SpriteMetadata {
   interval: number;
   width: number;
   height: number;
-  initialCues?: any[];
+  initialCues?: Array<{ startTime: number; endTime: number; url: string; x: number; y: number; w: number; h: number }>;
 }
 
 interface VideoPlayerProps {
@@ -129,6 +124,7 @@ export function VideoPlayer({
   spriteMetadata,
   onTimeUpdate,
   onPlay,
+  onPause,
   onEnded,
   onLoadedMetadata,
   captionUrl,
@@ -146,7 +142,7 @@ export function VideoPlayer({
   });
   const videoRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<ReturnType<typeof videojs> | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -232,7 +228,7 @@ export function VideoPlayer({
           vhs: {
             overrideNative: true,
             fastQualityChange: true,
-            beforeRequest: (options: any) => {
+            beforeRequest: (options: { uri: string; withCredentials?: boolean }) => {
               // Fix for relative key URLs in existing manifests:
               // If the request for a key is going to the storage domain, redirect it to our origin.
               if (options.uri.includes("/api/video/key/")) {
@@ -255,8 +251,8 @@ export function VideoPlayer({
                       newUri,
                     );
                     options.uri = newUri;
-                  } catch (e) {
-                    console.error("VideoPlayer: Failed to rewrite key URL", e);
+                  } catch {
+                    console.error("VideoPlayer: Failed to rewrite key URL");
                   }
                 }
               }
@@ -293,6 +289,7 @@ export function VideoPlayer({
       player.on("pause", () => {
         setIsPlaying(false);
         isPlayingRef.current = false;
+        onPause?.();
       });
       player.on("timeupdate", () => {
         // ✅ FIX: Don't sync state from player if the user is currently dragging the slider
@@ -348,7 +345,7 @@ export function VideoPlayer({
       const trackList = player.textTracks();
       const updateCaptionsStatus = () => {
         let found = false;
-        const tracks = trackList as any;
+        const tracks = trackList as unknown as Array<{ kind: string; mode: string; label?: string; id?: string }>;
         for (let i = 0; i < tracks.length; i++) {
           if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
             found = true;
@@ -358,7 +355,7 @@ export function VideoPlayer({
         setHasCaptions(found);
       };
 
-      const onAddTrack = (e: any) => {
+      const onAddTrack = (e: { track: { kind: string; mode: string; label?: string; id?: string } }) => {
         const track = e.track;
         if (
           (track.kind === "captions" || track.kind === "subtitles") &&
@@ -377,7 +374,7 @@ export function VideoPlayer({
       const onTrackChange = () => {
         // Sync UI state if changed elsewhere
         let isAnyShowing = false;
-        const tracks = trackList as any;
+        const tracks = trackList as unknown as Array<{ kind: string; mode: string; label?: string; id?: string }>;
         for (let i = 0; i < tracks.length; i++) {
           if (
             (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") &&
@@ -516,6 +513,7 @@ export function VideoPlayer({
         playerRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Reactive Captions: Handle URL changes or late arrivals without reload
@@ -542,9 +540,9 @@ export function VideoPlayer({
     }
 
     // 1. Remove ONLY our previous sidecar tracks, not manifest ones
-    const tracks = player.textTracks();
+    const tracks = player.textTracks() as unknown as Array<{ kind: string; mode: string; label?: string }>;
     for (let i = tracks.length - 1; i >= 0; i--) {
-      const track = tracks[i] as any;
+      const track = tracks[i];
       if (track.label === "Sidecar-English") {
         player.removeRemoteTextTrack(track);
       }
@@ -564,11 +562,11 @@ export function VideoPlayer({
 
     // Explicitly set mode (double-check for reliability)
     if (captionsEnabled) {
-      track.mode = "showing";
+      (track as unknown as { mode: string }).mode = "showing";
     }
 
     setHasCaptions(true);
-  }, [captionUrl, isPlayerReady]);
+  }, [captionUrl, isPlayerReady, captionsEnabled]);
 
   // Sync sources when they change after initialization
   useEffect(() => {
@@ -581,9 +579,9 @@ export function VideoPlayer({
   // External seek signal
   useEffect(() => {
     if (seekTo !== undefined && seekTo >= 0 && playerRef.current) {
-      playerRef.current.currentTime(seekTo);
+      playerRef.current?.currentTime(seekTo);
     }
-  }, [seekKey]);
+  }, [seekKey, seekTo]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (containerRef.current) {
@@ -617,7 +615,7 @@ export function VideoPlayer({
     setShowCenterControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
 
-    // 1s timeout for mobile, 3s for desktop
+    // 2s timeout for mobile, 1.5s for desktop
     const timeout = window.innerWidth < 768 ? 2000 : 1500;
 
     controlsTimeoutRef.current = setTimeout(() => {
@@ -745,7 +743,7 @@ export function VideoPlayer({
       }
 
       try {
-        playerRef.current.currentTime(time);
+        playerRef.current?.currentTime(time);
         setCurrentTime(time);
       } finally {
         // Small delay before unlocking to prevent the next 'timeupdate'
@@ -779,13 +777,13 @@ export function VideoPlayer({
 
   const handlePlaybackRate = (rate: number) => {
     setPlaybackRate(rate);
-    playerRef.current.playbackRate(rate);
+    playerRef.current?.playbackRate(rate);
   };
 
   const toggleCaptions = (e?: React.MouseEvent | React.TouchEvent) => {
     e?.stopPropagation();
     if (playerRef.current) {
-      const tracks = playerRef.current.textTracks();
+      const tracks = playerRef.current.textTracks() as unknown as Array<{ kind: string; mode: string }>;
       const enabled = !captionsEnabled;
 
       for (let i = 0; i < tracks.length; i++) {
@@ -809,15 +807,10 @@ export function VideoPlayer({
       containerRef.current
         .requestFullscreen()
         .then(() => {
-          // Lock to landscape on mobile
-          if (
-            typeof window !== "undefined" &&
-            (window.screen as any).orientation?.lock
-          ) {
-            (window.screen as any).orientation.lock("landscape").catch(() => {
-              console.log("Orientation lock not supported or failed");
-            });
-          }
+          const orientation = window.screen as unknown as { orientation?: { lock: (s: string) => Promise<void>; unlock: () => void } };
+          orientation.orientation?.lock("landscape").catch(() => {
+            console.log("Orientation lock not supported or failed");
+          });
         })
         .catch((err) => {
           console.error(
@@ -826,13 +819,8 @@ export function VideoPlayer({
         });
     } else {
       document.exitFullscreen();
-      // Unlock orientation
-      if (
-        typeof window !== "undefined" &&
-        (window.screen as any).orientation?.unlock
-      ) {
-        (window.screen as any).orientation.unlock();
-      }
+      const orientation = window.screen as unknown as { orientation?: { lock: (s: string) => Promise<void>; unlock: () => void } };
+      orientation.orientation?.unlock();
     }
   };
 
@@ -875,18 +863,18 @@ export function VideoPlayer({
       const mid = rect.width / 2;
 
       if (x < mid) {
-        const newTime = Math.max(0, playerRef.current.currentTime() - 10);
-        playerRef.current.currentTime(newTime);
+        const newTime = Math.max(0, playerRef.current?.currentTime() ?? 0 - 10);
+        playerRef.current?.currentTime(newTime);
         triggerSeekAnimation("backward", 10);
       } else {
         const forwardJump = Math.min(
-          playerRef.current.duration(),
-          playerRef.current.currentTime() + 10,
+          playerRef.current?.duration() ?? 0,
+          playerRef.current?.currentTime() ?? 0 + 10,
         );
         const finalJump = restrictSeeking && maxWatchedTime > 0
           ? Math.min(forwardJump, maxWatchedTime)
           : forwardJump;
-        playerRef.current.currentTime(finalJump);
+        playerRef.current?.currentTime(finalJump);
         triggerSeekAnimation("forward", 10);
       }
       resetControlsTimeout();
@@ -944,20 +932,12 @@ export function VideoPlayer({
     return { x, time };
   };
 
-  const [vttCues, setVttCues] = useState<any[]>(
+  const [vttCues, setVttCues] = useState<Array<{ startTime: number; endTime: number; url: string; x: number; y: number; w: number; h: number }>>(
     spriteMetadata?.initialCues || [],
   );
 
-  // Sync initial cues if they arrive later
-  useEffect(() => {
-    if (spriteMetadata?.initialCues && spriteMetadata.initialCues.length > 0) {
-      setVttCues(spriteMetadata.initialCues);
-      preloadSpriteImages(spriteMetadata.initialCues, spriteMetadata.url);
-    }
-  }, [spriteMetadata?.initialCues]);
-
   // Preload sprite images/ranges so they're cached by browser
-  const preloadSpriteImages = (cues: any[], vttUrl: string) => {
+  const preloadSpriteImages = useCallback((cues: Array<{ startTime: number; endTime: number; url: string; x: number; y: number; w: number; h: number }>, vttUrl: string) => {
     if (cues.length === 0) return;
 
     // ✅ Preload Low-Res Grid First (Instant Placeholder)
@@ -997,7 +977,15 @@ export function VideoPlayer({
       const img = new Image();
       img.src = url;
     });
-  };
+  }, [spriteMetadata?.lowResUrl]);
+
+  // Sync initial cues if they arrive later
+  useEffect(() => {
+    if (spriteMetadata?.initialCues && spriteMetadata.initialCues.length > 0) {
+      setVttCues(spriteMetadata.initialCues);
+      preloadSpriteImages(spriteMetadata.initialCues, spriteMetadata.url ?? "");
+    }
+  }, [spriteMetadata?.initialCues, spriteMetadata?.url, preloadSpriteImages]);
 
   // Fetch and parse VTT if spriteMetadata.url contains .vtt
   useEffect(() => {
@@ -1029,7 +1017,7 @@ export function VideoPlayer({
         // ✅ Preload sprite images from cache
         preloadSpriteImages(parsedCache, spriteMetadata.url);
         return;
-      } catch (e) {
+      } catch {
         console.warn("VideoPlayer: Cache parse failed, fetching fresh");
       }
     }
@@ -1044,8 +1032,8 @@ export function VideoPlayer({
         console.log("VideoPlayer: VTT Loaded, length:", text.length);
         const lines = text.split("\n");
         // ... (rest of parser)
-        const parsedCues: any[] = [];
-        let currentCue: any = {};
+        const parsedCues: Array<{ startTime: number; endTime: number; url: string; x: number; y: number; w: number; h: number }> = [];
+        let currentCue: Record<string, unknown> = {};
 
         // Simple VTT parser
         lines.forEach((line) => {
@@ -1076,7 +1064,7 @@ export function VideoPlayer({
             currentCue.y = y;
             currentCue.w = w;
             currentCue.h = h;
-            parsedCues.push(currentCue);
+            parsedCues.push(currentCue as unknown as { startTime: number; endTime: number; url: string; x: number; y: number; w: number; h: number });
             currentCue = {};
           }
         });
@@ -1092,7 +1080,7 @@ export function VideoPlayer({
       .catch((err) => {
         console.error("VideoPlayer: Error loading VTT:", err);
       });
-  }, [spriteMetadata?.url]);
+  }, [spriteMetadata?.url, preloadSpriteImages]);
 
   const [rangeCache] = useState<Map<string, string>>(new Map());
   const fullBinaryRef = useRef<Blob | null>(null);
@@ -1487,7 +1475,7 @@ export function VideoPlayer({
             onMouseMove={(e) => {
               handleSeekbarMouseMove(e);
             }}
-            onMouseLeave={(e) => {
+            onMouseLeave={() => {
               setHoverPosition(null);
             }}
             onPointerDown={(e) => {
@@ -1567,7 +1555,7 @@ export function VideoPlayer({
                                     spritePos.backgroundPosition,
                                   backgroundSize: spritePos.backgroundSize,
                                   backgroundRepeat: "no-repeat",
-                                  imageRendering: "crisp-edges" as any,
+                                  imageRendering: "crisp-edges" as React.CSSProperties["imageRendering"],
                                 }}
                               />
                             )}
@@ -1814,9 +1802,9 @@ export function VideoPlayer({
                 if (!playerRef.current) return;
                 const newTime = Math.max(
                   0,
-                  playerRef.current.currentTime() - 10,
+                  playerRef.current?.currentTime() ?? 0 - 10,
                 );
-                playerRef.current.currentTime(newTime);
+                playerRef.current?.currentTime(newTime);
                 triggerSeekAnimation("backward", 10);
                 resetControlsTimeout();
               }}
@@ -1870,13 +1858,13 @@ export function VideoPlayer({
                 e.stopPropagation();
                 if (!playerRef.current) return;
                 const forwardJump = Math.min(
-                  playerRef.current.duration(),
-                  playerRef.current.currentTime() + 10,
+                  playerRef.current?.duration() ?? 0,
+                  playerRef.current?.currentTime() ?? 0 + 10,
                 );
                 const finalJump = restrictSeeking && maxWatchedTime > 0
                   ? Math.min(forwardJump, maxWatchedTime)
                   : forwardJump;
-                playerRef.current.currentTime(finalJump);
+                playerRef.current?.currentTime(finalJump);
                 triggerSeekAnimation("forward", 10);
                 resetControlsTimeout();
               }}

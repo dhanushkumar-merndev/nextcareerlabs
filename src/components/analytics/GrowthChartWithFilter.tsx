@@ -56,8 +56,9 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
 
         startTransition(async () => {
             const result = await getAdminAnalytics(tempDate?.from, tempDate?.to);
-            if (result && (result as Record<string, unknown>).data) {
-                setData((result as Record<string, unknown>).data.chartData);
+            const analyticsResult = result as { data?: { chartData: Array<{ name: string; value: number }> } } | undefined;
+            if (analyticsResult?.data) {
+                setData(analyticsResult.data.chartData);
             }
         });
     };
@@ -67,8 +68,9 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
         setTempDate(undefined);
         startTransition(async () => {
             const result = await getAdminAnalytics();
-            if (result && (result as Record<string, unknown>).data) {
-                setData((result as Record<string, unknown>).data.chartData);
+            const analyticsResult = result as { data?: { chartData: Array<{ name: string; value: number }> } } | undefined;
+            if (analyticsResult?.data) {
+                setData(analyticsResult.data.chartData);
             }
         });
     };

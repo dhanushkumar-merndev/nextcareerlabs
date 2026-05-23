@@ -78,7 +78,6 @@ export function ChatWindow({
   currentUserId,
   onRemoveThread,
   onBack,
-  externalPresence,
 }: ChatWindowProps) {
   const queryClient = useQueryClient();
   const SIDEBAR_KEY = getSidebarKey(currentUserId, isAdmin);
@@ -150,11 +149,10 @@ export function ChatWindow({
         threadId,
         pageParam as string | undefined,
       );
-      // Only cache the first page (latest messages)
       if (!pageParam && result) {
         chatCache.set(`messages_${threadId}`, result, currentUserId);
       }
-      return result;
+      return result as unknown as MessagePage;
     },
     enabled: !!currentUserId,
     initialPageParam: undefined as string | undefined,
@@ -162,10 +160,7 @@ export function ChatWindow({
       if (!currentUserId) return undefined;
       const cached = chatCache.get<MessagesQueryData>(`messages_${threadId}`, currentUserId);
       if (cached) {
-        return {
-          pages: [cached.data],
-          pageParams: [undefined],
-        };
+        return cached.data;
       }
       return undefined;
     },
@@ -220,7 +215,7 @@ interface ThreadData {
   type?: string;
 }
 
-type ThreadsQueryData = { threads: ThreadData[] };
+type SidebarQueryData = { threads: ThreadData[] };
 
 const typedData = data as unknown as MessagesQueryData | undefined;
 const pages = typedData?.pages;
@@ -276,6 +271,7 @@ const threadState = useMemo(
     };
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId, showGroupInfo, currentUserId]);
 
   // Read status is now updated during message fetch in getThreadMessagesAction
@@ -311,7 +307,7 @@ const threadState = useMemo(
       // Very short delay for DOM render, then instant scroll to prevent flicker
       setTimeout(() => scrollToBottom(true), 50);
     }
-  }, [loading, threadId, messages.length]);
+  }, [loading, threadId, messages.length, isFetchingNextPage]);
 
   const scrollToBottom = (instant = false) => {
     if (bottomRef.current) {
@@ -471,7 +467,7 @@ const threadState = useMemo(
           );
 
           if ("error" in result && result.error === "TICKET_LIMIT_REACHED") {
-            const mins = "minutesLeft" in result ? result.minutesLeft : 0;
+            const mins = ("minutesLeft" in result ? result.minutesLeft : 0) as number;
             const hours = Math.floor(mins / 60);
             const remainingMins = mins % 60;
             const timeStr =
@@ -494,10 +490,10 @@ const threadState = useMemo(
               const newPages = [...oldData.pages];
               newPages[0] = {
                 ...newPages[0],
-                messages: newPages[0].messages.map(m =>
+                messages: newPages[0].messages.map((m): ThreadMessage =>
                   m.id === tempId
                     ? {
-                        ...result.notification,
+                        ...(result.notification as unknown as ThreadMessage),
                         status: "sent",
                         sender: {
                           id: currentUserId,
@@ -536,7 +532,7 @@ const threadState = useMemo(
           });
           queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
         }
-      } catch (error) {
+      } catch {
         toast.error("Failed to send message");
         // Revert on catch
         queryClient.setQueryData(
@@ -613,7 +609,7 @@ const threadState = useMemo(
 
       // Reset input value to allow re-uploading same file
       if (e.target) e.target.value = "";
-    } catch (error) {
+    } catch {
       toast.error("Upload failed");
     } finally {
       setIsUploading(false);
@@ -676,7 +672,7 @@ const threadState = useMemo(
 
       // Reset input value to allow re-uploading same file
       if (e.target) e.target.value = "";
-    } catch (error) {
+    } catch {
       toast.error("Upload failed");
     } finally {
       setIsUploading(false);
@@ -707,7 +703,7 @@ const threadState = useMemo(
         body: JSON.stringify({ key }),
         headers: { "Content-Type": "application/json" },
       });
-    } catch (error) {}
+    } catch {}
   };
 
   const handleEditImageUpload = async (
@@ -766,7 +762,7 @@ const threadState = useMemo(
 
       // Reset input value to allow re-uploading same file
       if (e.target) e.target.value = "";
-    } catch (error) {
+    } catch {
       toast.error("Upload failed");
     } finally {
       setIsEditUploading(false);
@@ -833,7 +829,7 @@ const threadState = useMemo(
 
       // Reset input value to allow re-uploading same file
       if (e.target) e.target.value = "";
-    } catch (error) {
+    } catch {
       toast.error("Upload failed");
     } finally {
       setIsEditFileUploading(false);
@@ -938,7 +934,7 @@ const threadState = useMemo(
         queryClient.invalidateQueries({
           queryKey: ["messages", threadId, currentUserId],
         });
-      } catch (e) {
+      } catch {
         toast.error("Failed to submit feedback");
         refetch(); // Revert to server state
       }
@@ -1032,7 +1028,7 @@ const threadState = useMemo(
       });
 
       toast.success("Message updated");
-    } catch (e) {
+    } catch {
       toast.error("Failed to update");
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
@@ -1117,11 +1113,11 @@ const threadState = useMemo(
           },
         }),
       );
-    } catch (e) {
+    } catch {
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
       });
-      toast.error(e instanceof Error ? e.message : "Failed to delete");
+      toast.error("Failed to delete");
     }
   };
 
@@ -1146,7 +1142,7 @@ const threadState = useMemo(
       toast.success(
         res.banned ? "User banned from tickets" : "User access restored",
       );
-    } catch (e) {
+    } catch {
       toast.error("Failed to update ban status");
     } finally {
       setIsBusy(false);
@@ -1202,7 +1198,7 @@ const threadState = useMemo(
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
       });
-    } catch (e) {
+    } catch {
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
       });
@@ -1270,7 +1266,7 @@ const threadState = useMemo(
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
       });
-    } catch (e) {
+    } catch {
       // REVERT ON FAILURE
       setIsArchived(!nextArchived);
       queryClient.invalidateQueries({ queryKey: SIDEBAR_KEY });
@@ -1318,8 +1314,8 @@ const threadState = useMemo(
         queryKey: ["messages", threadId, currentUserId],
       });
       toast.success("Chat deleted successfully");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to remove");
+    } catch {
+      toast.error("Failed to remove");
       // Trigger refresh to bring it back if optimistic failed
       window.dispatchEvent(new Event("chat-refresh"));
     } finally {
@@ -1332,7 +1328,7 @@ const threadState = useMemo(
 
     // 1. Load from LocalStorage instantly
     const cacheKey = `participants_${threadId}`;
-    const cached = chatCache.get<any[]>(cacheKey, currentUserId);
+    const cached = chatCache.get<Array<{ user: { id: string; name: string; email: string; image: string }; role: string }>>(cacheKey, currentUserId);
 
     // Industry Standard: Only refresh if data is older than 30 mins (stale)
     // We store the timestamp in the cache entry itself
@@ -1362,11 +1358,10 @@ const threadState = useMemo(
         console.log(
           `[ChatWindow] Group participants stale or missing. Fetching from Redis...`,
         );
-        const participants = await getGroupParticipantsAction(threadId);
+        const participants = await getGroupParticipantsAction(threadId) as unknown as Array<{ user: { id: string; name: string; email: string; image: string }; role: string }>;
         setGroupParticipants(participants);
 
         // 3. Update LocalStorage with syncTime
-        const cacheData = { data: participants, syncTime: now };
         // We pass undefined for version since we're using syncTime for participants
         chatCache.set(cacheKey, participants, currentUserId, undefined);
 
@@ -1380,7 +1375,7 @@ const threadState = useMemo(
         );
 
         if (!cached) setShowGroupInfo(true);
-      } catch (e) {
+      } catch {
         if (!cached) toast.error("Failed to load group info");
       }
     }
@@ -1568,7 +1563,7 @@ const threadState = useMemo(
               </div>
 
               <div className="space-y-1">
-                {groupParticipants.map((p, i) => (
+                {groupParticipants.map((p) => (
                   <div
                     key={p.user.id}
                     className="flex items-center justify-between p-2 rounded-xl hover:bg-muted/50 transition-colors"
@@ -1757,7 +1752,7 @@ const threadState = useMemo(
                                 className="h-8 w-8 hover:bg-background rounded-full shrink-0"
                                 onClick={() =>
                                   triggerDirectDownload(
-                                    constructUrl(msg.fileUrl),
+                                    constructUrl(msg.fileUrl ?? ""),
                                     msg.fileName || "download",
                                     msg.id,
                                   )
@@ -2321,7 +2316,7 @@ const threadState = useMemo(
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
+    } catch {
       window.open(url, "_blank");
     } finally {
       setDownloadingFileId(null);

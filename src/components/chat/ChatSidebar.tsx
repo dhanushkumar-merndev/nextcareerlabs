@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -68,15 +68,15 @@ export function ChatSidebar({
 
   const queryClient = useQueryClient();
 
-  const refetch = () => {
+  const refetch = useCallback(() => {
     queryClient.invalidateQueries({ 
       queryKey: getSidebarKey(currentUserId, isAdmin) 
     });
-  };
+  }, [queryClient, currentUserId, isAdmin]);
 
   useEffect(() => {
-    const handleThreadUpdate = (e: Event) => {
-      const detail = (e as CustomEvent).detail as {
+    const handleThreadUpdate = (e: CustomEvent) => {
+      const detail = e.detail as {
         threadId?: string;
         archived?: boolean;
         muted?: boolean;
@@ -104,19 +104,15 @@ export function ChatSidebar({
         const index = updatedThreads.findIndex(t => t.threadId === threadId);
 
         if (index !== -1) {
-          // UPDATE EXISTING THREAD
-          updatedThreads[index] = {
-            ...updatedThreads[index],
-            ...(archived !== undefined && { archived }),
-            ...(muted !== undefined && { muted }),
-            ...(hidden !== undefined && { hidden }),
-            ...(lastMessage !== undefined && { lastMessage }),
-            ...(updatedAt !== undefined && { updatedAt }),
-            ...(e.detail.resolved !== undefined && { resolved: e.detail.resolved }),
-          };
-        } else if (e.detail.newThread) {
+          if (archived !== undefined) updatedThreads[index].archived = archived;
+          if (muted !== undefined) updatedThreads[index].muted = muted;
+          if (hidden !== undefined) updatedThreads[index].hidden = hidden;
+          if (lastMessage !== undefined) updatedThreads[index].lastMessage = lastMessage;
+          if (updatedAt !== undefined) updatedThreads[index].updatedAt = updatedAt;
+          if (detail.resolved !== undefined) updatedThreads[index].resolved = detail.resolved;
+        } else if (detail.newThread) {
           // OPTIMISTICALLY ADD NEW THREAD
-          const newThread = e.detail.newThread;
+          const newThread = detail.newThread;
           // Check if already added (race condition)
           if (!updatedThreads.find(t => t.threadId === newThread.threadId)) {
             updatedThreads = [newThread, ...updatedThreads];
@@ -127,19 +123,19 @@ export function ChatSidebar({
           return old;
         }
 
-        return { ...old, threads: updatedThreads.filter(t => !t.hidden) };
+        return { ...(old as Record<string, unknown>), threads: updatedThreads.filter(t => !t.hidden) };
       });
     };
     const handleRefresh = () => {
       // refetch();
     };
     window.addEventListener("chat-refresh", handleRefresh);
-    window.addEventListener("chat-thread-update", handleThreadUpdate);
+    window.addEventListener("chat-thread-update", handleThreadUpdate as EventListener);
     return () => {
       window.removeEventListener("chat-refresh", handleRefresh);
-      window.removeEventListener("chat-thread-update", handleThreadUpdate);
+      window.removeEventListener("chat-thread-update", handleThreadUpdate as EventListener);
     };
-  }, [refetch]);
+  }, [refetch, currentUserId, isAdmin, onSelectThread, queryClient, selectedThreadId]);
 
   // Auto-select thread from URL (only on initial load or explicit URL change)
   const hasAutoSelectedRef = useRef(false);

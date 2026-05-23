@@ -24,10 +24,24 @@ interface ChatLayoutProps {
 }
 
 interface SidebarCachedData {
-  threads: unknown[];
-  enrolledCourses?: unknown[];
-  version?: string | number;
+  threads: ThreadItem[];
+  enrolledCourses?: Array<{ id: string; title: string }>;
+  version?: string;
   presence?: string | null;
+}
+
+interface ThreadItem {
+  threadId: string;
+  display: { name: string; image: string };
+  type: string;
+  lastMessage: string;
+  updatedAt: string;
+  unreadCount: number;
+  isGroup: boolean;
+  archived: boolean;
+  muted: boolean;
+  resolved: boolean;
+  hidden: boolean;
 }
 
 export function ChatLayout({
@@ -92,7 +106,7 @@ export function ChatLayout({
     };
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
-  }, [currentUserId, isAdmin, queryClient]);
+  }, [currentUserId, isAdmin, isAuthLoading, queryClient]);
 
   // Centralized Data Fetch (Threads + Courses + Version)
   const { data: sidebarData, isLoading } = useQuery({
@@ -112,7 +126,7 @@ export function ChatLayout({
         `[Chat] Smart Sync: checking version ${clientVersion || "NULL"}...`,
       );
 
-      const result = await getThreadsAction(clientVersion as string | undefined);
+      const result = await getThreadsAction();
 
       if (result && "status" in result && result.status === "not-modified" && cached) {
         console.log(
@@ -128,7 +142,7 @@ export function ChatLayout({
           "color: #eab308; font-weight: bold",
         );
 
-        const sidebarResult = result as SidebarCachedData & { version: string };
+        const sidebarResult = result as unknown as SidebarCachedData & { version: string };
         const oldCoursesCount =
           (cached?.data as SidebarCachedData | undefined)?.enrolledCourses?.length || 0;
         const newCoursesCount = sidebarResult.enrolledCourses?.length || 0;
@@ -197,14 +211,14 @@ export function ChatLayout({
 
   const sData = sidebarData as SidebarCachedData | undefined;
   const threads = sData?.threads ?? [];
-  const version = sData?.version as string | number | undefined;
+  const version = sData?.version;
 
   // Group initialization is now handled more efficiently inside getThreadsAction
 
   // Version tracking (for potential real-time sync later)
   useEffect(() => {
     if (version !== undefined && version !== null) {
-      lastVersionRef.current = version;
+      lastVersionRef.current = typeof version === "string" ? parseInt(version) : version;
     }
   }, [version]);
 
@@ -233,7 +247,7 @@ export function ChatLayout({
 
   // Custom hook or simple check for mobile
   // For simplicity, using CSS display logic mostly, but state helps for "view" mode
-  const isMobile = false; // We can use a real hook, or better, just render conditionally with CSS
+// We can use a real hook, or better, just render conditionally with CSS
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-background border rounded-xl shadow-sm">
@@ -259,7 +273,7 @@ export function ChatLayout({
           removedIds={removedThreadIds}
           threads={threads}
           loading={isLoading}
-          currentUserId={currentUserId}
+          currentUserId={currentUserId ?? ""}
           isAdmin={isAdmin}
         />
       </div>
@@ -274,10 +288,10 @@ export function ChatLayout({
               key={selectedThread.id}
               threadId={selectedThread.id}
               title={selectedThread.name}
-              avatarUrl={selectedThread.image}
+              avatarUrl={selectedThread.image ?? ""}
               isGroup={selectedThread.type === "Group"}
               isAdmin={isAdmin}
-              currentUserId={currentUserId}
+              currentUserId={currentUserId ?? ""}
               onRemoveThread={handleRemoveThread}
               onBack={() => handleSelectThread(null)}
               externalPresence={(sidebarData as SidebarCachedData | undefined)?.presence ?? null}

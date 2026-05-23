@@ -28,7 +28,7 @@ interface SimpleCardProps {
   title: string;
   value: number | string;
   description: string;
-  icon: React.ForwardRefExoticComponent<Record<string, never>>;
+  icon: React.ForwardRefExoticComponent<{ className?: string; size?: number }>;
 }
 
 export function SectionCards({ stats }: SectionCardsProps) {
@@ -94,7 +94,7 @@ function SimpleStatCard({
 
         {/* Animated Icon Container */}
         <div className="p-2 rounded-md bg-primary/10 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 group-hover:bg-primary/20">
-          <Icon ref={iconRef} className="size-6 text-primary" size={24} />
+          <Icon className="size-6 text-primary" size={24} />
         </div>
       </CardHeader>
 

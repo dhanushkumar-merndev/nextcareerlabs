@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import { CloudUploadIcon, ImageIcon, Loader2, XIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import CircularProgressColorDemo from "@/components/ui/progress-10";
-import { useEffect, useRef } from "react";
 import { VideoPlayer } from "../video-player/VideoPlayer";
 import { constructUrl } from "@/hooks/use-construct-url";
 import {

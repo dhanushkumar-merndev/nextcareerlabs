@@ -38,7 +38,7 @@ const BookTextIcon = forwardRef<BookTextIconHandle, BookTextIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("animate");
-            } catch (e) {
+            } catch {
               // Ignore animation errors that occur during unmount or rapid state changes
             }
           }
@@ -49,7 +49,7 @@ const BookTextIcon = forwardRef<BookTextIconHandle, BookTextIconProps>(
           if (isMounted.current) {
             try {
               await controls.start("normal");
-            } catch (e) {
+            } catch {
               // Ignore animation errors
             }
           }

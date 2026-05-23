@@ -46,7 +46,7 @@ export async function getSlugPageDataAction(slug: string, clientVersion?: string
     return { status: "not-modified", version: result.version };
   }
 
-  const course = "course" in result ? result.course : null;
+  const course = "course" in result ? (result.course as { id: string } | null) : null;
   if (!course || !course.id) {
     console.error(`[SlugAction] Could not find course in result for ${slug}`, result);
     return null;
