@@ -13,6 +13,28 @@ import {
   withDistributedLock,
 } from "@/lib/redis";
 
+interface CachedLessonData {
+  lesson: {
+    id: string; title: string; description: string | null; thumbnailKey: string | null;
+    videoKey: string | null; position: number; spriteKey: string | null; spriteCols: number | null;
+    spriteRows: number | null; spriteInterval: number | null; spriteHeight: number | null;
+    lowResKey: string | null; duration: number | null;
+    lessonProgress: Array<{
+      completed: boolean; quizPassed: boolean; lessonId: string;
+      lastWatched: number; actualWatchTime: number; restrictionTime: number;
+    }>;
+    transcription: { vttUrl: string } | null;
+    Chapter: {
+      courseId: string;
+      Course: { slug: string; title: string; isFree: boolean };
+    };
+  };
+  questions: Array<{
+    id: string; question: string; options: unknown; order: number;
+    correctIdx?: number | null; explanation?: string | null;
+  }>;
+}
+
 export async function getLessonContent(
   lessonId: string,
   clientVersion?: string,
@@ -45,8 +67,8 @@ export async function getLessonContent(
   console.log(`[Lesson] 🗄️  DB COMPUTE → lesson:${lessonId}`);
   const dbStart = Date.now();
 
-  const result = await withDistributedLock(`fetch:${cacheKey}`, async () => {
-    const recheck = await getCache<unknown>(cacheKey);
+  const result = await withDistributedLock<CachedLessonData>(`fetch:${cacheKey}`, async () => {
+    const recheck = await getCache<CachedLessonData>(cacheKey);
     if (recheck) return recheck;
 
     const lesson = await prisma.lesson.findUnique({

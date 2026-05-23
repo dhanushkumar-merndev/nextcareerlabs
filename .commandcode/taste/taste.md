@@ -9,6 +9,8 @@
 
 # typescript
 - Use `NonNullable<>` to strip `null | undefined` from union types when a component prop derives from a data-fetch return type that includes nullable variants, but the component only renders when data is present. Confidence: 0.60
+- Avoid `any` as a type escape hatch — always use proper types even when it requires extracting a specific union member or creating an explicit type alias. Confidence: 0.90
+- When defining cached data interfaces that mirror Prisma query results, match Prisma schema field nullability exactly — if the schema has `String?`, the interface field must be `string | null`. Check all nullable fields, not just the one mentioned in the error. Confidence: 0.70
 
 # react
 - Avoid calling impure functions like `Date.now()` during React render — components must be pure/idempotent. Move impure calls to effects, event handlers, or `useMemo`. Confidence: 0.70

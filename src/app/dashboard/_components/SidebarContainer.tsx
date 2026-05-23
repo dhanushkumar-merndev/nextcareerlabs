@@ -8,11 +8,11 @@ import { useCourseProgress } from "@/hooks/use-course-progress";
 import { useQuery } from "@tanstack/react-query";
 import {
   getCourseSidebarData,
-  CourseSidebarDataType,
+  CourseSidebarCourseData,
 } from "@/app/data/course/get-course-sidebar-data";
 import { chatCache } from "@/lib/chat-cache";
 
-type SidebarCourse = NonNullable<CourseSidebarDataType["course"]>;
+type SidebarCourse = CourseSidebarCourseData;
 type SidebarCacheData = { course: SidebarCourse };
 // chatCache.get returns: { data: SidebarCacheData, version?: string, timestamp?: number } | null
 
@@ -67,11 +67,11 @@ export function SidebarContainer({
       // ✅ success branch — result has .course and .version
       chatCache.set<SidebarCacheData>(
         cacheKey,
-        { course: result.course as SidebarCourse },
+        { course: result.course as unknown as SidebarCourse },
         userId,
         result.version,
       );
-      return result.course as SidebarCourse;
+      return result.course as unknown as SidebarCourse;
     },
     initialData: initialCourseData ?? cached?.data.course,
     staleTime: 1800000,

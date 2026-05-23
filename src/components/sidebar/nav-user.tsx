@@ -30,11 +30,14 @@ import { useSignOut } from "@/hooks/use-signout";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TroubleshootButton } from "@/components/sidebar/troubleshoot-button";
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
+
+const emptySubscribe = () => () => {};
+const getClientSnapshot = () => true;
+const getServerSnapshot = () => false;
 
 export function NavUser() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useSyncExternalStore(emptySubscribe, getClientSnapshot, getServerSnapshot);
   const { isMobile, setOpenMobile } = useSidebar();
   const router = useRouter();
   const handleSignOut = useSignOut();

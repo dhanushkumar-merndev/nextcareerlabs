@@ -1,4 +1,4 @@
-import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
+import { CourseSidebarCourseData } from "@/app/data/course/get-course-sidebar-data";
 import { useEffect, useState } from "react";
 import { secureStorage } from "@/lib/secure-storage";
 import { chatCache } from "@/lib/chat-cache";
@@ -28,7 +28,7 @@ interface ChapterItem {
 export function useCourseProgress({
   courseData,
 }: {
-  courseData?: CourseSidebarDataType["course"] | null;
+  courseData?: CourseSidebarCourseData | null;
 }): CourseProgressResult {
   const { session } = useSmartSession();
   const userId = session?.user.id;

@@ -10,12 +10,11 @@ import { constructUrl } from "@/hooks/use-construct-url";
 import { CrownIcon } from "lucide-react";
 import Link from "next/link";
 import { useCourseProgress } from "@/hooks/use-course-progress";
-import type { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
+import { CourseSidebarCourseData } from "@/app/data/course/get-course-sidebar-data";
 
-// CourseProgressCard - fix interface
 interface iAppProps {
   data: {
-    Course: NonNullable<CourseSidebarDataType["course"]>;
+    Course: CourseSidebarCourseData;
   };
 }
 

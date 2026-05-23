@@ -23,9 +23,9 @@ import {
 import { secureStorage } from "@/lib/secure-storage";
 import { chatCache } from "@/lib/chat-cache";
 import { useSmartSession } from "@/hooks/use-smart-session";
-import type { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
+import { CourseSidebarCourseData } from "@/app/data/course/get-course-sidebar-data";
 
-type CourseData = NonNullable<CourseSidebarDataType["course"]>;
+type CourseData = CourseSidebarCourseData;
 
 interface iAppProps {
   course: CourseData;

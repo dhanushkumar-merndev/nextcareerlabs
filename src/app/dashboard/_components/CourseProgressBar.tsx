@@ -3,10 +3,10 @@
 import { CircularProgress } from "@/components/ui/circular-progress";
 import { Progress } from "@/components/ui/progress";
 import { useCourseProgress } from "@/hooks/use-course-progress";
-import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
+import { CourseSidebarCourseData } from "@/app/data/course/get-course-sidebar-data";
 import { Play } from "lucide-react";
 
-export function CourseProgressBar({ course }: { course: NonNullable<CourseSidebarDataType["course"]> }) {
+export function CourseProgressBar({ course }: { course: CourseSidebarCourseData }) {
   const { completedLessons, totalLessons, progressPercentage } = useCourseProgress({ courseData: course });
 
   return (

@@ -2,7 +2,7 @@
 
 import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 import { CourseProgressCard } from "../../_components/CourseProgressCard";
-import type { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
+import type { CourseSidebarCourseData } from "@/app/data/course/get-course-sidebar-data";
 import { EmptyState } from "@/components/general/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSmartSession } from "@/hooks/use-smart-session";
@@ -45,7 +45,7 @@ export function MyCoursesClient() {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {enrolledCourses.map((e: { Course: NonNullable<CourseSidebarDataType["course"]> }) => (
+      {enrolledCourses.map((e: { Course: CourseSidebarCourseData }) => (
         <CourseProgressCard key={e.Course.id} data={e} />
       ))}
     </div>

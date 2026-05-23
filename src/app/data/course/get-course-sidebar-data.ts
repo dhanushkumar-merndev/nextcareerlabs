@@ -142,3 +142,36 @@ export async function getCourseSidebarData(
 export type CourseSidebarDataType = Awaited<
   ReturnType<typeof getCourseSidebarData>
 >;
+
+export type CourseSidebarCourseData = {
+  id: string;
+  title: string;
+  fileKey: string;
+  duration: number;
+  level: string;
+  category: string;
+  slug: string;
+  isFree: boolean;
+  smallDescription: string;
+  chapter: Array<{
+    title: string;
+    id: string;
+    position: number;
+    lesson: Array<{
+      id: string;
+      title: string;
+      position: number;
+      description: string;
+      thumbnailKey: string;
+      duration: number;
+      lessonProgress: Array<{
+        completed: boolean;
+        quizPassed: boolean;
+        lessonId: string;
+        id: string;
+        restrictionTime: number;
+        lastWatched: number;
+      }>;
+    }>;
+  }>;
+};
