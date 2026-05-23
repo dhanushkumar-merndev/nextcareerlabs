@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +26,7 @@ export function CourseProgressCard({ data }: iAppProps) {
   const { completedLessons, totalLessons, progressPercentage } =
     useCourseProgress({ courseData: course });
 
+  const [imageLoaded, setImageLoaded] = useState(false);
   const firstLessonId =
     course.chapter?.[0]?.lesson?.[0]?.id ?? null;
 
@@ -37,12 +39,19 @@ export function CourseProgressCard({ data }: iAppProps) {
       </Badge>
 
       {/* Thumbnail */}
-      <img
-        src={thumbnailUrl}
-        alt={course.title}
-        className="w-full aspect-video h-full object-cover rounded-t-xl"
-        crossOrigin="anonymous"
-      />
+      <div className="relative w-full aspect-video">
+        {!imageLoaded && (
+          <Skeleton className="absolute inset-0 rounded-t-xl" />
+        )}
+        <img
+          src={thumbnailUrl}
+          alt={course.title}
+          className="w-full h-full object-cover rounded-t-xl"
+          crossOrigin="anonymous"
+          onLoad={() => setImageLoaded(true)}
+          style={{ opacity: imageLoaded ? 1 : 0 }}
+        />
+      </div>
 
       <CardContent className="p-4 space-y-3">
         {/* Title */}

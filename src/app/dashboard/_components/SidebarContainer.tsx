@@ -73,8 +73,7 @@ export function SidebarContainer({
       );
       return result.course as SidebarCourse;
     },
-    initialData: cached?.data.course,
-    initialDataUpdatedAt: cached?.timestamp,
+    initialData: initialCourseData ?? cached?.data.course,
     staleTime: 1800000,
     refetchOnWindowFocus: false,
     refetchOnMount: true, // ✅ Trigger version check in background if stale
@@ -82,7 +81,6 @@ export function SidebarContainer({
   });
 
   /* ---------------- Local State ---------------- */
-  const [mounted] = useState(() => typeof window !== "undefined");
   const [open] = useState(false);
   const { setProgressPercentage, setShowProgress, setCourseTitle } =
     useCourseProgressContext();
@@ -119,7 +117,7 @@ export function SidebarContainer({
     };
   }, [open]);
 
-  const showSkeleton = (!course && !isError) || !mounted;
+  const showSkeleton = (!course && !isError);
 
   /* ---------------- Render ---------------- */
   return (

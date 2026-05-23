@@ -39,20 +39,15 @@ if (typeof window !== "undefined") {
   vjsxhr.Vhs.xhr.beforeRequest = (options) => {
     if (typeof options.uri === "string" && options.uri.includes("/api/video/key/")) {
       options.withCredentials = true;
-      if (
-        (options.uri as string).includes("storage.dev") ||
-        (options.uri as string).includes("amazonaws.com") ||
-        (options.uri as string).includes(env.NEXT_PUBLIC_APP_DOMAIN) ||
-        (options.uri as string).includes("localhost")
-      ) {
-        try {
-          const url = new URL(options.uri as string);
+      try {
+        const url = new URL(options.uri as string);
+        if (url.origin !== window.location.origin) {
           const newUri = `${window.location.origin}${url.pathname}`;
           console.log("VideoPlayer-Global: Redirecting key request to origin:", newUri);
           return { ...options, uri: newUri };
-        } catch {
-          return options;
         }
+      } catch {
+        return options;
       }
     }
     return options;

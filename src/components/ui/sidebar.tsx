@@ -100,12 +100,17 @@ function SidebarProvider({
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
   }, [isMobile, setOpen, setOpenMobile]);
 
+  const openRef = React.useRef(open);
+  React.useEffect(() => {
+    openRef.current = open;
+  });
+
   // Handle auto-collapse on desktop for lesson pages
   React.useEffect(() => {
-    if (!isMobile && isLessonPage && open) {
+    if (!isMobile && isLessonPage && openRef.current) {
       setOpen(false);
     }
-  }, [pathname, isMobile, isLessonPage, open, setOpen]);
+  }, [pathname, isMobile, isLessonPage, setOpen]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {

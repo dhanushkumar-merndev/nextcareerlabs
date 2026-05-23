@@ -14,7 +14,7 @@ export function SiteHeaderWrapper() {
         {/* LEFT SIDE — Sidebar Trigger + Title */}
         <div className="flex items-center gap-1.5 lg:gap-2">
 
-          <SidebarTrigger />
+          <SidebarTrigger onClick={() => { if (document.fullscreenElement) document.exitFullscreen(); }} />
           <Separator
             orientation="vertical"
             className="mx-2 data-[orientation=vertical]:h-4"

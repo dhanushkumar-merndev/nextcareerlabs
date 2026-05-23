@@ -31,9 +31,7 @@ export function DashboardGreeting({ userName }: DashboardGreetingProps) {
     return "Good evening";
   });
 
-  const [currentIndex, setCurrentIndex] = useState(() =>
-    Math.floor(Math.random() * MOTIVATIONAL_PHRASES.length),
-  );
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
     const interval = setInterval(() => {

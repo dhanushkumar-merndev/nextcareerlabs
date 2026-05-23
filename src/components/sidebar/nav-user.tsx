@@ -30,8 +30,11 @@ import { useSignOut } from "@/hooks/use-signout";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TroubleshootButton } from "@/components/sidebar/troubleshoot-button";
+import { useState, useEffect } from "react";
 
 export function NavUser() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const { isMobile, setOpenMobile } = useSidebar();
   const router = useRouter();
   const handleSignOut = useSignOut();
@@ -45,7 +48,7 @@ export function NavUser() {
 
   const { session, isLoading: isPending } = useSmartSession();
 
-  if (isPending) {
+  if (!mounted || isPending) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>

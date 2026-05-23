@@ -6,8 +6,7 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { HorizontalCourseCard } from "../_components/HorizontalCourseCard";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSmartSession } from "@/hooks/use-smart-session";
-import { useState, useRef } from "react";
+import { Card, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 
 interface LessonProgress {
   id: string;
@@ -39,28 +38,28 @@ interface DashboardData {
   coursesProgress: CourseProgress[];
 }
 
-export function DashboardClient() {
-  const { session, isLoading: sessionLoading } = useSmartSession();
-  const userId = session?.user.id;
-
-  const [mounted] = useState(() => typeof window !== "undefined");
-  const hasLogged = useRef(false);
-
+export function DashboardClient({
+  initialData: ssrData,
+  initialVersion,
+  userId,
+}: {
+  initialData?: DashboardData | null;
+  initialVersion?: string | null;
+  userId: string;
+}) {
   const { data, isLoading } = useQuery({
     queryKey: ["user_dashboard", userId],
     queryFn: async () => {
       if (!userId) return null;
       const cacheKey = "user_dashboard";
       const cached = chatCache.get<DashboardData>(cacheKey, userId);
-      const clientVersion = cached?.version;
+      const clientVersion = cached?.version || initialVersion;
 
       console.log(
         `[Dashboard] Smart Sync: Checking version (v${clientVersion || "None"})...`,
       );
-      const result = await getUserDashboardData(clientVersion);
+      const result = await getUserDashboardData(clientVersion ?? undefined);
 
-      // 1. Version Match -> Return cached data
-      // Server says cache is still valid
       if (result && "status" in result && result.status === "not-modified") {
         console.log(
           `%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`,
@@ -68,10 +67,9 @@ export function DashboardClient() {
         );
         chatCache.touch(cacheKey, userId);
         if (userId) chatCache.clearSync(userId);
-        return cached?.data || null; // Ensure we return cached data if available, or null
+        return cached?.data || ssrData || null;
       }
 
-      // 2. Fresh Data -> Update Local Cache (Permanent TTL)
       if (result && result.data) {
         console.log(
           `%c[Dashboard] SERVER HIT: NEW_DATA. Updating Local Cache (v${result.version}).`,
@@ -88,50 +86,40 @@ export function DashboardClient() {
         return result.data;
       }
 
-      return cached?.data || null;
+      return cached?.data || ssrData || null;
     },
-    initialData: () => {
-      if (typeof window === "undefined" || !userId) return undefined;
-      const cached = chatCache.get<DashboardData>("user_dashboard", userId);
-      if (cached && !hasLogged.current) {
-        console.log(
-          `%c[Dashboard] LOCAL HIT (v${cached.version}). Rendering from device storage.`,
-          "color: #eab308; font-weight: bold",
-        );
-        hasLogged.current = true;
-      }
-      return cached?.data;
-    },
-    initialDataUpdatedAt:
-      typeof window !== "undefined" && userId
-        ? chatCache.get<DashboardData>("user_dashboard", userId)?.timestamp
-        : undefined,
-    staleTime: 1800000, // 30 mins
-    refetchInterval: 1800000, // 30 mins
+    initialData: ssrData ?? undefined,
+    staleTime: 1800000,
+    refetchInterval: 1800000,
     refetchOnWindowFocus: true,
   });
 
-  if (!mounted || sessionLoading || (isLoading && !data)) {
+  if (isLoading && !data) {
     return (
       <div className="flex-1 space-y-4">
-        {/* Top Stats Skeletons */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           {[...Array(4)].map((_, i) => (
-            <div
-              key={i}
-              className="bg-card border border-border/10 rounded-3xl p-6 space-y-3"
-            >
-              <div className="flex items-center justify-between">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-4 rounded-full" />
-              </div>
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-3 w-32" />
-            </div>
+            <Card key={i} className="group rounded-xl border bg-card transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-default py-4 gap-2">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardDescription className="text-sm font-medium">
+                    <Skeleton className="h-4 w-24" />
+                  </CardDescription>
+                  <CardTitle className="text-3xl font-semibold tabular-nums mt-1">
+                    <Skeleton className="h-8 w-16" />
+                  </CardTitle>
+                </div>
+                <div className="p-2 rounded-md bg-primary/10">
+                  <Skeleton className="size-6 rounded" />
+                </div>
+              </CardHeader>
+              <CardFooter className="flex flex-col items-start gap-1 pb-1">
+                <Skeleton className="h-3 w-32" />
+              </CardFooter>
+            </Card>
           ))}
         </div>
 
-        {/* Courses Section Skeleton */}
         <div className="space-y-6 pt-6">
           <div className="flex flex-col gap-2">
             <Skeleton className="h-7 w-48" />

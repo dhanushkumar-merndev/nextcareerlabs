@@ -119,6 +119,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
   const [size, setSize] = useState({ width: 384, height: 480 });
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(1024);
   const [isAnimatingOut, setIsAnimatingOut] = useState(false);
   const [showResizeOverlay, setShowResizeOverlay] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -191,7 +192,10 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
   }, [currentSessionId]);
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
+    const check = () => {
+      setIsMobile(window.innerWidth < 768);
+      setWindowWidth(window.innerWidth);
+    };
     check();
     window.addEventListener("resize", check);
     return () => window.removeEventListener("resize", check);
@@ -346,6 +350,13 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
       }
     }
   }, [messages, isLoading, streamingText]);
+
+  // Auto-scroll during streaming so new text is always visible
+  useEffect(() => {
+    if (streamingText) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+    }
+  }, [streamingText]);
 
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
@@ -543,7 +554,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
                   setSize({ width: 384, height: 480 });
                 } else {
                   setSize({
-                    width: Math.min(560, window.innerWidth - 40),
+                    width: Math.min(560, windowWidth - 40),
                     height: Math.min(700, window.innerHeight - 100),
                   });
                 }
@@ -615,7 +626,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
         )}
         {isLoading && !streamingText && (
           <div className="flex justify-start">
-            <div className="rounded-2xl rounded-bl-sm px-4 py-3 bg-card border border-border/50 shadow-sm">
+            <div className="max-w-[85%] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm bg-muted/60 text-card-foreground border border-border/60 shadow-sm">
               <div className="flex items-center gap-1">
                 <span className="size-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
                 <span className="size-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
@@ -708,7 +719,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
         "bg-card text-card-foreground shadow-2xl shadow-black/20 ring-1 ring-black/5",
       )}
       style={{
-        left: position.x || Math.max(16, window.innerWidth - 420),
+        left: position.x || Math.max(16, windowWidth - 420),
         top: position.y || 80,
         width: size.width,
         height: size.height,

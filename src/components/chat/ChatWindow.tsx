@@ -159,8 +159,9 @@ export function ChatWindow({
     initialData: () => {
       if (!currentUserId) return undefined;
       const cached = chatCache.get<MessagesQueryData>(`messages_${threadId}`, currentUserId);
-      if (cached) {
-        return cached.data;
+      if (cached?.data) {
+        if (Array.isArray(cached.data.pages)) return cached.data;
+        return { pages: [cached.data as unknown as MessagePage], pageParams: [undefined as string | undefined] };
       }
       return undefined;
     },
@@ -2007,6 +2008,7 @@ const threadState = useMemo(
                 );
               })
             )}
+            <div ref={bottomRef} />
           </div>
 
           {/* UPLOAD PROGRESS BAR */}
