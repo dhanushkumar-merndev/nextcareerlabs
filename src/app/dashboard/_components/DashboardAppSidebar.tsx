@@ -107,11 +107,6 @@ export function AppSidebar({
 }: React.ComponentProps<typeof Sidebar> & { isEnrolled: boolean }) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
-  const [isMounted, setIsMounted] = React.useState(false);
-
-  React.useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const handleLogoClick = () => {
     if (isMobile) {

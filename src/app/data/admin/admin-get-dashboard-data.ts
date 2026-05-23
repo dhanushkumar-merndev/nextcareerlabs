@@ -2,13 +2,10 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
 import {
-  getCache,
   setCache,
   getMultiCache,
   getVersions,
   GLOBAL_CACHE_KEYS,
-  getGlobalVersion,
-  incrementGlobalVersion,
 } from "@/lib/redis";
 
 export interface AdminDashboardVersions {
@@ -80,7 +77,7 @@ export async function adminGetDashboardData(
 
   const redisStartTime = Date.now();
   const [cachedStats, cachedEnrollments, cachedRecent] =
-    await getMultiCache<any>(dataKeys);
+    await getMultiCache<unknown>(dataKeys);
   const redisDuration = Date.now() - redisStartTime;
 
   console.log(
@@ -89,16 +86,9 @@ export async function adminGetDashboardData(
   );
 
   // 3. Granular Cache Check & DB Fetching logic
-  const results: any = {
-    stats: null,
-    enrollments: null,
-    recentCourses: null,
-  };
-
   const startTime = Date.now();
 
   // Define components for parallel resolution
-  const tasks = [];
 
   // A. Stats
   const fetchStats = async () => {
@@ -137,7 +127,7 @@ export async function adminGetDashboardData(
     const today = new Date();
     const startDate = new Date();
     startDate.setDate(today.getDate() - 29);
-    const raw: any[] = await prisma.$queryRaw`
+    const raw: { date: Date; count: number }[] = await prisma.$queryRaw`
       SELECT DATE_TRUNC('day', "createdAt") as date, count(*)::int as count
       FROM "Enrollment"
       WHERE "createdAt" >= ${startDate} AND "status" = 'Granted'

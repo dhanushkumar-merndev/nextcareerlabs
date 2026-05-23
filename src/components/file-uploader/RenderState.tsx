@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { cn } from "@/lib/utils";
 import { CloudUploadIcon, ImageIcon, Loader2, XIcon } from "lucide-react";
 import { Button } from "../ui/button";
@@ -66,7 +67,15 @@ export function RenderUploadedState({
   onGenerateSprites?: () => void;
   isSpriteGenerated?: boolean;
   spriteGenerating?: boolean;
-  spriteMetadata?: any;
+  spriteMetadata?: {
+    spriteKey: string;
+    lowResKey?: string;
+    spriteCols?: number;
+    spriteRows?: number;
+    spriteInterval?: number;
+    spriteWidth?: number;
+    spriteHeight?: number;
+  };
   onDurationLoaded?: (duration: number) => void;
   captionUrl?: string;
 }) {

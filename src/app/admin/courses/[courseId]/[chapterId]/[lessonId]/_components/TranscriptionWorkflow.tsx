@@ -126,7 +126,7 @@ export function TranscriptionWorkflow({
       }
     };
     loadExisting();
-  }, [lessonId, videoKey]); // Trigger reset and reload if video changes
+  }, [lessonId, videoKey, initialHasMCQs, initialTranscription]);
 
   if (isInitialLoading) {
     return (
@@ -185,10 +185,10 @@ export function TranscriptionWorkflow({
         setStatus("complete");
       }
       toast.success("Transcript updated!");
-    } catch (error: any) {
+    } catch (error) {
       console.error("[VTT Upload Error]", error);
       setStatus("error");
-      toast.error(error.message || "Upload failed");
+      toast.error(error instanceof Error ? error.message : "Upload failed");
     }
   };
 
@@ -225,7 +225,7 @@ export function TranscriptionWorkflow({
       } else {
         toast.error(result.error || "Failed to save MCQs");
       }
-    } catch (error) {
+    } catch {
       toast.error("An error occurred while saving MCQs");
     } finally {
       setIsSavingMCQs(false);
@@ -263,7 +263,7 @@ export function TranscriptionWorkflow({
       } else {
         toast.error(result.error || "Failed to delete");
       }
-    } catch (err) {
+    } catch {
       toast.error("Cleanup failed");
     } finally {
       setIsDeleting(false);

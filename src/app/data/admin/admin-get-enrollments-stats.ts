@@ -6,7 +6,6 @@ import {
   setCache,
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
-  incrementGlobalVersion,
 } from "@/lib/redis";
 
 export async function adminGetEnrollmentsStats(clientVersion?: string) {
@@ -33,7 +32,7 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   }
 
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`;
-  const cached = await getCache<any>(cacheKey);
+  const cached = await getCache<{ date: string; enrollments: number }[]>(cacheKey);
 
   if (cached) {
     console.log(`[adminGetEnrollmentsStats] Redis Cache HIT. Returning data.`);
@@ -55,7 +54,7 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   // or a more optimized approach.
 
   // High performance: Aggregate in DB
-  const rawEnrollments = await prisma.$queryRaw`
+  const rawEnrollments = await prisma.$queryRaw<{ date: Date; count: number }[]>`
     SELECT DATE_TRUNC('day', "createdAt") as date, count(*)::int as count
     FROM "Enrollment"
     WHERE "createdAt" >= ${startDate} AND "status" = 'Granted'
@@ -66,7 +65,7 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   console.log(`[adminGetEnrollmentsStats] DB Aggregation took ${duration}ms.`);
 
   const statsMap = new Map(
-    (rawEnrollments as any[]).map((e) => [
+    rawEnrollments.map((e) => [
       new Date(e.date).toLocaleDateString("en-CA"),
       e.count,
     ]),

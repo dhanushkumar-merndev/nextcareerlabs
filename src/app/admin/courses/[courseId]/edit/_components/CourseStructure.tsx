@@ -17,7 +17,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import { CSS } from "@dnd-kit/utilities";
 import { AdminCourseSingularData } from "@/app/data/admin/admin-get-course";
 import { cn } from "@/lib/utils";
@@ -49,6 +49,20 @@ import { chatCache } from "@/lib/chat-cache";
 interface iAppProps {
   data: AdminCourseSingularData;
   setDirty: (dirty: boolean) => void;
+}
+
+interface ChapterItem {
+  id: string;
+  title: string;
+  order: number;
+  isOpen: boolean;
+  lessons: LessonItem[];
+}
+
+interface LessonItem {
+  id: string;
+  title: string;
+  order: number;
 }
 
 interface SortableItemProps {
@@ -93,14 +107,15 @@ function SortableItem({ children, id, className, data }: SortableItemProps) {
 
 export function CourseStructure({ data, setDirty }: iAppProps) {
   const queryClient = useQueryClient();
-  const initialItems = useMemo(() => {
+
+  const buildInitialItems = useCallback((): ChapterItem[] => {
     return (
-      data?.chapter?.map((chapter: any) => ({
+      data?.chapter?.map((chapter) => ({
         id: chapter.id,
         title: chapter.title,
         order: chapter.position,
         isOpen: true,
-        lessons: chapter.lesson.map((lesson: any) => ({
+        lessons: chapter.lesson.map((lesson) => ({
           id: lesson.id,
           title: lesson.title,
           order: lesson.position,
@@ -108,6 +123,18 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       })) || []
     );
   }, [data]);
+
+  const [initialItems] = useState(buildInitialItems);
+  const [items, setItems] = useState<ChapterItem[]>(() => buildInitialItems());
+  const [openChapters, setOpenChapters] = useState<Set<string>>(new Set(
+    data?.chapter?.map((c) => c.id) ?? []
+  ));
+
+  useEffect(() => {
+    const changed = JSON.stringify(items) !== JSON.stringify(initialItems);
+    setDirty(changed);
+  }, [items, initialItems, setDirty]);
+
   const invalidateAdminCaches = () => {
     const keys = [
       "admin_dashboard_stats",
@@ -118,46 +145,16 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
     ];
 
     keys.forEach((key) => {
-      chatCache.invalidate(key); // localStorage
+      chatCache.invalidate(key);
       queryClient.invalidateQueries({ queryKey: [key] });
     });
 
-    // Specifically invalidate the current course detail
     if (data?.id) {
       const courseKey = `admin_course_${data.id}`;
       chatCache.invalidate(courseKey);
       queryClient.invalidateQueries({ queryKey: [courseKey] });
     }
   };
-  const [items, setItems] = useState(initialItems);
-
-  useEffect(() => {
-    setItems((prevItems) => {
-      const updated =
-        data?.chapter
-          ?.map((chapter: any) => ({
-            id: chapter.id,
-            title: chapter.title,
-            order: chapter.position,
-            isOpen: prevItems?.find((i) => i.id === chapter.id)?.isOpen ?? true,
-            lessons: (chapter.lesson || [])
-              .map((l: any) => ({
-                id: l.id,
-                title: l.title,
-                order: l.position,
-              }))
-              .sort((a: any, b: any) => a.order - b.order),
-          }))
-          .sort((a, b) => a.order - b.order) || [];
-
-      return updated;
-    });
-  }, [data]);
-
-  useEffect(() => {
-    const changed = JSON.stringify(items) !== JSON.stringify(initialItems);
-    setDirty(changed);
-  }, [items, initialItems, setDirty]);
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -219,14 +216,14 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       const chapter = items[chapterIndex];
 
       const oldIndex = chapter.lessons.findIndex(
-        (l: any) => l.id === active.id,
+        (l) => l.id === active.id,
       );
-      const newIndex = chapter.lessons.findIndex((l: any) => l.id === over.id);
+      const newIndex = chapter.lessons.findIndex((l) => l.id === over.id);
 
       const prev = [...items];
 
       const reordered = arrayMove(chapter.lessons, oldIndex, newIndex);
-      const updatedLessons = reordered.map((l: any, i: number) => ({
+      const updatedLessons = reordered.map((l, i: number) => ({
         ...l,
         order: i + 1,
       }));
@@ -292,13 +289,17 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                 {(listeners) => (
                   <Card className="mb-3 sm:mb-4 overflow-hidden">
                     <Collapsible
-                      open={item.isOpen}
+                      open={openChapters.has(item.id)}
                       onOpenChange={() => {
-                        setItems(
-                          items.map((c) =>
-                            c.id === item.id ? { ...c, isOpen: !c.isOpen } : c,
-                          ),
-                        );
+                        setOpenChapters((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(item.id)) {
+                            next.delete(item.id);
+                          } else {
+                            next.add(item.id);
+                          }
+                          return next;
+                        });
                       }}
                     >
                       <div className="flex items-center justify-between p-2 sm:p-3 border-b">
@@ -314,7 +315,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
 
                           <CollapsibleTrigger asChild>
                             <Button size="icon" variant="ghost">
-                              {item.isOpen ? (
+                              {openChapters.has(item.id) ? (
                                 <ChevronDown className="size-4" />
                               ) : (
                                 <ChevronRight className="size-4" />
@@ -348,7 +349,7 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
                             items={item.lessons}
                             strategy={verticalListSortingStrategy}
                           >
-                            {item.lessons.map((lesson: any) => (
+                            {item.lessons.map((lesson) => (
                               <SortableItem
                                 key={lesson.id}
                                 id={lesson.id}

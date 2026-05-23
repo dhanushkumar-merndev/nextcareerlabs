@@ -15,7 +15,7 @@ export function MessageContent({ content, className = "" }: MessageContentProps)
     return lines.map((line, lineIndex) => {
       // Parse bold text (**text**)
       const parts: (string | React.ReactElement)[] = [];
-      let currentText = line;
+      const currentText = line;
       let partIndex = 0;
       
       // Match **bold** patterns

@@ -2,13 +2,34 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
 import { EnrollmentStatus } from "@/generated/prisma";
+import type { Prisma } from "@/generated/prisma";
 import {
   getCache,
   setCache,
   getGlobalVersion,
-  incrementGlobalVersion,
   GLOBAL_CACHE_KEYS,
 } from "@/lib/redis";
+
+interface EnrollmentWithRelations {
+  id: string;
+  status: string;
+  createdAt: Date;
+  Course: { title: string; id: string };
+  User: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    phoneNumber: string | null;
+    image: string | null;
+    createdAt: Date;
+    banned: boolean | null;
+  } | null;
+}
+
+interface CachedEnrollments {
+  data: EnrollmentWithRelations[];
+  totalCount: number;
+}
 
 export async function adminGetEnrollmentRequests(
   skip: number = 0,
@@ -19,7 +40,7 @@ export async function adminGetEnrollmentRequests(
 ) {
   await requireAdmin();
 
-  const baseWhere: any = {};
+  const baseWhere: Prisma.EnrollmentWhereInput = {};
 
   if (search) {
     baseWhere.User = {
@@ -55,7 +76,7 @@ export async function adminGetEnrollmentRequests(
 
   // 2. Global List Cache (for default first page)
   const redisStartTime = Date.now();
-  const cachedRaw = await getCache<any>(
+  const cachedRaw = await getCache<CachedEnrollments>(
     GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_LIST,
   );
   const redisDuration = Date.now() - redisStartTime;
@@ -75,7 +96,7 @@ export async function adminGetEnrollmentRequests(
 
   if (searchCacheKey) {
     const redisStartTime = Date.now();
-    const cachedRaw = await getCache<{ data: any[]; totalCount: number }>(
+    const cachedRaw = await getCache<CachedEnrollments>(
       searchCacheKey,
     );
     const redisDuration = Date.now() - redisStartTime;
@@ -96,7 +117,7 @@ export async function adminGetEnrollmentRequests(
     where: baseWhere,
   });
 
-  let enrollments: any[] = [];
+  let enrollments: EnrollmentWithRelations[] = [];
 
   // Logic: Always show ALL pending if we are on the first page and no specific status filter is active
   // OR if we are specifically filtering for Pending.
@@ -179,7 +200,7 @@ export async function adminGetEnrollmentRequests(
     "color: #eab308; font-weight: bold",
   );
 
-  const result: any = {
+  const result: CachedEnrollments & { version: string } = {
     data: enrollments,
     totalCount,
     version: currentVersion,

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -18,19 +18,17 @@ import { useQuery } from "@tanstack/react-query";
 import { adminGetCourseAction } from "../actions";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { EditCourseSkeleton } from "./EditCourseSkeleton";
+import type { AdminCourseSingularData, AdminCourseSingularType } from "@/app/data/admin/admin-get-course";
 
 interface EditCourseClientWrapperProps {
-  data?: any;
   courseId: string;
 }
 
 export function EditCourseClientWrapper({
-  data: propsData,
   courseId,
 }: EditCourseClientWrapperProps) {
   const [basicDirty, setBasicDirty] = useState(false);
   const [structureDirty, setStructureDirty] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(
@@ -38,15 +36,14 @@ export function EditCourseClientWrapper({
   );
   const cacheKey = `admin_course_${courseId}`;
 
-  const { data: queryData } = useQuery({
+  const { data } = useQuery<AdminCourseSingularData>({
     queryKey: [cacheKey],
     queryFn: async () => {
-      // ⚡ Try local cache first for sub-millisecond feel
-      const cached = chatCache.get<any>(cacheKey);
+      const cached = chatCache.get<AdminCourseSingularData>(cacheKey);
 
-      const result = await adminGetCourseAction(courseId, cached?.version);
+      const result: AdminCourseSingularType = await adminGetCourseAction(courseId, cached?.version);
 
-      if ((result as any).status === "not-modified" && cached) {
+      if (result.status === "not-modified" && cached) {
         console.log(
           `%c[EditCourse] ✨ LOCAL HIT (Smart Sync Match) (v${cached.version})`,
           "color: #eab308; font-weight: bold",
@@ -54,14 +51,13 @@ export function EditCourseClientWrapper({
         return cached.data;
       }
 
-      const freshData = (result as any).data;
-      const version = (result as any).version;
-      const source = (result as any).source;
-      const computeTime = (result as any).computeTime;
+      const freshData = result.data!;
+      const source = result.source;
+      const computeTime = result.computeTime;
 
       if (source === "REDIS") {
         console.log(
-          `%c[EditCourse] 🔵 REDIS HIT → course:${courseId} (v${version})`,
+          `%c[EditCourse] 🔵 REDIS HIT → course:${courseId} (v${result.version})`,
           "color: #3b82f6; font-weight: bold",
         );
       } else if (source === "DB") {
@@ -71,13 +67,13 @@ export function EditCourseClientWrapper({
         );
       }
 
-      chatCache.set(cacheKey, freshData, undefined, version, PERMANENT_TTL);
+      chatCache.set(cacheKey, freshData, undefined, result.version, PERMANENT_TTL);
 
       return freshData;
     },
     initialData: () => {
       if (typeof window === "undefined") return undefined;
-      const cached = chatCache.get<any>(cacheKey);
+      const cached = chatCache.get<AdminCourseSingularData>(cacheKey);
       if (cached) return cached.data;
       return undefined;
     },
@@ -85,24 +81,11 @@ export function EditCourseClientWrapper({
     refetchInterval: 1800000,
   });
 
-  const hasLogged = useRef(false);
+  if (!data) {
+    return <EditCourseSkeleton />;
+  }
 
-  const data = queryData || propsData;
-
-  useEffect(() => {
-    setMounted(true);
-    if (!hasLogged.current) {
-      const cached = chatCache.get<any>(cacheKey);
-      if (cached) {
-        console.log(
-          `%c[EditCourse] ✨ LOCAL HIT (v${cached.version}). Rendering from storage.`,
-          "color: #eab308; font-weight: bold",
-        );
-      }
-      hasLogged.current = true;
-    }
-  }, [cacheKey]);
-
+  const courseData = data;
   const isDirty = basicDirty || structureDirty;
 
   const handleTabChange = (value: string) => {
@@ -112,11 +95,6 @@ export function EditCourseClientWrapper({
     window.history.replaceState(null, "", url.toString());
   };
 
-  // 🛡️ HYDRATION GUARD: Must render same as server on first pass.
-  // We use the same container classes in Skeleton to minimize flicker.
-  if (!mounted || !data) {
-    return <EditCourseSkeleton />;
-  }
   return (
     <div className="px-4 lg:px-6 py-2 md:py-5">
       <h1 className="text-3xl font-bold mb-3 md:mb-6 flex flex-col sm:flex-row sm:items-center gap-2">
@@ -125,7 +103,7 @@ export function EditCourseClientWrapper({
           <span>Edit Course:</span>
         </div>
         <span className="mt-4 md:mt-0 mb-2 md:mb-0 text-primary underline text-center sm:ml-2 ">
-          {data?.title}
+          {courseData?.title}
         </span>
       </h1>
 
@@ -148,7 +126,7 @@ export function EditCourseClientWrapper({
               </CardDescription>
             </CardHeader>
             <CardContent className="p-2 md:p-4">
-              <EditCourseForm data={data} setDirty={setBasicDirty} />
+              <EditCourseForm data={courseData} setDirty={setBasicDirty} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -162,7 +140,7 @@ export function EditCourseClientWrapper({
               </CardDescription>
             </CardHeader>
             <CardContent className="p-1 md:p-4">
-              <CourseStructure data={data} setDirty={setStructureDirty} />
+              <CourseStructure data={courseData} setDirty={setStructureDirty} />
             </CardContent>
           </Card>
         </TabsContent>

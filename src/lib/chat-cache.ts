@@ -38,8 +38,8 @@ export const chatCache = {
     };
     try {
       secureStorage.setItemTracked(storageKey, JSON.stringify(entry));
-    } catch (e) {
-      console.error("[chatCache] Failed to set", e);
+    } catch {
+      console.error("[chatCache] Failed to set");
     }
   },
 
@@ -66,7 +66,7 @@ export const chatCache = {
         version: entry.version,
         timestamp: entry.timestamp,
       };
-    } catch (e) {
+    } catch {
       secureStorage.removeItemTracked(storageKey);
       return null;
     }
@@ -174,10 +174,10 @@ export const chatCache = {
     if (!item) return;
 
     try {
-      const entry: CacheEntry<any> = JSON.parse(item);
+      const entry = JSON.parse(item) as CacheEntry<unknown>;
       entry.timestamp = Date.now();
       secureStorage.setItemTracked(storageKey, JSON.stringify(entry));
-    } catch (e) {
+    } catch  {
       // Ignore errors
     }
   },
@@ -204,11 +204,11 @@ export const chatCache = {
     // 1. Check known list caches
     const knownLists = ["all_courses", `available_courses_${userId}`];
     for (const key of knownLists) {
-      const cached = chatCache.get<any>(key, userId);
-      const data = cached?.data?.data || cached?.data;
+      const cached = chatCache.get<{ data?: { data?: Array<{ enrollmentStatus: string | null }> } }>(key, userId);
+      const nestedData = cached?.data?.data;
       if (
-        Array.isArray(data) &&
-        data.some((c: any) => c.enrollmentStatus === "Pending")
+        Array.isArray(nestedData) &&
+        nestedData.some((c: { enrollmentStatus: string | null }) => c.enrollmentStatus === "Pending")
       ) {
         return true;
       }
@@ -223,7 +223,7 @@ export const chatCache = {
           try {
             const entry = JSON.parse(item);
             if (entry.data?.enrollmentStatus === "Pending") return true;
-          } catch (e) {}
+          } catch {}
         }
       }
     }

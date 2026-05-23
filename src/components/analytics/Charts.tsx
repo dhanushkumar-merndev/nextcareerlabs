@@ -16,14 +16,12 @@ import {
   ChartConfig,
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
+  ChartTooltipContent
 } from "@/components/ui/chart";
 
 
 interface ChartProps {
-  data: any[];
+  data: Array<{ name: string; value: number }>;
   className?: string;
 }
 
@@ -150,7 +148,7 @@ export function SimplePieChart({ data, className }: ChartProps) {
 
   const chartData = data.map((item) => {
     const configKey = item.name as keyof typeof enrollmentConfig;
-    const color = (enrollmentConfig[configKey] as any)?.color || "var(--primary)";
+    const color = (enrollmentConfig[configKey] as { color?: string })?.color || "var(--primary)";
     return {
       ...item,
       fill: color,

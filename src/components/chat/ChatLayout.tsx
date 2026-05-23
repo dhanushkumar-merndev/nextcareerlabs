@@ -23,6 +23,13 @@ interface ChatLayoutProps {
   currentUserId?: string;
 }
 
+interface SidebarCachedData {
+  threads: unknown[];
+  enrolledCourses?: unknown[];
+  version?: string | number;
+  presence?: string | null;
+}
+
 export function ChatLayout({
   isAdmin: propIsAdmin,
   currentUserId: propCurrentUserId,
@@ -47,12 +54,9 @@ export function ChatLayout({
   const [removedThreadIds, setRemovedThreadIds] = useState<string[]>([]);
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false);
   const lastVersionRef = useRef<number | null>(null);
-  const [mounted, setMounted] = useState(false);
   const hasLogged = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
-
     if (!hasLogged.current) {
       // Admin cache is generic (admin_chat_sidebar), so we don't need currentUserId to check it
       const localKey = getSidebarLocalKey(isAdmin);
@@ -60,7 +64,7 @@ export function ChatLayout({
 
       // For users, wait for currentUserId. For admins, proceed.
       if (!needsUserId || (currentUserId && !isAuthLoading)) {
-        const cached = chatCache.get<any>(
+        const cached = chatCache.get<SidebarCachedData>(
           localKey,
           isAdmin ? undefined : currentUserId,
         );
@@ -97,7 +101,7 @@ export function ChatLayout({
     queryFn: async () => {
       const localKey = getSidebarLocalKey(isAdmin);
 
-      const cached = chatCache.get<any>(
+      const cached = chatCache.get<SidebarCachedData>(
         localKey,
         isAdmin ? undefined : currentUserId,
       );
@@ -108,9 +112,9 @@ export function ChatLayout({
         `[Chat] Smart Sync: checking version ${clientVersion || "NULL"}...`,
       );
 
-      const result = await getThreadsAction(clientVersion);
+      const result = await getThreadsAction(clientVersion as string | undefined);
 
-      if ((result as any)?.status === "not-modified" && cached) {
+      if (result && "status" in result && result.status === "not-modified" && cached) {
         console.log(
           `%c[Chat] SERVER HIT: NOT_MODIFIED (v${clientVersion}). Key: ${localKey}`,
           "color: #eab308; font-weight: bold",
@@ -118,15 +122,16 @@ export function ChatLayout({
         return cached.data;
       }
 
-      if (result && !(result as any)?.status) {
+      if (result && !("status" in result)) {
         console.log(
           `%c[Chat] SERVER HIT: NEW_DATA. Syncing (v${result.version}). Key: ${localKey}`,
           "color: #eab308; font-weight: bold",
         );
 
+        const sidebarResult = result as SidebarCachedData & { version: string };
         const oldCoursesCount =
-          (cached?.data as any)?.enrolledCourses?.length || 0;
-        const newCoursesCount = (result as any)?.enrolledCourses?.length || 0;
+          (cached?.data as SidebarCachedData | undefined)?.enrolledCourses?.length || 0;
+        const newCoursesCount = sidebarResult.enrolledCourses?.length || 0;
         const enrollmentChanged = oldCoursesCount !== newCoursesCount;
 
         chatCache.set(
@@ -160,13 +165,13 @@ export function ChatLayout({
 
       const localKey = getSidebarLocalKey(isAdmin);
 
-      const cached = chatCache.get<any>(
+      const cached = chatCache.get<SidebarCachedData>(
         localKey,
         isAdmin ? undefined : currentUserId,
       );
 
-      if (cached) {
-        return cached.data;
+      if (cached?.data) {
+        return cached.data as SidebarCachedData;
       }
 
       return undefined;
@@ -174,10 +179,13 @@ export function ChatLayout({
 
     initialDataUpdatedAt:
       typeof window !== "undefined"
-        ? (chatCache.get<any>(
-            getSidebarLocalKey(isAdmin),
-            isAdmin ? undefined : currentUserId,
-          )?.timestamp as number)
+        ? (() => {
+            const entry = chatCache.get<SidebarCachedData>(
+              getSidebarLocalKey(isAdmin),
+              isAdmin ? undefined : currentUserId,
+            );
+            return entry?.timestamp as number | undefined;
+          })()
         : undefined,
     // 30-minute version check (Heartbeat)
     staleTime: 1800000,
@@ -187,8 +195,9 @@ export function ChatLayout({
     enabled: !!(isAdmin || currentUserId), // Enable for admins immediately, or users with ID
   });
 
-  const threads = (sidebarData as any)?.threads || [];
-  const version = (sidebarData as any)?.version;
+  const sData = sidebarData as SidebarCachedData | undefined;
+  const threads = sData?.threads ?? [];
+  const version = sData?.version as string | number | undefined;
 
   // Group initialization is now handled more efficiently inside getThreadsAction
 
@@ -271,7 +280,7 @@ export function ChatLayout({
               currentUserId={currentUserId}
               onRemoveThread={handleRemoveThread}
               onBack={() => handleSelectThread(null)}
-              externalPresence={(sidebarData as any)?.presence || null}
+              externalPresence={(sidebarData as SidebarCachedData | undefined)?.presence ?? null}
             />
           </div>
         ) : (
@@ -293,7 +302,7 @@ export function ChatLayout({
       <SupportTicketDialog
         open={isNewTicketOpen}
         onOpenChange={setIsNewTicketOpen}
-        courses={(sidebarData as any)?.enrolledCourses || []}
+        courses={(sidebarData as SidebarCachedData | undefined)?.enrolledCourses ?? []}
         userId={currentUserId}
       />
     </div>

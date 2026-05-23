@@ -1,36 +1,11 @@
+/* eslint-disable @next/next/no-img-element */
 import { AdminCourseType } from "@/app/data/admin/admin-get-courses";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import { constructUrl } from "@/hooks/use-construct-url";
-import { DropdownMenuSeparator } from "@radix-ui/react-dropdown-menu";
-
-import {
-  ArrowRight,
-  Eye,
-  MoreVertical,
-  Pencil,
-  School,
-  TimerIcon,
-  Trash,
-} from "lucide-react";
-
-import Link from "next/link";
-
-import { Badge } from "@/components/ui/badge";
 
 interface iAppProps {
   data: AdminCourseType;
-  isPriority?: boolean;
 }
 
-export function AdminCourseCard({ data, isPriority = false }: iAppProps) {
+export function AdminCourseCard({ data }: iAppProps) {
   const thumbnaiUrl = constructUrl(data.fileKey);
   return (
     <Card className="group relative py-0 gap-0">

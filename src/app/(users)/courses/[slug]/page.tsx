@@ -1,3 +1,5 @@
+/* This file serves as the entry point for the course detail page. It uses React Suspense to handle the loading state of the page */
+
 import { SlugPageWrapper } from "./_components/SlugPageWrapper";
 import { SlugPageSkeleton } from "./_components/SlugPageSkeleton";
 import { Suspense } from "react";

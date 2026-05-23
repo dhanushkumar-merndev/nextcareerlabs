@@ -26,7 +26,6 @@ import {
   ShieldCheck,
   Copy,
   Mail,
-  User as UserIcon,
   BookOpen,
   Calendar as CalendarIcon,
   Phone,
@@ -47,7 +46,7 @@ import {
   updateUserDetailsAction,
   deleteEnrollmentAction,
 } from "../actions";
-import { useState, useTransition, useCallback, useEffect, useRef } from "react";
+import { useState, useTransition, useCallback, useEffect, useRef, type ComponentType } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
 import { cn } from "@/lib/utils";
@@ -56,7 +55,6 @@ import { chatCache } from "@/lib/chat-cache";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
-import { EnrollmentStatus } from "@/generated/prisma";
 import {
   Dialog,
   DialogContent,
@@ -109,9 +107,34 @@ export function RequestsTable({
   version?: string;
 }) {
   const queryClient = useQueryClient();
-  const [data, setData] = useState<Request[]>(initialData);
-  const [totalCount, setTotalCount] = useState(initialTotalCount);
-  const [version, setVersion] = useState<string | null>(initialVersion || null);
+
+  const [data, setData] = useState<Request[]>(() => {
+    if (typeof window === "undefined") return initialData;
+    const cached = secureStorage.getItem("admin_enrollment_requests");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.data)) {
+          return parsed.data;
+        }
+      } catch {}
+    }
+    return initialData;
+  });
+  const [totalCount, setTotalCount] = useState(() => {
+    if (typeof window === "undefined") return initialTotalCount;
+    const cached = secureStorage.getItem("admin_enrollment_requests");
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.data)) {
+          return parsed.totalCount || 0;
+        }
+      } catch {}
+    }
+    return initialTotalCount;
+  });
+  const versionRef = useRef<string | null>(initialVersion || null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -334,8 +357,6 @@ export function RequestsTable({
     return () => clearTimeout(timer);
   }, [search, debouncedSearch]);
 
-  const [hasHydrated, setHasHydrated] = useState(false);
-
   const syncWithServer = useCallback(
     async (currentV: string | null) => {
       startTransition(async () => {
@@ -362,7 +383,7 @@ export function RequestsTable({
             : [];
           setData(serverData);
           setTotalCount(result.totalCount);
-          setVersion(result.version);
+          versionRef.current = result.version;
 
           // Persist to secureStorage
           secureStorage.setItemTracked(
@@ -378,10 +399,9 @@ export function RequestsTable({
           "admin_enrollment_last_sync",
           Date.now().toString(),
         );
-        setHasHydrated(true);
       });
     },
-    [BATCH_SIZE],
+    [],
   );
 
   const manualRefresh = async () => {
@@ -399,63 +419,32 @@ export function RequestsTable({
     const SYNC_TIMESTAMP_KEY = "admin_enrollment_last_sync";
     const SYNC_WINDOW = 30 * 60 * 1000; // 30 Minutes
 
-    // 1. Initial Load from LocalStorage (if not searching)
+    // 1. Background revalidation
     if (debouncedSearch === "") {
-      const cached = secureStorage.getItem(STORAGE_KEY);
       const cachedVersion = secureStorage.getItem(VERSION_KEY);
       const lastSync = secureStorage.getItem(SYNC_TIMESTAMP_KEY);
 
-      if (cached && cachedVersion) {
-        if (!hasLogged.current) {
-          console.log(
-            `%c[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`,
-            "color: #eab308; font-weight: bold",
-          );
-          hasLogged.current = true;
-        }
+      if (!hasLogged.current && cachedVersion) {
+        console.log(
+          `%c[RequestsTable] LOCAL HIT (${cachedVersion}). Rendering from device storage.`,
+          "color: #eab308; font-weight: bold",
+        );
+        hasLogged.current = true;
+      }
 
-        if (!hasHydrated) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (parsed && Array.isArray(parsed.data)) {
-              setData(parsed.data);
-              setTotalCount(parsed.totalCount || 0);
-              setVersion(cachedVersion);
-            } else {
-              console.warn(
-                "[RequestsTable] Cached data is not an array. Clearing storage.",
-              );
-              secureStorage.removeItemTracked(STORAGE_KEY);
-            }
-          } catch (e) {
-            console.error("[RequestsTable] Failed to parse cached data.", e);
-          }
-          setHasHydrated(true);
-        }
-
-        // 2. Determine if background revalidation is needed
-        const now = Date.now();
-        if (!lastSync || now - parseInt(lastSync) > SYNC_WINDOW) {
-          if (!isInitialized.current) {
-            console.log(
-              `[RequestsTable] Revalidation Window Open (>30m). Syncing...`,
-            );
-            isInitialized.current = true;
-            syncWithServer(cachedVersion);
-          }
-        }
-      } else {
-        if (!hasHydrated && !isInitialized.current) {
+      const now = Date.now();
+      if (!lastSync || now - parseInt(lastSync) > SYNC_WINDOW) {
+        if (!isInitialized.current) {
           console.log(
-            `[RequestsTable] No Local Cache. Triggering Initial Sync...`,
+            `[RequestsTable] ${cachedVersion ? "Revalidation Window Open (>30m)" : "No Local Cache"}. Syncing...`,
           );
           isInitialized.current = true;
-          syncWithServer(null);
+          syncWithServer(cachedVersion);
         }
       }
     }
 
-    // 3. Cross-Tab Sync: Listen for storage changes from other tabs
+    // 2. Cross-Tab Sync: Listen for storage changes from other tabs
     const handleStorageChange = (e: StorageEvent) => {
       if (debouncedSearch !== "") return; // Don't sync while searching
 
@@ -469,16 +458,16 @@ export function RequestsTable({
               `[RequestsTable] Cross-Tab Sync: Data updated from another tab.`,
             );
           }
-        } catch (e) {}
+        } catch {}
       }
       if (e.key === VERSION_KEY && e.newValue) {
-        setVersion(e.newValue);
+        versionRef.current = e.newValue;
       }
     };
 
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
-  }, [debouncedSearch, hasHydrated]);
+  }, [debouncedSearch, syncWithServer]);
 
   // Handle search logic
   useEffect(() => {
@@ -728,7 +717,7 @@ export function RequestsTable({
                     <ActionMenu
                       request={request}
                       isPending={isPending}
-                      onStatusUpdate={(id: string, status: any) =>
+                      onStatusUpdate={(id: string, status: "Granted" | "Revoked" | "Pending") =>
                         handleStatusUpdate(id, request, status)
                       }
                       onBanToggle={handleBanToggle}
@@ -847,7 +836,7 @@ export function RequestsTable({
                 <ActionMenu
                   request={request}
                   isPending={isPending}
-                  onStatusUpdate={(id: string, status: any) =>
+                  onStatusUpdate={(id: string, status: "Granted" | "Revoked" | "Pending") =>
                     handleStatusUpdate(id, request, status)
                   }
                   onBanToggle={handleBanToggle}
@@ -896,7 +885,7 @@ export function RequestsTable({
               Edit User Details
             </DialogTitle>
             <DialogDescription className="text-muted-foreground text-sm font-medium">
-              Update {editingUser?.name}'s contact information.
+              Update {editingUser?.name}&apos;s contact information.
             </DialogDescription>
           </DialogHeader>
 
@@ -1012,7 +1001,7 @@ function DetailRow({
   value,
   onCopy,
 }: {
-  icon: any;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   value: string;
   onCopy?: () => void;
@@ -1049,8 +1038,8 @@ function ActionMenu({
 }: {
   request: Request;
   isPending: boolean;
-  onStatusUpdate: any;
-  onBanToggle: any;
+  onStatusUpdate: (id: string, status: "Granted" | "Revoked" | "Pending") => void;
+  onBanToggle: (userId: string, isBanned: boolean) => void;
   onDelete: (id: string) => void;
   onEditOpen: (user: Request["User"]) => void;
 }) {

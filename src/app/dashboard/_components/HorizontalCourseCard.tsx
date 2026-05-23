@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { Badge } from "@/components/ui/badge";
@@ -29,12 +30,10 @@ interface HorizontalCourseCardProps {
       completed: boolean;
     }>;
   };
-  index?: number;
 }
 
 export function HorizontalCourseCard({
   course,
-  index,
 }: HorizontalCourseCardProps) {
   const { session } = useSmartSession();
   const userId = session?.user.id;

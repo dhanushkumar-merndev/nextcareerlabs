@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       provider: hasGoogle ? "google" : "email",
     });
-  } catch (error) {
+  } catch {
     // Fallback error response
     return NextResponse.json(
       { error: "Internal server error" },

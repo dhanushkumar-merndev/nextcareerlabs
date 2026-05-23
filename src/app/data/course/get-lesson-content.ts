@@ -8,7 +8,6 @@ import {
   getCache,
   setCache,
   GLOBAL_CACHE_KEYS,
-  getGlobalVersion,
   getVersions,
   getUserPendingProgress,
 } from "@/lib/redis";
@@ -37,7 +36,7 @@ export async function getLessonContent(
   // ── Tier 2: Redis ─────────────────────────────────────────────────
   const cacheKey = `user:lesson:${session.id}:${lessonId}:${currentVersion}`;
   const redisStartTime = Date.now();
-  const cached = await getCache<any>(cacheKey);
+  const cached = await getCache<unknown>(cacheKey);
   console.log(
     `[Lesson] Redis cache lookup took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
   );
@@ -114,8 +113,6 @@ export async function getLessonContent(
   ]);
 
   const isQuizPassed = progress?.quizPassed ?? false;
-  const isCompleted = progress?.completed ?? false;
-  const restriction = progress?.restrictionTime ?? 0;
 
   // ✅ MCQs are now always fetched if enrollment is granted
   // The client controls when to SHOW them (via canStartAssessment)
@@ -197,7 +194,7 @@ export async function getLessonContent(
         lastWatched: pendingLesson.lastWatched,
         actualWatchTime: pendingLesson.delta,
         restrictionTime: pendingLesson.restrictionTime,
-      } as any;
+      } as (typeof result.lesson.lessonProgress)[0];
     }
   }
 

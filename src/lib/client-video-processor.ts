@@ -82,8 +82,8 @@ declare global {
       duration: number,
       encryption?: { key: Uint8Array; iv: string; keyUrl: string }
     ) => Promise<TranscodeResult & { audioBlob: Blob | null }>;
-    FFmpegWASM: any;
-    FFmpegUtil: any;
+    FFmpegWASM: unknown;
+    FFmpegUtil: unknown;
     compressAudio: (
       file: File,
       onProgress: (progress: number) => void

@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
@@ -11,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { BookOpen, Calendar, Clock, Mail, User } from "lucide-react";
 import Link from "next/link";
 import { formatIST } from "@/lib/utils";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { constructUrl } from "@/hooks/use-construct-url";
 
@@ -19,22 +20,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 interface UserAnalyticsClientProps {
   userId: string;
-  initialData?: any;
+  initialData?: Record<string, unknown>;
 }
 
 export function UserAnalyticsClient({
   userId,
   initialData,
 }: UserAnalyticsClientProps) {
-  const [mounted, setMounted] = useState(false);
+  const isHydrated = typeof window !== "undefined";
   const hasLogged = useRef(false);
   const cacheKey = `admin_user_analytics_${userId}`;
 
   useEffect(() => {
-    setMounted(true);
-
     if (!hasLogged.current) {
-      const cached = chatCache.get<any>(cacheKey);
+      const cached = chatCache.get<Record<string, unknown>>(cacheKey);
       if (cached) {
         console.log(
           `%c[UserAnalytics] LOCAL HIT (v${cached.version}). Rendering from storage.`,
@@ -50,41 +49,30 @@ export function UserAnalyticsClient({
         cacheKey,
         initialData,
         undefined,
-        initialData.version,
+        initialData.version as string | undefined,
         PERMANENT_TTL,
       );
     }
   }, [userId, initialData, cacheKey]);
 
-  const getTime = () => new Date().toLocaleTimeString();
-
   const { data, isLoading } = useQuery({
     queryKey: ["admin_user_analytics", userId],
     queryFn: async () => {
-      const cached = chatCache.get<any>(cacheKey);
+      const cached = chatCache.get<Record<string, unknown>>(cacheKey);
       const clientVersion = cached?.version;
 
-      console.log(
-        `[${getTime()}] [UserAnalytics] Stale detected. Verifying with server...`,
-      );
       const result = await getUserAnalyticsAdmin(userId, clientVersion);
 
-      if (result && (result as any).status === "not-modified") {
-        console.log(
-          `[${getTime()}] [UserAnalytics] Server: NOT_MODIFIED (v${clientVersion})`,
-        );
+      if (result && "status" in result && result.status === "not-modified") {
         return cached?.data || initialData;
       }
 
-      if (result && !(result as any).status) {
-        console.log(
-          `[${getTime()}] [UserAnalytics] Server: NEW_DATA -> Updating cache`,
-        );
+      if (result && !("status" in result)) {
         chatCache.set(
           cacheKey,
           result,
           undefined,
-          (result as any).version,
+          (result as Record<string, unknown>).version as string | undefined,
           PERMANENT_TTL,
         );
         return result;
@@ -94,7 +82,7 @@ export function UserAnalyticsClient({
     },
     initialData: () => {
       if (typeof window === "undefined") return initialData;
-      const cached = chatCache.get<any>(cacheKey);
+      const cached = chatCache.get<Record<string, unknown>>(cacheKey);
       return cached?.data || initialData;
     },
     staleTime: 1800000, // 30 mins
@@ -102,7 +90,7 @@ export function UserAnalyticsClient({
     refetchOnWindowFocus: true,
   });
 
-  if (!mounted || (isLoading && !data)) {
+  if (!isHydrated || (isLoading && !data)) {
     return (
       <div className="flex flex-col gap-8 p-4 lg:p-6 w-full mx-auto">
         <div className="flex items-center gap-5">
@@ -122,7 +110,7 @@ export function UserAnalyticsClient({
     );
   }
 
-  if (!data || (data as any).status === "error") {
+  if (!data || (data && "status" in data && data.status === "error")) {
     return (
       <div className="p-10 text-center flex flex-col items-center justify-center gap-4 min-h-[400px]">
         <div className="p-4 rounded-full bg-destructive/10">
@@ -130,7 +118,7 @@ export function UserAnalyticsClient({
         </div>
         <div className="space-y-1">
           <p className="font-bold uppercase tracking-tight text-foreground">
-            {(data as any)?.message || "User Not Found or Access Denied"}
+            {(data && "message" in data ? data.message as string : null) || "User Not Found or Access Denied"}
           </p>
           <Link
             href="/admin/analytics/users"
@@ -143,13 +131,14 @@ export function UserAnalyticsClient({
     );
   }
 
-  const user = data?.user;
-  const enrolledCoursesCount = data?.enrolledCoursesCount ?? 0;
-  const completedCoursesCount = data?.completedCoursesCount ?? 0;
-  const completedChaptersCount = data?.completedChaptersCount ?? 0;
-  const coursesProgress = data?.coursesProgress || [];
-  const totalLessonsCompleted = data?.totalLessonsCompleted ?? 0;
-  const totalTimeSpent = data?.totalTimeSpent ?? 0;
+  const rawData = data as Record<string, unknown> | undefined;
+  const user = rawData?.user as { name?: string; image?: string; email?: string; role?: string; createdAt?: string } | undefined;
+  const enrolledCoursesCount = (rawData?.enrolledCoursesCount as number) ?? 0;
+  const completedCoursesCount = (rawData?.completedCoursesCount as number) ?? 0;
+  const completedChaptersCount = (rawData?.completedChaptersCount as number) ?? 0;
+  const coursesProgress = (rawData?.coursesProgress as Array<Record<string, unknown>>) ?? [];
+  const totalLessonsCompleted = (rawData?.totalLessonsCompleted as number) ?? 0;
+  const totalTimeSpent = (rawData?.totalTimeSpent as number) ?? 0;
 
   return (
     <div className="flex flex-col gap-8 p-4 lg:p-6 w-full mx-auto">
@@ -262,26 +251,28 @@ export function UserAnalyticsClient({
                   No active enrollments
                 </p>
                 <p className="text-sm text-muted-foreground/60 max-w-[250px]">
-                  This user hasn't been granted access to any courses yet.
+                  This user hasn&apos;t been granted access to any courses yet.
                 </p>
               </div>
             </CardContent>
           </Card>
         ) : (
           <div className="grid gap-4">
-            {coursesProgress.map((course: any) => (
+            {coursesProgress.map((course) => {
+              const c = course as { id: string; title: string; imageUrl?: string; progress: number; completedLessons: number; totalLessons: number };
+              return (
               <Link
-                key={course.id}
-                href={`/admin/analytics/users/${userId}/${course.id}`}
+                key={c.id}
+                href={`/admin/analytics/users/${userId}/${c.id}`}
                 className="block group active:scale-[0.99] transition-all"
               >
                 <Card className="overflow-hidden border-border/40 group-hover:border-primary/40 group-hover:shadow-lg group-hover:bg-primary/5 transition-all duration-300">
                   <div className="flex flex-col md:flex-row md:items-center gap-6 px-8 py-4">
                     <div className="w-full md:w-32 aspect-video rounded-lg bg-muted relative overflow-hidden shrink-0 border border-border/20">
-                      {course.imageUrl ? (
+                      {c.imageUrl ? (
                         <img
-                          src={constructUrl(course.imageUrl)}
-                          alt={course.title}
+                          src={constructUrl(c.imageUrl)}
+                          alt={c.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           crossOrigin="anonymous"
                         />
@@ -292,7 +283,7 @@ export function UserAnalyticsClient({
                       )}
                       <div className="absolute top-0 right-1">
                         <Badge className="bg-background/80 backdrop-blur-sm text-[9px] font-black uppercase text-foreground border-border/20">
-                          {course.progress === 100
+                          {c.progress === 100
                             ? "Completed"
                             : "In Progress"}
                         </Badge>
@@ -303,23 +294,23 @@ export function UserAnalyticsClient({
                       <div className="flex justify-between items-start gap-4">
                         <div>
                           <h3 className="font-bold text-lg leading-tight uppercase tracking-tight group-hover:text-primary transition-colors">
-                            {course.title}
+                            {c.title}
                           </h3>
                           <p className="text-xs text-muted-foreground mt-1 font-medium">
-                            {course.completedLessons} of {course.totalLessons}{" "}
+                            {c.completedLessons} of {c.totalLessons}{" "}
                             lessons completed
                           </p>
                         </div>
                         <div className="text-right">
                           <span className="text-xl font-black text-primary/80 tabular-nums">
-                            {course.progress}%
+                            {c.progress}%
                           </span>
                         </div>
                       </div>
 
                       <div className="space-y-1.5">
                         <Progress
-                          value={course.progress}
+                          value={c.progress}
                           className="h-2.5 bg-primary/10"
                         />
                         <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">
@@ -331,10 +322,12 @@ export function UserAnalyticsClient({
                   </div>
                 </Card>
               </Link>
-            ))}
+            );
+          })}
           </div>
         )}
       </div>
     </div>
   );
 }
+

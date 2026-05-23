@@ -9,7 +9,7 @@ import {
   courseStatus,
 } from "@/lib/zodSchemas";
 import { Loader2, PlusCircle, Sparkles } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
@@ -69,26 +69,20 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
     },
   });
 
-  const isFree = form.watch("isFree");
+  const watchedIsFree = useWatch({ control: form.control, name: "isFree" });
   const chapterCount = data.chapter?.length ?? 0;
-  const chapterOptions = Array.from({ length: chapterCount }, (_, i) => i + 1);
 
   useEffect(() => {
     setDirty(form.formState.isDirty);
   }, [form.formState.isDirty, setDirty]);
 
   useEffect(() => {
-    const subscription = form.watch((value, info) => {
-      if (info.name === "isFree") {
-        if (value.isFree === true) {
-          form.setValue("price", null);
-        } else {
-          form.setValue("freeChaptersCount", 0);
-        }
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
+    if (watchedIsFree) {
+      form.setValue("price", null);
+    } else {
+      form.setValue("freeChaptersCount", 0);
+    }
+  }, [watchedIsFree, form]);
 
   function onSubmit(values: CourseSchemaType, skipRedirect = false) {
     if (!values.fileKey) {
@@ -399,7 +393,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                 )}
               />
 
-              {isFree ? (
+              {watchedIsFree ? (
                 <FormField
                   control={form.control}
                   name="freeChaptersCount"

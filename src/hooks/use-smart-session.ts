@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { chatCache } from "@/lib/chat-cache";
 import { getAuthSessionAction } from "@/app/(auth)/auth-session";
+import type { AuthSession } from "@/lib/types/auth";
+
+type SessionData = AuthSession | null;
 
 const CACHE_KEY = "auth_session";
 const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 mins
 const LOCAL_TTL = 100 * 365 * 24 * 60 * 60 * 1000; // ∞ forever
-const REDIS_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const VERSION_CHECK_LS_KEY = "auth_session_last_check"; // plain LS, no encryption overhead
 
 // ── 30-min gate helpers ───────────────────────────────────────────────────────
@@ -33,14 +35,13 @@ export function invalidateAuthSessionCache(queryClient: ReturnType<typeof useQue
  * localStorage (∞) → version check every 30 mins (ONE call) → Redis (30d)
  * On mutation → invalidateAuthSessionCache() nukes both stores
  */
-export function useSmartSession(initialDataFromServer?: any) {
+export function useSmartSession(initialDataFromServer?: SessionData) {
     const queryClient = useQueryClient();
-    const [isMounted, setIsMounted] = useState(false);
 
     const { data: session, isLoading, refetch } = useQuery({
         queryKey: [CACHE_KEY],
         queryFn: async () => {
-            const cached = chatCache.get<any>(CACHE_KEY);
+            const cached = chatCache.get<SessionData>(CACHE_KEY);
 
             // ✅ RULE: localStorage hit + within 30-min window → NO server call at all
             if (!shouldRunVersionCheck() && cached?.data) {
@@ -86,7 +87,7 @@ export function useSmartSession(initialDataFromServer?: any) {
         // ✅ Instant hydration: sync localStorage read before first render
         initialData: () => {
             if (typeof window === "undefined") return initialDataFromServer ?? undefined;
-            const cached = chatCache.get<any>(CACHE_KEY);
+            const cached = chatCache.get<SessionData>(CACHE_KEY);
             if (cached?.data) {
                 console.log(`[Auth] ⚡ Instant Hydration from localStorage`);
                 return cached.data;
@@ -99,7 +100,7 @@ export function useSmartSession(initialDataFromServer?: any) {
         initialDataUpdatedAt: () => {
             if (typeof window === "undefined") return undefined;
             const lastCheck = localStorage.getItem(VERSION_CHECK_LS_KEY);
-            return lastCheck ? parseInt(lastCheck) : chatCache.get<any>(CACHE_KEY)?.timestamp;
+            return lastCheck ? parseInt(lastCheck) : chatCache.get<SessionData>(CACHE_KEY)?.timestamp;
         },
 
         staleTime: HEARTBEAT_INTERVAL,       // RQ won't call queryFn within 30 mins
@@ -109,8 +110,6 @@ export function useSmartSession(initialDataFromServer?: any) {
     });
 
     useEffect(() => {
-        setIsMounted(true);
-
         // Cross-tab: listen for mutation signal (VERSION_CHECK_LS_KEY removal = mutation happened)
         const handleStorage = (e: StorageEvent) => {
             if (e.key === VERSION_CHECK_LS_KEY && e.newValue === null) {
@@ -126,7 +125,7 @@ export function useSmartSession(initialDataFromServer?: any) {
     return {
         session,
         user: session?.user || null,
-        isLoading: (isLoading && !session) || (!isMounted && !session && !initialDataFromServer),
+        isLoading: isLoading && !session,
         isSyncing: isLoading,
         refetch,
     };

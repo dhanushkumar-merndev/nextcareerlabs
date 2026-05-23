@@ -2,17 +2,29 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { requireAdmin } from "./require-admin";
 import {
-  getCache,
-  setCache,
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
-  incrementGlobalVersion,
   getLatestVersionAndCache,
   getOrSetWithStampedePrevention,
-  checkRateLimit,
 } from "@/lib/redis";
 
 const PAGE_SIZE = 9;
+
+interface CourseListItem {
+  id: string;
+  title: string;
+  smallDescription: string | null;
+  duration: number | null;
+  level: string | null;
+  status?: string;
+  fileKey: string | null;
+  category: string;
+  slug: string;
+}
+
+interface NormalizedCourse extends CourseListItem {
+  duration: number;
+}
 
 export async function adminGetCourses(
   clientVersion?: string,
@@ -29,7 +41,7 @@ export async function adminGetCourses(
 
   const { version: currentVersion, data: cached } = searchQuery
     ? { version: await getGlobalVersion(versionKey), data: null }
-    : await getLatestVersionAndCache<any[]>(versionKey, cacheKey);
+    : await getLatestVersionAndCache<NormalizedCourse[]>(versionKey, cacheKey);
   const redisDuration = Date.now() - redisStartTime;
 
   // Smart Sync ONLY for first page and no search
@@ -45,13 +57,12 @@ export async function adminGetCourses(
     return { status: "not-modified", version: currentVersion };
   }
 
-  let allCourses: any[];
+  let allCourses: NormalizedCourse[];
 
   if (searchQuery) {
     console.log(
       `[adminGetCourses] 🔍 Search mode: "${searchQuery}". Auth: ${authDuration}ms`,
     );
-    const dbStartTime = Date.now();
     // 🛡️ Native Database Pagination for search (Search results are ephemeral)
     const courses = await prisma.course.findMany({
       where: {
@@ -83,7 +94,7 @@ export async function adminGetCourses(
     const nextCursor = hasNextPage ? page[page.length - 1].id : null;
 
     // ✅ Post-process: Normalize search results (Hours -> Seconds)
-    const normalizedPage = page.map((c: any) => ({
+    const normalizedPage = page.map((c) => ({
       ...c,
       duration: (c.duration || 0) * 3600,
     }));
@@ -126,7 +137,7 @@ export async function adminGetCourses(
         });
 
         // ✅ Post-process: Normalize all durations to seconds (Hours -> Seconds)
-        const normalized = dbRaw.map((c: any) => ({
+        const normalized = dbRaw.map((c) => ({
           ...c,
           duration: (c.duration || 0) * 3600,
         }));
@@ -141,7 +152,7 @@ export async function adminGetCourses(
   }
 
   // ── Slicing Logic (Shared for HIT and fresh MISS) ─────────────────
-  const idx = cursor ? allCourses.findIndex((c: any) => c.id === cursor) : -1;
+  const idx = cursor ? allCourses.findIndex((c) => c.id === cursor) : -1;
   const startIndex = cursor && idx === -1 ? allCourses.length : idx + 1;
 
   const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
@@ -160,4 +171,4 @@ export async function adminGetCourses(
   };
 }
 
-export type AdminCourseType = any;
+export type AdminCourseType = CourseListItem;

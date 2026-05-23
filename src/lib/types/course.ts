@@ -57,5 +57,5 @@ export type CoursesServerResult =
 export interface SlugPageWrapperProps {
   slug: string;
   currentUserId?: string;
-  initialData?: any;
+  initialData?: unknown;
 }

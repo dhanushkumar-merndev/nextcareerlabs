@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import * as React from "react";
@@ -50,7 +51,7 @@ function AvatarImage({
       className={cn("aspect-square size-full object-cover", className)}
       src={getHighResImage(src)}
       crossOrigin="anonymous"
-      {...(props as any)}
+      {...(props as React.ImgHTMLAttributes<HTMLImageElement>)}
     />
   );
 }

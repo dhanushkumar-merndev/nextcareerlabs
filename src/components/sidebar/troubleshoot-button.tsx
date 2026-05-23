@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { IconTool } from "@tabler/icons-react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 
 const TROUBLESHOOT_KEY = "ts_btn_usage";
 const MAX_USES_PER_DAY = 3;
@@ -14,39 +13,22 @@ interface UsageData {
   date: string;
 }
 
-export function TroubleshootButton() {
-  const [usage, setUsage] = useState<UsageData | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
+function readStoredUsage(): UsageData {
+  const today = new Date().toISOString().split("T")[0];
+  try {
     const stored = localStorage.getItem(TROUBLESHOOT_KEY);
-    const today = new Date().toISOString().split("T")[0];
-
     if (stored) {
-      try {
-        const data: UsageData = JSON.parse(stored);
-        if (data.date === today) {
-          setUsage(data);
-        } else {
-          const newData = { count: 0, date: today };
-          localStorage.setItem(TROUBLESHOOT_KEY, JSON.stringify(newData));
-          setUsage(newData);
-        }
-      } catch (e) {
-        const newData = { count: 0, date: today };
-        localStorage.setItem(TROUBLESHOOT_KEY, JSON.stringify(newData));
-        setUsage(newData);
-      }
-    } else {
-      const newData = { count: 0, date: today };
-      localStorage.setItem(TROUBLESHOOT_KEY, JSON.stringify(newData));
-      setUsage(newData);
+      const data: UsageData = JSON.parse(stored);
+      if (data.date === today) return data;
     }
-  }, []);
+  } catch {}
+  return { count: 0, date: today };
+}
+
+export function TroubleshootButton() {
+  const [usage, setUsage] = useState<UsageData>(readStoredUsage);
 
   const handleTroubleshoot = async () => {
-    if (!usage) return;
-
     if (usage.count >= MAX_USES_PER_DAY) {
       toast.error(`Limit reached: ${MAX_USES_PER_DAY} times per day only.`);
       return;
@@ -86,7 +68,7 @@ export function TroubleshootButton() {
     }
   };
 
-  const isLimitReached = usage ? usage.count >= MAX_USES_PER_DAY : false;
+  const isLimitReached = usage.count >= MAX_USES_PER_DAY;
 
   return (
     <DropdownMenuItem

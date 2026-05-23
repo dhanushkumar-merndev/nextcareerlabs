@@ -413,7 +413,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, lessonId, userId, vttText]);
+  }, [input, isLoading, currentSessionId, lessonId, userId, messages, vttText]);
 
   // Save messages to IndexedDB when they change
   const lastSavedCount = useRef(0);

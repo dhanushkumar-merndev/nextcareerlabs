@@ -15,11 +15,25 @@ import { getSidebarKey } from "@/lib/chat-cache";
 
 import { ChatSidebarSkeleton } from "./ChatSkeleton";
 
+interface ThreadItem {
+  threadId: string;
+  display: { name: string; image: string };
+  type: string;
+  lastMessage: string;
+  updatedAt: string;
+  unreadCount: number;
+  isGroup: boolean;
+  archived: boolean;
+  muted: boolean;
+  resolved: boolean;
+  hidden: boolean;
+}
+
 interface ChatSidebarProps {
   selectedThreadId: string | null;
   onSelectThread: (thread: { id: string; name: string; image?: string; type?: string }) => void;
   removedIds?: string[];
-  threads: any[];
+  threads: ThreadItem[];
   loading?: boolean;
   currentUserId: string;
   isAdmin: boolean;
@@ -61,21 +75,32 @@ export function ChatSidebar({
   };
 
   useEffect(() => {
-    const handleThreadUpdate = (e: any) => {
-      const { threadId, archived, muted, lastMessage, updatedAt, hidden } = e.detail;
+    const handleThreadUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        threadId?: string;
+        archived?: boolean;
+        muted?: boolean;
+        lastMessage?: string;
+        updatedAt?: string;
+        hidden?: boolean;
+        newThread?: ThreadItem;
+        resolved?: boolean;
+      };
+      const { threadId, archived, muted, lastMessage, updatedAt, hidden } = detail;
 
       // AUTO-SWITCH VIEW IF CURRENT THREAD IS ARCHIVED/UNARCHIVED
       if (threadId === selectedThreadId && archived !== undefined) {
-        onSelectThread(null as any);
+        onSelectThread(null!);
         if (archived === false && viewRef.current === "archived") {
           setView("recent");
         }
       }
 
-      queryClient.setQueryData(getSidebarKey(currentUserId, isAdmin), (old: any) => {
-        if (!old || !old.threads) return old;
+      queryClient.setQueryData(getSidebarKey(currentUserId, isAdmin), (old: unknown) => {
+        const oldData = old as { threads: ThreadItem[] } | undefined;
+        if (!oldData || !oldData.threads) return old;
 
-        let updatedThreads = [...old.threads];
+        let updatedThreads = [...oldData.threads];
         const index = updatedThreads.findIndex(t => t.threadId === threadId);
 
         if (index !== -1) {
@@ -126,7 +151,7 @@ export function ChatSidebar({
     // 3. We haven't already selected this thread
     // 4. This is either the first load OR the URL actually changed
     if (urlThreadId && threads.length > 0 && selectedThreadId !== urlThreadId) {
-      const thread = (threads as any[]).find(t => t.threadId === urlThreadId);
+      const thread = threads.find(t => t.threadId === urlThreadId);
       if (thread) {
         // Only trigger auto-select if we haven't done it yet, or if URL genuinely changed
         if (!hasAutoSelectedRef.current || selectedThreadId === null) {
@@ -143,7 +168,7 @@ export function ChatSidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [urlThreadId, threads]);
 
-  const filteredThreads = (threads as any[]).filter(t => {
+  const filteredThreads = threads.filter(t => {
     const matchesSearch = t.display.name.toLowerCase().includes(search.toLowerCase()) ||
       t.lastMessage.toLowerCase().includes(search.toLowerCase());
     if (removedIds.includes(t.threadId)) return false;
@@ -163,11 +188,11 @@ export function ChatSidebar({
   const recentThreads = filteredThreads.filter(t => !t.archived);
   const archivedThreads = filteredThreads.filter(t => t.archived);
 
-  const archivedUnreadCount = archivedThreads.reduce((acc: number, t: any) => acc + (t.unreadCount || 0), 0);
+  const archivedUnreadCount = archivedThreads.reduce((acc, t) => acc + (t.unreadCount || 0), 0);
 
   const displayThreads = view === "recent" ? recentThreads : archivedThreads;
 
-  const renderThread = (thread: any) => (
+  const renderThread = (thread: ThreadItem) => (
     <div
       key={thread.threadId}
       onClick={() => onSelectThread({

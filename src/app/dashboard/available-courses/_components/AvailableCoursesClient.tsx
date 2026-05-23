@@ -53,7 +53,7 @@ export function AvailableCoursesClient() {
         const q = searchTitle.toLowerCase();
         const filteredPages = previousData.pages.map(page => ({
           ...page,
-          courses: page.courses.filter((c: any) =>
+          courses: page.courses.filter((c: PublicCourseType) =>
             c.title.toLowerCase().includes(q) ||
             (c.smallDescription?.toLowerCase().includes(q))
           )
@@ -69,12 +69,12 @@ export function AvailableCoursesClient() {
       }
 
       if (previousData) return previousData;
-      if (!mounted || sessionLoading) return undefined;
+      if (typeof window === "undefined" || sessionLoading) return undefined;
 
       // 🔹 2. Local filtering of global cache for first paint search
       if (searchTitle && cached) {
         const q = searchTitle.toLowerCase();
-        const filtered = cached.data.data.filter((c: any) =>
+        const filtered = cached.data.data.filter((c: PublicCourseType) =>
           c.title.toLowerCase().includes(q)
         );
 
@@ -189,8 +189,8 @@ export function AvailableCoursesClient() {
         // 🔹 BROAD SYNC TRIGGER: If we detect an enrollment status change (e.g. Approved)
         if (safeUserId) {
           const oldData = currentCache?.data?.data || [];
-          const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
-          const newPendingCount = result.courses.filter((c: any) => c.enrollmentStatus === "Pending").length;
+          const oldPendingCount = oldData.filter((c: PublicCourseType) => c.enrollmentStatus === "Pending").length;
+          const newPendingCount = result.courses.filter((c: PublicCourseType) => c.enrollmentStatus === "Pending").length;
 
           if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
             console.log(`%c[AvailableCourses] Status change detected! Triggering broad cache clearance and reload.`, "color: #9333ea; font-weight: bold");
@@ -237,7 +237,7 @@ export function AvailableCoursesClient() {
       return undefined;
     },
     initialDataUpdatedAt: typeof window !== "undefined" && !searchTitle
-      ? chatCache.get<any>(cacheKey, safeUserId)?.timestamp
+      ? chatCache.get<CoursesCacheWithCursor>(cacheKey, safeUserId)?.timestamp
       : undefined,
     staleTime: (() => {
       if (safeUserId && (chatCache.needsSync(safeUserId) || chatCache.hasAnyPending(safeUserId))) return 0;
@@ -255,7 +255,7 @@ export function AvailableCoursesClient() {
     }
   }, [inView, hasNextPage, isFetching, isFetchingNextPage, fetchNextPage]);
 
-  if (!mounted || sessionLoading || (isLoading && courses.length === 0)) {
+  if (typeof window === "undefined" || sessionLoading || (isLoading && courses.length === 0)) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
         {Array.from({ length: 9 }).map((_, i) => (
@@ -272,12 +272,11 @@ export function AvailableCoursesClient() {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {courses.map((course, index) => (
+        {courses.map((course) => (
           <PublicCourseCard
             key={course.id}
             data={course}
             enrollmentStatus={course.enrollmentStatus ?? null}
-            isPriority={index < 3}
           />
         ))}
       </div>

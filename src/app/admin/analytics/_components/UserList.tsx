@@ -33,6 +33,7 @@ export function UserList({
   const searchParams = useSearchParams();
   const { ref, inView } = useInView();
   const queryClient = useQueryClient();
+  const isHydrated = typeof window !== "undefined";
 
   // Search state
   const [searchTerm, setSearchTerm] = useState(initialSearch);
@@ -41,7 +42,6 @@ export function UserList({
   const [activeTab, setActiveTab] = useState("users"); // "users" | "admins"
   const [version, setVersion] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
   const hasLogged = useRef(false);
   const { checkRateLimit } = useRefreshRateLimit(5, 60000);
 
@@ -51,8 +51,6 @@ export function UserList({
   const LAST_CHECK_KEY = `${activeTab === "admins" ? "admin_admins_list_last_check" : "admin_users_list_last_check"}${enrolledOnly ? ":enrolled" : ""}`;
 
   useEffect(() => {
-    setIsMounted(true);
-
     if (!hasLogged.current) {
       const storedData = secureStorage.getItem(STORAGE_KEY);
       const storedVersion = secureStorage.getItem(VERSION_KEY);
@@ -134,8 +132,7 @@ export function UserList({
                   version: secureStorage.getItem(VERSION_KEY) || version
                 } as UsersPage;
               }
-            } catch (e) {
-              console.warn(`[UserList] Corrupted secure storage. Forcing fetch.`);
+            } catch {
             }
           }
         }
@@ -147,7 +144,7 @@ export function UserList({
 
       const result = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, clientV || undefined, enrolledOnly);
 
-      let finalResult = result as any;
+      let finalResult = result as UsersPage;
 
       if ("status" in result && result.status === "not-modified") {
         console.log(`[UserList] Smart Sync: Server version matches. Cache is fresh.`);
@@ -165,7 +162,7 @@ export function UserList({
             if (parsed && Array.isArray(parsed.users) && parsed.users.length > 0) {
               return { users: parsed.users, hasNextPage: parsed.hasNextPage, totalUsers: parsed.totalUsers } as UsersPage;
             }
-          } catch (e) { }
+          } catch { }
         }
 
         console.log(`[UserList] NOT_MODIFIED but local data missing. Forcing recovery fetch...`);
@@ -206,7 +203,7 @@ export function UserList({
               pageParams: [1]
             } as InfiniteData<UsersPage>;
           }
-        } catch (e) { }
+        } catch { }
       }
       return undefined;
     },
@@ -228,10 +225,10 @@ export function UserList({
   const totalUsers = data?.pages[0]?.totalUsers || 0;
 
   useEffect(() => {
-    if (isMounted && !isLoading) {
+    if (isHydrated && !isLoading) {
       console.log(`[UserList] UI: Showing ${users.length} ${activeTab} (Server Total: ${totalUsers})`);
     }
-  }, [users.length, totalUsers, activeTab, isMounted, isLoading]);
+  }, [users.length, totalUsers, activeTab, isHydrated, isLoading]);
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -253,7 +250,7 @@ export function UserList({
     let userToMove: User | undefined;
     previousCurrentData?.pages.forEach(page => {
       const found = page.users.find(u => u.id === userId);
-      if (found) userToMove = { ...found, role: newRole as any };
+      if (found) userToMove = { ...found, role: newRole };
     });
 
     // 1. NUCLEAR CLEAR: Wipe all local state to force a fresh backend check on sync
@@ -347,7 +344,7 @@ export function UserList({
     }
   };
 
-  if (!isMounted) {
+  if (!isHydrated) {
     return (
       <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -475,7 +472,7 @@ export function UserList({
                     </TableCell>
                     <TableCell className="text-center">
                       <button
-                        onClick={() => copyToClipboard(user.email, "Email")}
+                        onClick={() => copyToClipboard(user.email ?? "", "Email")}
                         className="inline-flex items-center gap-1.5 text-xs text-foreground/70 hover:text-primary transition-colors font-medium cursor-pointer"
                       >
                         <Mail className="size-3 opacity-60" />
@@ -620,7 +617,7 @@ export function UserList({
                       <Mail className="size-3.5" />
                       <span>Email</span>
                     </div>
-                    <button onClick={() => copyToClipboard(user.email, 'Email')} className="font-bold text-foreground text-right tracking-tight truncate ml-4 active:text-primary transition-all">
+                    <button onClick={() => copyToClipboard(user.email ?? '', 'Email')} className="font-bold text-foreground text-right tracking-tight truncate ml-4 active:text-primary transition-all">
                       {user.email}
                     </button>
                   </div>

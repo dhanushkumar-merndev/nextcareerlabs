@@ -5,7 +5,7 @@ import { adminGetCoursesAction } from "../actions";
 
 import { AdminCourseCard, AdminCourseCardSkeleton } from "./AdminCourseCard";
 import { EmptyState } from "@/components/general/EmptyState";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useInView } from "react-intersection-observer";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
@@ -50,7 +50,7 @@ export function AdminCoursesClient() {
     }
   }, [searchTitle]);
 
-  const cached = chatCache.get<Record<string, unknown>>("admin_courses_list");
+  const cached = chatCache.get<AdminCachedData>("admin_courses_list");
 
   const {
     data,
@@ -77,7 +77,7 @@ export function AdminCoursesClient() {
       if (searchTitle && localCached) {
         const q = searchTitle.toLowerCase();
         const filtered = (
-          localCached.data?.data ?? []
+          localCached.data.data ?? []
         ).filter(
           (c: PublicCourseType) =>
             c.title.toLowerCase().includes(q) ||
@@ -101,13 +101,13 @@ export function AdminCoursesClient() {
         // 🔹 NORMAL MODE → Show cached first page
       if (!searchTitle && localCached) {
         const courses =
-          localCached.data?.data ?? [];
+          localCached.data.data ?? [];
         return {
           pages: [
             {
               courses: courses,
-              nextCursor: localCached.data?.nextCursor ?? null,
-              total: localCached.data?.total ?? courses.length,
+              nextCursor: localCached.data.nextCursor ?? null,
+              total: localCached.data.total ?? courses.length,
             },
           ],
           pageParams: [null],
@@ -151,14 +151,15 @@ export function AdminCoursesClient() {
           searchTitle,
         );
 
-        if ((result as any).status === "not-modified") {
+        if ("status" in result && result.status === "not-modified") {
           return { courses: [], nextCursor: null, total: 0 };
         }
 
+        const data = result as { data: { courses: PublicCourseType[]; nextCursor: string | null; total: number }; version: string };
         return {
-          courses: (result as any).data?.courses ?? [],
-          nextCursor: (result as any).data?.nextCursor ?? null,
-          total: (result as any).data?.total ?? 0,
+          courses: data.data.courses,
+          nextCursor: data.data.nextCursor,
+          total: data.data.total,
         };
       }
 
@@ -171,26 +172,28 @@ export function AdminCoursesClient() {
         pageParam ?? null,
       );
 
-      if ((result as any).status === "not-modified") {
+      if ("status" in result && result.status === "not-modified") {
         console.log(
           `%c[AdminCourses] Server: NOT_MODIFIED (v${clientVersion})`,
           "color: #eab308; font-weight: bold",
         );
         chatCache.touch("admin_courses_list");
         return {
-          courses: cached?.data.data ?? [],
-          nextCursor: cached?.data.nextCursor ?? null,
-          total: cached?.data.total ?? 0,
+          courses: cached?.data?.data ?? [],
+          nextCursor: cached?.data?.nextCursor ?? null,
+          total: cached?.data?.total ?? 0,
         };
       }
+
+      const data = result as { data: { courses: PublicCourseType[]; nextCursor: string | null; total: number }; version: string };
 
       // Sync to cache
       if (!searchTitle) {
         const currentCache = chatCache.get<AdminCachedData>("admin_courses_list");
         let mergedCourses: PublicCourseType[] = [];
-        let finalCursor = (result as any).data?.nextCursor;
+        let finalCursor = data.data.nextCursor;
 
-        const newCourses: PublicCourseType[] = (result as any).data?.courses ?? [];
+        const newCourses: PublicCourseType[] = data.data.courses;
         const existingData = currentCache?.data?.data ?? [];
 
         if (pageParam) {
@@ -214,27 +217,27 @@ export function AdminCoursesClient() {
         }
 
         console.log(
-          `%c[AdminCourses] Server: NEW_DATA (v${(result as any).version}). Syncing ${mergedCourses.length} items to cache.`,
+          `%c[AdminCourses] Server: NEW_DATA (v${data.version}). Syncing ${mergedCourses.length} items to cache.`,
           "color: #3b82f6; font-weight: bold",
         );
         chatCache.set(
           "admin_courses_list",
           {
             data: mergedCourses,
-            version: (result as any).version,
             nextCursor: finalCursor,
-            total: (result as any).data?.total || mergedCourses.length,
+            total: data.data.total || mergedCourses.length,
+            version: data.version,
           },
           undefined,
-          (result as any).version,
+          data.version,
           PERMANENT_TTL,
         );
       }
 
       return {
-        courses: (result as any).data?.courses ?? [],
-        nextCursor: (result as any).data?.nextCursor ?? null,
-        total: (result as any).data?.total ?? 0,
+        courses: data.data.courses,
+        nextCursor: data.data.nextCursor,
+        total: data.data.total,
       };
     },
     initialPageParam: null,
@@ -291,11 +294,10 @@ export function AdminCoursesClient() {
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-        {courses.map((course: any, index: number) => (
+        {courses.map((course: PublicCourseType) => (
           <AdminCourseCard
             key={course.id}
             data={course}
-            isPriority={index < 6}
           />
         ))}
       </div>

@@ -1,11 +1,9 @@
 import "server-only";
 import { prisma } from "@/lib/db";
-import { notFound } from "next/navigation";
 import {
   getCache,
   setCache,
   GLOBAL_CACHE_KEYS,
-  getGlobalVersion,
   getVersions,
 } from "@/lib/redis";
 
@@ -31,7 +29,7 @@ export async function getIndividualCourse(
   // Check Redis cache for this specific course (versioned to skip stale data)
   const cacheKey = `${GLOBAL_CACHE_KEYS.COURSE_DETAIL(slug)}:${currentVersion}`;
   const startTime = Date.now();
-  const cached = await getCache<any>(cacheKey);
+  const cached = await getCache<unknown>(cacheKey);
 
   if (cached) {
     console.log(`[Redis] Cache HIT for course: ${slug} (v${currentVersion})`);
@@ -80,15 +78,14 @@ export async function getIndividualCourse(
     `[getIndividualCourse] DB Computation took ${Date.now() - startTime}ms`,
   );
 
-  // Convert Decimal price to number for client safety
-  if (course?.price) {
-    (course as any).price = Number(course.price);
-  }
+  const courseData = course
+    ? { ...course, price: course.price ? Number(course.price) : null }
+    : null;
 
   // Cache in Redis for 30 days
-  await setCache(cacheKey, course, 2592000); // 30 days
+  await setCache(cacheKey, courseData, 2592000); // 30 days
 
-  return { course, version: currentVersion };
+  return { course: courseData, version: currentVersion };
 }
 
 export async function getAllPublishedCourses() {

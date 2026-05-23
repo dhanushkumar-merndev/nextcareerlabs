@@ -1,6 +1,5 @@
 "use client";
 
-import { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -25,8 +24,46 @@ import { secureStorage } from "@/lib/secure-storage";
 import { chatCache } from "@/lib/chat-cache";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
+interface LessonProgress {
+  completed: boolean;
+  quizPassed: boolean;
+  lessonId: string;
+  id: string;
+  restrictionTime: number;
+  lastWatched: string;
+}
+
+interface Lesson {
+  id: string;
+  title: string;
+  position: number;
+  description: string;
+  thumbnailKey: string;
+  duration: number;
+  lessonProgress: LessonProgress[];
+}
+
+interface Chapter {
+  id: string;
+  title: string;
+  position: number;
+  lesson: Lesson[];
+}
+
+interface CourseData {
+  id: string;
+  title: string;
+  fileKey: string;
+  duration: number;
+  level: string;
+  category: string;
+  slug: string;
+  isFree: boolean;
+  chapter: Chapter[];
+}
+
 interface iAppProps {
-  course: CourseSidebarDataType["course"];
+  course: CourseData;
 }
 
 export function CourseSidebar({ course }: iAppProps) {
@@ -48,7 +85,7 @@ export function CourseSidebar({ course }: iAppProps) {
 
     const newMap: Record<string, number> = {};
 
-    course.chapter.forEach((chapter: any) => {
+    course.chapter.forEach((chapter) => {
       const total = chapter.lesson.length;
       if (total === 0) {
         newMap[chapter.id] = 0;
@@ -59,7 +96,7 @@ export function CourseSidebar({ course }: iAppProps) {
       let totalChapterWatched = 0;
       let completedCount = 0;
 
-      chapter.lesson.forEach((lesson: any) => {
+      chapter.lesson.forEach((lesson) => {
         // 1. Get Duration: DB is the primary source (stable across sessions)
         const dbDuration = lesson.duration || 0;
         const cachedDuration = chatCache.get<number>(
@@ -89,7 +126,7 @@ export function CourseSidebar({ course }: iAppProps) {
 
         // 3. Completion check
         const isCompleted =
-          lesson.lessonProgress?.some((p: any) => p.completed) ||
+                    lesson.lessonProgress?.some((p) => p.completed) ||
           (duration > 0 && effectiveRestriction >= duration * 0.9);
 
         if (isCompleted) {
@@ -123,8 +160,8 @@ export function CourseSidebar({ course }: iAppProps) {
     if (!course?.chapter?.length) return;
     const lessonId = pathname.split("/").pop();
     const found =
-      course.chapter.find((c: any) =>
-        c.lesson.some((l: any) => l.id === lessonId),
+      course.chapter.find((c) =>
+        c.lesson.some((l) => l.id === lessonId),
       )?.id ||
       course.chapter[0]?.id ||
       null;
@@ -147,7 +184,7 @@ export function CourseSidebar({ course }: iAppProps) {
         <div className="flex items-center justify-between gap-4 pt-5 pb-4">
           <div className="flex-1 min-w-0">
             <h3 className="font-bold text-lg truncate">
-              {course.chapter.find((c: any) => c.id === openChapter)?.title ||
+              {course.chapter.find((c) => c.id === openChapter)?.title ||
                 "Select a Chapter"}
             </h3>
           </div>
@@ -167,7 +204,7 @@ export function CourseSidebar({ course }: iAppProps) {
                 className="grid gap-2 mt-4 max-h-[60vh] overflow-y-auto pr-2 no-scrollbar"
                 data-lenis-prevent
               >
-                {course.chapter.map((chapter: any) => {
+                {course.chapter.map((chapter) => {
                   return (
                     <Button
                       key={chapter.id}
@@ -220,9 +257,9 @@ export function CourseSidebar({ course }: iAppProps) {
         <div className="space-y-2 mt-4">
           {(() => {
             const activeChapter = course.chapter.find(
-              (c: any) => c.id === openChapter,
+              (c) => c.id === openChapter,
             );
-            return activeChapter?.lesson.map((lesson: any) => {
+            return activeChapter?.lesson.map((lesson) => {
               const dbDuration = lesson.duration || 0;
               const cachedDuration = chatCache.get<number>(
                 `duration_${lesson.id}`,
@@ -246,7 +283,7 @@ export function CourseSidebar({ course }: iAppProps) {
                 localRestriction,
               );
               const isCompleted =
-                lesson.lessonProgress?.some((p: any) => p.completed) ||
+                lesson.lessonProgress?.some((p) => p.completed) ||
                 (duration > 0 && effectiveRestriction >= duration * 0.9);
 
               return (
@@ -269,7 +306,7 @@ export function CourseSidebar({ course }: iAppProps) {
         className="hidden min-[1025px]:block pt-4 pr-4 space-y-3 flex-1 overflow-y-auto min-h-0 no-scrollbar"
         data-lenis-prevent
       >
-        {course.chapter.map((chapter: any) => {
+        {course.chapter.map((chapter) => {
           const isOpen = openChapter === chapter.id;
           return (
             <Collapsible key={chapter.id} open={isOpen}>
@@ -300,7 +337,7 @@ export function CourseSidebar({ course }: iAppProps) {
               </CollapsibleTrigger>
 
               <CollapsibleContent className="mt-3 pl-6 border-l-2 space-y-3">
-                {chapter.lesson.map((lesson: any) => {
+                {chapter.lesson.map((lesson) => {
                   const dbDuration = lesson.duration || 0;
                   const cachedDuration = chatCache.get<number>(
                     `duration_${lesson.id}`,
@@ -325,7 +362,7 @@ export function CourseSidebar({ course }: iAppProps) {
                     localRestriction,
                   );
                   const isCompleted =
-                    lesson.lessonProgress?.some((p: any) => p.completed) ||
+          lesson.lessonProgress?.some((p) => p.completed) ||
                     (duration > 0 && effectiveRestriction >= duration * 0.9);
 
                   return (

@@ -18,6 +18,13 @@ import {
 } from "@/lib/redis";
 import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
 
+interface PendingProgressData {
+  lastWatched: number;
+  delta: number;
+  restrictionTime: number;
+  timestamp: number;
+}
+
 /**
  * [Million-User Scale] Internal Sync Logic
  * Flushes pending Redis progress to Postgres
@@ -35,7 +42,7 @@ async function flushPendingProgress(userId: string) {
     // 🛡️ Batch UPSERT using Raw SQL for maximum performance
     // We process each lesson in the pending set
     for (const [lessonId, data] of Object.entries(pending)) {
-      const p = data as any;
+      const p = data as PendingProgressData;
       await prisma.$executeRaw`
         INSERT INTO "LessonProgress" ("id", "userId", "lessonId", "lastWatched", "actualWatchTime", "restrictionTime", "updatedAt", "completed", "quizPassed")
         VALUES (gen_random_uuid(), ${userId}, ${lessonId}, ${Math.round(p.lastWatched)}, ${Math.round(p.delta)}, ${Math.round(p.restrictionTime)}, NOW(), false, false)
@@ -415,7 +422,7 @@ export async function submitQuizAttempt(
         data: {
           userId: session.id,
           lessonId,
-          answers: answers as any,
+          answers,
           score,
           passed,
         },

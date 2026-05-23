@@ -46,8 +46,8 @@ interface AnalyticsCardProps {
   value: string | number;
   icon:
     | IconName
-    | React.ForwardRefExoticComponent<any>
-    | React.ComponentType<any>;
+    | React.ForwardRefExoticComponent<Record<string, never>>
+    | React.ComponentType<Record<string, never>>;
   description?: string;
   lastUpdated?: string | Date;
 }

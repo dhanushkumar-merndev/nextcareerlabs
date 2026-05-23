@@ -2,8 +2,8 @@
 
 import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 import { CourseProgressCard } from "../../_components/CourseProgressCard";
+import type { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 import { EmptyState } from "@/components/general/EmptyState";
-import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
@@ -45,8 +45,8 @@ export function MyCoursesClient() {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-      {enrolledCourses.map((e: { Course: { id: string } }, index: number) => (
-        <CourseProgressCard key={e.Course.id} data={e} isPriority={index < 3} />
+      {enrolledCourses.map((e: { Course: CourseSidebarDataType["course"] }) => (
+        <CourseProgressCard key={e.Course.id} data={e} />
       ))}
     </div>
   );

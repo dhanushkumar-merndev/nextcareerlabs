@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { streamText } from "ai";
+import { streamText, type ModelMessage } from "ai";
 import { groq } from "@ai-sdk/groq";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/db";
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
 
-    const { messages, lessonId, vttText } = await req.json();
+    const { messages, lessonId, vttText }: { messages: ModelMessage[]; lessonId: string; vttText?: string } = await req.json();
     if (!messages?.length || !lessonId) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400 });
     }
@@ -92,7 +92,7 @@ When the user asks for a summary or formatted output, follow these rules:
       systemPrompt += `\n\n=== TRANSCRIPT SUMMARIES ===\n${contextText}\n=== END SUMMARIES ===`;
     }
 
-    const userMessages = messages.filter((m: any) => m.role !== "system");
+    const userMessages = messages.filter((m) => m.role !== "system");
 
     const result = streamText({
       model: models[0],

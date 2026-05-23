@@ -56,7 +56,7 @@ export async function getAdminAnalytics(
 
   if (!isCustomRange) {
     const redisStartTime = Date.now();
-    const cached = await getCache<any>(cacheKey);
+    const cached = await getCache<{ chartData: Array<{ name: string; value: number }> }>(cacheKey);
     const redisDuration = Date.now() - redisStartTime;
     if (cached) {
       console.log(
@@ -143,9 +143,6 @@ export async function getAdminAnalytics(
       }
     }
 
-    const enrollmentChartData = []; // Removed from here
-    const popularCoursesChartData = []; // Removed from here
-
     const result = {
       chartData,
     };
@@ -176,7 +173,7 @@ export async function getAdminStaticAnalytics(clientVersion?: string) {
     throw new Error(`Rate limit exceeded. Try again in ${rl.reset} seconds.`);
   }
 
-  let currentVersion = await getGlobalVersion(
+  const currentVersion = await getGlobalVersion(
     GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION,
   );
 
@@ -483,9 +480,24 @@ export async function getUserCourseDetailedProgress(
     if (!user || !course) return null;
 
     return { user, course };
-  } catch (error) {
+  } catch {
     return null;
   }
+}
+
+interface UsersListCache {
+  users: Array<{
+    id: string;
+    name: string | null;
+    email: string | null;
+    role: string | null;
+    createdAt: Date;
+    image: string | null;
+    phoneNumber: string | null;
+    _count: { enrollment: number };
+  }>;
+  hasNextPage: boolean;
+  totalUsers: number;
 }
 
 export async function getAllUsers(
@@ -536,12 +548,12 @@ export async function getAllUsers(
       console.log(
         `[getAllUsers] Version Match (${clientVersion}) for ${roleFilter}. Returning NOT_MODIFIED.`,
       );
-      return { status: "not-modified", version: currentVersion };
+      return { status: "not-modified", version: currentVersion, users: [], hasNextPage: false, totalUsers: 0 };
     }
 
     // 2. Global List Cache
     if (isDefaultFetch) {
-      const cached = await getCache<any>(cacheKey);
+      const cached = await getCache<UsersListCache>(cacheKey);
       if (cached) {
         console.log(
           `[getAllUsers] Redis ${roleFilter} List Cache HIT. Returning data.`,
@@ -555,7 +567,10 @@ export async function getAllUsers(
 
     const skip = (page - 1) * limit;
 
-    const whereClause: any = {
+    const whereClause: {
+      AND: Array<Record<string, unknown>>;
+      [key: string]: unknown;
+    } = {
       AND: [],
     };
 
@@ -636,7 +651,7 @@ export async function getAllUsers(
     }
 
     return result;
-  } catch (error) {
+  } catch {
     return {
       users: [],
       hasNextPage: false,
@@ -682,7 +697,7 @@ export async function updateUserRole(userId: string, newRole: string) {
     revalidatePath(`/admin/analytics/users/${userId}`);
     revalidatePath("/admin/analytics");
     return { success: true };
-  } catch (error) {
+  } catch {
     return { success: false, error: "Failed to update role" };
   }
 }

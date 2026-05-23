@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
@@ -77,7 +78,7 @@ export function ChatWindow({
   currentUserId,
   onRemoveThread,
   onBack,
-  _externalPresence,
+  externalPresence,
 }: ChatWindowProps) {
   const queryClient = useQueryClient();
   const SIDEBAR_KEY = getSidebarKey(currentUserId, isAdmin);
@@ -101,7 +102,7 @@ export function ChatWindow({
 
   const [isArchived, setIsArchived] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
-  const [groupParticipants, setGroupParticipants] = useState<any[]>([]);
+  const [groupParticipants, setGroupParticipants] = useState<Array<{ user: { id: string; name: string; email: string; image: string }; role: string }>>([]);
   const [isBusy, setIsBusy] = useState(false);
 
   // UI REFINEMENTS STATE
@@ -123,7 +124,7 @@ export function ChatWindow({
 
   useEffect(() => {
     if (threadId && hasLoggedMessages.current !== threadId) {
-      const cached = chatCache.get<any>(`messages_${threadId}`, currentUserId);
+      const cached = chatCache.get<unknown>(`messages_${threadId}`, currentUserId);
       if (cached) {
         console.log(
           `%c[ChatWindow] LOCAL HIT (Messages: ${threadId}). Rendering from storage.`,
@@ -159,7 +160,7 @@ export function ChatWindow({
     initialPageParam: undefined as string | undefined,
     initialData: () => {
       if (!currentUserId) return undefined;
-      const cached = chatCache.get<any>(`messages_${threadId}`, currentUserId);
+      const cached = chatCache.get<MessagesQueryData>(`messages_${threadId}`, currentUserId);
       if (cached) {
         return {
           pages: [cached.data],
@@ -170,10 +171,10 @@ export function ChatWindow({
     },
     initialDataUpdatedAt: () => {
       if (!currentUserId) return undefined;
-      return chatCache.get<any>(`messages_${threadId}`, currentUserId)
+      return chatCache.get<MessagesQueryData>(`messages_${threadId}`, currentUserId)
         ?.timestamp;
     },
-    getNextPageParam: (lastPage: any) => lastPage.nextCursor,
+    getNextPageParam: (lastPage: MessagePage) => lastPage.nextCursor,
     staleTime: 1800000,
     retry: 2,
     refetchOnWindowFocus: true,
@@ -183,22 +184,62 @@ export function ChatWindow({
   // Show loading skeletons when query is loading OR pending (waiting for currentUserId)
   const loading = isLoading || (isPending && !data);
 
-  const messages = useMemo(
-    () => {
-      const flat = data?.pages.flatMap((page: any) => page.messages) || [];
-      const seen = new Set<string>();
-      return flat.filter((msg: any) => {
-        if (seen.has(msg.id)) return false;
-        seen.add(msg.id);
-        return true;
-      });
-    },
-    [data?.pages],
-  );
-  const threadState = useMemo(
-    () => data?.pages[0]?.state as any,
-    [data?.pages],
-  );
+interface ThreadMessage {
+  id: string;
+  content: string;
+  imageUrl?: string | null;
+  fileUrl?: string | null;
+  fileName?: string | null;
+  senderId: string;
+  createdAt: string;
+  status?: string;
+  sender?: { id: string; name: string; image: string; isSupportBanned?: boolean };
+  type: string;
+  updatedAt?: string;
+  resolved?: boolean;
+  feedback?: string;
+}
+
+interface ThreadState {
+  isArchived: boolean;
+  resolved?: boolean;
+}
+
+interface MessagePage {
+  messages: ThreadMessage[];
+  state: ThreadState;
+  nextCursor?: string;
+}
+
+type MessagesQueryData = { pages: MessagePage[]; pageParams: (string | undefined)[] };
+
+interface ThreadData {
+  threadId: string;
+  archived: boolean;
+  display?: { name: string; image?: string };
+  type?: string;
+}
+
+type ThreadsQueryData = { threads: ThreadData[] };
+
+const typedData = data as unknown as MessagesQueryData | undefined;
+const pages = typedData?.pages;
+const messages = useMemo(
+  () => {
+    const flat = pages?.flatMap((page) => page.messages) || [];
+    const seen = new Set<string>();
+    return flat.filter((msg) => {
+      if (seen.has(msg.id)) return false;
+      seen.add(msg.id);
+      return true;
+    });
+  },
+  [pages],
+);
+const threadState = useMemo(
+  () => pages?.[0]?.state,
+  [pages],
+);
 
   useEffect(() => {
     // Reset state when switching threads (only if truly new)
@@ -246,7 +287,7 @@ export function ChatWindow({
 
     // Check for ban status
     if (!isGroup && messages.length > 0) {
-      const otherUser = messages.find((m: any) => m.senderId !== currentUserId);
+      const otherUser = messages.find((m: ThreadMessage) => m.senderId !== currentUserId);
       if (otherUser && otherUser.sender) {
         setIsBanned(!!otherUser.sender.isSupportBanned);
       }
@@ -325,7 +366,7 @@ export function ChatWindow({
     // OPTIMISTIC UPDATE via Query Data
     queryClient.setQueryData(
       ["messages", threadId, currentUserId],
-      (oldData: any) => {
+      (oldData: MessagesQueryData) => {
         if (!oldData) {
           return {
             pages: [{ messages: [optimisticMessage], state: "unknown" }],
@@ -416,21 +457,21 @@ export function ChatWindow({
           // Revert optimistic update
           queryClient.setQueryData(
             ["messages", threadId, currentUserId],
-            (oldData: any) => {
+            (oldData: MessagesQueryData) => {
               if (!oldData) return oldData;
               const newPages = [...oldData.pages];
               newPages[0] = {
                 ...newPages[0],
                 messages: newPages[0].messages.filter(
-                  (m: any) => m.id !== tempId,
+                  m => m.id !== tempId,
                 ),
               };
               return { ...oldData, pages: newPages };
             },
           );
 
-          if ((result as any).error === "TICKET_LIMIT_REACHED") {
-            const mins = (result as any).minutesLeft;
+          if ("error" in result && result.error === "TICKET_LIMIT_REACHED") {
+            const mins = "minutesLeft" in result ? result.minutesLeft : 0;
             const hours = Math.floor(mins / 60);
             const remainingMins = mins % 60;
             const timeStr =
@@ -448,12 +489,12 @@ export function ChatWindow({
         if (result && result.success && result.notification) {
           queryClient.setQueryData(
             ["messages", threadId, currentUserId],
-            (oldData: any) => {
+            (oldData: MessagesQueryData) => {
               if (!oldData) return oldData;
               const newPages = [...oldData.pages];
               newPages[0] = {
                 ...newPages[0],
-                messages: newPages[0].messages.map((m: any) =>
+                messages: newPages[0].messages.map(m =>
                   m.id === tempId
                     ? {
                         ...result.notification,
@@ -500,13 +541,13 @@ export function ChatWindow({
         // Revert on catch
         queryClient.setQueryData(
           ["messages", threadId, currentUserId],
-          (oldData: any) => {
+          (oldData: MessagesQueryData) => {
             if (!oldData) return oldData;
             const newPages = [...oldData.pages];
             newPages[0] = {
               ...newPages[0],
               messages: newPages[0].messages.filter(
-                (m: any) => m.id !== tempId,
+                m => m.id !== tempId,
               ),
             };
             return { ...oldData, pages: newPages };
@@ -855,14 +896,14 @@ export function ChatWindow({
     // 3. OPTIMISTIC UPDATE MESSAGES QUERY DATA
     queryClient.setQueryData(
       ["messages", threadId, currentUserId],
-      (old: any) => {
+      (old: MessagesQueryData) => {
         if (!old || !old.pages) return old;
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
+          pages: old.pages.map((page: MessagePage) => ({
             ...page,
             messages:
-              page.messages?.map((n: any) =>
+              page.messages?.map((n: ThreadMessage) =>
                 n.id === id
                   ? {
                       ...n,
@@ -904,7 +945,7 @@ export function ChatWindow({
     })();
   };
 
-  const handleEditOpen = (msg: any) => {
+  const handleEditOpen = (msg: ThreadMessage) => {
     setEditingMessageId(msg.id);
     setEditContent(msg.content);
     setEditImageUrl(msg.imageUrl || "");
@@ -929,11 +970,11 @@ export function ChatWindow({
     // OPTIMISTIC UPDATE
     queryClient.setQueryData(
       ["messages", threadId, currentUserId],
-      (oldData: any) => {
+      (oldData: MessagesQueryData) => {
         if (!oldData) return oldData;
-        const newPages = oldData.pages.map((page: any) => ({
+        const newPages = oldData.pages.map((page: MessagePage) => ({
           ...page,
-          messages: page.messages.map((m: any) =>
+          messages: page.messages.map(m =>
             m.id === msgId
               ? {
                   ...m,
@@ -1008,13 +1049,13 @@ export function ChatWindow({
     // Optimistic delete
     queryClient.setQueryData(
       ["messages", threadId, currentUserId],
-      (old: any) => {
+      (old: MessagesQueryData) => {
         if (!old || !old.pages) return old;
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
+          pages: old.pages.map((page: MessagePage) => ({
             ...page,
-            messages: page.messages?.filter((msg: any) => msg.id !== id) || [],
+            messages: page.messages?.filter(msg => msg.id !== id) || [],
           })),
         };
       },
@@ -1076,11 +1117,11 @@ export function ChatWindow({
           },
         }),
       );
-    } catch (e: any) {
+    } catch (e) {
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
       });
-      toast.error(e.message || "Failed to delete");
+      toast.error(e instanceof Error ? e.message : "Failed to delete");
     }
   };
 
@@ -1122,14 +1163,14 @@ export function ChatWindow({
     // OPTIMISTIC UPDATE MESSAGES
     queryClient.setQueryData(
       ["messages", threadId, currentUserId],
-      (old: any) => {
+      (old: MessagesQueryData) => {
         if (!old || !old.pages) return old;
         return {
           ...old,
-          pages: old.pages.map((page: any) => ({
+          pages: old.pages.map((page: MessagePage) => ({
             ...page,
             messages:
-              page.messages?.map((n: any) =>
+              page.messages?.map((n: ThreadMessage) =>
                 n.id === id ? { ...n, resolved: true, feedback: status } : n,
               ) || page.messages,
           })),
@@ -1181,11 +1222,11 @@ export function ChatWindow({
     setIsArchived(nextArchived);
 
     // 2. OPTIMISTIC UPDATE SIDEBAR CACHE
-    queryClient.setQueryData(SIDEBAR_KEY, (old: any) => {
+    queryClient.setQueryData(SIDEBAR_KEY, (old: SidebarQueryData) => {
       if (!old || !old.threads) return old;
       return {
         ...old,
-        threads: old.threads.map((t: any) =>
+        threads: old.threads.map((t: ThreadData) =>
           t.threadId === threadId ? { ...t, archived: nextArchived } : t,
         ),
       };
@@ -1194,7 +1235,7 @@ export function ChatWindow({
     // 3. OPTIMISTIC UPDATE MESSAGES STATE
     queryClient.setQueryData(
       ["messages", threadId, currentUserId],
-      (old: any) => {
+      (old: MessagesQueryData) => {
         if (!old || !old.pages) return old;
         const newPages = [...old.pages];
         if (newPages[0]) {
@@ -1277,8 +1318,8 @@ export function ChatWindow({
         queryKey: ["messages", threadId, currentUserId],
       });
       toast.success("Chat deleted successfully");
-    } catch (e: any) {
-      toast.error(e.message || "Failed to remove");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to remove");
       // Trigger refresh to bring it back if optimistic failed
       window.dispatchEvent(new Event("chat-refresh"));
     } finally {
@@ -1929,11 +1970,11 @@ export function ChatWindow({
                                 "Denied",
                               ].includes(msg.feedback) && (
                                 <div className="mt-1 pt-1 border-t border-current/10 text-[10px] italic font-medium opacity-90 leading-relaxed max-w-[250px] wrap-break-word">
-                                  "
+                                  &ldquo;
                                   {msg.feedback
                                     .replace(/^Positive Feedback: /, "")
                                     .replace(/^Negative Feedback: /, "")}
-                                  "
+                                  &rdquo;
                                 </div>
                               )}
                           </div>

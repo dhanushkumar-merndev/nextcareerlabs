@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Search, Loader2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -10,40 +10,30 @@ export function AdminCourseSearch() {
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const [value, setValue] = useState(searchParams.get("title") || "");
+  const [value, setValue] = useState(() => searchParams.get("title") || "");
 
-  useEffect(() => {
-    // 🔹 1. Update internal state if URL changes externally (e.g. back button)
-    const urlValue = searchParams.get("title") || "";
-    if (urlValue !== value && !isPending) {
-      setValue(urlValue);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    // 🔹 2. Debounced URL sync
-    const timer = setTimeout(() => {
-      // Check if value is already in URL
-      if (value === (searchParams.get("title") || "")) return;
-
-      // 🔹 Constraint: Only search if length is 0 (cleared) or >= 3
-      if (value && value.length < 3) return;
-
+  const syncToUrl = (val: string) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
       const params = new URLSearchParams(searchParams.toString());
-      if (value) {
-        params.set("title", value);
+      if (val) {
+        params.set("title", val);
       } else {
         params.delete("title");
       }
-
       startTransition(() => {
         router.replace(`${pathname}?${params.toString()}`, { scroll: false });
       });
     }, 1000);
+  };
 
-    return () => clearTimeout(timer);
-  }, [value]);
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setValue(val);
+    syncToUrl(val);
+  };
 
   const onClear = () => {
     setValue("");
@@ -57,7 +47,7 @@ export function AdminCourseSearch() {
         placeholder="Search courses..."
         className="w-full pl-9 pr-9 bg-background/50 border-muted-foreground/20 rounded-xl focus:bg-background transition-all"
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={onChange}
       />
       <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
         {isPending ? (

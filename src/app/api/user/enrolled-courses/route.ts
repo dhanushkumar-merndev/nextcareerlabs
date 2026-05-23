@@ -41,7 +41,7 @@ export async function GET(req: Request) {
       currentVersion,
     );
     const redisStartTime = Date.now();
-    const cached = await getCache<any>(redisCacheKey);
+    const cached = await getCache<unknown>(redisCacheKey);
     const redisDuration = Date.now() - redisStartTime;
 
     if (cached) {
@@ -57,8 +57,7 @@ export async function GET(req: Request) {
 
     // DB fetch
     const startTime = Date.now();
-    const [enrollments, allProgress] = await Promise.all([
-      prisma.enrollment.findMany({
+    const enrollments = await prisma.enrollment.findMany({
         where: { userId: user.id, status: "Granted" },
         select: {
           Course: {
@@ -94,42 +93,8 @@ export async function GET(req: Request) {
             },
           },
         },
-      }),
-      prisma.lessonProgress.findMany({
-        where: { userId: user.id },
-        select: {
-          lessonId: true,
-          completed: true,
-          restrictionTime: true,
-        },
-      }),
-    ]);
+      })
 
-    // ✅ Post-process: Standardize all durations to seconds
-    // (Lessons/Courses are stored in seconds from video processor)
-    enrollments.forEach((e: any) => {
-      const course = e.Course;
-      if (course) {
-        course.duration = (course.duration || 0); // Already in seconds
-
-        // Calculate firstLessonId
-        const sortedChapters = [...(course.chapter || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-        let firstLessonId: string | null = null;
-        if (sortedChapters.length > 0) {
-          const sortedLessons = [...(sortedChapters[0].lesson || [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-          if (sortedLessons.length > 0) {
-            firstLessonId = sortedLessons[0].id;
-          }
-        }
-        course.firstLessonId = firstLessonId;
-
-        course.chapter?.forEach((chapter: any) => {
-          chapter.lesson?.forEach((lesson: any) => {
-            lesson.duration = (lesson.duration || 0); // Already in seconds
-          });
-        });
-      }
-    });
     const duration = Date.now() - startTime;
     console.log(
       `%c[api/enrolled-courses] DB HIT (${duration}ms).`,
@@ -153,8 +118,8 @@ export async function GET(req: Request) {
     });
 
     return response;
-  } catch (error) {
-    console.error("[Enrolled Courses API Error]", error);
+  } catch {
+    console.error("[Enrolled Courses API Error]");
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

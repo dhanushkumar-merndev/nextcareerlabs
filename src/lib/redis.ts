@@ -35,7 +35,7 @@ const getRedisInstance = () => {
     client.on("ready", () => console.log("[Redis] Ready for commands."));
 
     return client;
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -98,7 +98,7 @@ async function withTimeout<T>(
     // Potentially attempt a manual reconnect if it's dead but still the instance we're using
     try {
       redis.connect().catch(() => {});
-    } catch (e) {}
+    } catch {}
     return defaultValue;
   }
 
@@ -116,10 +116,11 @@ async function withTimeout<T>(
       }),
       timeoutPromise,
     ]);
-  } catch (e: any) {
-    if (!e?.message?.includes("Connection is closed")) {
+  } catch (err) {
+    const e = err instanceof Error ? err : new Error(String(err));
+    if (!e.message.includes("Connection is closed")) {
       console.error(
-        `[Redis] Operation Timeout/Failure (${e?.message || "Unknown error"})`,
+        `[Redis] Operation Timeout/Failure (${e.message || "Unknown error"})`,
       );
     }
     return defaultValue;
@@ -130,7 +131,7 @@ export async function setCache<T>(key: string, data: T, ttl: number = 1800) {
   if (!redis) return;
   try {
     await withTimeout(redis.set(key, JSON.stringify(data), "EX", ttl), null);
-  } catch (error) {
+  } catch {
     // Silent fail
   }
 }
@@ -141,7 +142,7 @@ export async function getCache<T>(key: string): Promise<T | null> {
     const data = await withTimeout(redis.get(key), null);
     if (!data) return null;
     return JSON.parse(data);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -150,7 +151,7 @@ export async function invalidateCache(key: string) {
   if (!redis) return;
   try {
     await withTimeout(redis.del(key), null);
-  } catch (error) {
+  } catch {
     // Silent fail
   }
 }
@@ -169,7 +170,7 @@ export async function getMultiCache<T>(keys: string[]): Promise<(T | null)[]> {
         return null;
       }
     });
-  } catch (error) {
+  } catch {
     return keys.map(() => null);
   }
 }
@@ -191,7 +192,7 @@ export async function getVersions(keys: string[]): Promise<string[]> {
       }
       return item;
     });
-  } catch (error) {
+  } catch {
     return keys.map(() => "0");
   }
 }
@@ -250,13 +251,13 @@ export async function getLatestVersionAndCache<T>(
     if (cachedData) {
       try {
         parsedData = JSON.parse(cachedData);
-      } catch (e) {
+      } catch {
         console.error(`[Redis] Failed to parse cache for key="${cacheKey}"`);
       }
     }
 
     return { version: cleanVersion, data: parsedData };
-  } catch (error) {
+  } catch {
     return { version: "0", data: null };
   }
 }
@@ -274,7 +275,7 @@ export async function incrementGlobalVersion(key: string) {
 export async function invalidateAllAdminCache() {
   if (!redis) return;
 
-  const invalidations: Promise<any>[] = [
+  const invalidations: Promise<unknown>[] = [
     // 1. Invalidate Primary Data Keys
     invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
     invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
@@ -354,7 +355,7 @@ export async function setUserPendingProgress(
         ), // High-water mark
         lastWatched: data.lastWatched, // Latest is always correct
       };
-    } catch (e) {}
+    } catch {}
   }
 
   await withTimeout(redis.hset(key, lessonId, JSON.stringify(finalData)), null);
@@ -367,11 +368,11 @@ export async function getUserPendingProgress(userId: string) {
   const key = `user:progress:pending:${userId}`;
   const data = await withTimeout(redis.hgetall(key), {});
 
-  const result: Record<string, any> = {};
+  const result: Record<string, { lastWatched: number; delta: number; restrictionTime: number; timestamp: number }> = {};
   for (const [lessonId, val] of Object.entries(data)) {
     try {
       result[lessonId] = JSON.parse(val as string);
-    } catch (e) {}
+    } catch {}
   }
   return result;
 }
@@ -509,8 +510,8 @@ export async function checkRateLimit(
     }
 
     return { success: true, limit, remaining, reset };
-  } catch (error) {
-    console.warn(`[Redis] Rate limit check failed for ${key}:`, error);
+  } catch {
+    console.warn(`[Redis] Rate limit check failed for ${key}:`);
     return { success: true, limit, remaining: limit, reset: 0 }; // Fail open
   }
 }
@@ -578,7 +579,7 @@ export async function getOrSetWithStampedePrevention<T>(
   }
 
   // Cold cache, use lock to ensure only one fetcher runs
-  let result = await withDistributedLock(`fetch:${key}`, async () => {
+  const result = await withDistributedLock(`fetch:${key}`, async () => {
     const data = await fetcher();
     await setCache(key, { data, expiresAt: Date.now() + ttlSeconds * 1000 }, ttlSeconds + 60);
     return data;

@@ -22,10 +22,10 @@ export default async function UserCourseDetailedAnalyticsPage({
   const { user, course } = data;
 
   const totalCourseSpent = course.chapter.reduce(
-    (acc: number, c: any) =>
+    (acc, c) =>
       acc +
       c.lesson.reduce(
-        (lAcc: number, l: any) =>
+        (lAcc, l) =>
           lAcc + (l.lessonProgress[0]?.actualWatchTime || 0),
         0,
       ),
@@ -129,7 +129,7 @@ export default async function UserCourseDetailedAnalyticsPage({
             <span className="text-muted-foreground/20">|</span>
             <span>
               {course.chapter.reduce(
-                (acc: number, c: any) => acc + c.lesson.length,
+                (acc, c) => acc + c.lesson.length,
                 0,
               )}{" "}
               Lessons

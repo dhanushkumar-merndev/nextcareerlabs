@@ -24,13 +24,12 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { HomeIcon, Tv2 } from "lucide-react";
 import { useSignOut } from "@/hooks/use-signout";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { TroubleshootButton } from "@/components/sidebar/troubleshoot-button";
 
 export function NavUser() {
@@ -38,27 +37,16 @@ export function NavUser() {
   const router = useRouter();
   const handleSignOut = useSignOut();
 
-  // 🔥 Navigation with forced reload
   const handleNavigate = (href: string) => {
-    // Close sidebar on mobile when navigating
     if (isMobile) {
       setOpenMobile(false);
     }
     router.push(href);
-
-    setTimeout(() => {
-      router.refresh();
-    }, 50);
   };
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const { session, isLoading: isPending } = useSmartSession();
 
-  if (!mounted || isPending) {
+  if (isPending) {
     return (
       <SidebarMenu>
         <SidebarMenuItem>

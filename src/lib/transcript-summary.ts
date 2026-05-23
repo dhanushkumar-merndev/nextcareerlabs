@@ -33,8 +33,9 @@ ${chunk.text}`;
         text += part;
       }
       return text;
-    } catch (err: any) {
-      const isRateLimit = err?.statusCode === 429 || err?.statusCode === 413;
+    } catch (err) {
+      const e = err as { statusCode?: number };
+      const isRateLimit = e.statusCode === 429 || e.statusCode === 413;
       if (isRateLimit && attempt < 2) {
         await sleep(2000 * (attempt + 1));
         continue;

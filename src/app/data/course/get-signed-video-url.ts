@@ -1,3 +1,4 @@
+
 "use server";
 
 import { GetObjectCommand } from "@aws-sdk/client-s3";
@@ -55,9 +56,10 @@ export async function getSignedVideoUrl(key: string) {
     });
 
     return { status: "success", url: signedUrl };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to sign URL";
     console.error(`[S3 Signing Error] Key: ${key}`, err);
-    return { status: "error", message: err.message || "Failed to sign URL" };
+    return { status: "error", message };
   }
 }
 
@@ -134,8 +136,9 @@ export async function getBatchSignedVideoUrls(keys: string[]) {
     );
 
     return { status: "success", urls: results };
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to sign URLs";
     console.error(`[S3 Batch Signing Error]`, err);
-    return { status: "error", message: err.message || "Failed to sign URLs" };
+    return { status: "error", message };
   }
 }

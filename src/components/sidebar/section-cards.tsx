@@ -28,7 +28,7 @@ interface SimpleCardProps {
   title: string;
   value: number | string;
   description: string;
-  icon: React.ForwardRefExoticComponent<any>;
+  icon: React.ForwardRefExoticComponent<Record<string, never>>;
 }
 
 export function SectionCards({ stats }: SectionCardsProps) {

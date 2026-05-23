@@ -6,7 +6,6 @@ import {
   setCache,
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
-  incrementGlobalVersion,
 } from "@/lib/redis";
 
 export async function adminGetRecentCourses(clientVersion?: string) {
@@ -36,7 +35,7 @@ export async function adminGetRecentCourses(clientVersion?: string) {
 
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`;
   const redisStartTime = Date.now();
-  const cached = await getCache<any[]>(cacheKey);
+  const cached = await getCache<unknown>(cacheKey);
   const redisDuration = Date.now() - redisStartTime;
 
   if (cached) {

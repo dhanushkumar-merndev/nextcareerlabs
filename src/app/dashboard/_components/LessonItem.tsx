@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import { cn } from "@/lib/utils";
 import { Play, Check } from "lucide-react";
 import Link from "next/link";

@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       Array.isArray(validation.data) ? results : results[0],
     );
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: "Failed to generate presigned URL" },
       { status: 500 },

@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { Badge } from "@/components/ui/badge";
@@ -8,31 +9,21 @@ import { constructUrl } from "@/hooks/use-construct-url";
 import { CrownIcon } from "lucide-react";
 import Link from "next/link";
 import { useCourseProgress } from "@/hooks/use-course-progress";
+import type { CourseSidebarDataType } from "@/app/data/course/get-course-sidebar-data";
 
 // CourseProgressCard - fix interface
 interface iAppProps {
   data: {
-    Course: {
-      id: string;
-      title: string;
-      fileKey: string;
-      level: any;
-      smallDescription: string;
-      slug: string;
-      chapter: any[];
-      firstLessonId?: string | null;
-    };
+    Course: CourseSidebarDataType["course"];
   };
-  isPriority?: boolean;
 }
 
-export function CourseProgressCard({ data, isPriority = false }: iAppProps) {
+export function CourseProgressCard({ data }: iAppProps) {
   const course = data.Course;
   const thumbnailUrl = constructUrl(course.fileKey);
 
   const { completedLessons, totalLessons, progressPercentage } =
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    useCourseProgress({ courseData: course as any });
+    useCourseProgress({ courseData: course });
 
   return (
     <Card className="group relative py-0 gap-0 hover:shadow-lg transition-all rounded-xl">

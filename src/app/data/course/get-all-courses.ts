@@ -2,22 +2,20 @@ import "server-only";
 import { prisma } from "@/lib/db";
 import { cache } from "react";
 import {
-  getCache,
   setCache,
   getMultiCache,
   getVersions,
   GLOBAL_CACHE_KEYS,
-  getGlobalVersion,
   getOrSetWithStampedePrevention,
 } from "@/lib/redis";
 import { CoursesServerResult, PublicCourseType } from "@/lib/types/course";
 
-const PAGE_SIZE = 9;
-
-type RedisCoursesCache = {
+type CachedCourses = {
   data: PublicCourseType[];
   version: string;
 };
+
+const PAGE_SIZE = 9;
 
 const getAllCoursesInternal = async (
   clientVersion?: string,
@@ -60,7 +58,9 @@ const getAllCoursesInternal = async (
     dataKeys.push(`user:enrollment-map:${userId}:${userVersion}`);
   }
 
-  const [cached, cachedEnrollMap] = await getMultiCache<any>(dataKeys);
+  const [rawCached, rawEnrollMap] = await getMultiCache<unknown>(dataKeys);
+  const cached = rawCached as CachedCourses | null;
+  const cachedEnrollMap = rawEnrollMap as [string, string | null][] | null;
 
   console.log(
     `[getAllCourses] Redis batch lookup took ${Date.now() - redisStartTime}ms. Courses: ${cached ? "HIT" : "MISS"}, EnrollMap: ${userId ? (cachedEnrollMap ? "HIT" : "MISS") : "N/A"}`,
@@ -183,13 +183,9 @@ const getAllCoursesInternal = async (
   if (userId) {
     const mergeStart = Date.now();
     const enrollCacheKey = `user:enrollment-map:${userId}:${userVersion}`;
-    const redisEnrollStartTime = Date.now();
 
     // ✅ Optimization: Use pre-fetched enrollment map from step 1
-    let mapValues: [string, string | null][] = cachedEnrollMap as [
-      string,
-      string | null,
-    ][];
+    let mapValues: [string, string | null][] = cachedEnrollMap ?? [];
 
     if (!mapValues) {
       console.log(

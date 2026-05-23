@@ -16,7 +16,7 @@ import {
 } from "@/lib/zodSchemas";
 import { ArrowLeft, Loader2, PlusCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Form,
@@ -42,7 +42,6 @@ import { useTransition, useEffect } from "react";
 import { tryCatch } from "@/hooks/try-catch";
 import { CreateCourse } from "./actions";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { useConfetti } from "@/hooks/use-confetti";
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -51,7 +50,6 @@ import { chatCache } from "@/lib/chat-cache";
 
 export default function CourseCreationPage() {
   const [isPending, startTransition] = useTransition();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useSmartSession();
   const { triggerConfetti } = useConfetti();
@@ -72,20 +70,15 @@ export default function CourseCreationPage() {
       price: null,
     },
   });
-  const isFree = form.watch("isFree");
+  const watchedIsFree = useWatch({ control: form.control, name: "isFree" });
 
   useEffect(() => {
-    const subscription = form.watch((value, info) => {
-      if (info.name === "isFree") {
-        if (value.isFree === true) {
-          form.setValue("price", null);
-        } else {
-          form.setValue("freeChaptersCount", 0);
-        }
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
+    if (watchedIsFree) {
+      form.setValue("price", null);
+    } else {
+      form.setValue("freeChaptersCount", 0);
+    }
+  }, [watchedIsFree, form]);
 
   function onSubmit(values: CourseSchemaType) {
     if (!values.fileKey) {
@@ -389,7 +382,7 @@ export default function CourseCreationPage() {
                     )}
                   />
 
-                  {isFree ? (
+                  {watchedIsFree ? (
                     <FormField
                       control={form.control}
                       name="freeChaptersCount"

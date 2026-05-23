@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CourseSidebar } from "./CourseSidebar";
-import { usePathname } from "next/navigation";
 import { useCourseProgressContext } from "@/providers/CourseProgressProvider";
 import { useCourseProgress } from "@/hooks/use-course-progress";
 import { useQuery } from "@tanstack/react-query";
@@ -15,7 +14,7 @@ import { chatCache } from "@/lib/chat-cache";
 
 type SidebarCourse = Extract<
   CourseSidebarDataType,
-  { course: NonNullable<any> }
+  { course: NonNullable<unknown> }
 >["course"];
 type SidebarCacheData = { course: SidebarCourse };
 // chatCache.get returns: { data: SidebarCacheData, version?: string, timestamp?: number } | null
@@ -51,10 +50,7 @@ export function SidebarContainer({
 
   /* ---------------- Query ---------------- */
   const cacheKey = `course_sidebar_${slug}`;
-  const cached = useMemo(
-    () => chatCache.get<SidebarCacheData>(cacheKey, userId),
-    [slug, userId],
-  );
+  const cached = chatCache.get<SidebarCacheData>(cacheKey, userId);
 
   const { data: course, isError } = useQuery<SidebarCourse | null>({
     queryKey: ["course_sidebar", slug],
@@ -89,18 +85,13 @@ export function SidebarContainer({
   });
 
   /* ---------------- Local State ---------------- */
-  const [mounted, setMounted] = useState(false);
-  const [open, setOpen] = useState(false);
-  const pathname = usePathname();
+  const [mounted] = useState(() => typeof window !== "undefined");
+  const [open] = useState(false);
   const { setProgressPercentage, setShowProgress, setCourseTitle } =
     useCourseProgressContext();
   const { progressPercentage } = useCourseProgress({ courseData: course });
 
   /* ---------------- Effects ---------------- */
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   useEffect(() => {
     if (!course) return;
     setProgressPercentage(progressPercentage);
@@ -117,10 +108,6 @@ export function SidebarContainer({
     setShowProgress,
     setCourseTitle,
   ]);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     const isMobileBreakpoint =

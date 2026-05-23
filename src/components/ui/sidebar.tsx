@@ -250,7 +250,7 @@ function Sidebar({
           variant === "floating" || variant === "inset"
             ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)",
-          (props as any).overlap && "w-0! group-data-[state=expanded]:w-0!",
+          (props as { overlap?: boolean }).overlap && "w-0! group-data-[state=expanded]:w-0!",
         )}
       />
       <div

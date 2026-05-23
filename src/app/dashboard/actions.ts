@@ -92,20 +92,20 @@ export async function getUserDashboardData(
         const progressMap = new Map(allProgress.map((p) => [p.lessonId, p]));
 
         // Calculate metrics in memory
-        const coursesProgress = enrollments.map((enrollment: any) => {
+        const coursesProgress = enrollments.map((enrollment) => {
           const course = enrollment.Course;
           let courseDurationSum = 0;
           let courseRestrictionSum = 0;
           let courseCompletedCount = 0;
           let totalLessons = 0;
 
-          const lessonsProgress: any[] = [];
+          const lessonsProgress: { id: string; duration: number; restrictionTime: number; completed: boolean }[] = [];
 
           // Sort chapters and find first lesson
           const sortedChapters = [...course.chapter].sort((a, b) => a.position - b.position);
           let firstLessonId: string | null = null;
 
-          sortedChapters.forEach((chapter: any, chIdx: number) => {
+          sortedChapters.forEach((chapter, chIdx) => {
             const sortedLessons = [...chapter.lesson].sort((a, b) => a.position - b.position);
             
             if (chIdx === 0 && sortedLessons.length > 0) {
@@ -113,8 +113,8 @@ export async function getUserDashboardData(
             }
 
             totalLessons += sortedLessons.length;
-            sortedLessons.forEach((lesson: any) => {
-              const progress = progressMap.get(lesson.id) as any;
+            sortedLessons.forEach((lesson) => {
+              const progress = progressMap.get(lesson.id);
               const duration = (lesson.duration || 0); // Already in seconds (normalized by client/form)
               const restriction = progress?.restrictionTime || 0;
 
@@ -160,14 +160,14 @@ export async function getUserDashboardData(
         });
 
         const completedCoursesCount = coursesProgress.filter(
-          (c: any) => c.progress === 100,
+          (c) => c.progress === 100,
         ).length;
         const totalCompletedLessons = coursesProgress.reduce(
           (acc, c) => acc + c.completedLessons,
           0,
         );
         const totalPlatformActualWatchTime = coursesProgress.reduce(
-          (acc, c: any) => acc + c.actualWatchTime,
+          (acc, c) => acc + c.actualWatchTime,
           0,
         );
 
@@ -179,7 +179,7 @@ export async function getUserDashboardData(
             if (totalLessonsInChapter === 0) continue;
 
             const completedInChapter = chapter.lesson.filter(
-              (l: any) => progressMap.get(l.id)?.completed,
+              (l) => progressMap.get(l.id)?.completed,
             ).length;
             if (completedInChapter === totalLessonsInChapter) {
               completedChaptersCount++;

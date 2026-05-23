@@ -1,7 +1,7 @@
 export interface User {
   id: string;
-  name: string;
-  email: string;
+  name: string | null;
+  email: string | null;
   role: string | null;
   createdAt: Date;
   image: string | null;
@@ -25,7 +25,7 @@ export interface ChapterExpansionProps {
         id: string;
         title: string;
         position: number;
-        lesson: any[];
+        lesson: { id: string; title: string }[];
     };
     children: React.ReactNode;
 }

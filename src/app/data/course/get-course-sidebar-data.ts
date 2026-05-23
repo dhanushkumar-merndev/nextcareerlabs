@@ -6,7 +6,6 @@ import {
   getCache,
   setCache,
   GLOBAL_CACHE_KEYS,
-  getGlobalVersion,
   getVersions,
   getUserPendingProgress,
 } from "@/lib/redis";
@@ -33,7 +32,7 @@ export async function getCourseSidebarData(
 
   // ── Tier 2: Redis ─────────────────────────────────────────────────
   const cacheKey = `user:sidebar:${session.id}:${slug}:${currentVersion}`;
-  const cached = await getCache<any>(cacheKey);
+  const cached = await getCache<unknown>(cacheKey);
   if (cached) {
     console.log(
       `%c[Sidebar] 🔵 REDIS HIT → sidebar:${slug} (v${currentVersion})`,
@@ -179,12 +178,13 @@ export async function getCourseSidebarData(
           } else {
             // Synthetic progress for UI
             lesson.lessonProgress[0] = {
+              id: "",
               completed: false,
               quizPassed: false,
               lessonId: lesson.id,
               lastWatched: p.lastWatched,
               restrictionTime: p.restrictionTime,
-            } as any;
+            } as (typeof lesson.lessonProgress)[0];
           }
         }
       });

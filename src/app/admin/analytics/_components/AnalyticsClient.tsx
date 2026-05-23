@@ -11,7 +11,7 @@
  */
 
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getAdminAnalytics,
@@ -48,12 +48,10 @@ import { useRouter } from "next/navigation";
 // Analytics Client Component
 export function AnalyticsClient() {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
+  const isHydrated = typeof window !== "undefined";
   const hasLogged = useRef(false);
 
   useEffect(() => {
-    setMounted(true);
-
     if (!hasLogged.current) {
       const keys = [
         { key: "admin_static_analytics", label: "Static" },
@@ -62,7 +60,7 @@ export function AnalyticsClient() {
       ];
 
       keys.forEach(({ key, label }) => {
-        const cached = chatCache.get<any>(key);
+        const cached = chatCache.get<Record<string, unknown>>(key);
         if (cached) {
           console.log(
             `%c[Analytics] LOCAL HIT (${label}). Rendering from device storage.`,
@@ -96,14 +94,14 @@ export function AnalyticsClient() {
   const { data: staticDataRaw, isLoading: isStaticLoading } = useQuery({
     queryKey: ["admin_static_analytics"],
     queryFn: async () => {
-      const cached = chatCache.get<any>("admin_static_analytics");
-      const result = (await getAdminStaticAnalytics(cached?.version)) as any;
+      const cached = chatCache.get<Record<string, unknown>>("admin_static_analytics");
+      const result = await getAdminStaticAnalytics(cached?.version);
 
-      if (result?.status === "not-modified" && cached) {
+      if (result && "status" in result && result.status === "not-modified" && cached) {
         return cached.data;
       }
 
-      if (result?.data) {
+      if (result && "data" in result && result.data) {
         console.log(
           `%c[Analytics] SERVER HIT: NEW_DATA (Static). Syncing (v${result.version}).`,
           "color: #eab308; font-weight: bold",
@@ -121,31 +119,47 @@ export function AnalyticsClient() {
     },
     initialData: () => {
       if (typeof window === "undefined") return undefined;
-      return chatCache.get<any>("admin_static_analytics")?.data;
+      return chatCache.get<Record<string, unknown>>("admin_static_analytics")?.data;
     },
     staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
     refetchOnWindowFocus: false,
   });
 
-  const staticData = staticDataRaw as any;
+type StaticAnalyticsData = {
+  totalUsers: number;
+  totalEnrollments: number;
+  totalChapters: number;
+  totalLessons: number;
+  totalPdfs: number;
+  totalImages: number;
+  enrollmentChartData: unknown[];
+  popularCoursesChartData: unknown[];
+  recentUsers: Array<{ id: string; image?: string; name?: string; email?: string; createdAt: string }>;
+};
+
+type GrowthAnalyticsData = {
+  chartData: unknown[];
+};
+
+  const staticData = staticDataRaw as StaticAnalyticsData | null;
 
   // 2. Growth Chart Data (Date-range filtered)
   const { data: growthDataRaw, isLoading: isGrowthLoading } = useQuery({
     queryKey: ["admin_analytics_growth"],
     queryFn: async () => {
-      const cached = chatCache.get<any>("admin_analytics_growth");
-      const result = (await getAdminAnalytics(
+      const cached = chatCache.get<Record<string, unknown>>("admin_analytics_growth");
+      const result = await getAdminAnalytics(
         undefined,
         undefined,
         cached?.version,
-      )) as any;
+      );
 
-      if (result?.status === "not-modified" && cached) {
+      if (result && "status" in result && result.status === "not-modified" && cached) {
         return cached.data;
       }
 
-      if (result?.data) {
+      if (result && "data" in result && result.data) {
         console.log(
           `%c[Analytics] SERVER HIT: NEW_DATA (Growth). Syncing (v${result.version}).`,
           "color: #eab308; font-weight: bold",
@@ -163,19 +177,19 @@ export function AnalyticsClient() {
     },
     initialData: () => {
       if (typeof window === "undefined") return undefined;
-      return chatCache.get<any>("admin_analytics_growth")?.data;
+      return chatCache.get<Record<string, unknown>>("admin_analytics_growth")?.data;
     },
     staleTime: 1800000, // 30 mins
     refetchOnWindowFocus: false,
   });
 
-  const growthData = growthDataRaw as any;
+  const growthData = growthDataRaw as GrowthAnalyticsData | null;
 
   // 3. Success Rate Query (CPU Intensive calculation)
   const { data: successRateRaw, isLoading: isSuccessRateLoading } = useQuery({
     queryKey: ["admin_success_rate"],
     queryFn: async () => {
-      const cached = chatCache.get<any>("admin_success_rate");
+      const cached = chatCache.get<Record<string, unknown>>("admin_success_rate");
       const result = await getAdminSuccessRate();
 
       if (result) {
@@ -196,14 +210,14 @@ export function AnalyticsClient() {
     },
     initialData: () => {
       if (typeof window === "undefined") return undefined;
-      return chatCache.get<any>("admin_success_rate")?.data;
+      return chatCache.get<Record<string, unknown>>("admin_success_rate")?.data;
     },
     staleTime: 1800000,
     refetchInterval: 1800000,
     refetchOnWindowFocus: false,
     initialDataUpdatedAt: () => {
       if (typeof window === "undefined") return undefined;
-      return chatCache.get<any>("admin_success_rate")?.timestamp;
+      return chatCache.get<Record<string, unknown>>("admin_success_rate")?.timestamp;
     },
   });
 
@@ -213,7 +227,7 @@ export function AnalyticsClient() {
   } | null;
 
   // Strict hydration guard
-  if (!mounted) {
+  if (!isHydrated) {
     return (
       <div className="flex-1 flex items-center justify-center p-8 min-h-[400px]">
         <Loader size={40} />
@@ -320,7 +334,7 @@ export function AnalyticsClient() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {staticData.recentUsers?.map((user: any) => (
+                  {staticData.recentUsers?.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">

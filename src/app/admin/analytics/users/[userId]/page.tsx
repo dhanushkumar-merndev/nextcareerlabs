@@ -1,5 +1,3 @@
-import { getUserAnalyticsAdmin } from "@/app/admin/analytics/actions";
-import { notFound } from "next/navigation";
 import { UserAnalyticsClient } from "./_components/UserAnalyticsClient";
 
 interface PageProps {

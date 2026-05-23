@@ -6,8 +6,14 @@ import {
   setCache,
   GLOBAL_CACHE_KEYS,
   getGlobalVersion,
-  incrementGlobalVersion,
 } from "@/lib/redis";
+
+interface DashboardStatsData {
+  totalUsers: number;
+  totalSubscriptions: number;
+  totalCourses: number;
+  totalLessons: number;
+}
 
 export async function adminGetDashboardStats(clientVersion?: string) {
   await requireAdmin();
@@ -36,7 +42,7 @@ export async function adminGetDashboardStats(clientVersion?: string) {
 
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS;
   const redisStartTime = Date.now();
-  const cached = await getCache<any>(cacheKey);
+  const cached = await getCache<DashboardStatsData>(cacheKey);
   const redisDuration = Date.now() - redisStartTime;
 
   if (cached) {

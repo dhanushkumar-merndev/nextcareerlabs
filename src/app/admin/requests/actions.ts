@@ -3,7 +3,7 @@
 import { requireAdmin } from "@/app/data/admin/require-admin";
 import { prisma } from "@/lib/db";
 import { ApiResponse } from "@/lib/types/auth";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { adminGetEnrollmentRequests } from "@/app/data/admin/admin-get-requests";
 import { EnrollmentStatus } from "@/generated/prisma";
 import {
@@ -84,7 +84,7 @@ export async function updateEnrollmentStatusAction(
       });
 
       // Collective invalidation (Admin + User)
-      const invalidations: Promise<any>[] = [
+      const invalidations: Promise<unknown>[] = [
         invalidateCache(CHAT_CACHE_KEYS.THREADS(enrollment.userId)),
         courseGroup
           ? invalidateCache(CHAT_CACHE_KEYS.PARTICIPANTS(courseGroup.id))
@@ -128,7 +128,7 @@ export async function updateEnrollmentStatusAction(
       status: "success",
       message: `Enrollment status updated to ${status}`,
     };
-  } catch (error) {
+  } catch {
     return {
       status: "error",
       message: "Failed to update enrollment status",
@@ -179,7 +179,7 @@ export async function banUserAction(userId: string): Promise<ApiResponse> {
       status: "success",
       message: "User has been banned",
     };
-  } catch (error) {
+  } catch {
     return {
       status: "error",
       message: "Failed to ban user",
@@ -228,7 +228,7 @@ export async function unbanUserAction(userId: string): Promise<ApiResponse> {
       status: "success",
       message: "User has been unbanned",
     };
-  } catch (error) {
+  } catch {
     return {
       status: "error",
       message: "Failed to unban user",
@@ -273,7 +273,7 @@ export async function updateUserDetailsAction(
       status: "success",
       message: "User details updated successfully",
     };
-  } catch (error) {
+  } catch {
     return {
       status: "error",
       message: "Failed to update user details",
@@ -355,7 +355,7 @@ export async function deleteEnrollmentAction(
       status: "success",
       message: "Enrollment request deleted successfully",
     };
-  } catch (error) {
+  } catch {
     return {
       status: "error",
       message: "Failed to delete enrollment request",

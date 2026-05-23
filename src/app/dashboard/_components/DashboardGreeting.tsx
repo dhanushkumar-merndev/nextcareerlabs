@@ -24,26 +24,21 @@ const MOTIVATIONAL_PHRASES = [
 ];
 
 export function DashboardGreeting({ userName }: DashboardGreetingProps) {
-  const [greeting, setGreeting] = useState("");
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [greeting] = useState(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  });
+
+  const [currentIndex, setCurrentIndex] = useState(() =>
+    Math.floor(Math.random() * MOTIVATIONAL_PHRASES.length),
+  );
 
   useEffect(() => {
-    // Determine greeting based on time
-    const hour = new Date().getHours();
-    let timeGreeting = "Welcome back";
-    if (hour < 12) timeGreeting = "Good morning";
-    else if (hour < 17) timeGreeting = "Good afternoon";
-    else timeGreeting = "Good evening";
-
-    setGreeting(timeGreeting);
-
-    // Initial random start
-    setCurrentIndex(Math.floor(Math.random() * MOTIVATIONAL_PHRASES.length));
-
-    // Change every 2 seconds
     const interval = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % MOTIVATIONAL_PHRASES.length);
-    }, 5000); // 2s show + 0.5s transition
+    }, 5000);
 
     return () => clearInterval(interval);
   }, []);

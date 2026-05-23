@@ -112,7 +112,7 @@ export async function deleteCourse(courseId: string): Promise<ApiResponse> {
     revalidatePath("/admin/resources"); // Revalidate Resources page since ChatGroup is gone
 
     // Invalidate global courses and analytics cache
-    const invalidationPromises: Promise<any>[] = [
+    const invalidationPromises: Promise<unknown>[] = [
       invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
       invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
       invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),

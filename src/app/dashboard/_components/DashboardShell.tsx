@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 import { AppSidebar } from "./DashboardAppSidebar";
@@ -16,29 +16,24 @@ export function DashboardShell({
 }) {
   const { session, isLoading: sessionLoading } = useSmartSession();
 
-  const { data: enrolledCourses, isLoading: enrolledLoading } =
+  const { data: enrolledCourses } =
     useEnrolledCourses(session?.user?.id, sessionLoading);
 
-  const [isEnrolled, setIsEnrolled] = useState(isEnrolledHint ?? false);
-  const [mounted, setMounted] = useState(false);
+  const isEnrolled =
+    enrolledCourses !== undefined
+      ? enrolledCourses.length > 0
+      : isEnrolledHint ?? false;
+
+  const prevEnrolled = useRef(isEnrolled);
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Sync state after mount
-  useEffect(() => {
-    if (mounted && enrolledCourses !== undefined) {
-      const actualEnrollment = enrolledCourses.length > 0;
-      if (actualEnrollment !== isEnrolled) {
-        setIsEnrolled(actualEnrollment);
-
-        if (typeof document !== "undefined") {
-          document.cookie = `is_enrolled=${actualEnrollment}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
-        }
+    if (prevEnrolled.current !== isEnrolled) {
+      prevEnrolled.current = isEnrolled;
+      if (typeof document !== "undefined") {
+        document.cookie = `is_enrolled=${isEnrolled}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
       }
     }
-  }, [mounted, enrolledCourses, enrolledLoading, isEnrolled]);
+  }, [isEnrolled]);
 
   return (
     <>

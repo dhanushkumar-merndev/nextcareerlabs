@@ -9,7 +9,7 @@ import { AdminCourseCard } from "../courses/_components/AdminCourseCard";
 import { EmptyState } from "@/components/general/EmptyState";
 import { buttonVariants } from "@/components/ui/button";
 import Link from "next/link";
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
@@ -17,23 +17,50 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
 import { useRouter } from "next/navigation";
+import { PublicCourseType } from "@/lib/types/course";
+
+type AdminDashboardStats = {
+  totalUsers: number;
+  totalSubscriptions: number;
+  totalCourses: number;
+  totalLessons: number;
+};
+
+type AdminDashboardEnrollment = {
+  date: string;
+  enrollments: number;
+};
+
+type AdminDashboardData = {
+  stats: AdminDashboardStats;
+  enrollments: AdminDashboardEnrollment[];
+  recentCourses: PublicCourseType[];
+};
+
+type AdminDashboardVersions = {
+  stats?: string;
+  enrollments?: string;
+  recentCourses?: string;
+};
+
+type AdminDashboardActionResult =
+  | { status: "not-modified"; versions: AdminDashboardVersions }
+  | { data: AdminDashboardData; versions: AdminDashboardVersions };
 
 export function AdminDashboardClient() {
-  const [mounted, setMounted] = useState(false);
+  const isHydrated = typeof window !== "undefined";
   const hasLogged = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
-    setMounted(true);
-
     if (!hasLogged.current) {
-      const cached = chatCache.get<any>("admin_dashboard_all");
+      const cached = chatCache.get<AdminDashboardData>("admin_dashboard_all");
       if (cached) {
         let statsV = "0";
-        if (cached?.version) {
+        if (cached.version) {
           try {
-            statsV = JSON.parse(cached.version).stats;
-          } catch (e) {}
+            statsV = (JSON.parse(cached.version) as AdminDashboardVersions).stats ?? "0";
+          } catch {}
         }
         console.log(
           `%c[AdminDashboard] LOCAL HIT (vStats:${statsV}). Rendering from device storage.`,
@@ -53,11 +80,8 @@ export function AdminDashboardClient() {
     };
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
+  }, [router]);
 
-  const getTime = () => new Date().toLocaleTimeString();
-
-  // Consolidated Data Query
   const {
     data: dashboardData,
     isLoading,
@@ -65,20 +89,17 @@ export function AdminDashboardClient() {
   } = useQuery({
     queryKey: ["admin_dashboard_all"],
     queryFn: async () => {
-      const cached = chatCache.get<any>("admin_dashboard_all");
-      let clientVersions: any;
+      const cached = chatCache.get<AdminDashboardData>("admin_dashboard_all");
+      let clientVersions: AdminDashboardVersions | undefined;
       if (cached?.version) {
         try {
           clientVersions = JSON.parse(cached.version);
-        } catch (e) {}
+        } catch {}
       }
 
-      if (!cached)
-        console.log(`[${getTime()}] [Dashboard] Cache MISS. Fetching all...`);
+      const result = await adminGetDashboardDataAction(clientVersions) as AdminDashboardActionResult | undefined;
 
-      const result = await adminGetDashboardDataAction(clientVersions);
-
-      if (result && (result as any).status === "not-modified") {
+      if (result && "status" in result && result.status === "not-modified") {
         console.log(
           `%c[Dashboard] SERVER HIT: NOT_MODIFIED. Syncing from local storage.`,
           "color: #eab308; font-weight: bold",
@@ -86,12 +107,11 @@ export function AdminDashboardClient() {
         return cached?.data;
       }
 
-      if (result && (result as any).data) {
+      if (result && "data" in result && result.data) {
         console.log(
           `%c[Dashboard] SERVER HIT: NEW_DATA. Updating Local Cache.`,
           "color: #eab308; font-weight: bold",
         );
-        // Store serialized versions in the single 'version' slot
         chatCache.set(
           "admin_dashboard_all",
           result.data,
@@ -105,17 +125,17 @@ export function AdminDashboardClient() {
     },
     initialData: () => {
       if (typeof window === "undefined") return undefined;
-      const cached = chatCache.get<any>("admin_dashboard_all");
+      const cached = chatCache.get<AdminDashboardData>("admin_dashboard_all");
       return cached?.data;
     },
     initialDataUpdatedAt:
       typeof window !== "undefined"
-        ? chatCache.get<any>("admin_dashboard_all")?.timestamp
+        ? chatCache.get<AdminDashboardData>("admin_dashboard_all")?.timestamp
         : undefined,
     staleTime: 1800000,
     refetchInterval: 1800000,
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // Don't refetch on mount if we have fresh initialData
+    refetchOnMount: false,
   });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -128,7 +148,6 @@ export function AdminDashboardClient() {
     try {
       await Promise.all([
         refetch(),
-        // Add a small delay for visual feedback if query is too fast
         new Promise((resolve) => setTimeout(resolve, 800)),
       ]);
     } finally {
@@ -136,12 +155,12 @@ export function AdminDashboardClient() {
     }
   };
 
-  const statsData = mounted ? dashboardData?.stats : undefined;
-  const enrollmentsData = mounted ? dashboardData?.enrollments : undefined;
-  const coursesData = mounted ? dashboardData?.recentCourses : undefined;
+  const statsData = isHydrated ? dashboardData?.stats : undefined;
+  const enrollmentsData = isHydrated ? dashboardData?.enrollments : undefined;
+  const coursesData = isHydrated ? dashboardData?.recentCourses : undefined;
 
-  const showStatsSkeleton = !mounted || (isLoading && !statsData);
-  const isInteractionDisabled = !mounted || isRefreshing || isLoading;
+  const showStatsSkeleton = !isHydrated || (isLoading && !statsData);
+  const isInteractionDisabled = !isHydrated || isRefreshing || isLoading;
 
   return (
     <div className="py-4 sm:py-6">
@@ -166,12 +185,12 @@ export function AdminDashboardClient() {
             <RefreshCw
               className={cn(
                 "size-3.5",
-                mounted &&
+                isHydrated &&
                   (isRefreshing || isLoading) &&
                   "animate-spin text-primary",
               )}
             />
-            {mounted
+            {isHydrated
               ? isRefreshing
                 ? "Checking Versions..."
                 : "Check for Updates"
@@ -187,11 +206,11 @@ export function AdminDashboardClient() {
           ))}
         </div>
       ) : (
-        <SectionCards stats={statsData} />
+        <SectionCards stats={statsData!} />
       )}
 
       <div className="px-4 lg:px-6 py-6">
-        {!mounted || (isLoading && !enrollmentsData) ? (
+        {!isHydrated || (isLoading && !enrollmentsData) ? (
           <Skeleton className="h-[400px] w-full rounded-xl mb-6" />
         ) : (
           <ChartAreaInteractive data={enrollmentsData || []} />
@@ -208,7 +227,7 @@ export function AdminDashboardClient() {
             </Link>
           </div>
 
-          {!mounted || (isLoading && !coursesData) ? (
+          {!isHydrated || (isLoading && !coursesData) ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="aspect-video w-full rounded-xl" />
@@ -223,7 +242,7 @@ export function AdminDashboardClient() {
             />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {coursesData?.map((course: any) => (
+              {coursesData?.map((course: PublicCourseType) => (
                 <AdminCourseCard key={course.id} data={course} />
               ))}
             </div>

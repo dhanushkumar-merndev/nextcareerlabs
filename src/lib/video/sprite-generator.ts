@@ -308,7 +308,7 @@ export class SpriteGenerator {
     // 2. Split Duration
     const chunkDuration = Math.ceil(duration / concurrency);
     const generators: SpriteGenerator[] = [];
-    const promises: Promise<any>[] = [];
+    const promises: Promise<SpriteGenerationResult>[] = [];
     
     // Track progress of each chunk
     const progressMap = new Array(concurrency).fill(0);
@@ -397,7 +397,7 @@ export class SpriteGenerator {
       // Use requestVideoFrameCallback for instant frame-accurate delivery
       // when available (Chrome 83+, Edge 83+). Falls back to seeked event.
       if ('requestVideoFrameCallback' in this.video) {
-        (this.video as any).requestVideoFrameCallback(() => done());
+        (this.video as HTMLVideoElement & { requestVideoFrameCallback: (cb: () => void) => void }).requestVideoFrameCallback(() => done());
       }
       this.video.addEventListener("seeked", done);
 

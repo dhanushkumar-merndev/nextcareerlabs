@@ -29,7 +29,7 @@ export async function updateProfileAction(
       status: "success",
       message: "Profile updated successfully",
     };
-  } catch (error) {
+  } catch {
     return {
       status: "error",
       message: "Failed to update profile",

@@ -1,5 +1,5 @@
-'use server';
 
+'use server';
 import { prisma as db } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
@@ -117,7 +117,14 @@ export async function getLessonMCQs(lessonId: string): Promise<{
     const cacheKey = `lesson:questions:${lessonId}`;
 
     // ── Tier 2: Redis ───────────────────────────────────────────────
-    const cachedQuestions = await getCache<any[]>(cacheKey);
+    const cachedQuestions = await getCache<Array<{
+      id: string;
+      question: string;
+      options: string[];
+      correctIdx: number;
+      explanation: string | null;
+      order: number;
+    }>>(cacheKey);
     if (cachedQuestions) {
       console.log(`%c[MCQ] 🔵 REDIS HIT → lesson:${lessonId} (${cachedQuestions.length} questions)`, "color: #3b82f6; font-weight: bold");
       return {

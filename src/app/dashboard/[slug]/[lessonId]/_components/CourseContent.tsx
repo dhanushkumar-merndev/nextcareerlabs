@@ -118,8 +118,6 @@ interface LessonContentData {
 interface iAppProps {
   lessonId: string;
   userId: string;
-  initialLesson?: unknown;
-  initialVersion?: string | null;
 }
 
 const EMPTY_ARRAY: Question[] = [];
@@ -410,7 +408,7 @@ function VideoPlayer({
       ).toString(CryptoJS.enc.Utf8);
 
       return parseFloat(decrypted) || 0;
-    } catch (e) {
+    } catch {
       // If decryption fails (tampering detected), return 0
       console.warn("[Security] Failed to decrypt delta, possible tampering");
       return 0;
@@ -713,206 +711,6 @@ function VideoPlayer({
   // const thumbnailUrl = useConstructUrl(thumbnailkey); // Removed duplicate
 
   /* ============================================================
-     STORAGE HELPERS (Cookie + LocalStorage)
-  ============================================================ */
-  const setCookie = (name: string, value: string, days = 7) => {
-    const expires = new Date(Date.now() + days * 864e5).toUTCString();
-    document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
-  };
-
-  const getCookie = (name: string): string => {
-    return document.cookie.split("; ").reduce((r, v) => {
-      const parts = v.split("=");
-      return parts[0] === name ? decodeURIComponent(parts[1]) : r;
-    }, "");
-  };
-
-  const deleteCookie = (name: string) => {
-    document.cookie = `${name}=; expires=Sun, 01 Jan 2023 00:00:00 UTC; path=/; SameSite=Lax`;
-  };
-
-  /* ============================================================
-     ENCRYPTION UTILITIES
-  ============================================================ */
-  const getEncryptionKey = (userId: string) => {
-    // Use first 16 chars of userId as encryption key
-    return userId.substring(0, 16).padEnd(16, "0");
-  };
-
-  const saveUnsyncedDelta = useCallback(() => {
-    const val = sessionDeltaRef.current;
-    if (val === 0) return;
-
-    // ✅ SECURE: Encrypt before storing
-    const encrypted = CryptoJS.AES.encrypt(
-      val.toString(),
-      getEncryptionKey(userId),
-    ).toString();
-
-    secureStorage.setItemTracked(`unsynced-delta-${lessonId}_${userId}`, encrypted);
-    setCookie(`unsynced-delta-${lessonId}_${userId}`, encrypted);
-  }, [lessonId, userId]);
-
-  const loadUnsyncedDelta = (): number => {
-    // Check localStorage first, then cookie
-    const localData = secureStorage.getItem(`unsynced-delta-${lessonId}_${userId}`);
-    const encryptedData = localData || getCookie(`unsynced-delta-${lessonId}_${userId}`);
-
-    if (!encryptedData) return 0;
-
-    try {
-      // ✅ SECURE: Decrypt
-      const decrypted = CryptoJS.AES.decrypt(
-        encryptedData,
-        getEncryptionKey(userId),
-      ).toString(CryptoJS.enc.Utf8);
-
-      return parseFloat(decrypted) || 0;
-    } catch (e) {
-      // If decryption fails (tampering detected), return 0
-      console.warn("[Security] Failed to decrypt delta, possible tampering");
-      return 0;
-    }
-  };
-
-  const clearLocalDelta = useCallback(() => {
-    sessionDeltaRef.current = 0;
-    lastSavedDeltaRef.current = 0;
-    secureStorage.removeItemTracked(`unsynced-delta-${lessonId}_${userId}`);
-    deleteCookie(`unsynced-delta-${lessonId}_${userId}`);
-  }, [lessonId, userId]);
-
-  /* ============================================================
-     SYNC TO DATABASE
-  ============================================================ */
-  const syncToDB = useCallback(async (
-    specificLessonId?: string,
-    delta?: number,
-    position?: number,
-  ) => {
-    if (isSyncingRef.current) return;
-    isSyncingRef.current = true;
-
-    try {
-      const targetId = specificLessonId || lessonId;
-      const currentPosition =
-        position !== undefined ? position : lastPositionRef.current;
-
-      // Calculate final delta from accumulated video progress
-      let deltaToSync = 0;
-      if (delta !== undefined) {
-        deltaToSync = delta;
-      } else {
-        deltaToSync = sessionDeltaRef.current;
-      }
-
-      if (deltaToSync === 0 && position === undefined) return;
-
-      console.log(
-        `[Sync] Syncing ${targetId}: Position ${currentPosition}, Delta ${deltaToSync}`,
-      );
-
-      // ✅ Send consumed video duration to DB
-      const response = await updateVideoProgress(
-        targetId,
-        currentPosition,
-        deltaToSync,
-        restrictionTimeRef.current,
-      );
-
-      if (response.status === "success" && !specificLessonId) {
-        // ✅ Update LOCAL CACHE directly (No invalidation avoids network hit on refresh)
-        const cacheKey = `lesson_content_${lessonId}`;
-        const cached = chatCache.get<LessonContentData>(cacheKey, userId);
-        if (cached?.data?.lesson) {
-          const progress = cached.data.lesson.lessonProgress?.[0] || {
-            completed: false,
-            quizPassed: false,
-            lessonId: targetId,
-            lastWatched: 0,
-            actualWatchTime: 0,
-            restrictionTime: 0,
-          };
-          progress.lastWatched = currentPosition;
-          progress.actualWatchTime =
-            (progress.actualWatchTime || 0) + deltaToSync;
-          progress.restrictionTime = Math.max(
-            progress.restrictionTime || 0,
-            restrictionTimeRef.current,
-          );
-
-          if (!cached.data.lesson.lessonProgress)
-            cached.data.lesson.lessonProgress = [];
-          cached.data.lesson.lessonProgress[0] = progress;
-
-          chatCache.set(
-            cacheKey,
-            cached.data,
-            userId,
-            cached.version,
-            PERMANENT_TTL,
-          );
-          queryClient.setQueryData(["lesson_content", lessonId], cached.data);
-        }
-
-        // ✅ Clear local state and mark as clean
-        clearLocalDelta();
-        secureStorage.removeItemTracked(`needs-sync-${lessonId}_${userId}`);
-        sessionDeltaRef.current = 0;
-      } else if (response.status === "success" && specificLessonId) {
-        // Update specific lesson cache
-        const cacheKey = `lesson_content_${specificLessonId}`;
-        const cached = chatCache.get<LessonContentData>(cacheKey, userId);
-        if (cached?.data?.lesson) {
-          const progress = cached.data.lesson.lessonProgress?.[0] || {
-            completed: false,
-            quizPassed: false,
-            lessonId: specificLessonId,
-            lastWatched: 0,
-            actualWatchTime: 0,
-            restrictionTime: 0,
-          };
-          progress.lastWatched = currentPosition;
-          progress.actualWatchTime =
-            (progress.actualWatchTime || 0) + deltaToSync;
-          // Note: for specificLessonId we don't have easy access to its restrictionTimeRef
-          // but if it's the current lesson, restrictionTimeRef.current is accurate.
-          if (specificLessonId === lessonId) {
-            progress.restrictionTime = Math.max(
-              progress.restrictionTime || 0,
-              restrictionTimeRef.current,
-            );
-          }
-
-          if (!cached.data.lesson.lessonProgress)
-            cached.data.lesson.lessonProgress = [];
-          cached.data.lesson.lessonProgress[0] = progress;
-
-          chatCache.set(
-            cacheKey,
-            cached.data,
-            userId,
-            cached.version,
-            PERMANENT_TTL,
-          );
-          queryClient.setQueryData(
-            ["lesson_content", specificLessonId],
-            cached.data,
-          );
-        }
-
-        // Clear specific lesson delta and mark as clean
-        secureStorage.removeItemTracked(`unsynced-delta-${specificLessonId}_${userId}`);
-        secureStorage.removeItemTracked(`needs-sync-${specificLessonId}_${userId}`);
-        const expires = new Date(0).toUTCString();
-        document.cookie = `unsynced-delta-${specificLessonId}_${userId}=; expires=${expires}; path=/; SameSite=Lax`;
-      }
-    } finally {
-      isSyncingRef.current = false;
-    }
-  }, [lessonId, userId, queryClient, clearLocalDelta]);
-
-  /* ============================================================
      ON MOUNT: Load from localStorage/cookie and sync to DB
   ============================================================ */
   useEffect(() => {
@@ -1069,6 +867,7 @@ function VideoPlayer({
     };
 
     performGlobalSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId, initialTime]);
 
   /* ============================================================
@@ -1083,7 +882,7 @@ function VideoPlayer({
     };
     window.addEventListener("beforeunload", handleUnload);
     return () => window.removeEventListener("beforeunload", handleUnload);
-  }, []);
+  }, [saveProgress, saveUnsyncedDelta]);
 
   /* ============================================================
      TRACK WATCHED SECONDS (Every second during playback)
@@ -1103,7 +902,7 @@ function VideoPlayer({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [lessonId, isCompleted, durationInSec, slug, actualDuration]);
+  }, [lessonId, isCompleted, durationInSec, slug, actualDuration, saveProgress]);
 
   /* ============================================================
      HLS + VIDEO + CAPTION URL SETUP (with local 28-min cache)
@@ -1230,15 +1029,7 @@ function VideoPlayer({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [lessonId]);
-
-  /* ============================================================
-     VIDEO POSITION TRACKING (localStorage for resume)
-  ============================================================ */
-  const saveProgress = useCallback((time: number) => {
-    secureStorage.setItemTracked(`video-progress-${lessonId}_${userId}`, time.toString());
-    secureStorage.setItemTracked(`needs-sync-${lessonId}_${userId}`, "true"); // Mark dirty
-  }, [lessonId, userId]);
+  }, [lessonId, saveProgress, saveUnsyncedDelta, syncToDB]);
 
   /* ============================================================
      UI STATES
@@ -1452,10 +1243,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     }
   }, [hasVideo]);
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [mounted] = useState(() => typeof window !== "undefined");
 
   if (!mounted || isLoading) {
     return <LessonContentSkeleton />;

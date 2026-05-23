@@ -1,7 +1,6 @@
 import { requireAdmin } from "@/app/data/admin/require-admin";
 import arcjet, { fixedWindow } from "@/lib/arcjet";
 import { env } from "@/lib/env";
-import { S3 } from "@/lib/S3Client";
 import { DeleteObjectCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { NextResponse } from "next/server";
 import { tigris } from "@/lib/tigris";
@@ -34,7 +33,7 @@ export async function DELETE(request: Request) {
     });
     try {
       await tigris.send(command);
-    } catch (err) {
+    } catch {
       // Raw file deletion failed (maybe already deleted)
     }
 
@@ -71,8 +70,8 @@ export async function DELETE(request: Request) {
         } else {
           console.log(`No objects found for prefix: ${prefix}`);
         }
-      } catch (err) {
-        console.error(`Failed to delete folder ${prefix}:`, err);
+    } catch {
+        console.error(`Failed to delete folder ${prefix}:`);
       }
     };
 

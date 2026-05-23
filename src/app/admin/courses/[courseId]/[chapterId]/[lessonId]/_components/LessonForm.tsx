@@ -25,7 +25,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 import { updateLesson } from "../actions";
 import { useRouter } from "next/navigation";
@@ -63,12 +63,12 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       spriteWidth: data.spriteWidth ?? undefined,
       spriteHeight: data.spriteHeight ?? undefined,
       lowResKey: data.lowResKey ?? undefined,
-      videoEncryptionKey: (data as any).videoEncryptionKey ?? undefined,
-      videoEncryptionIV: (data as any).videoEncryptionIV ?? undefined,
+      videoEncryptionKey: data.videoEncryptionKey ?? undefined,
+      videoEncryptionIV: data.videoEncryptionIV ?? undefined,
     },
   });
 
-  const watchedVideoKey = form.watch("videoKey");
+  const watchedVideoKey = useWatch({ control: form.control, name: "videoKey" });
 
   async function onSubmit(values: LessonSchemaType, skipRedirect = false) {
     // Manually enforce mandatory fields for non-auto-save updates

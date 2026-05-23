@@ -24,11 +24,11 @@ import {
 } from "@/components/ui/card";
 
 interface GrowthChartWithFilterProps {
-    initialData: any[];
+    initialData: Array<{ name: string; value: number }>;
 }
 
 export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProps) {
-    const [data, setData] = useState(initialData);
+    const [data, setData] = useState<Array<{ name: string; value: number }>>(initialData);
     const [date, setDate] = useState<DateRange | undefined>();
     const [tempDate, setTempDate] = useState<DateRange | undefined>();
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -56,8 +56,8 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
 
         startTransition(async () => {
             const result = await getAdminAnalytics(tempDate?.from, tempDate?.to);
-            if (result && (result as any).data) {
-                setData((result as any).data.chartData);
+            if (result && (result as Record<string, unknown>).data) {
+                setData((result as Record<string, unknown>).data.chartData);
             }
         });
     };
@@ -67,8 +67,8 @@ export function GrowthChartWithFilter({ initialData }: GrowthChartWithFilterProp
         setTempDate(undefined);
         startTransition(async () => {
             const result = await getAdminAnalytics();
-            if (result && (result as any).data) {
-                setData((result as any).data.chartData);
+            if (result && (result as Record<string, unknown>).data) {
+                setData((result as Record<string, unknown>).data.chartData);
             }
         });
     };

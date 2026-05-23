@@ -4,10 +4,8 @@ import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 
 import {
-  getCache,
   setCache,
   GLOBAL_CACHE_KEYS,
-  getGlobalVersion,
   getLatestVersionAndCache,
 } from "@/lib/redis";
 
@@ -50,7 +48,7 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
   let redisDuration = 0;
   let authDuration = 0;
 
-  const [_, redisResult] = await Promise.all([
+  const [, redisResult] = await Promise.all([
     (async () => {
       const res = await requireAdmin();
       authDuration = Date.now() - authStartTime;
@@ -143,19 +141,20 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
   }
 
   // Convert Decimal price to number for client safety
-  if (data.price) {
-    (data as any).price = Number(data.price);
-  }
+  const result = {
+    ...data,
+    price: data.price ? Number(data.price) : null,
+  };
 
   // Cache in Redis for 30 days (Rule Infinity)
   const cacheSetStart = Date.now();
-  await setCache(cacheKey, data, 2592000);
+  await setCache(cacheKey, result, 2592000);
   console.log(
     `[adminGetCourse] Redis Cache Updated. Time: ${Date.now() - cacheSetStart}ms`,
   );
 
   return {
-    data: data,
+    data: result,
     version: currentVersion,
     source: "DB",
     computeTime: dbDuration,

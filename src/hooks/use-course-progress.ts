@@ -10,6 +10,21 @@ interface CourseProgressResult {
   progressPercentage: number;
 }
 
+interface LessonProgressItem {
+  completed: boolean;
+  restrictionTime: number;
+}
+
+interface LessonItem {
+  id: string;
+  duration: number | null;
+  lessonProgress: LessonProgressItem[];
+}
+
+interface ChapterItem {
+  lesson: LessonItem[];
+}
+
 export function useCourseProgress({
   courseData,
 }: {
@@ -33,8 +48,8 @@ export function useCourseProgress({
       let totalCourseDuration = 0;
       let totalWatchedTime = 0;
 
-      courseData.chapter.forEach((chapter: any) => {
-        chapter.lesson?.forEach((lesson: any) => {
+      courseData.chapter.forEach((chapter: ChapterItem) => {
+        chapter.lesson?.forEach((lesson: LessonItem) => {
           totalLessons++;
 
           // 1. Get Duration: DB is the primary source (stable across sessions)
@@ -70,7 +85,7 @@ export function useCourseProgress({
 
           // 3. Completion Check
           const isCompleted =
-            lesson.lessonProgress?.some((p: any) => p.completed) ||
+            lesson.lessonProgress?.some((p: LessonProgressItem) => p.completed) ||
             (duration > 0 && effectiveRestriction >= duration * 0.9);
 
           if (isCompleted) {

@@ -6,7 +6,6 @@ import { ApiResponse } from "@/lib/types/auth";
 import { lessonSchema, LessonSchemaType } from "@/lib/zodSchemas";
 import {
   invalidateCache,
-  incrementGlobalVersion,
   GLOBAL_CACHE_KEYS,
   dirtyCourse,
 } from "@/lib/redis";

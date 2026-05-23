@@ -2,17 +2,21 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { chatCache } from "@/lib/chat-cache";
 
+interface CourseWithStatus {
+  enrollmentStatus: string | null;
+}
+
 export function usePendingDetection(safeUserId: string | undefined) {
     const queryClient = useQueryClient();
 
     const triggerIfStatusChanged = (
-        oldData: any[],
-        newCourses: any[]
+        oldData: CourseWithStatus[],
+        newCourses: CourseWithStatus[]
     ) => {
         if (!safeUserId) return;
 
-        const oldPendingCount = oldData.filter((c: any) => c.enrollmentStatus === "Pending").length;
-        const newPendingCount = newCourses.filter((c: any) => c.enrollmentStatus === "Pending").length;
+        const oldPendingCount = oldData.filter((c: CourseWithStatus) => c.enrollmentStatus === "Pending").length;
+        const newPendingCount = newCourses.filter((c: CourseWithStatus) => c.enrollmentStatus === "Pending").length;
 
         if (oldPendingCount > 0 && newPendingCount < oldPendingCount) {
             console.log(`%c[PendingDetection] Status change detected!`, "color: #9333ea; font-weight: bold");

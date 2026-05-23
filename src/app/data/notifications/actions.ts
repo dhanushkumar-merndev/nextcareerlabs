@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { NotificationType } from "@/generated/prisma";
+import type { NotificationType, Prisma } from "@/generated/prisma";
 import {
   getCache,
   setCache,
@@ -21,6 +21,94 @@ import {
   clearDirtyArchiveThreads,
 } from "@/lib/redis";
 import { TicketResponse } from "@/lib/types/components";
+
+// ── Type helpers ──────────────────────────────────────────
+interface ThreadDisplay {
+  name: string;
+  image: string;
+  email: string;
+}
+
+interface Thread {
+  threadId: string;
+  lastMessage: string;
+  updatedAt: Date;
+  resolved: boolean;
+  isGroup: boolean;
+  type: string;
+  display: ThreadDisplay;
+  archived: boolean;
+  hidden: boolean;
+  muted: boolean;
+}
+
+interface CachedThreads {
+  threads: Thread[];
+  version: string;
+  enrolledCourses: { id: string; title: string }[];
+  presence: null;
+}
+
+interface CachedMessages {
+  messages: unknown[];
+  state: { isMuted: boolean; isArchived: boolean; isHidden: boolean };
+  nextCursor: string | null;
+}
+
+interface GroupData {
+  id: string;
+  name: string;
+  courseId: string | null;
+  imageUrl: string | null;
+  createdAt: Date;
+  messages: {
+    content: string | null;
+    createdAt: Date;
+    imageUrl: string | null;
+    fileUrl: string | null;
+    fileName: string | null;
+    feedback: string | null;
+  }[];
+}
+
+interface LatestMessage {
+  threadId: string;
+  createdAt: Date;
+  content: string | null;
+  feedback: string | null;
+  imageUrl: string | null;
+  fileUrl: string | null;
+  fileName: string | null;
+  chatGroupId: string | null;
+  chatGroup: { name: string; imageUrl: string | null } | null;
+  senderId: string;
+  sender: { id: string; name: string | null; image: string | null; email: string };
+  recipientId: string | null;
+  recipient: { id: string; name: string | null; image: string | null; email: string } | null;
+}
+
+interface UnresolvedTicket {
+  threadId: string;
+}
+
+interface StudentMsg {
+  threadId: string;
+  sender: { id: string; name: string | null; image: string | null; email: string };
+}
+
+// Prisma model UserThreadState has: threadId, userId, archived, hidden, muted
+// We use a matching interface for the destructured data:
+interface UserThreadState {
+  threadId: string;
+  archived: boolean;
+  hidden: boolean;
+  muted: boolean;
+}
+
+interface EnrollmentWithCourse {
+  Course: { id: string; title: string };
+}
+
 async function getSession() {
   return await auth.api.getSession({
     headers: await headers(),
@@ -207,10 +295,9 @@ export async function invalidateAdminsCache() {
     console.log(
       `[AdminSync] Incremented global admin chat versions (Debounced).`,
     );
-  } catch (error) {
+  } catch {
     console.error(
       "[AdminSync] Failed to invalidate global admin cache:",
-      error,
     );
   }
 }
@@ -270,7 +357,7 @@ export async function replyToTicketAction(data: {
 
 // NEW ACTIONS
 
-export async function getThreadsAction(clientVersion?: string) {
+export async function getThreadsAction(_clientVersion?: string) {
   const session = await getSession();
   if (!session)
     return { threads: [], version: "0", enrolledCourses: [], presence: null };
@@ -288,7 +375,7 @@ export async function getThreadsAction(clientVersion?: string) {
     : CHAT_CACHE_KEYS.THREADS(session.user.id);
 
   const redisStartTime = Date.now();
-  const cachedData = await getCache<any>(cacheKey);
+  const cachedData = await getCache<CachedThreads>(cacheKey);
   const redisDuration = Date.now() - redisStartTime;
 
   if (cachedData) {
@@ -302,7 +389,7 @@ export async function getThreadsAction(clientVersion?: string) {
       // This allows "Archive" to be 0-DB-Hit while still showing fresh state.
       const overrides = await getBufferedArchiveStatus(session.user.id);
       if (Object.keys(overrides).length > 0) {
-        cachedData.threads = cachedData.threads.map((t: any) => ({
+        cachedData.threads = cachedData.threads.map((t: Thread) => ({
           ...t,
           archived:
             overrides[t.threadId] !== undefined
@@ -360,7 +447,7 @@ export async function getThreadsAction(clientVersion?: string) {
   }
 
   // Strategy: Group by threadId to find unique conversations
-  const whereClause: any = isAdmin
+  const whereClause: Prisma.NotificationWhereInput = isAdmin
     ? {
         OR: [
           { type: "SUPPORT_TICKET" },
@@ -401,7 +488,7 @@ export async function getThreadsAction(clientVersion?: string) {
   const threadMaxDates = await prisma.notification.groupBy({
     by: ["threadId"],
     where: {
-      ...(whereClause as any),
+      ...whereClause,
       threadId: { not: null },
     },
     _max: { createdAt: true },
@@ -413,7 +500,7 @@ export async function getThreadsAction(clientVersion?: string) {
   const threadIds = threadMaxDates.map((t) => t.threadId!).filter(Boolean);
 
   // 5. BATCH FETCH CHAT GROUPS WHERE CLAUSE
-  let groupWhere: any = { name: { not: "Support", mode: "insensitive" } };
+  let groupWhere: Prisma.ChatGroupWhereInput = { name: { not: "Support", mode: "insensitive" } };
   if (!isAdmin) {
     const userEnrollments = await prisma.enrollment.findMany({
       where: { userId: session.user.id, status: "Granted" },
@@ -522,7 +609,15 @@ export async function getThreadsAction(clientVersion?: string) {
     enrollmentData,
     latestNotification,
     redisOverrides,
-  ] = p as any;
+  ] = p;
+
+  // Type the data destructured from Promise.all for downstream usage
+  const typedLatestMsgs = latestMsgs as LatestMessage[];
+  const typedUnresolvedTickets = unresolvedTicketsResults as UnresolvedTicket[];
+  const typedStudentMsgs = studentMsgs as StudentMsg[];
+  const typedGroups = groups as GroupData[];
+  const typedUserStates = userStates as UserThreadState[];
+  const typedEnrollmentData = enrollmentData as EnrollmentWithCourse[];
 
   console.log(
     `[getThreadsAction] Big Parallel Fetch took ${Date.now() - dbStartTime}ms (Threads: ${threadIds.length})`,
@@ -537,7 +632,7 @@ export async function getThreadsAction(clientVersion?: string) {
     const dirtyMap = await getDirtyArchiveThreads(session.user.id);
     const now = Date.now();
     const threadsToSync = Object.entries(dirtyMap)
-      .filter(([_, lastUpdate]) => now - lastUpdate > 60000)
+      .filter(([, lastUpdate]) => now - lastUpdate > 60000)
       .map(([tid]) => tid);
 
     if (threadsToSync.length > 0) {
@@ -566,25 +661,25 @@ export async function getThreadsAction(clientVersion?: string) {
       }
     }
   })();
-  unresolvedTicketsResults.forEach((msg: { threadId: string | number }) => {
+  typedUnresolvedTickets.forEach((msg) => {
     if (msg.threadId)
       unresolvedMap[msg.threadId] = (unresolvedMap[msg.threadId] || 0) + 1;
   });
 
-  const studentMap: Record<string, any> = {};
+  const studentMap: Record<string, StudentMsg["sender"]> = {};
   if (isAdmin) {
-    studentMsgs.forEach((m: { threadId: string | number; sender: any }) => {
+    typedStudentMsgs.forEach((m) => {
       if (m.threadId) studentMap[m.threadId] = m.sender;
     });
   }
 
-  const enrollmentCourses = enrollmentData.map(
-    (e: { Course: any }) => e.Course,
+  const enrollmentCourses = typedEnrollmentData.map(
+    (e) => e.Course,
   );
-  const stateMap = new Map((userStates as any[]).map((s) => [s.threadId, s]));
+  const stateMap = new Map(typedUserStates.map((s) => [s.threadId, s]));
 
   // Combine results in memory
-  const threadDetails = (latestMsgs as any[]).map((latestMsg) => {
+  const threadDetails = typedLatestMsgs.map((latestMsg) => {
     const threadId = latestMsg.threadId!;
     let display = {
       name: "Support Team",
@@ -599,7 +694,7 @@ export async function getThreadsAction(clientVersion?: string) {
         email: "Group",
       };
     } else if (isAdmin) {
-      let targetUser =
+      const targetUser =
         latestMsg.senderId !== session.user.id
           ? latestMsg.sender
           : latestMsg.recipient || studentMap[threadId];
@@ -653,8 +748,8 @@ export async function getThreadsAction(clientVersion?: string) {
     };
   });
 
-  const uniqueGroupsMap = new Map<string, any>();
-  groups.forEach((g: { courseId: any; id: any; name: any }) => {
+  const uniqueGroupsMap = new Map<string, GroupData>();
+  typedGroups.forEach((g) => {
     const key = g.courseId ? g.id : `GLOBAL_NAME_${g.name}`;
     if (!uniqueGroupsMap.has(key)) uniqueGroupsMap.set(key, g);
   });
@@ -690,7 +785,7 @@ export async function getThreadsAction(clientVersion?: string) {
     };
   });
 
-  const allThreadsMap = new Map<string, any>();
+  const allThreadsMap = new Map<string, Thread>();
   [...threadDetails, ...groupThreads].forEach((t) => {
     const state = stateMap.get(t.threadId);
 
@@ -796,7 +891,7 @@ export async function getThreadMessagesAction(
 
   if (cacheKey) {
     const redisStartTime = Date.now();
-    const cached = await getCache<any>(cacheKey);
+    const cached = await getCache<CachedMessages>(cacheKey);
     console.log(
       `[getThreadMessagesAction] Redis fetch for Thread=${threadId} took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
     );
@@ -962,7 +1057,7 @@ export async function getEnrolledCoursesAction() {
   if (!session) return [];
 
   const result = await getEnrolledCourses();
-  return result.enrollments.map((e: any) => e.Course);
+  return result.enrollments.map((e: { Course: { id: string; title: string } }) => e.Course);
 }
 
 import { DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
@@ -971,7 +1066,9 @@ import { S3 } from "@/lib/S3Client";
 import { env } from "@/lib/env";
 import { tigris } from "@/lib/tigris";
 
-async function signMessageAttachments(msg: any) {
+async function signMessageAttachments(
+  msg: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
   if (!msg) return msg;
 
   const signedMsg = { ...msg };
@@ -1054,7 +1151,7 @@ export async function deleteMessageAction(id: string) {
       });
       await S3.send(command);
     }
-  } catch (error) {
+  } catch {
     // Proceed with DB deletion anyway
   }
 
@@ -1301,7 +1398,7 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
   if (!session) return [];
 
   const cacheKey = CHAT_CACHE_KEYS.PARTICIPANTS(chatGroupId);
-  const cached = await getCache<any[]>(cacheKey);
+  const cached = await getCache<unknown>(cacheKey);
   if (cached) {
     console.log(`[Redis] Cache HIT for participants: ${chatGroupId}`);
     return cached;
@@ -1314,7 +1411,7 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
 
   if (!group) return [];
 
-  let result: any[] = [];
+  let result: { user: { id: string; name: string | null; email: string; image: string | null; role: string | null }; role: string }[] = [];
 
   // If it's the global Broadcast, return all users
   if (group.name === "Broadcast" && !group.courseId) {
@@ -1409,7 +1506,7 @@ export async function deleteThreadMessagesAction(threadId: string) {
   return { success: true };
 }
 
-export async function getChatVersionAction(threadId?: string) {
+export async function getChatVersionAction(_threadId?: string) {
   const session = await getSession();
   if (!session) return { version: null };
 
@@ -1425,7 +1522,7 @@ export async function getChatVersionAction(threadId?: string) {
     select: { createdAt: true },
   });
 
-  let otherPresence = null;
+  const otherPresence = null;
 
   return {
     version: latest?.createdAt.getTime() || 0,

@@ -7,25 +7,51 @@ import { AnalyticsCard } from "@/components/analytics/AnalyticsCard";
 import { HorizontalCourseCard } from "../_components/HorizontalCourseCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSmartSession } from "@/hooks/use-smart-session";
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
+
+interface LessonProgress {
+  id: string;
+  duration: number;
+  restrictionTime: number;
+  completed: boolean;
+}
+
+interface CourseProgress {
+  id: string;
+  title: string;
+  imageUrl: string;
+  progress: number;
+  totalLessons: number;
+  completedLessons: number;
+  actualWatchTime: number;
+  slug: string;
+  level: string;
+  firstLessonId: string | null;
+  lessonsProgress: LessonProgress[];
+}
+
+interface DashboardData {
+  enrolledCoursesCount: number;
+  completedCoursesCount: number;
+  completedChaptersCount: number;
+  totalCompletedLessons: number;
+  totalPlatformActualWatchTime: number;
+  coursesProgress: CourseProgress[];
+}
 
 export function DashboardClient() {
   const { session, isLoading: sessionLoading } = useSmartSession();
   const userId = session?.user.id;
 
-  const [mounted, setMounted] = useState(false);
+  const [mounted] = useState(() => typeof window !== "undefined");
   const hasLogged = useRef(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ["user_dashboard", userId],
     queryFn: async () => {
       if (!userId) return null;
       const cacheKey = "user_dashboard";
-      const cached = chatCache.get<any>(cacheKey, userId);
+      const cached = chatCache.get<DashboardData>(cacheKey, userId);
       const clientVersion = cached?.version;
 
       console.log(
@@ -35,7 +61,7 @@ export function DashboardClient() {
 
       // 1. Version Match -> Return cached data
       // Server says cache is still valid
-      if (result && (result as any).status === "not-modified") {
+      if (result && "status" in result && result.status === "not-modified") {
         console.log(
           `%c[Dashboard] Server: NOT_MODIFIED (v${clientVersion})`,
           "color: #eab308; font-weight: bold",
@@ -66,7 +92,7 @@ export function DashboardClient() {
     },
     initialData: () => {
       if (typeof window === "undefined" || !userId) return undefined;
-      const cached = chatCache.get<any>("user_dashboard", userId);
+      const cached = chatCache.get<DashboardData>("user_dashboard", userId);
       if (cached && !hasLogged.current) {
         console.log(
           `%c[Dashboard] LOCAL HIT (v${cached.version}). Rendering from device storage.`,
@@ -78,7 +104,7 @@ export function DashboardClient() {
     },
     initialDataUpdatedAt:
       typeof window !== "undefined" && userId
-        ? chatCache.get<any>("user_dashboard", userId)?.timestamp
+        ? chatCache.get<DashboardData>("user_dashboard", userId)?.timestamp
         : undefined,
     staleTime: 1800000, // 30 mins
     refetchInterval: 1800000, // 30 mins
@@ -189,11 +215,10 @@ export function DashboardClient() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {data.coursesProgress?.map((course: any, index: number) => (
+            {data.coursesProgress?.map((course) => (
               <HorizontalCourseCard
                 key={course.id}
                 course={course}
-                index={index}
               />
             ))}
           </div>
