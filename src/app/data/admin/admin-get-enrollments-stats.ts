@@ -15,33 +15,43 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
   );
 
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(
-      `[adminGetEnrollmentsStats] Version Match (${clientVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION}". Returning NOT_MODIFIED.`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetEnrollmentsStats] Version Match (${clientVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION}". Returning NOT_MODIFIED.`,
+      );
+    }
     return { status: "not-modified", version: currentVersion };
   }
 
   if (!clientVersion) {
-    console.log(
-      `[adminGetEnrollmentsStats] SSR Request (Client: None). Returning full data for Prop.`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetEnrollmentsStats] SSR Request (Client: None). Returning full data for Prop.`,
+      );
+    }
   } else {
-    console.log(
-      `[adminGetEnrollmentsStats] Background Sync (Client: ${clientVersion}, Server: ${currentVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION}". Checking Redis...`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetEnrollmentsStats] Background Sync (Client: ${clientVersion}, Server: ${currentVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION}". Checking Redis...`,
+      );
+    }
   }
 
   const cacheKey = `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`;
   const cached = await getCache<{ date: string; enrollments: number }[]>(cacheKey);
 
   if (cached) {
-    console.log(`[adminGetEnrollmentsStats] Redis Cache HIT. Returning data.`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[adminGetEnrollmentsStats] Redis Cache HIT. Returning data.`);
+    }
     return { data: cached, version: currentVersion };
   }
 
-  console.log(
-    `[adminGetEnrollmentsStats] Redis Cache MISS. Fetching from Prisma DB...`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[adminGetEnrollmentsStats] Redis Cache MISS. Fetching from Prisma DB...`,
+    );
+  }
 
   const today = new Date();
   const startDate = new Date();
@@ -62,7 +72,9 @@ export async function adminGetEnrollmentsStats(clientVersion?: string) {
     ORDER BY date ASC
   `;
   const duration = Date.now() - startTime;
-  console.log(`[adminGetEnrollmentsStats] DB Aggregation took ${duration}ms.`);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[adminGetEnrollmentsStats] DB Aggregation took ${duration}ms.`);
+  }
 
   const statsMap = new Map(
     rawEnrollments.map((e) => [

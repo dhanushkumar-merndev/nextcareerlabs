@@ -61,10 +61,12 @@ export async function adminGetDashboardData(
     clientVersions.enrollments === finalV.enrollments &&
     clientVersions.recentCourses === finalV.recentCourses
   ) {
-    console.log(
-      `%c[adminGetDashboardData] SERVER HIT: NOT_MODIFIED.`,
-      "color: #eab308; font-weight: bold",
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `%c[adminGetDashboardData] SERVER HIT: NOT_MODIFIED.`,
+        "color: #eab308; font-weight: bold",
+      );
+    }
     return { status: "not-modified", versions: finalV };
   }
 
@@ -80,10 +82,12 @@ export async function adminGetDashboardData(
     await getMultiCache<unknown>(dataKeys);
   const redisDuration = Date.now() - redisStartTime;
 
-  console.log(
-    `%c[adminGetDashboardData] REDIS BATCH HIT (${redisDuration}ms). Items: ${[cachedStats, cachedEnrollments, cachedRecent].filter(Boolean).length}/${dataKeys.length}`,
-    "color: #eab308; font-weight: bold",
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `%c[adminGetDashboardData] REDIS BATCH HIT (${redisDuration}ms). Items: ${[cachedStats, cachedEnrollments, cachedRecent].filter(Boolean).length}/${dataKeys.length}`,
+      "color: #eab308; font-weight: bold",
+    );
+  }
 
   // 3. Granular Cache Check & DB Fetching logic
   const startTime = Date.now();
@@ -93,7 +97,9 @@ export async function adminGetDashboardData(
   // A. Stats
   const fetchStats = async () => {
     if (cachedStats) {
-      console.log(`[Dashboard] Stats: Redis HIT (v${finalV.stats})`);
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[Dashboard] Stats: Redis HIT (v${finalV.stats})`);
+      }
       return cachedStats;
     }
 
@@ -106,9 +112,11 @@ export async function adminGetDashboardData(
         prisma.lesson.count(),
       ]);
     const data = { totalUsers, totalSubscriptions, totalCourses, totalLessons };
-    console.log(
-      `[Dashboard] Stats: DB Fetch took ${Date.now() - dbStart}ms (v${finalV.stats})`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[Dashboard] Stats: DB Fetch took ${Date.now() - dbStart}ms (v${finalV.stats})`,
+      );
+    }
 
     await setCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS, data, 2592000);
     return data;
@@ -117,9 +125,11 @@ export async function adminGetDashboardData(
   // B. Enrollments
   const fetchEnrollments = async () => {
     if (cachedEnrollments) {
-      console.log(
-        `[Dashboard] Enrollments: Redis HIT (v${finalV.enrollments})`,
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[Dashboard] Enrollments: Redis HIT (v${finalV.enrollments})`,
+        );
+      }
       return cachedEnrollments;
     }
 
@@ -144,9 +154,11 @@ export async function adminGetDashboardData(
       const key = d.toLocaleDateString("en-CA");
       data.push({ date: key, enrollments: statsMap.get(key) || 0 });
     }
-    console.log(
-      `[Dashboard] Enrollments: DB Aggregation took ${Date.now() - dbStart}ms (v${finalV.enrollments})`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[Dashboard] Enrollments: DB Aggregation took ${Date.now() - dbStart}ms (v${finalV.enrollments})`,
+      );
+    }
 
     await setCache(
       `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:enrollments`,
@@ -159,9 +171,11 @@ export async function adminGetDashboardData(
   // C. Recent Courses
   const fetchRecent = async () => {
     if (cachedRecent) {
-      console.log(
-        `[Dashboard] RecentCourses: Redis HIT (v${finalV.recentCourses})`,
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[Dashboard] RecentCourses: Redis HIT (v${finalV.recentCourses})`,
+        );
+      }
       return cachedRecent;
     }
 
@@ -181,9 +195,11 @@ export async function adminGetDashboardData(
         category: true,
       },
     });
-    console.log(
-      `[Dashboard] RecentCourses: DB Fetch took ${Date.now() - dbStart}ms (v${finalV.recentCourses})`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[Dashboard] RecentCourses: DB Fetch took ${Date.now() - dbStart}ms (v${finalV.recentCourses})`,
+      );
+    }
 
     await setCache(
       `${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`,
@@ -200,10 +216,12 @@ export async function adminGetDashboardData(
   ]);
 
   const duration = Date.now() - startTime;
-  console.log(
-    `%c[adminGetDashboardData] SERVER COMPLETED (${duration}ms).`,
-    "color: #eab308; font-weight: bold",
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `%c[adminGetDashboardData] SERVER COMPLETED (${duration}ms).`,
+      "color: #eab308; font-weight: bold",
+    );
+  }
 
   return {
     data: {

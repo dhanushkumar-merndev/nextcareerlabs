@@ -69,10 +69,12 @@ export async function adminGetEnrollmentRequests(
   // 1. Version Match check (only if caller provides a version)
   // Non-search, default list only. Search is handled separately.
   if (isDefaultFetch && clientVersion && clientVersion === currentVersion) {
-    console.log(
-      `%c[adminGetEnrollmentRequests] SERVER HIT: NOT_MODIFIED (${clientVersion}).`,
-      "color: #eab308; font-weight: bold",
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `%c[adminGetEnrollmentRequests] SERVER HIT: NOT_MODIFIED (${clientVersion}).`,
+        "color: #eab308; font-weight: bold",
+      );
+    }
     return { status: "not-modified", version: currentVersion };
   }
 
@@ -84,10 +86,12 @@ export async function adminGetEnrollmentRequests(
   const redisDuration = Date.now() - redisStartTime;
   const cached = cachedRaw && Array.isArray(cachedRaw.data) ? cachedRaw : null;
   if (cached) {
-    console.log(
-      `%c[adminGetEnrollmentRequests] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
-      "color: #eab308; font-weight: bold",
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `%c[adminGetEnrollmentRequests] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
+        "color: #eab308; font-weight: bold",
+      );
+    }
     return { ...cached, version: currentVersion };
   }
 
@@ -105,10 +109,12 @@ export async function adminGetEnrollmentRequests(
     const cached =
       cachedRaw && Array.isArray(cachedRaw.data) ? cachedRaw : null;
     if (cached) {
-      console.log(
-        `%c[adminGetEnrollmentRequests] REDIS SEARCH HIT (${redisDuration}ms) for "${search}".`,
-        "color: #eab308; font-weight: bold",
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `%c[adminGetEnrollmentRequests] REDIS SEARCH HIT (${redisDuration}ms) for "${search}".`,
+          "color: #eab308; font-weight: bold",
+        );
+      }
       return cached;
     }
   }
@@ -197,10 +203,12 @@ export async function adminGetEnrollmentRequests(
     });
   }
   const duration = Date.now() - startTime;
-  console.log(
-    `%c[adminGetEnrollmentRequests] DB HIT (${duration}ms). Total: ${totalCount}, Rows: ${enrollments.length}${search ? `, Search: "${search}"` : ""}.`,
-    "color: #eab308; font-weight: bold",
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `%c[adminGetEnrollmentRequests] DB HIT (${duration}ms). Total: ${totalCount}, Rows: ${enrollments.length}${search ? `, Search: "${search}"` : ""}.`,
+      "color: #eab308; font-weight: bold",
+    );
+  }
 
   const result: CachedEnrollments & { version: string } = {
     data: enrollments,

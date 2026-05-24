@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Mail, Youtube, Facebook, Instagram } from "lucide-react";
 import { getAllPublishedCourses } from "@/app/data/course/get-course";
 import { SupportFooterLink } from "./SupportFooterLink";
+import { FooterCourseLinks } from "./FooterCourseLinks";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Logo } from "@/components/Logo";
 
@@ -115,27 +116,7 @@ export async function Footer() {
           <div className="lg:ml-auto">
             <h4 className="font-bold text-sm uppercase tracking-wider mb-6 text-foreground/70">Our Programs</h4>
             <ul className="space-y-3">
-              {courses.slice(0, 4).map((course) => (
-                <li key={course.id}>
-                  <Link 
-                    href={`/courses/${course.slug}`} 
-                    className="text-muted-foreground hover:text-primary relative py-1 w-fit block text-sm transition-colors duration-300 group"
-                  >
-                    <span className="truncate max-w-[180px] block">{course.title}</span>
-                    <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
-                  </Link>
-                </li>
-              ))}
-              {courses.length === 0 && (
-                <li className="text-muted-foreground/50 text-xs italic">No programs available yet</li>
-              )}
-              {courses.length > 4 && (
-                <li>
-                  <Link href="/courses" className="text-primary text-xs font-semibold hover:underline">
-                    View all courses
-                  </Link>
-                </li>
-              )}
+              <FooterCourseLinks courses={courses} />
             </ul>
           </div>
           {/* SUPPORT LINKS */}

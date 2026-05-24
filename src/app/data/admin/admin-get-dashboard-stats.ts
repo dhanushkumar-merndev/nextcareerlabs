@@ -23,21 +23,27 @@ export async function adminGetDashboardStats(clientVersion?: string) {
   );
 
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(
-      `%c[adminGetDashboardStats] SERVER HIT: NOT_MODIFIED (${clientVersion}).`,
-      "color: #eab308; font-weight: bold",
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `%c[adminGetDashboardStats] SERVER HIT: NOT_MODIFIED (${clientVersion}).`,
+        "color: #eab308; font-weight: bold",
+      );
+    }
     return { status: "not-modified", version: currentVersion };
   }
 
   if (!clientVersion) {
-    console.log(
-      `[adminGetDashboardStats] SSR Request (Client: None). Returning full data for Prop.`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetDashboardStats] SSR Request (Client: None). Returning full data for Prop.`,
+      );
+    }
   } else {
-    console.log(
-      `[adminGetDashboardStats] Background Sync (Client: ${clientVersion}, Server: ${currentVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION}". Checking Redis...`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetDashboardStats] Background Sync (Client: ${clientVersion}, Server: ${currentVersion}) for key "${GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION}". Checking Redis...`,
+      );
+    }
   }
 
   const cacheKey = GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS;
@@ -46,16 +52,20 @@ export async function adminGetDashboardStats(clientVersion?: string) {
   const redisDuration = Date.now() - redisStartTime;
 
   if (cached) {
-    console.log(
-      `%c[adminGetDashboardStats] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
-      "color: #eab308; font-weight: bold",
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `%c[adminGetDashboardStats] REDIS HIT (${redisDuration}ms). Version: ${currentVersion}`,
+        "color: #eab308; font-weight: bold",
+      );
+    }
     return { data: cached, version: currentVersion };
   }
 
-  console.log(
-    `[adminGetDashboardStats] Redis Cache MISS. Fetching from Prisma DB...`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[adminGetDashboardStats] Redis Cache MISS. Fetching from Prisma DB...`,
+    );
+  }
   const startTime = Date.now();
 
   const [totalUsers, totalSubscriptions, totalCourses, totalLessons] =
@@ -67,10 +77,12 @@ export async function adminGetDashboardStats(clientVersion?: string) {
     ]);
 
   const duration = Date.now() - startTime;
-  console.log(
-    `%c[adminGetDashboardStats] DB HIT (${duration}ms).`,
-    "color: #eab308; font-weight: bold",
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `%c[adminGetDashboardStats] DB HIT (${duration}ms).`,
+      "color: #eab308; font-weight: bold",
+    );
+  }
 
   const stats = {
     totalUsers,

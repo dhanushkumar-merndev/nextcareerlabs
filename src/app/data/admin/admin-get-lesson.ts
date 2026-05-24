@@ -43,7 +43,9 @@ export async function adminGetLesson(id: string) {
     },
   });
   const duration = Date.now() - startTime;
-  console.log(`[adminGetLesson] DB Fetch took ${duration}ms for ID: ${id}`);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[adminGetLesson] DB Fetch took ${duration}ms for ID: ${id}`);
+  }
 
   if (!data) {
     return notFound();

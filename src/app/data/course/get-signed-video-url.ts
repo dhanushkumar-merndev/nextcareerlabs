@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 export async function getSignedVideoUrl(key: string) {
   if (!key) return { status: "error", message: "Key is required" };
 
+  const t0 = Date.now();
   const user = await requireUser();
 
   // Access Control: Verify user is enrolled and key belongs to an accessible lesson
@@ -46,6 +47,7 @@ export async function getSignedVideoUrl(key: string) {
   }
 
   try {
+    const s3Start = Date.now();
     const command = new GetObjectCommand({
       Bucket: env.S3_BUCKET_NAME,
       Key: key,
@@ -55,6 +57,9 @@ export async function getSignedVideoUrl(key: string) {
       expiresIn: 60 * 10, // ⏱ 10 minutes
     });
 
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[getSignedVideoUrl] Total: ${Date.now() - t0}ms, S3 signing: ${Date.now() - s3Start}ms`);
+    }
     return { status: "success", url: signedUrl };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to sign URL";

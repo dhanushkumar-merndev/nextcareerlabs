@@ -13,9 +13,13 @@ interface ProfileData {
 export async function updateProfileAction(
   data: ProfileData,
 ): Promise<ApiResponse> {
+  const t0 = Date.now();
   const user = await requireUser();
-  console.log(`[updateProfileAction] Start: User=${user.id}`);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[updateProfileAction] Start: User=${user.id}`);
+  }
   try {
+    const dbStart = Date.now();
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -23,8 +27,14 @@ export async function updateProfileAction(
         phoneNumber: data.phoneNumber,
       },
     });
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[updateProfileAction] DB Update took ${Date.now() - dbStart}ms`);
+    }
 
     revalidatePath("/");
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[updateProfileAction] Done in ${Date.now() - t0}ms`);
+    }
     return {
       status: "success",
       message: "Profile updated successfully",

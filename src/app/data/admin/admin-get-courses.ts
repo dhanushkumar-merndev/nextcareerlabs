@@ -51,18 +51,22 @@ export async function adminGetCourses(
     clientVersion &&
     clientVersion === currentVersion
   ) {
-    console.log(
-      `[adminGetCourses] ✨ Smart Sync Match (v${clientVersion}). Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetCourses] ✨ Smart Sync Match (v${clientVersion}). Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
+      );
+    }
     return { status: "not-modified", version: currentVersion };
   }
 
   let allCourses: NormalizedCourse[];
 
   if (searchQuery) {
-    console.log(
-      `[adminGetCourses] 🔍 Search mode: "${searchQuery}". Auth: ${authDuration}ms`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetCourses] 🔍 Search mode: "${searchQuery}". Auth: ${authDuration}ms`,
+      );
+    }
     // 🛡️ Native Database Pagination for search (Search results are ephemeral)
     const courses = await prisma.course.findMany({
       where: {
@@ -108,14 +112,18 @@ export async function adminGetCourses(
       version: currentVersion,
     };
   } else if (cached && Array.isArray(cached)) {
-    console.log(
-      `[adminGetCourses] 🔵 Redis HIT. Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetCourses] 🔵 Redis HIT. Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
+      );
+    }
     allCourses = cached;
   } else {
-    console.log(
-      `[adminGetCourses] 🗄️ Redis MISS. Fetching courses with stampede prevention...`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetCourses] 🗄️ Redis MISS. Fetching courses with stampede prevention...`,
+      );
+    }
     
     allCourses = await getOrSetWithStampedePrevention(
       cacheKey,
@@ -142,9 +150,11 @@ export async function adminGetCourses(
           duration: (c.duration || 0) * 3600,
         }));
 
-        console.log(
-          `[adminGetCourses] 🗄️ DB Fetch took ${Date.now() - dbStartTime}ms`,
-        );
+        if (process.env.NODE_ENV === "development") {
+          console.log(
+            `[adminGetCourses] 🗄️ DB Fetch took ${Date.now() - dbStartTime}ms`,
+          );
+        }
         return normalized;
       },
       2592000, // 30 days

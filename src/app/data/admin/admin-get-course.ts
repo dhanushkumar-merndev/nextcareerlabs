@@ -69,16 +69,20 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
 
   // Smart Sync
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(
-      `[adminGetCourse] ✨ Smart Sync Match (v${clientVersion}). Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetCourse] ✨ Smart Sync Match (v${clientVersion}). Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
+      );
+    }
     return { status: "not-modified", version: currentVersion };
   }
 
   if (cached) {
-    console.log(
-      `[adminGetCourse] 🔵 Redis HIT. Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[adminGetCourse] 🔵 Redis HIT. Auth: ${authDuration}ms, Redis: ${redisDuration}ms`,
+      );
+    }
     return {
       data: cached,
       version: currentVersion,
@@ -86,9 +90,11 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
     };
   }
 
-  console.log(
-    `[adminGetCourse] 🗄️ Redis MISS. Auth: ${authDuration}ms, Redis: ${redisDuration}ms. Fetching DB...`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[adminGetCourse] 🗄️ Redis MISS. Auth: ${authDuration}ms, Redis: ${redisDuration}ms. Fetching DB...`,
+    );
+  }
   const dbStartTime = Date.now();
   const data = (await prisma.course.findUnique({
     where: {
@@ -134,7 +140,9 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
     },
   })) as CourseData | null;
   const dbDuration = Date.now() - dbStartTime;
-  console.log(`[adminGetCourse] DB Fetch took ${dbDuration}ms for ID: ${id}`);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[adminGetCourse] DB Fetch took ${dbDuration}ms for ID: ${id}`);
+  }
 
   if (!data) {
     return notFound();
@@ -149,9 +157,11 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
   // Cache in Redis for 30 days (Rule Infinity)
   const cacheSetStart = Date.now();
   await setCache(cacheKey, result, 2592000);
-  console.log(
-    `[adminGetCourse] Redis Cache Updated. Time: ${Date.now() - cacheSetStart}ms`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[adminGetCourse] Redis Cache Updated. Time: ${Date.now() - cacheSetStart}ms`,
+    );
+  }
 
   return {
     data: result,

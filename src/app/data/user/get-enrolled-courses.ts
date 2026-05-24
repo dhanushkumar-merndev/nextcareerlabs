@@ -38,7 +38,9 @@ export async function getEnrolledCourses() {
 
   const progressMap = new Map(allProgress.map(p => [p.lessonId, p]));
 
-  console.log(`[getEnrolledCourses] DB Computation took ${Date.now() - startTime}ms`);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[getEnrolledCourses] DB Computation took ${Date.now() - startTime}ms`);
+  }
 
   return { enrollments, progressMap: Object.fromEntries(progressMap) };
 }

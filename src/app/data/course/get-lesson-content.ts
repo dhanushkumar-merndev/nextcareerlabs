@@ -50,9 +50,11 @@ export async function getLessonContent(
 
   // Smart Sync – version match means client local cache is fresh
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(
-      `[Lesson] ✅ VERSION MATCH → NOT_MODIFIED (v${currentVersion})`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[Lesson] ✅ VERSION MATCH → NOT_MODIFIED (v${currentVersion})`,
+      );
+    }
     return { status: "not-modified", version: currentVersion };
   }
 
@@ -64,7 +66,9 @@ export async function getLessonContent(
   }
 
   // ── Tier 3: Database (distributed lock prevents stampedes) ─────
-  console.log(`[Lesson] 🗄️  DB COMPUTE → lesson:${lessonId}`);
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[Lesson] 🗄️  DB COMPUTE → lesson:${lessonId}`);
+  }
   const dbStart = Date.now();
 
   const result = await withDistributedLock<CachedLessonData>(`fetch:${cacheKey}`, async () => {
@@ -123,7 +127,9 @@ export async function getLessonContent(
       },
     });
 
-    console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
+    }
 
     if (!enrollment || enrollment.status !== "Granted") {
       if (lesson.Chapter.Course.isFree) {
@@ -164,7 +170,9 @@ export async function getLessonContent(
 
     const cached = { lesson, questions };
     await setCache(cacheKey, cached, 2592000).catch(console.error);
-    console.log(`[Lesson] 💾 CACHED in Redis (30 days) → lesson:${lessonId}`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Lesson] 💾 CACHED in Redis (30 days) → lesson:${lessonId}`);
+    }
     return cached;
   });
 
@@ -179,9 +187,11 @@ export async function getLessonContent(
   const pending = await getUserPendingProgress(session.id);
   const pendingLesson = pending[lessonId];
   if (pendingLesson) {
-    console.log(
-      `[Lesson] 🔄 Merging pending Redis progress for lesson:${lessonId}`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[Lesson] 🔄 Merging pending Redis progress for lesson:${lessonId}`,
+      );
+    }
     if (result.lesson.lessonProgress[0]) {
       result.lesson.lessonProgress[0].lastWatched = pendingLesson.lastWatched;
       result.lesson.lessonProgress[0].restrictionTime = Math.max(

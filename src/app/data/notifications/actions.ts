@@ -130,15 +130,19 @@ export async function sendNotificationAction(data: {
   fileUrl?: string;
   fileName?: string;
 }): Promise<TicketResponse> {
-  console.log(
-    `[sendNotificationAction] Start: Type=${data.type}, Recipient=${data.recipientId}, Thread=${data.threadId}`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[sendNotificationAction] Start: Type=${data.type}, Recipient=${data.recipientId}, Thread=${data.threadId}`,
+    );
+  }
   const authStartTime = Date.now();
   const session = await getSession();
   if (!session) throw new Error("Unauthorized");
-  console.log(
-    `[sendNotificationAction] Session fetch took ${Date.now() - authStartTime}ms`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[sendNotificationAction] Session fetch took ${Date.now() - authStartTime}ms`,
+    );
+  }
 
   // NEW: Generate threadId if not present for tickets
   // For Support Tickets, we use a deterministic ID based on the user ID
@@ -236,9 +240,11 @@ export async function sendNotificationAction(data: {
     const senderId = session.user.id;
     const isAdmin = session.user.role === "admin";
 
-    console.log(
-      `[sendNotificationAction] Invalidation for Thread=${threadId} and User=${session.user.id}`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[sendNotificationAction] Invalidation for Thread=${threadId} and User=${session.user.id}`,
+      );
+    }
     const cacheStartTime = Date.now();
     await Promise.all([
       !isAdmin && invalidateCache(CHAT_CACHE_KEYS.THREADS(senderId)),
@@ -261,9 +267,11 @@ export async function sendNotificationAction(data: {
           60,
         ),
     ]);
-    console.log(
-      `[sendNotificationAction] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[sendNotificationAction] Cache invalidation took ${Date.now() - cacheStartTime}ms`,
+      );
+    }
   }
 
   revalidatePath("/admin/resources");
@@ -292,9 +300,11 @@ export async function invalidateAdminsCache() {
       // We rely on debounced version increments and Redis Overlays.
       // invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
     ]);
-    console.log(
-      `[AdminSync] Incremented global admin chat versions (Debounced).`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[AdminSync] Incremented global admin chat versions (Debounced).`,
+      );
+    }
   } catch {
     console.error(
       "[AdminSync] Failed to invalidate global admin cache:",
@@ -380,10 +390,12 @@ export async function getThreadsAction() {
 
   if (cachedData) {
     if (cachedData.version === currentVersion) {
-      console.log(
-        `%c[getThreadsAction] REDIS HIT (${redisDuration}ms) for User=${session.user.id}. Version: ${currentVersion}. Key: ${cacheKey}`,
-        "color: #eab308; font-weight: bold",
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `%c[getThreadsAction] REDIS HIT (${redisDuration}ms) for User=${session.user.id}. Version: ${currentVersion}. Key: ${cacheKey}`,
+          "color: #eab308; font-weight: bold",
+        );
+      }
 
       // ⚡ [Redis Overlay] Merge clean overrides onto cached threads
       // This allows "Archive" to be 0-DB-Hit while still showing fresh state.
@@ -400,17 +412,23 @@ export async function getThreadsAction() {
 
       return cachedData;
     } else {
-      console.log(
-        `[getThreadsAction] Version mismatch. Cache: ${cachedData.version}, Current: ${currentVersion}. Key: ${cacheKey}`,
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[getThreadsAction] Version mismatch. Cache: ${cachedData.version}, Current: ${currentVersion}. Key: ${cacheKey}`,
+        );
+      }
     }
   } else {
-    console.log(`[getThreadsAction] Redis Cache NULL for Key: ${cacheKey}`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[getThreadsAction] Redis Cache NULL for Key: ${cacheKey}`);
+    }
   }
 
-  console.log(
-    `[getThreadsAction] Redis Cache MISS for user ${session.user.id}. Fetching from Prisma DB...`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[getThreadsAction] Redis Cache MISS for user ${session.user.id}. Fetching from Prisma DB...`,
+    );
+  }
 
   // Ensure default "Broadcast" group exists (Only on cache miss for admins)
   if (isAdmin) {
@@ -493,9 +511,11 @@ export async function getThreadsAction() {
     },
     _max: { createdAt: true },
   });
-  console.log(
-    `[getThreadsAction] GroupBy Threads took ${Date.now() - dbStartTime}ms`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[getThreadsAction] GroupBy Threads took ${Date.now() - dbStartTime}ms`,
+    );
+  }
 
   const threadIds = threadMaxDates.map((t) => t.threadId!).filter(Boolean);
 
@@ -619,9 +639,11 @@ export async function getThreadsAction() {
   const typedUserStates = userStates as UserThreadState[];
   const typedEnrollmentData = enrollmentData as EnrollmentWithCourse[];
 
-  console.log(
-    `[getThreadsAction] Big Parallel Fetch took ${Date.now() - dbStartTime}ms (Threads: ${threadIds.length})`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[getThreadsAction] Big Parallel Fetch took ${Date.now() - dbStartTime}ms (Threads: ${threadIds.length})`,
+    );
+  }
 
   // Transform Maps
   const unresolvedMap: Record<string, number> = {};
@@ -636,9 +658,11 @@ export async function getThreadsAction() {
       .map(([tid]) => tid);
 
     if (threadsToSync.length > 0) {
-      console.log(
-        `[Redis-First Archive] Syncing ${threadsToSync.length} stable threads to DB for User=${session.user.id}`,
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[Redis-First Archive] Syncing ${threadsToSync.length} stable threads to DB for User=${session.user.id}`,
+        );
+      }
       try {
         await Promise.all(
           threadsToSync.map((tid) =>
@@ -827,10 +851,12 @@ export async function getThreadsAction() {
   };
 
   const dbDuration = Date.now() - dbStartTime;
-  console.log(
-    `%c[getThreadsAction] DB HIT (${dbDuration}ms) for User=${session.user.id}. Key: ${cacheKey}`,
-    "color: #eab308; font-weight: bold",
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `%c[getThreadsAction] DB HIT (${dbDuration}ms) for User=${session.user.id}. Key: ${cacheKey}`,
+      "color: #eab308; font-weight: bold",
+    );
+  }
 
   await setCache(cacheKey, result, 2592000); // 30 days
   return result;
@@ -892,13 +918,17 @@ export async function getThreadMessagesAction(
   if (cacheKey) {
     const redisStartTime = Date.now();
     const cached = await getCache<CachedMessages>(cacheKey);
-    console.log(
-      `[getThreadMessagesAction] Redis fetch for Thread=${threadId} took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
-    );
-    if (cached) {
+    if (process.env.NODE_ENV === "development") {
       console.log(
-        `[getThreadMessagesAction] Redis Cache HIT for thread ${threadId}.`,
+        `[getThreadMessagesAction] Redis fetch for Thread=${threadId} took ${Date.now() - redisStartTime}ms. Result: ${cached ? "HIT" : "MISS"}`,
       );
+    }
+    if (cached) {
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[getThreadMessagesAction] Redis Cache HIT for thread ${threadId}.`,
+        );
+      }
       
       // ⚡ [Redis Overlay] Merge fresh archive status into cached state
       const overrides = await getBufferedArchiveStatus(session.user.id);
@@ -908,9 +938,11 @@ export async function getThreadMessagesAction(
 
       return cached;
     }
-    console.log(
-      `[getThreadMessagesAction] Redis Cache ${cached ? "VERSION MISMATCH" : "NULL"} for thread ${threadId}. Key: ${cacheKey}`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[getThreadMessagesAction] Redis Cache ${cached ? "VERSION MISMATCH" : "NULL"} for thread ${threadId}. Key: ${cacheKey}`,
+      );
+    }
   }
 
   // Optimization: If initial load, we don't need a separate "latest" fetch anymore.
@@ -957,18 +989,22 @@ export async function getThreadMessagesAction(
     }),
     getBufferedArchiveStatus(session.user.id),
   ]);
-  console.log(
-    `[getThreadMessagesAction] DB Fetch (Msgs + State + Oldest) took ${Date.now() - mainDbStart}ms (Count: ${messages.length})`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[getThreadMessagesAction] DB Fetch (Msgs + State + Oldest) took ${Date.now() - mainDbStart}ms (Count: ${messages.length})`,
+    );
+  }
 
   const nextCursor =
     oldestEver && oldestEver.createdAt < windowEnd
       ? windowEnd.toISOString()
       : null;
   const dbDuration = Date.now() - mainDbStart;
-  console.log(
-    `[getThreadMessagesAction] DB Operations total took ${dbDuration}ms.`,
-  );
+  if (process.env.NODE_ENV === "development") {
+    console.log(
+      `[getThreadMessagesAction] DB Operations total took ${dbDuration}ms.`,
+    );
+  }
 
   const signedMessages = await Promise.all(
     messages.map((m) => signMessageAttachments(m)),
@@ -994,9 +1030,11 @@ export async function getThreadMessagesAction(
     const dirtyMap = await getDirtyArchiveThreads(session.user.id);
     const lastUpdate = dirtyMap[threadId];
     if (lastUpdate && Date.now() - lastUpdate > 60000) {
-      console.log(
-        `[Redis-First Archive] Syncing stable thread ${threadId} to DB for User=${session.user.id}`,
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[Redis-First Archive] Syncing stable thread ${threadId} to DB for User=${session.user.id}`,
+        );
+      }
       try {
         await prisma.userThreadState.upsert({
           where: { userId_threadId: { userId: session.user.id, threadId } },
@@ -1400,7 +1438,9 @@ export async function getGroupParticipantsAction(chatGroupId: string) {
   const cacheKey = CHAT_CACHE_KEYS.PARTICIPANTS(chatGroupId);
   const cached = await getCache<unknown>(cacheKey);
   if (cached) {
-    console.log(`[Redis] Cache HIT for participants: ${chatGroupId}`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Redis] Cache HIT for participants: ${chatGroupId}`);
+    }
     return cached;
   }
 

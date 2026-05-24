@@ -1,5 +1,6 @@
 import "server-only";
 import { prisma } from "@/lib/db";
+import { cache } from "react";
 import {
   getCache,
   setCache,
@@ -20,9 +21,11 @@ export async function getIndividualCourse(
 
   // Smart Sync: If client has the latest version, don't re-fetch
   if (clientVersion && clientVersion === currentVersion) {
-    console.log(
-      `[getIndividualCourse] Version match for ${slug}. Returning NOT_MODIFIED.`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[getIndividualCourse] Version match for ${slug}. Returning NOT_MODIFIED.`,
+      );
+    }
     return { status: "not-modified", version: currentVersion };
   }
 
@@ -32,7 +35,9 @@ export async function getIndividualCourse(
   const cached = await getCache<unknown>(cacheKey);
 
   if (cached) {
-    console.log(`[Redis] Cache HIT for course: ${slug} (v${currentVersion})`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Redis] Cache HIT for course: ${slug} (v${currentVersion})`);
+    }
     return { course: cached, version: currentVersion };
   }
 
@@ -74,22 +79,46 @@ export async function getIndividualCourse(
     },
   });
 
-  console.log(
-    `[getIndividualCourse] DB Computation took ${Date.now() - startTime}ms`,
-  );
-
   const courseData = course
     ? { ...course, price: course.price ? Number(course.price) : null }
     : null;
 
+  const dbDuration = Date.now() - startTime;
+
+  if (slugV === "0") {
+    // First visit — initialize version so subsequent requests hit Redis
+    const realVersion = Date.now().toString();
+    await setCache(GLOBAL_CACHE_KEYS.SLUG_VERSION(slug), realVersion);
+    const realKey = `${GLOBAL_CACHE_KEYS.COURSE_DETAIL(slug)}:${realVersion}`;
+    await setCache(realKey, courseData, 2592000);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[getIndividualCourse] DB first fetch for ${slug} — version initialized to ${realVersion} (${dbDuration}ms)`);
+    }
+    return { course: courseData, version: realVersion };
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[getIndividualCourse] DB Computation took ${dbDuration}ms`);
+  }
+
   // Cache in Redis for 30 days
-  await setCache(cacheKey, courseData, 2592000); // 30 days
+  await setCache(cacheKey, courseData, 2592000);
 
   return { course: courseData, version: currentVersion };
 }
 
-export async function getAllPublishedCourses() {
-  return await prisma.course.findMany({
+export const getAllPublishedCourses = cache(async () => {
+  const t0 = Date.now();
+  const cacheKey = GLOBAL_CACHE_KEYS.PUBLISHED_COURSES_LIST;
+  const cached = await getCache<{ id: string; title: string; slug: string }[]>(cacheKey);
+  if (cached) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[getAllPublishedCourses] Redis HIT (${Date.now() - t0}ms)`);
+    }
+    return cached;
+  }
+
+  const result = await prisma.course.findMany({
     where: {
       status: "Published",
     },
@@ -102,4 +131,10 @@ export async function getAllPublishedCourses() {
       createdAt: "desc",
     },
   });
-}
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[getAllPublishedCourses] DB Query took ${Date.now() - t0}ms`);
+  }
+
+  await setCache(cacheKey, result, 2592000); // 30 days
+  return result;
+});

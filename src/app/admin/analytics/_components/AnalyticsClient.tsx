@@ -227,19 +227,22 @@ type GrowthAnalyticsData = {
   } | null;
 
   // Strict hydration guard
-  if (!isHydrated) {
+  if (!isHydrated || (isStaticLoading && !staticData) || (isGrowthLoading && !growthData)) {
     return (
-      <div className="flex-1 flex items-center justify-center p-8 min-h-[400px]">
-        <Loader size={40} />
-      </div>
-    );
-  }
-
-  // If loading essential static data, return loading state
-  if ((isStaticLoading && !staticData) || (isGrowthLoading && !growthData)) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-8 min-h-[400px]">
-        <Loader size={40} />
+      <div className="flex flex-col gap-4 sm:gap-6">
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="h-4 w-24 bg-muted rounded animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 w-16 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-32 bg-muted rounded animate-pulse mt-2" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }

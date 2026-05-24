@@ -2,8 +2,10 @@ import "server-only";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { headers } from "next/headers";
+import { getCache, setCache } from "@/lib/redis";
 
 export async function checkIfCourseBought(courseId: string, userId?: string) {
+  const t0 = Date.now();
   let finalUserId = userId;
 
   if (!finalUserId) {
@@ -14,6 +16,15 @@ export async function checkIfCourseBought(courseId: string, userId?: string) {
   }
 
   if (!finalUserId) return null;
+
+  const cacheKey = `user:enrolled:${finalUserId}:${courseId}`;
+  const cached = await getCache<string>(cacheKey);
+  if (cached) {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[checkIfCourseBought] Redis HIT (${Date.now() - t0}ms) for course=${courseId}`);
+    }
+    return cached === "__null__" ? null : cached;
+  }
 
   const enrollment = await prisma.enrollment.findUnique({
     where: {
@@ -26,6 +37,14 @@ export async function checkIfCourseBought(courseId: string, userId?: string) {
       status: true,
     },
   });
-  return enrollment?.status || null;
+
+  const result = enrollment?.status ?? null;
+  await setCache(cacheKey, result ?? "__null__", 300); // 5 min TTL
+
+  if (process.env.NODE_ENV === "development") {
+    console.log(`[checkIfCourseBought] Took ${Date.now() - t0}ms for course=${courseId}`);
+  }
+
+  return result;
 }
 

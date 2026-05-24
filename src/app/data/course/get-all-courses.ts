@@ -1,22 +1,24 @@
+// ════════════════════════════════════════════════════════════════
+// get-all-courses.ts — Fetch paginated course listings
+// Tiers: Version match (🔵) → Redis (🟢) → DB (🔴) → Response
+// ════════════════════════════════════════════════════════════════
+
 import "server-only";
 import { prisma } from "@/lib/db";
 import { cache } from "react";
 import {
   setCache,
-  getMultiCache,
+  getCache,
   getVersions,
   GLOBAL_CACHE_KEYS,
   getOrSetWithStampedePrevention,
 } from "@/lib/redis";
 import { CoursesServerResult, PublicCourseType } from "@/lib/types/course";
 
-type CachedCourses = {
-  data: PublicCourseType[];
-  version: string;
-};
-
 const PAGE_SIZE = 9;
 
+// getAllCoursesInternal — Fetch paginated course listings with search, pagination & enrollment
+// Caching tiers: Version match (🔵) → Redis (🟢) → DB (🔴) → Response
 const getAllCoursesInternal = async (
   clientVersion?: string,
   userId?: string,
@@ -24,6 +26,7 @@ const getAllCoursesInternal = async (
   searchQuery?: string,
   onlyAvailable?: boolean,
 ): Promise<CoursesServerResult> => {
+  const t0 = Date.now();
   // ✅ Optimization: Batched version fetches in 1 round trip
   const versionKeys = [GLOBAL_CACHE_KEYS.COURSES_VERSION];
   if (userId) versionKeys.push(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
@@ -41,36 +44,25 @@ const getAllCoursesInternal = async (
     clientVersion &&
     clientVersion === currentVersion
   ) {
-    console.log(
-      `[getAllCourses] Version Match (${clientVersion}). Returning NOT_MODIFIED.`,
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `[getAllCourses] Version Match (${clientVersion}). Returning NOT_MODIFIED.`,
+      );
+    }
     return { status: "not-modified", version: currentVersion };
   }
 
   // ✅ Optimization: Include version in key to avoid stale global data
-  const redisStartTime = Date.now();
   const cacheKey = `${GLOBAL_CACHE_KEYS.COURSES_LIST}:${coursesVersion}`;
-
-  // If we have a userId, we might also want to pre-fetch the enrollment map
-  // However, the enrollment map key depends on userVersion, so we can batch it here
-  const dataKeys = [cacheKey];
-  if (userId) {
-    dataKeys.push(`user:enrollment-map:${userId}:${userVersion}`);
-  }
-
-  const [rawCached, rawEnrollMap] = await getMultiCache<unknown>(dataKeys);
-  const cached = rawCached as CachedCourses | null;
-  const cachedEnrollMap = rawEnrollMap as [string, string | null][] | null;
-
-  console.log(
-    `[getAllCourses] Redis batch lookup took ${Date.now() - redisStartTime}ms. Courses: ${cached ? "HIT" : "MISS"}, EnrollMap: ${userId ? (cachedEnrollMap ? "HIT" : "MISS") : "N/A"}`,
-  );
+  const enrollCacheKey = userId ? `user:enrollment-map:${userId}:${userVersion}` : null;
 
   let allCourses: PublicCourseType[];
-  const startTime = Date.now();
 
   if (searchQuery) {
-    console.log(`[getAllCourses] SEARCH: "${searchQuery}" -> DB Query`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[getAllCourses] SEARCH: "${searchQuery}" -> DB Query`);
+    }
+    const dbStart = Date.now();
     const searchRaw = await prisma.course.findMany({
       where: {
         status: "Published",
@@ -119,12 +111,11 @@ const getAllCoursesInternal = async (
       price: c.price ? Number(c.price) : null,
       firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
     }));
-    console.log(`[getAllCourses] DB Search took ${Date.now() - startTime}ms`);
-  } else if (cached?.data) {
-    console.log(`[getAllCourses] REDIS HIT (v${cached.version})`);
-    allCourses = cached.data;
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[getAllCourses] DB Search took ${Date.now() - dbStart}ms`);
+    }
   } else {
-    console.log(`[getAllCourses] REDIS MISS -> DB Computation with stampede prevention`);
+    // getOrSetWithStampedePrevention handles HIT/MISS/stampede in one call
     allCourses = await getOrSetWithStampedePrevention(
       cacheKey,
       async () => {
@@ -171,7 +162,9 @@ const getAllCoursesInternal = async (
           price: c.price ? Number(c.price) : null,
           firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
         }));
-        console.log(`[getAllCourses] DB Computation took ${Date.now() - dbStartTime}ms`);
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[getAllCourses] DB Computation took ${Date.now() - dbStartTime}ms`);
+        }
         return normalized;
       },
       2592000, // 30 days
@@ -182,15 +175,15 @@ const getAllCoursesInternal = async (
 
   if (userId) {
     const mergeStart = Date.now();
-    const enrollCacheKey = `user:enrollment-map:${userId}:${userVersion}`;
 
-    // ✅ Optimization: Use pre-fetched enrollment map from step 1
-    let mapValues = cachedEnrollMap;
+    let mapValues = await getCache<[string, string | null][]>(enrollCacheKey!);
 
     if (!mapValues) {
-      console.log(
-        `[getAllCourses] Enrollment Map MISS for ${userId} (or not pre-fetched) -> DB Query`,
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[getAllCourses] Enrollment Map MISS for ${userId} -> DB Query`,
+        );
+      }
       const enrollments = await prisma.enrollment.findMany({
         where: { userId },
         select: { courseId: true, status: true },
@@ -198,9 +191,11 @@ const getAllCoursesInternal = async (
       mapValues = enrollments.map(
         (e) => [e.courseId, e.status] as [string, string | null],
       );
-      await setCache(enrollCacheKey, mapValues, 86400 * 7);
+      await setCache(enrollCacheKey!, mapValues, 86400 * 7);
     } else {
-      console.log(`[getAllCourses] Enrollment Map HIT for ${userId}`);
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[getAllCourses] Enrollment Map HIT for ${userId}`);
+      }
     }
 
     const map = new Map<string, string | null>(mapValues ?? []);
@@ -209,9 +204,11 @@ const getAllCoursesInternal = async (
       resultCourses = allCourses
         .filter((c) => map.get(c.id) !== "Granted")
         .map((c) => ({ ...c, enrollmentStatus: map.get(c.id) ?? null }));
-      console.log(
-        `[getAllCourses] Filtered Enrollment Merge took ${Date.now() - mergeStart}ms`,
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[getAllCourses] Filtered Enrollment Merge took ${Date.now() - mergeStart}ms`,
+        );
+      }
     } else {
       // ✅ FIX: cursor not found → startIndex = allCourses.length → returns empty page (no silent restart)
       const idx = cursor ? allCourses.findIndex((c) => c.id === cursor) : -1;
@@ -223,9 +220,11 @@ const getAllCoursesInternal = async (
         enrollmentStatus: map.get(c.id) ?? null,
       }));
 
-      console.log(
-        `[getAllCourses] Optimized Merge (Sliced first) took ${Date.now() - mergeStart}ms`,
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `[getAllCourses] Optimized Merge (Sliced first) took ${Date.now() - mergeStart}ms`,
+        );
+      }
 
       const nextCursor =
         startIndex + PAGE_SIZE < allCourses.length
