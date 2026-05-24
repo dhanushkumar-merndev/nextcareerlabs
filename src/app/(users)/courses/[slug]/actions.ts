@@ -139,6 +139,7 @@ export async function enrollInCourseAction(
       if (existingEnrollment.status === "Granted") {
         return {
           status: "success",
+          enrollmentStatus: "Granted",
           message: "You are already enrolled in this course",
         };
       }

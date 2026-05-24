@@ -586,7 +586,6 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
               <Bot className="size-7 text-primary" />
             </div>
             <p className="text-sm font-semibold text-foreground">Ask anything about this lesson</p>
-            <p className="text-xs mt-1.5 text-muted-foreground/70 text-center max-w-[200px]">I have the transcript context ready to help</p>
           </div>
         )}
         {messages.map((msg, i) => (

@@ -9,7 +9,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { CheckCircle2, XCircle, Sparkles, Trophy, RotateCcw } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { submitQuiz } from '@/app/student/quiz/actions';
+import { submitQuiz } from '@/app/dashboard/[slug]/[lessonId]/actions';
 
 interface Question {
   id: string;

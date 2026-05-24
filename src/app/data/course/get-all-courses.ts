@@ -185,7 +185,7 @@ const getAllCoursesInternal = async (
     const enrollCacheKey = `user:enrollment-map:${userId}:${userVersion}`;
 
     // ✅ Optimization: Use pre-fetched enrollment map from step 1
-    let mapValues: [string, string | null][] = cachedEnrollMap ?? [];
+    let mapValues = cachedEnrollMap;
 
     if (!mapValues) {
       console.log(
@@ -203,7 +203,7 @@ const getAllCoursesInternal = async (
       console.log(`[getAllCourses] Enrollment Map HIT for ${userId}`);
     }
 
-    const map = new Map<string, string | null>(mapValues);
+    const map = new Map<string, string | null>(mapValues ?? []);
 
     if (onlyAvailable) {
       resultCourses = allCourses

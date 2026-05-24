@@ -363,6 +363,162 @@ export async function updateMultipleVideoProgress(
   }
 }
 /**
+ * Submit quiz (legacy interface — used by LessonQuiz component)
+ */
+export async function submitQuiz(
+  lessonId: string,
+  answers: number[],
+): Promise<{
+  success: boolean;
+  score?: number;
+  passed?: boolean;
+  correctAnswers?: boolean[];
+  error?: string;
+}> {
+  const session = await requireUser();
+
+  const enrollment = await prisma.enrollment.findFirst({
+    where: {
+      userId: session.id,
+      Course: {
+        chapter: { some: { lesson: { some: { id: lessonId } } } },
+      },
+      status: "Granted",
+    },
+  });
+
+  if (!enrollment) {
+    return { success: false, error: "Forbidden: Not enrolled" };
+  }
+
+  try {
+    const questions = await prisma.question.findMany({
+      where: { lessonId },
+      orderBy: { order: "asc" },
+      select: { id: true, correctIdx: true },
+    });
+
+    if (questions.length !== 20) {
+      return { success: false, error: "Lesson must have exactly 20 questions" };
+    }
+
+    if (answers.length !== 20) {
+      return { success: false, error: "Must answer all 20 questions" };
+    }
+
+    let score = 0;
+    const correctAnswers: boolean[] = [];
+
+    for (let i = 0; i < 20; i++) {
+      const isCorrect = answers[i] === questions[i].correctIdx;
+      correctAnswers.push(isCorrect);
+      if (isCorrect) score++;
+    }
+
+    const passed = score >= QUIZ_PASS_THRESHOLD;
+
+    await prisma.quizAttempt.create({
+      data: {
+        userId: session.id,
+        lessonId,
+        answers,
+        score,
+        passed,
+      },
+    });
+
+    if (passed) {
+      await prisma.lessonProgress.upsert({
+        where: {
+          userId_lessonId: {
+            userId: session.id,
+            lessonId,
+          },
+        },
+        create: {
+          userId: session.id,
+          lessonId,
+          completed: true,
+          quizPassed: true,
+        },
+        update: {
+          completed: true,
+          quizPassed: true,
+          updatedAt: new Date(),
+        },
+      });
+
+      await Promise.all([
+        invalidateCache(`user:dashboard:${session.id}`),
+        invalidateCache(`user:lesson:${session.id}:${lessonId}`),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
+      ]);
+    }
+
+    return { success: true, score, passed, correctAnswers };
+  } catch (error) {
+    console.error("[Submit Quiz Error]", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to submit quiz",
+    };
+  }
+}
+
+/**
+ * Get quiz attempts for a user/lesson
+ */
+export async function getQuizAttempts(lessonId: string): Promise<{
+  success: boolean;
+  attempts?: Array<{
+    id: string;
+    score: number;
+    passed: boolean;
+    completedAt: Date;
+  }>;
+  bestScore?: number;
+  hasPassed?: boolean;
+  error?: string;
+}> {
+  const session = await requireUser();
+
+  try {
+    const attempts = await prisma.quizAttempt.findMany({
+      where: {
+        userId: session.id,
+        lessonId,
+      },
+      orderBy: { completedAt: "desc" },
+      select: {
+        id: true,
+        score: true,
+        passed: true,
+        completedAt: true,
+      },
+    });
+
+    const bestScore =
+      attempts.length > 0 ? Math.max(...attempts.map((a) => a.score)) : 0;
+
+    const hasPassed = attempts.some((a) => a.passed);
+
+    return {
+      success: true,
+      attempts,
+      bestScore,
+      hasPassed,
+    };
+  } catch (error) {
+    console.error("[Get Quiz Attempts Error]", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Failed to fetch attempts",
+    };
+  }
+}
+
+/**
  * Submit a quiz attempt for a lesson
  */
 export async function submitQuizAttempt(
