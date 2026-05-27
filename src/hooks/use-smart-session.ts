@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { chatCache } from "@/lib/chat-cache";
 import { getAuthSessionAction } from "@/app/(auth)/auth-session";
 import type { AuthSession } from "@/lib/types/auth";
@@ -11,13 +11,18 @@ const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 mins
 const LOCAL_TTL = 100 * 365 * 24 * 60 * 60 * 1000; // ∞ forever
 const VERSION_CHECK_LS_KEY = "auth_session_last_check"; // plain LS, no encryption overhead
 
-// ── 30-min gate helpers ───────────────────────────────────────────────────────
-function shouldRunVersionCheck(): boolean {
-    if (typeof window === "undefined") return true;
-    const last = localStorage.getItem(VERSION_CHECK_LS_KEY);
-    if (!last) return true;
-    return Date.now() - parseInt(last) >= HEARTBEAT_INTERVAL;
+const SESSION_COOKIE = "better-auth.session_token";
+const FALLBACK_COOKIE = "next-auth.session-token";
+
+// ── Client-side cookie helpers ─────────────────────────────────────────────────
+function hasSessionCookie(): boolean {
+    if (typeof document === "undefined") return false;
+    return document.cookie.includes(SESSION_COOKIE) || document.cookie.includes(FALLBACK_COOKIE);
 }
+
+// NOTE: can't read actual cookie value here (httpOnly), just its presence/absence.
+
+// ── 30-min gate helpers ───────────────────────────────────────────────────────
 function markVersionChecked() {
     localStorage.setItem(VERSION_CHECK_LS_KEY, Date.now().toString());
 }
@@ -43,13 +48,25 @@ export function useSmartSession(initialDataFromServer?: SessionData) {
         queryFn: async () => {
             const cached = chatCache.get<SessionData>(CACHE_KEY);
 
-            // ✅ RULE: localStorage hit + within 30-min window → NO server call at all
-            if (!shouldRunVersionCheck() && cached?.data) {
-                console.log(`[Auth] ⚡ <30min window: Serving from localStorage, skipping network`);
-                return cached.data;
+            // ── Detect session cookie on client side ──────────────────────────
+            const hasCookie = hasSessionCookie();
+
+            // No session cookie → user is definitely logged out
+            if (!hasCookie) {
+                if (cached?.data) {
+                    console.log(`[Auth] 🔴 No session cookie but cached data exists. Clearing stale cache.`);
+                    chatCache.invalidate(CACHE_KEY);
+                    localStorage.removeItem(VERSION_CHECK_LS_KEY);
+                }
+                return null;
             }
 
-            // ✅ 30 mins passed → ONE version check via server action (hits Redis)
+            // ✅ Session cookie exists → ALWAYS do version check (bypasses 30-min gate).
+            //    The version check is cheap (just Redis key reads) and is the only
+            //    reliable way to detect a user change after session expiry + re-login
+            //    with a different Google account. We cannot safely reuse cached data
+            //    within the 30-min window because the cookie might belong to a
+            //    different user than the cached session data.
             const clientVersion = cached?.version;
             const result = await getAuthSessionAction(clientVersion);
             markVersionChecked(); // stamp immediately so concurrent calls don't double-fire
@@ -85,8 +102,12 @@ export function useSmartSession(initialDataFromServer?: SessionData) {
         },
 
         // ✅ Instant hydration: sync localStorage read before first render
+        //    When no session cookie exists, don't serve stale cached data
         initialData: () => {
             if (typeof window === "undefined") return initialDataFromServer ?? undefined;
+            if (!hasSessionCookie()) {
+                return null;
+            }
             const cached = chatCache.get<SessionData>(CACHE_KEY);
             if (cached?.data) {
                 console.log(`[Auth] ⚡ Instant Hydration from localStorage`);
@@ -99,6 +120,7 @@ export function useSmartSession(initialDataFromServer?: SessionData) {
         // This makes React Query's staleTime clock align with your 30-min gate
         initialDataUpdatedAt: () => {
             if (typeof window === "undefined") return undefined;
+            if (!hasSessionCookie()) return 0;
             const lastCheck = localStorage.getItem(VERSION_CHECK_LS_KEY);
             return lastCheck ? parseInt(lastCheck) : chatCache.get<SessionData>(CACHE_KEY)?.timestamp;
         },
@@ -108,6 +130,23 @@ export function useSmartSession(initialDataFromServer?: SessionData) {
         refetchOnWindowFocus: false,         // ✅ FIXED: was bypassing 30-min gate on tab switch
         refetchOnMount: false,               // ✅ FIXED: was bypassing 30-min gate on every mount
     });
+
+    // ── Mount validation: detect cookie-cache mismatch ─────────────────────────
+    // On the first mount of any useSmartSession instance, if a session cookie
+    // exists, force a version check. This catches the case where the user changed
+    // (e.g., session expired → re-login with a different Google account) but the
+    // localStorage still has the old user's cached session data.
+    const validatedOnMount = useRef(false);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (validatedOnMount.current) return;
+        validatedOnMount.current = true;
+
+        if (hasSessionCookie()) {
+            console.log(`[Auth] 🔄 Mount: session cookie detected, validating...`);
+            queryClient.invalidateQueries({ queryKey: [CACHE_KEY] });
+        }
+    }, [queryClient]);
 
     useEffect(() => {
         // Cross-tab: listen for mutation signal (VERSION_CHECK_LS_KEY removal = mutation happened)

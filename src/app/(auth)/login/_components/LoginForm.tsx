@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { AuthProviderResult } from "@/lib/types/auth";
+import { chatCache } from "@/lib/chat-cache";
 import { Loader, Loader2, Send } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -90,6 +91,8 @@ export function LoginForm() {
     } else if (authFailure === "true") {
       // Session expired or revoked - clear local cache to ensure UI reflects logged-out state
       authClient.signOut().catch(() => {});
+      chatCache.invalidate("auth_session");
+      localStorage.removeItem("auth_session_last_check");
       toast.error("Session expired. Please login again.");
       router.replace("/login");
       hasShownToast.current = true;
