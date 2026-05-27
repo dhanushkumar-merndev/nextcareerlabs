@@ -7,9 +7,10 @@ import { AdminCourseCard, AdminCourseCardSkeleton } from "./AdminCourseCard";
 import { EmptyState } from "@/components/general/EmptyState";
 import { useEffect, useRef } from "react";
 import { useInView } from "react-intersection-observer";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
+import { useConfetti } from "@/hooks/use-confetti";
 
 import { PublicCourseType } from "@/lib/types/course";
 
@@ -27,9 +28,13 @@ type AdminCachedData = {
 };
 
 export function AdminCoursesClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
+  const created = searchParams.get("created");
   const hasLogged = useRef<string | null>(null);
+  const hasCelebrated = useRef(false);
+  const { triggerConfetti } = useConfetti();
 
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0.5,
@@ -49,6 +54,24 @@ export function AdminCoursesClient() {
       hasLogged.current = logKey;
     }
   }, [searchTitle]);
+
+  useEffect(() => {
+    if (hasCelebrated.current) return;
+
+    const shouldCelebrate =
+      created === "1" ||
+      sessionStorage.getItem("course_created_confetti") === "1";
+
+    if (!shouldCelebrate) return;
+
+    hasCelebrated.current = true;
+    sessionStorage.removeItem("course_created_confetti");
+    triggerConfetti();
+
+    if (created === "1") {
+      router.replace("/admin/courses", { scroll: false });
+    }
+  }, [created, router, triggerConfetti]);
 
   const cached = chatCache.get<AdminCachedData>("admin_courses_list");
 

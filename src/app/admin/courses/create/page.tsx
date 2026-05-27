@@ -17,7 +17,7 @@ import {
 import { ArrowLeft, Loader2, PlusCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import type { FieldErrors, Resolver } from "react-hook-form";
 import {
   Form,
   FormControl,
@@ -42,19 +42,46 @@ import { useTransition, useEffect } from "react";
 import { tryCatch } from "@/hooks/try-catch";
 import { CreateCourse } from "./actions";
 import { toast } from "sonner";
-import { useConfetti } from "@/hooks/use-confetti";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache } from "@/lib/chat-cache";
 
+const courseFormResolver: Resolver<CourseSchemaType> = async (values) => {
+  const validation = courseSchema.safeParse(values);
+
+  if (validation.success) {
+    return {
+      values: validation.data,
+      errors: {},
+    };
+  }
+
+  const errors: Record<string, { type: string; message: string }> = {};
+
+  for (const issue of validation.error.issues) {
+    const fieldName = issue.path[0]?.toString();
+
+    if (fieldName && !errors[fieldName]) {
+      errors[fieldName] = {
+        type: issue.code,
+        message: issue.message,
+      };
+    }
+  }
+
+  return {
+    values: {},
+    errors,
+  };
+};
+
 export default function CourseCreationPage() {
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
   const { user } = useSmartSession();
-  const { triggerConfetti } = useConfetti();
   const form = useForm<CourseSchemaType>({
-    resolver: zodResolver(courseSchema),
+    resolver: courseFormResolver,
     defaultValues: {
       title: "",
       description: "",
@@ -71,6 +98,8 @@ export default function CourseCreationPage() {
     },
   });
   const watchedIsFree = useWatch({ control: form.control, name: "isFree" });
+  const watchedSmallDescription =
+    useWatch({ control: form.control, name: "smallDescription" }) ?? "";
 
   useEffect(() => {
     if (watchedIsFree) {
@@ -129,13 +158,23 @@ export default function CourseCreationPage() {
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_recent_courses"] });
         queryClient.invalidateQueries({ queryKey: ["admin_analytics"] });
         queryClient.invalidateQueries({ queryKey: ["admin_dashboard_all"] });
-        triggerConfetti();
         form.reset();
-        window.location.href = "/admin/courses";
+        sessionStorage.setItem("course_created_confetti", "1");
+        window.location.href = "/admin/courses?created=1";
       } else if (result.status === "error") {
         toast.error(result.message);
       }
     });
+  }
+
+  function onInvalid(errors: FieldErrors<CourseSchemaType>) {
+    const firstError = Object.values(errors)[0];
+    const message =
+      typeof firstError?.message === "string"
+        ? firstError.message
+        : "Please fill all required fields before creating the course";
+
+    toast.error(message);
   }
 
   return (
@@ -158,7 +197,10 @@ export default function CourseCreationPage() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form className="space-y-6" onSubmit={form.handleSubmit(onSubmit)}>
+            <form
+              className="space-y-6"
+              onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+            >
               <FormField
                 control={form.control}
                 name="title"
@@ -192,9 +234,13 @@ export default function CourseCreationPage() {
                     className="w-fit cursor-pointer"
                     onClick={() => {
                       const titleValue = form.getValues("title");
-                      const slug = slugify(titleValue);
-                      form.setValue("slug", slug);
-                      form.trigger("title");
+                      const slug = slugify(titleValue, {
+                        lower: true,
+                        strict: true,
+                      });
+                      form.setValue("slug", slug, {
+                        shouldDirty: true,
+                      });
                     }}
                   >
                     Generate Slug <Sparkles className="ml-1 size-4" />
@@ -211,9 +257,13 @@ export default function CourseCreationPage() {
                       <Textarea
                         className="min-h-30"
                         placeholder="Small Description"
+                        maxLength={200}
                         {...field}
                       />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground">
+                      {watchedSmallDescription.length}/200 characters
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

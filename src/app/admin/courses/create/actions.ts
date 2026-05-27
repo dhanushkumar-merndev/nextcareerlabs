@@ -46,9 +46,11 @@ export async function CreateCourse(
 
     const validation = courseSchema.safeParse(values);
     if (!validation.success) {
+      const firstError = validation.error.issues[0]?.message ?? "Invalid Data";
+
       return {
         status: "error",
-        message: "Invalid Data",
+        message: firstError,
       };
     }
 
@@ -82,50 +84,56 @@ export async function CreateCourse(
     const createDuration = Date.now() - createStartTime;
     console.log(`[CreateCourse] DB Create took ${createDuration}ms`);
 
-    // Auto-create Broadcast Group if Published on creation
-    if (validation.data.status === "Published") {
-      await prisma.chatGroup.create({
-        data: {
-          name: `${validation.data.title} Group`,
-          courseId: createdCourse.id,
-          imageUrl: validation.data.fileKey,
-        },
-      });
+    try {
+      // Auto-create Broadcast Group if Published on creation
+      if (validation.data.status === "Published") {
+        await prisma.chatGroup.create({
+          data: {
+            name: `${validation.data.title} Group`,
+            courseId: createdCourse.id,
+            imageUrl: validation.data.fileKey,
+          },
+        });
+      }
+
+      // Invalidate global courses and analytics cache
+      await Promise.all([
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(createdCourse.slug)),
+        invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(createdCourse.id)),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+        invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+        invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+        incrementGlobalVersion(
+          GLOBAL_CACHE_KEYS.SLUG_VERSION(createdCourse.slug),
+        ),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+        incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+      ]);
+
+      revalidatePath("/courses");
+      revalidatePath(`/courses/${createdCourse.slug}`);
+      revalidatePath("/admin/resources");
+    } catch (error) {
+      console.error("[CreateCourse] Post-create side effect failed", error);
     }
-
-    // Invalidate global courses and analytics cache
-    await Promise.all([
-      invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
-      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(createdCourse.slug)),
-      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(createdCourse.id)),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
-      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
-      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
-      incrementGlobalVersion(
-        GLOBAL_CACHE_KEYS.SLUG_VERSION(createdCourse.slug),
-      ),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_RECENT_COURSES_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
-      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-    ]);
-
-    revalidatePath("/courses");
-    revalidatePath(`/courses/${createdCourse.slug}`);
-    revalidatePath("/admin/resources");
 
     return {
       status: "success",
       message: "Course Created Successfully",
     };
-  } catch  {
+  } catch (error) {
+    console.error("[CreateCourse] Failed to create course", error);
+
     return {
       status: "error",
       message: "Failed to create course",
