@@ -976,12 +976,9 @@ function VideoPlayer({
         "color: #f97316; font-weight: bold",
       );
 
-      const baseKey = videoKey.startsWith("hls/")
-        ? videoKey.split("/")[1]
-        : videoKey.replace(/\.[^/.]+$/, "");
-      const hlsKey = `hls/${baseKey}/master.m3u8`;
+      const playlistUrl = `/api/video/playlist/${lessonId}`;
 
-      const keysToSign = [hlsKey, videoKey];
+      const keysToSign = [videoKey];
       if (transcriptionUrl && !transcriptionUrl.startsWith("http")) {
         keysToSign.push(transcriptionUrl);
       }
@@ -995,10 +992,8 @@ function VideoPlayer({
         const urlsToCache: { hls?: string; video?: string; caption?: string } =
           {};
 
-        if (urls[hlsKey]) {
-          setHlsUrl(urls[hlsKey]);
-          urlsToCache.hls = urls[hlsKey];
-        }
+        setHlsUrl(playlistUrl);
+        urlsToCache.hls = playlistUrl;
         if (urls[videoKey]) {
           setVideoUrl(urls[videoKey]);
           urlsToCache.video = urls[videoKey];
@@ -1030,7 +1025,7 @@ function VideoPlayer({
     };
 
     fetchUrls();
-  }, [VIDEO_URL_TTL, transcriptionUrl, urlCacheKey, userId, videoKey]);
+  }, [VIDEO_URL_TTL, lessonId, transcriptionUrl, urlCacheKey, userId, videoKey]);
 
   /* ============================================================
      ON UNMOUNT: Sync to DB

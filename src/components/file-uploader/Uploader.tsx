@@ -805,8 +805,9 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
       }
 
       const isExistingVideo = !fileState.file;
-      const hlsKey = (isExistingVideo && fileState.baseKey) ? `hls/${fileState.baseKey}/master.m3u8` : undefined;
-      const hlsUrl = hlsKey ? constructUrl(hlsKey) : undefined;
+      const hlsUrl = (isExistingVideo && lessonId && fileState.baseKey)
+        ? `/api/video/playlist/${lessonId}`
+        : undefined;
 
       // Reactive Sprite Metadata: Use state if available (new upload), otherwise derive from key (existing)
       const effectiveSpriteMetadata = fileState.spriteMetadata || (extractedBaseKey ? {
