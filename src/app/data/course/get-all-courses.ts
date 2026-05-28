@@ -26,7 +26,6 @@ const getAllCoursesInternal = async (
   searchQuery?: string,
   onlyAvailable?: boolean,
 ): Promise<CoursesServerResult> => {
-  const t0 = Date.now();
   // ✅ Optimization: Batched version fetches in 1 round trip
   const versionKeys = [GLOBAL_CACHE_KEYS.COURSES_VERSION];
   if (userId) versionKeys.push(GLOBAL_CACHE_KEYS.USER_VERSION(userId));
@@ -83,7 +82,6 @@ const getAllCoursesInternal = async (
         slug: true,
         isFree: true,
         freeChaptersCount: true,
-        price: true,
         chapter: {
           orderBy: { position: "asc" },
           take: 1,
@@ -108,7 +106,6 @@ const getAllCoursesInternal = async (
       slug: c.slug,
       isFree: c.isFree ?? true,
       freeChaptersCount: c.freeChaptersCount ?? 0,
-      price: c.price ? Number(c.price) : null,
       firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
     }));
     if (process.env.NODE_ENV === "development") {
@@ -134,7 +131,6 @@ const getAllCoursesInternal = async (
             slug: true,
             isFree: true,
             freeChaptersCount: true,
-            price: true,
             chapter: {
               orderBy: { position: "asc" },
               take: 1,
@@ -159,7 +155,6 @@ const getAllCoursesInternal = async (
           slug: c.slug,
           isFree: c.isFree ?? true,
           freeChaptersCount: c.freeChaptersCount ?? 0,
-          price: c.price ? Number(c.price) : null,
           firstLessonId: c.chapter?.[0]?.lesson?.[0]?.id ?? null,
         }));
         if (process.env.NODE_ENV === "development") {
@@ -176,7 +171,13 @@ const getAllCoursesInternal = async (
   if (userId) {
     const mergeStart = Date.now();
 
-    let mapValues = await getCache<[string, string | null][]>(enrollCacheKey!);
+    type EnrollmentMapValue = [
+      string,
+      string | null,
+      boolean,
+      boolean,
+    ];
+    let mapValues = await getCache<EnrollmentMapValue[]>(enrollCacheKey!);
 
     if (!mapValues) {
       if (process.env.NODE_ENV === "development") {
@@ -184,13 +185,24 @@ const getAllCoursesInternal = async (
           `[getAllCourses] Enrollment Map MISS for ${userId} -> DB Query`,
         );
       }
-      const enrollments = await prisma.enrollment.findMany({
-        where: { userId },
-        select: { courseId: true, status: true },
-      });
-      mapValues = enrollments.map(
-        (e) => [e.courseId, e.status] as [string, string | null],
-      );
+      const enrollments = await prisma.$queryRaw<
+        {
+          courseId: string;
+          status: string | null;
+          demoStarted: boolean;
+          accessRequested: boolean;
+        }[]
+      >`
+        SELECT "courseId", "status"::text AS "status", "demoStarted", "accessRequested"
+        FROM "Enrollment"
+        WHERE "userId" = ${userId}
+      `;
+      mapValues = enrollments.map((e) => [
+        e.courseId,
+        e.status,
+        e.demoStarted,
+        e.accessRequested,
+      ]);
       await setCache(enrollCacheKey!, mapValues, 86400 * 7);
     } else {
       if (process.env.NODE_ENV === "development") {
@@ -198,12 +210,33 @@ const getAllCoursesInternal = async (
       }
     }
 
-    const map = new Map<string, string | null>(mapValues ?? []);
+    const map = new Map(
+      (mapValues ?? []).map(([courseId, status, demoStarted, accessRequested]) => [
+        courseId,
+        {
+          status,
+          demoStarted,
+          accessRequested,
+          displayStatus: status === "Granted"
+            ? "Granted"
+            : accessRequested
+              ? "Pending"
+              : demoStarted
+                ? "Demo"
+                : null,
+        },
+      ]),
+    );
 
     if (onlyAvailable) {
       resultCourses = allCourses
-        .filter((c) => map.get(c.id) !== "Granted")
-        .map((c) => ({ ...c, enrollmentStatus: map.get(c.id) ?? null }));
+        .filter((c) => map.get(c.id)?.status !== "Granted")
+        .map((c) => ({
+          ...c,
+          enrollmentStatus: map.get(c.id)?.displayStatus ?? null,
+          demoStarted: map.get(c.id)?.demoStarted ?? false,
+          accessRequested: map.get(c.id)?.accessRequested ?? false,
+        }));
       if (process.env.NODE_ENV === "development") {
         console.log(
           `[getAllCourses] Filtered Enrollment Merge took ${Date.now() - mergeStart}ms`,
@@ -217,7 +250,9 @@ const getAllCoursesInternal = async (
       const page = allCourses.slice(startIndex, startIndex + PAGE_SIZE);
       resultCourses = page.map((c) => ({
         ...c,
-        enrollmentStatus: map.get(c.id) ?? null,
+        enrollmentStatus: map.get(c.id)?.displayStatus ?? null,
+        demoStarted: map.get(c.id)?.demoStarted ?? false,
+        accessRequested: map.get(c.id)?.accessRequested ?? false,
       }));
 
       if (process.env.NODE_ENV === "development") {

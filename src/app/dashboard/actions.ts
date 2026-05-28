@@ -48,10 +48,18 @@ export async function getUserDashboardData(
       cacheKey,
       async () => {
         const dbStartTime = Date.now();
-        const enrollments = await prisma.enrollment.findMany({
+        const accessRows = await prisma.$queryRaw<{ id: string }[]>`
+          SELECT "id"
+          FROM "Enrollment"
+          WHERE "userId" = ${userId}
+            AND ("status" = 'Granted' OR "demoStarted" = true)
+        `;
+        const accessIds = accessRows.map((row) => row.id);
+
+        const enrollments = accessIds.length > 0
+          ? await prisma.enrollment.findMany({
           where: {
-            userId,
-            status: "Granted",
+            id: { in: accessIds },
           },
           include: {
             Course: {
@@ -67,7 +75,8 @@ export async function getUserDashboardData(
               },
             },
           },
-        });
+        })
+          : [];
 
         const duration = Date.now() - dbStartTime;
         console.log(

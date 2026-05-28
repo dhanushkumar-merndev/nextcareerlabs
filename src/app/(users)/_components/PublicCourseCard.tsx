@@ -14,7 +14,10 @@ import { CoursesProps } from "@/lib/types/course";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTransition, useState } from "react";
-import { enrollInCourseAction } from "@/app/(users)/courses/[slug]/actions";
+import {
+  enrollInCourseAction,
+  startDemoCourseAction,
+} from "@/app/(users)/courses/[slug]/actions";
 import { tryCatch } from "@/hooks/try-catch";
 import { toast } from "sonner";
 import { chatCache } from "@/lib/chat-cache";
@@ -34,6 +37,7 @@ export function PublicCourseCard({
   const [showPhoneDialog, setShowPhoneDialog] = useState(false);
 
   const displayStatus = localStatus ?? enrollmentStatus;
+  const hasDemo = data.isFree && data.freeChaptersCount > 0 && !!data.firstLessonId;
 
   function onEnroll() {
     if (isPending) return;
@@ -41,7 +45,7 @@ export function PublicCourseCard({
       window.location.assign(`/login?redirect=/courses/${data.slug}`);
       return;
     }
-    if (!data.isFree && !session?.user?.phoneNumber) {
+    if (!session?.user?.phoneNumber) {
       setShowPhoneDialog(true);
       return;
     }
@@ -89,6 +93,50 @@ export function PublicCourseCard({
       } else if (result.status === "error") {
         toast.error(result.message);
       }
+    });
+  }
+
+  function onStartDemo() {
+    if (isPending || !data.firstLessonId) return;
+    if (!session?.user?.id) {
+      window.location.assign(
+        `/login?redirect=/dashboard/${data.slug}/${data.firstLessonId}`,
+      );
+      return;
+    }
+
+    startTransition(async () => {
+      const { data: result, error } = await tryCatch(
+        startDemoCourseAction(data.id),
+      );
+
+      if (error || result.status === "error") {
+        toast.error(result?.message ?? "Failed to start demo");
+        return;
+      }
+
+      const uid = session.user.id;
+      chatCache.setNeedsSync(uid);
+      chatCache.invalidateUserDashboardData(uid);
+      chatCache.invalidate(`user_enrolled_courses_${uid}`, uid);
+      chatCache.invalidate(`available_courses_${uid}`, uid);
+      chatCache.invalidate(`course_${data.slug}`, uid);
+      chatCache.invalidate(`course_${data.slug}`, undefined);
+
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0] as string;
+          return key === "all_courses" ||
+            key.startsWith("available_courses") ||
+            key === "enrolled_courses" ||
+            key === "user_dashboard" ||
+            key === "my_courses" ||
+            key === "user_resources" ||
+            key === "user_resources_access";
+        },
+      });
+
+      window.location.assign(`/dashboard/${data.slug}/${data.firstLessonId}`);
     });
   }
 
@@ -144,9 +192,9 @@ export function PublicCourseCard({
             <School className="size-6 p-1 rounded-md text-primary bg-primary/10" />
             <p className="text-sm text-muted-foreground">{data.category}</p>
           </div>
-          {data.isFree ? (
+          {hasDemo ? (
             <Badge variant="outline" className="border-primary text-primary bg-transparent hover:bg-transparent">
-              Free
+              Demo
             </Badge>
           ) : null}
         </div>
@@ -170,24 +218,41 @@ export function PublicCourseCard({
                 Learn More
               </Link>
             </div>
-          ) : !displayStatus ? (
+          ) : !displayStatus || displayStatus === "Demo" ? (
             <div className="flex items-center gap-2">
-              <Button
-                onClick={onEnroll}
-                disabled={isPending}
-                className="w-1/2"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Loading...
-                  </>
-                ) : data.isFree ? (
-                  "Enroll Now"
-                ) : (
-                  "Request Access"
-                )}
-              </Button>
+              {hasDemo ? (
+                <Button
+                  onClick={onStartDemo}
+                  disabled={isPending}
+                  className="w-1/2"
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : displayStatus === "Demo" ? (
+                    "Continue Demo"
+                  ) : (
+                    "Start Demo"
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  onClick={onEnroll}
+                  disabled={isPending}
+                  className="w-1/2"
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    "Request Access"
+                  )}
+                </Button>
+              )}
 
               <Link
                 href={`/courses/${data.slug}`}

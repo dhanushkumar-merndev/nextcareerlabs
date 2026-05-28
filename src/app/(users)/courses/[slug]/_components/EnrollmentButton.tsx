@@ -24,12 +24,11 @@ export function EnrollmentButton({
   courseId,
   slug,
   status,
-  isFree,
 }: {
   courseId: string;
   slug?: string;
   status: string | null;
-  isFree: boolean;
+  isFree?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { session } = useSmartSession();
@@ -48,8 +47,7 @@ export function EnrollmentButton({
       return;
     }
 
-    // If paid course and no phone, show dialog
-    if (!isFree && !session?.user?.phoneNumber) {
+    if (!session?.user?.phoneNumber) {
       setShowPhoneDialog(true);
       return;
     }
@@ -145,8 +143,6 @@ export function EnrollmentButton({
           "Request Rejected"
         ) : currentStatus === "Revoked" ? (
           "Access Revoked"
-        ) : isFree ? (
-          "Enroll Now"
         ) : (
           "Request Access"
         )}

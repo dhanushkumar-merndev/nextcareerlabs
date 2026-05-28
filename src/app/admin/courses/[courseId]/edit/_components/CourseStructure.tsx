@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { reorderChapters, reorderLessons } from "../actions";
 import { NewChapterModel } from "./NewChapterModel";
 import { NewLessonModel } from "./NewLessonModel";
+import { ImportStructureModel } from "./ImportStructureModel";
 import { DeleteLesson } from "./DeleteLesson";
 import { DeleteChapter } from "./DeleteChapter";
 import { EditChapter } from "./EditChapter";
@@ -272,10 +273,17 @@ export function CourseStructure({ data, setDirty }: iAppProps) {
       <Card className="p-0  shadow-none sm:shadow-sm  overflow-hidden">
         <CardHeader className="flex flex-row items-center justify-between border-b px-4 py-4 sm:px-6 bg-muted/30">
           <CardTitle className="text-lg font-bold">Chapters</CardTitle>
-          <NewChapterModel
-            courseId={data?.id}
-            onSuccess={invalidateAdminCaches}
-          />
+          <div className="flex items-center gap-2">
+            <ImportStructureModel
+              courseId={data.id}
+              courseTitle={data.title}
+              onSuccess={invalidateAdminCaches}
+            />
+            <NewChapterModel
+              courseId={data?.id}
+              onSuccess={invalidateAdminCaches}
+            />
+          </div>
         </CardHeader>
 
         <CardContent className="p-0 sm:p-6 space-y-4">

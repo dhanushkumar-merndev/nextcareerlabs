@@ -71,12 +71,6 @@ export function EditCourseClientWrapper({
 
       return freshData;
     },
-    initialData: () => {
-      if (typeof window === "undefined") return undefined;
-      const cached = chatCache.get<AdminCourseSingularData>(cacheKey);
-      if (cached) return cached.data;
-      return undefined;
-    },
     staleTime: 1800000, // 30 minutes
     refetchInterval: 1800000,
   });
@@ -87,6 +81,13 @@ export function EditCourseClientWrapper({
 
   const courseData = data;
   const isDirty = basicDirty || structureDirty;
+  const structureKey = courseData.chapter
+    .map((chapter) => (
+      `${chapter.id}:${chapter.title}:${chapter.lesson
+        .map((lesson) => `${lesson.id}:${lesson.title}`)
+        .join(",")}`
+    ))
+    .join("|");
 
   const handleTabChange = (value: string) => {
     setActiveTab(value);
@@ -140,7 +141,11 @@ export function EditCourseClientWrapper({
               </CardDescription>
             </CardHeader>
             <CardContent className="p-1 md:p-4">
-              <CourseStructure data={courseData} setDirty={setStructureDirty} />
+              <CourseStructure
+                key={structureKey}
+                data={courseData}
+                setDirty={setStructureDirty}
+              />
             </CardContent>
           </Card>
         </TabsContent>

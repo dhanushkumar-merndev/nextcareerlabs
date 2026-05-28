@@ -14,6 +14,7 @@ import {
 } from "@/lib/zodSchemas";
 import { request } from "@arcjet/next";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import {
   invalidateCache,
   incrementGlobalVersion,
@@ -24,6 +25,186 @@ import { invalidateAdminsCache } from "@/app/data/notifications/actions";
 import { adminGetCourse } from "@/app/data/admin/admin-get-course";
 
 const aj = arcjet.withRule(fixedWindow({ mode: "LIVE", window: "1m", max: 5 }));
+
+const importLessonSchema = z.object({
+  title: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  description: z.string().optional().nullable(),
+});
+
+const importChapterSchema = z.object({
+  title: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  lessons: z.array(importLessonSchema).default([]),
+});
+
+const importCourseStructureSchema = z.union([
+  z.object({
+    chapters: z.array(importChapterSchema).min(1),
+  }),
+  z.array(importChapterSchema).min(1),
+]);
+
+function textToRichTextJson(value: string | null) {
+  if (!value) return null;
+
+  type TextNode = {
+    type: "text";
+    text: string;
+    marks?: { type: "bold" | "italic" | "code" }[];
+  };
+
+  function parseInlineMarkdown(text: string): TextNode[] {
+    const nodes: TextNode[] = [];
+    const pattern = /(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        nodes.push({ type: "text", text: text.slice(lastIndex, match.index) });
+      }
+
+      if (match[2]) {
+        nodes.push({
+          type: "text",
+          text: match[2],
+          marks: [{ type: "bold" }],
+        });
+      } else if (match[3]) {
+        nodes.push({
+          type: "text",
+          text: match[3],
+          marks: [{ type: "italic" }],
+        });
+      } else if (match[4]) {
+        nodes.push({
+          type: "text",
+          text: match[4],
+          marks: [{ type: "code" }],
+        });
+      }
+
+      lastIndex = pattern.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      nodes.push({ type: "text", text: text.slice(lastIndex) });
+    }
+
+    return nodes.length ? nodes : [{ type: "text", text }];
+  }
+
+  function getAlignment(line: string) {
+    const alignment = line.match(/^\[(center|right|left)\](.+)\[\/\1\]$/i);
+
+    if (!alignment) {
+      return { textAlign: undefined, text: line };
+    }
+
+    return {
+      textAlign: alignment[1].toLowerCase(),
+      text: alignment[2].trim(),
+    };
+  }
+
+  const content: unknown[] = [];
+  const lines = value.replace(/\r\n/g, "\n").split("\n");
+  let paragraph: string[] = [];
+  let listType: "bulletList" | "orderedList" | null = null;
+  let listItems: unknown[] = [];
+
+  function closeParagraph() {
+    if (!paragraph.length) return;
+
+    const { text, textAlign } = getAlignment(paragraph.join(" ").trim());
+    content.push({
+      type: "paragraph",
+      attrs: textAlign ? { textAlign } : undefined,
+      content: parseInlineMarkdown(text),
+    });
+    paragraph = [];
+  }
+
+  function closeList() {
+    if (!listType) return;
+
+    content.push({
+      type: listType,
+      content: listItems,
+    });
+    listType = null;
+    listItems = [];
+  }
+
+  function addListItem(type: "bulletList" | "orderedList", text: string) {
+    closeParagraph();
+
+    if (listType !== type) {
+      closeList();
+      listType = type;
+    }
+
+    listItems.push({
+      type: "listItem",
+      content: [
+        {
+          type: "paragraph",
+          content: parseInlineMarkdown(text),
+        },
+      ],
+    });
+  }
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      closeParagraph();
+      closeList();
+      continue;
+    }
+
+    const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      closeParagraph();
+      closeList();
+      const { text, textAlign } = getAlignment(heading[2].trim());
+      content.push({
+        type: "heading",
+        attrs: {
+          level: heading[1].length,
+          ...(textAlign ? { textAlign } : {}),
+        },
+        content: parseInlineMarkdown(text),
+      });
+      continue;
+    }
+
+    const bullet = trimmed.match(/^[-*+]\s+(.+)$/);
+    if (bullet) {
+      addListItem("bulletList", bullet[1].trim());
+      continue;
+    }
+
+    const ordered = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (ordered) {
+      addListItem("orderedList", ordered[1].trim());
+      continue;
+    }
+
+    closeList();
+    paragraph.push(trimmed);
+  }
+
+  closeParagraph();
+  closeList();
+
+  return JSON.stringify({
+    type: "doc",
+    content,
+  });
+}
 
 export async function editCourse(
   data: CourseSchemaType,
@@ -55,7 +236,7 @@ export async function editCourse(
     if (!result.success) {
       return {
         status: "error",
-        message: "Invaild data",
+        message: result.error.issues[0]?.message ?? "Invalid data",
       };
     }
 
@@ -285,7 +466,7 @@ export async function createChapter(
     if (!result.success) {
       return {
         status: "error",
-        message: "Invaild data",
+        message: result.error.issues[0]?.message ?? "Invalid data",
       };
     }
     const startTime = Date.now();
@@ -369,7 +550,7 @@ export async function createLesson(
     if (!result.success) {
       return {
         status: "error",
-        message: "Invaild data",
+        message: result.error.issues[0]?.message ?? "Invalid data",
       };
     }
     const startTime = Date.now();
@@ -448,6 +629,133 @@ export async function createLesson(
     return {
       status: "error",
       message: "Failed to create lesson",
+    };
+  }
+}
+
+export async function importCourseStructure(
+  courseId: string,
+  input: unknown,
+): Promise<ApiResponse> {
+  console.log(`[AdminCourseAction] Importing course structure: ${courseId}`);
+  await requireAdmin();
+
+  try {
+    const parsed = importCourseStructureSchema.safeParse(input);
+
+    if (!parsed.success) {
+      return {
+        status: "error",
+        message: "Invalid JSON structure",
+      };
+    }
+
+    const chapters = Array.isArray(parsed.data)
+      ? parsed.data
+      : parsed.data.chapters;
+
+    const normalizedChapters = chapters.map((chapter) => ({
+      title: (chapter.title ?? chapter.name ?? "").trim(),
+      lessons: chapter.lessons.map((lesson) => ({
+        title: (lesson.title ?? lesson.name ?? "").trim(),
+        description: lesson.description?.trim() || null,
+      })),
+    }));
+
+    const invalidChapter = normalizedChapters.find((chapter) => !chapter.title);
+    if (invalidChapter) {
+      return {
+        status: "error",
+        message: "Every chapter must have a title or name",
+      };
+    }
+
+    const invalidLesson = normalizedChapters
+      .flatMap((chapter) => chapter.lessons)
+      .find((lesson) => !lesson.title);
+    if (invalidLesson) {
+      return {
+        status: "error",
+        message: "Every lesson must have a title or name",
+      };
+    }
+
+    let lessonCount = 0;
+
+    await prisma.$transaction(async (tx) => {
+      const course = await tx.course.findUnique({
+        where: { id: courseId },
+        select: { id: true },
+      });
+
+      if (!course) throw new Error("Course not found");
+
+      const maxPosition = await tx.chapter.findFirst({
+        where: { courseId },
+        select: { position: true },
+        orderBy: { position: "desc" },
+      });
+
+      let chapterPosition = maxPosition?.position ?? 0;
+
+      for (const chapter of normalizedChapters) {
+        chapterPosition += 1;
+
+        const createdChapter = await tx.chapter.create({
+          data: {
+            title: chapter.title,
+            courseId,
+            position: chapterPosition,
+          },
+          select: { id: true },
+        });
+
+        for (const [index, lesson] of chapter.lessons.entries()) {
+          await tx.lesson.create({
+            data: {
+              title: lesson.title,
+              description: textToRichTextJson(lesson.description),
+              chapterId: createdChapter.id,
+              position: index + 1,
+            },
+          });
+          lessonCount += 1;
+        }
+      }
+    });
+
+    await Promise.all([
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL_BY_ID(courseId)),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_COURSES_LIST),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_CHAT_SIDEBAR),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:static`),
+      invalidateCache(`${GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS}:recent_courses`),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS),
+      invalidateCache(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_ALL),
+      dirtyCourse(courseId),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_THREADS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_CHAT_MESSAGES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ANALYTICS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_DASHBOARD_STATS_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
+    ]);
+
+    revalidatePath(`/admin/courses/${courseId}/edit`);
+
+    return {
+      status: "success",
+      message: `Imported ${normalizedChapters.length} chapters and ${lessonCount} lessons`,
+    };
+  } catch (error) {
+    console.error("[importCourseStructure] Error:", error);
+
+    return {
+      status: "error",
+      message: "Failed to import course structure",
     };
   }
 }

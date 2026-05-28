@@ -6,9 +6,17 @@ export async function getEnrolledCourses() {
   const user = await requireUser();
   const startTime = Date.now();
 
+  const accessRows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id"
+    FROM "Enrollment"
+    WHERE "userId" = ${user.id}
+      AND ("status" = 'Granted' OR "demoStarted" = true)
+  `;
+  const accessIds = accessRows.map((row) => row.id);
+
   const [enrollments, allProgress] = await Promise.all([
-    prisma.enrollment.findMany({
-      where: { userId: user.id, status: "Granted" },
+    accessIds.length > 0 ? prisma.enrollment.findMany({
+      where: { id: { in: accessIds } },
       select: {
         Course: {
           select: {
@@ -28,7 +36,7 @@ export async function getEnrolledCourses() {
           },
         },
       },
-    }),
+    }) : [],
     // Flat single query for all progress
     prisma.lessonProgress.findMany({
       where: { userId: user.id },

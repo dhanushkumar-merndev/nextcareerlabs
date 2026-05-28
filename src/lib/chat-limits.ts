@@ -19,7 +19,7 @@ export async function checkChatQuota(
     const dailyCount = await redis.get(dailyKey);
     const used = dailyCount ? Number(dailyCount) : 0;
     if (used >= DAILY_LIMIT_FREE) {
-      return { allowed: false, remaining: 0, reason: "Daily limit reached. Upgrade to paid for unlimited access." };
+      return { allowed: false, remaining: 0, reason: "Daily limit reached. Request full access for unlimited help." };
     }
     await redis.incr(dailyKey);
     await redis.expire(dailyKey, DAILY_WINDOW);

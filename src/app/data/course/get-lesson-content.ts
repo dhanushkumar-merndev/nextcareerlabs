@@ -2,8 +2,7 @@
 import { requireUser } from "../user/require-user";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { hasCourseContentAccess } from "@/lib/course-access";
 import {
   getCache,
   setCache,
@@ -25,14 +24,28 @@ interface CachedLessonData {
     }>;
     transcription: { vttUrl: string } | null;
     Chapter: {
+      position: number;
       courseId: string;
-      Course: { slug: string; title: string; isFree: boolean };
+      Course: {
+        id: string;
+        slug: string;
+        title: string;
+        isFree: boolean;
+        freeChaptersCount: number;
+      };
     };
   };
   questions: Array<{
     id: string; question: string; options: unknown; order: number;
     correctIdx?: number | null; explanation?: string | null;
   }>;
+}
+
+interface LockedLessonData {
+  status: "locked";
+  message: string;
+  courseSlug: string;
+  courseTitle: string;
 }
 
 export async function getLessonContent(
@@ -71,8 +84,8 @@ export async function getLessonContent(
   }
   const dbStart = Date.now();
 
-  const result = await withDistributedLock<CachedLessonData>(`fetch:${cacheKey}`, async () => {
-    const recheck = await getCache<CachedLessonData>(cacheKey);
+  const result = await withDistributedLock<CachedLessonData | LockedLessonData>(`fetch:${cacheKey}`, async () => {
+    const recheck = await getCache<CachedLessonData | LockedLessonData>(cacheKey);
     if (recheck) return recheck;
 
     const lesson = await prisma.lesson.findUnique({
@@ -92,8 +105,17 @@ export async function getLessonContent(
         transcription: { select: { vttUrl: true } },
         Chapter: {
           select: {
+            position: true,
             courseId: true,
-            Course: { select: { slug: true, title: true, isFree: true } },
+            Course: {
+              select: {
+                id: true,
+                slug: true,
+                title: true,
+                isFree: true,
+                freeChaptersCount: true,
+              },
+            },
           },
         },
       },
@@ -117,6 +139,29 @@ export async function getLessonContent(
       }),
     ]);
 
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
+    }
+
+    const canAccess = hasCourseContentAccess({
+      isAdmin: session.role === "admin",
+      enrollmentStatus: enrollment?.status,
+      isFree: lesson.Chapter.Course.isFree,
+      freeChaptersCount: lesson.Chapter.Course.freeChaptersCount,
+      chapterPosition: lesson.Chapter.position,
+    });
+
+    if (!canAccess) {
+      const locked: LockedLessonData = {
+        status: "locked",
+        message: "Request access to unlock this lesson.",
+        courseSlug: lesson.Chapter.Course.slug,
+        courseTitle: lesson.Chapter.Course.title,
+      };
+      await setCache(cacheKey, locked, 2592000).catch(console.error);
+      return locked;
+    }
+
     const isQuizPassed = progress?.quizPassed ?? false;
     const questions = await prisma.question.findMany({
       where: { lessonId },
@@ -126,47 +171,6 @@ export async function getLessonContent(
         ...(isQuizPassed ? { correctIdx: true, explanation: true } : {}),
       },
     });
-
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[Lesson] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`);
-    }
-
-    if (!enrollment || enrollment.status !== "Granted") {
-      if (lesson.Chapter.Course.isFree) {
-        await prisma.enrollment.upsert({
-          where: {
-            userId_courseId: {
-              userId: session.id,
-              courseId: lesson.Chapter.courseId,
-            },
-          },
-          update: { status: "Granted", grantedAt: new Date() },
-          create: {
-            userId: session.id,
-            courseId: lesson.Chapter.courseId,
-            status: "Granted",
-            grantedAt: new Date(),
-          },
-        });
-        const { incrementGlobalVersion, invalidateCache, invalidateUserEnrollmentCache } = await import("@/lib/redis");
-        await Promise.all([
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
-          incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(session.id)),
-          invalidateUserEnrollmentCache(session.id),
-          invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(session.id, "latest")),
-        ]);
-        const cookieStore = await cookies();
-        cookieStore.set("is_enrolled", "true", {
-          path: "/",
-          maxAge: 30 * 24 * 60 * 60,
-          sameSite: "lax",
-        });
-        revalidatePath("/dashboard", "layout");
-        revalidatePath(`/courses`);
-      } else {
-        throw new Error("NOT_ENROLLED");
-      }
-    }
 
     const cached = { lesson, questions };
     await setCache(cacheKey, cached, 2592000).catch(console.error);
@@ -186,7 +190,7 @@ export async function getLessonContent(
   // ── Tier 4: Merge Pending Redis Progress (transient, never cached) ──
   const pending = await getUserPendingProgress(session.id);
   const pendingLesson = pending[lessonId];
-  if (pendingLesson) {
+  if ("lesson" in result && pendingLesson) {
     if (process.env.NODE_ENV === "development") {
       console.log(
         `[Lesson] 🔄 Merging pending Redis progress for lesson:${lessonId}`,

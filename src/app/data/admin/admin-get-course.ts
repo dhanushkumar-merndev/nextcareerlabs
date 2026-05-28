@@ -22,7 +22,6 @@ export type CourseData = {
   description: string | null;
   isFree: boolean;
   freeChaptersCount: number;
-  price: number | null;
   chapter: {
     id: string;
     title: string;
@@ -113,7 +112,6 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
       description: true,
       isFree: true,
       freeChaptersCount: true,
-      price: true,
       chapter: {
         orderBy: {
           position: "asc",
@@ -148,15 +146,9 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
     return notFound();
   }
 
-  // Convert Decimal price to number for client safety
-  const result = {
-    ...data,
-    price: data.price ? Number(data.price) : null,
-  };
-
   // Cache in Redis for 30 days (Rule Infinity)
   const cacheSetStart = Date.now();
-  await setCache(cacheKey, result, 2592000);
+  await setCache(cacheKey, data, 2592000);
   if (process.env.NODE_ENV === "development") {
     console.log(
       `[adminGetCourse] Redis Cache Updated. Time: ${Date.now() - cacheSetStart}ms`,
@@ -164,7 +156,7 @@ export async function adminGetCourse(id: string, clientVersion?: string) {
   }
 
   return {
-    data: result,
+    data,
     version: currentVersion,
     source: "DB",
     computeTime: dbDuration,

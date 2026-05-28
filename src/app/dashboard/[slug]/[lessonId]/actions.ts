@@ -17,6 +17,7 @@ import {
   clearUserPendingProgress,
 } from "@/lib/redis";
 import { QUIZ_PASS_THRESHOLD } from "@/lib/constants";
+import { hasCourseContentAccess } from "@/lib/course-access";
 
 interface PendingProgressData {
   lastWatched: number;
@@ -95,22 +96,41 @@ export async function updateVideoProgress(
 
   // 🛡️ [Million-User Scale] Security Check: Cached Enrollment Verify
   // This prevents hitting the DB on every 5s heartbeat per student.
-  const isEnrolled = await withCache(`enrollment:verify:${session.id}:${lessonId}`, async () => {
-    const enrollment = await prisma.enrollment.findFirst({
-      where: {
-        userId: session.id,
-        Course: {
-          chapter: { some: { lesson: { some: { id: lessonId } } } },
+  const hasAccess = await withCache(`lesson:access:${session.id}:${lessonId}`, async () => {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: {
+        Chapter: {
+          select: {
+            position: true,
+            Course: {
+              select: {
+                isFree: true,
+                freeChaptersCount: true,
+                enrollment: {
+                  where: { userId: session.id },
+                  select: { status: true },
+                  take: 1,
+                },
+              },
+            },
+          },
         },
-        status: "Granted",
       },
-      select: { id: true },
     });
-    return !!enrollment;
+    if (!lesson) return false;
+
+    return hasCourseContentAccess({
+      isAdmin: session.role === "admin",
+      enrollmentStatus: lesson.Chapter.Course.enrollment[0]?.status,
+      isFree: lesson.Chapter.Course.isFree,
+      freeChaptersCount: lesson.Chapter.Course.freeChaptersCount,
+      chapterPosition: lesson.Chapter.position,
+    });
   }, 3600); // Cache for 1 hour
 
-  if (!isEnrolled) {
-    return { status: "error", message: "Forbidden: Not enrolled" };
+  if (!hasAccess) {
+    return { status: "error", message: "Request access to unlock this lesson" };
   }
 
   try {
@@ -251,8 +271,46 @@ export async function updateMultipleVideoProgress(
     // 1. Fetch durations for all targeted lessons to normalize and cap
     const lessons = await prisma.lesson.findMany({
       where: { id: { in: updates.map((u) => u.lessonId) } },
-      select: { id: true, duration: true },
+      select: {
+        id: true,
+        duration: true,
+        Chapter: {
+          select: {
+            position: true,
+            Course: {
+              select: {
+                isFree: true,
+                freeChaptersCount: true,
+                enrollment: {
+                  where: { userId: session.id },
+                  select: { status: true },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
+      },
     });
+    const accessibleLessonIds = new Set(
+      lessons
+        .filter((lesson) =>
+          hasCourseContentAccess({
+            isAdmin: session.role === "admin",
+            enrollmentStatus: lesson.Chapter.Course.enrollment[0]?.status,
+            isFree: lesson.Chapter.Course.isFree,
+            freeChaptersCount: lesson.Chapter.Course.freeChaptersCount,
+            chapterPosition: lesson.Chapter.position,
+          }),
+        )
+        .map((lesson) => lesson.id),
+    );
+    updates = updates.filter((u) => accessibleLessonIds.has(u.lessonId));
+
+    if (updates.length === 0) {
+      return { status: "error", message: "Request access to unlock this lesson" };
+    }
+
     const lessonDurationsMap = new Map(
       lessons.map((l) => [l.id, l.duration || 0]),
     ); // seconds

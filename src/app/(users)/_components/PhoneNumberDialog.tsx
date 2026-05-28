@@ -3,8 +3,7 @@
 "use client";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import {Form,FormControl,FormField,FormItem,FormLabel,FormMessage} from "@/components/ui/form";
@@ -18,20 +17,24 @@ import { secureStorage } from "@/lib/secure-storage";
 import { AlertTriangle, Loader2, Phone, Sparkles, User } from "lucide-react";
 import { formSchema } from "@/lib/zodSchemas";
 import { PhoneNumberDialogProps } from "@/lib/types/homePage";
+import {
+  getFirstFormErrorMessage,
+  safeZodResolver,
+} from "@/lib/safe-zod-resolver";
 
 // PhoneNumberDialog component 
 export function PhoneNumberDialog({ isOpen, requireName = false, onSuccess }: PhoneNumberDialogProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
+  const profileSchema = requireName
+    ? formSchema.extend({
+        name: z.string().min(2, { message: "Name is required." }),
+      })
+    : formSchema;
+  
   const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(
-      requireName
-        ? formSchema.extend({
-            name: z.string().min(2, { message: "Name is required." }),
-          })
-        : formSchema
-    ),
+    resolver: safeZodResolver(profileSchema),
     defaultValues: {
       name: "",
       phoneNumber: "",
@@ -67,6 +70,10 @@ export function PhoneNumberDialog({ isOpen, requireName = false, onSuccess }: Ph
     });
   }
 
+  function onInvalid(errors: FieldErrors<z.infer<typeof formSchema>>) {
+    toast.error(getFirstFormErrorMessage(errors));
+  }
+
   // PhoneNumberDialog component
   return (
     <Dialog open={isOpen} onOpenChange={() => { }}>
@@ -86,7 +93,10 @@ export function PhoneNumberDialog({ isOpen, requireName = false, onSuccess }: Ph
           </DialogHeader>
           
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form
+              onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+              className="space-y-4"
+            >
               {requireName && (
                 <FormField
                   control={form.control}

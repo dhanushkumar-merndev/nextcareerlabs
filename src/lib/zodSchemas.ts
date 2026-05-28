@@ -57,12 +57,10 @@ export const courseSchema = z.object({
   isFree: z.boolean().default(true),
 
   freeChaptersCount: z
-    .number()
-    .min(0, { message: "Free chapters must be between 0 and 10" })
-    .max(10, { message: "Free chapters must be between 0 and 10" })
+    .number({ message: "Demo chapters must be a number" })
+    .min(0, { message: "Demo chapters must be between 0 and 10" })
+    .max(10, { message: "Demo chapters must be between 0 and 10" })
     .default(0),
-
-  price: z.number().positive({ message: "Price must be a positive number" }).nullable().optional(),
 });
 
 export const chapterSchema = z.object({

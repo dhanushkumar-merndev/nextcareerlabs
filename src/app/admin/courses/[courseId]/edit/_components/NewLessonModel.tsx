@@ -19,10 +19,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { tryCatch } from "@/hooks/try-catch";
 import { lessonSchema, LessonSchemaType } from "@/lib/zodSchemas";
-import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  getFirstFormErrorMessage,
+  safeZodResolver,
+} from "@/lib/safe-zod-resolver";
 import { Loader2, Plus } from "lucide-react";
 import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { createLesson } from "../actions";
 import { toast } from "sonner";
@@ -42,7 +45,7 @@ export function NewLessonModel({
   const queryClient = useQueryClient();
 
   const form = useForm<LessonSchemaType>({
-    resolver: zodResolver(lessonSchema),
+    resolver: safeZodResolver(lessonSchema),
     defaultValues: {
       name: "",
       courseId: courseId,
@@ -90,6 +93,10 @@ export function NewLessonModel({
     });
   }
 
+  function onInvalid(errors: FieldErrors<LessonSchemaType>) {
+    toast.error(getFirstFormErrorMessage(errors));
+  }
+
   function handleOpenChange(open: boolean) {
     setIsOpen(open);
   }
@@ -109,7 +116,10 @@ export function NewLessonModel({
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form className="space-y-8" onSubmit={form.handleSubmit(onSubmit)}>
+          <form
+            className="space-y-8"
+            onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+          >
             <FormField
               control={form.control}
               name="name"

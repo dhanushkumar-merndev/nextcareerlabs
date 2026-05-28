@@ -43,6 +43,20 @@ export async function adminGetEnrollmentRequests(
   await requireAdmin();
 
   const baseWhere: Prisma.EnrollmentWhereInput = {};
+  const requestRows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "Enrollment" WHERE "accessRequested" = true
+  `;
+  const requestIds = requestRows.map((row) => row.id);
+
+  if (requestIds.length === 0) {
+    return {
+      data: [],
+      totalCount: 0,
+      version: await getGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_ENROLLMENTS_VERSION),
+    };
+  }
+
+  baseWhere.id = { in: requestIds };
 
   if (search) {
     baseWhere.User = {

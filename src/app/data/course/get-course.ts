@@ -57,7 +57,6 @@ export async function getIndividualCourse(
       description: true,
       isFree: true,
       freeChaptersCount: true,
-      price: true,
       chapter: {
         select: {
           title: true,
@@ -79,10 +78,6 @@ export async function getIndividualCourse(
     },
   });
 
-  const courseData = course
-    ? { ...course, price: course.price ? Number(course.price) : null }
-    : null;
-
   const dbDuration = Date.now() - startTime;
 
   if (slugV === "0") {
@@ -90,11 +85,11 @@ export async function getIndividualCourse(
     const realVersion = Date.now().toString();
     await setCache(GLOBAL_CACHE_KEYS.SLUG_VERSION(slug), realVersion);
     const realKey = `${GLOBAL_CACHE_KEYS.COURSE_DETAIL(slug)}:${realVersion}`;
-    await setCache(realKey, courseData, 2592000);
+    await setCache(realKey, course, 2592000);
     if (process.env.NODE_ENV === "development") {
       console.log(`[getIndividualCourse] DB first fetch for ${slug} — version initialized to ${realVersion} (${dbDuration}ms)`);
     }
-    return { course: courseData, version: realVersion };
+    return { course, version: realVersion };
   }
 
   if (process.env.NODE_ENV === "development") {
@@ -102,9 +97,9 @@ export async function getIndividualCourse(
   }
 
   // Cache in Redis for 30 days
-  await setCache(cacheKey, courseData, 2592000);
+  await setCache(cacheKey, course, 2592000);
 
-  return { course: courseData, version: currentVersion };
+  return { course, version: currentVersion };
 }
 
 export const getAllPublishedCourses = cache(async () => {

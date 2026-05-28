@@ -113,7 +113,6 @@ model Course {
 
   isFree            Boolean  @default(true)
   freeChaptersCount Int      @default(0)
-  price             Decimal? @db.Decimal(10, 2)
 
   User   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
@@ -189,16 +188,18 @@ model Lesson {
 }
 
 model Enrollment {
-  id         String           @id @default(uuid())
-  status     EnrollmentStatus @default(Pending)
-  grantedAt  DateTime?
-  rejectedAt DateTime?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  Course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId   String
-  User       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId     String
+  id              String           @id @default(uuid())
+  status          EnrollmentStatus @default(Pending)
+  demoStarted     Boolean          @default(false)
+  accessRequested Boolean          @default(false)
+  grantedAt       DateTime?
+  rejectedAt      DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  Course          Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId        String
+  User            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String
 
   @@unique([userId, courseId])
   @@index([status, userId])

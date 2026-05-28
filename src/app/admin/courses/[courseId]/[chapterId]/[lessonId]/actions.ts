@@ -26,7 +26,7 @@ export async function updateLesson(
     if (!result.success) {
       return {
         status: "error",
-        message: "invalid data",
+        message: result.error.issues[0]?.message ?? "Invalid data",
       };
     }
 

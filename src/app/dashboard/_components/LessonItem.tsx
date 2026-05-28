@@ -1,9 +1,11 @@
 /* eslint-disable @next/next/no-img-element */
 import { cn } from "@/lib/utils";
-import { Play, Check } from "lucide-react";
+import { Play, Check, Lock } from "lucide-react";
 import Link from "next/link";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { memo } from "react";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface iAppProps {
   lesson: {
@@ -13,6 +15,7 @@ interface iAppProps {
     description: string | null;
     thumbnailKey?: string | null;
     duration?: number | null;
+    isLocked?: boolean;
   };
   slug: string;
   isActive?: boolean;
@@ -27,11 +30,19 @@ export const LessonItem = memo(function LessonItem({
   completed,
   courseThumbnail,
 }: iAppProps) {
+  const router = useRouter();
   const thumbnail = constructUrl(lesson.thumbnailKey || courseThumbnail || "");
+  const isLocked = Boolean(lesson.isLocked);
 
   return (
     <Link
       href={`/dashboard/${slug}/${lesson.id}`}
+      onClick={(event) => {
+        if (!isLocked) return;
+        event.preventDefault();
+        toast.info("Request access to unlock this lesson.");
+        router.push(`/courses/${slug}`);
+      }}
       className={cn(
         "w-full p-2 md:p-1.5 h-auto flex items-center justify-start rounded-xl transition-all border group relative overflow-hidden",
 
@@ -45,6 +56,7 @@ export const LessonItem = memo(function LessonItem({
 
         // Completed (subtle indicator)
         completed && !isActive && "opacity-80",
+        isLocked && "opacity-55 hover:opacity-80 cursor-not-allowed",
       )}
     >
       {/* Background active indicator */}
@@ -61,13 +73,20 @@ export const LessonItem = memo(function LessonItem({
             className={cn(
               "w-full h-full object-cover transition-transform duration-500 group-hover:scale-105",
               isActive ? "opacity-40" : "opacity-90",
+              isLocked && "grayscale opacity-45",
             )}
             loading="lazy"
             crossOrigin="anonymous"
           />
 
           {/* Active Overlay */}
-          {isActive && (
+          {isLocked ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/45">
+              <div className="p-1.5 rounded-full bg-background/90 border shadow-sm">
+                <Lock className="size-3 text-muted-foreground" />
+              </div>
+            </div>
+          ) : isActive && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="p-1.5 rounded-full bg-primary/50 backdrop-blur-sm border border-primary/40">
                 <Play className="size-2 text-white fill-white" />
@@ -84,7 +103,9 @@ export const LessonItem = memo(function LessonItem({
               isActive
                 ? "text-primary"
                 : "text-card-foreground group-hover:text-primary/90",
-              completed && !isActive && "text-muted-foreground",
+              (completed && !isActive) || isLocked
+                ? "text-muted-foreground"
+                : "",
             )}
           >
             {lesson.title}
@@ -100,7 +121,11 @@ export const LessonItem = memo(function LessonItem({
                 <Check className="size-2 text-white" strokeWidth={4} />
               </div>
             )}
-            {isActive && (
+            {isLocked ? (
+              <span className="text-[10px] font-bold text-muted-foreground uppercase ml-auto pr-1">
+                Locked
+              </span>
+            ) : isActive && (
               <span className="text-[10px] font-bold text-primary uppercase ml-auto pr-1">
                 Now Playing
               </span>

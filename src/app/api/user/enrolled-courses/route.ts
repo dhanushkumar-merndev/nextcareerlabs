@@ -57,8 +57,17 @@ export async function GET(req: Request) {
 
     // DB fetch
     const startTime = Date.now();
-    const enrollments = await prisma.enrollment.findMany({
-        where: { userId: user.id, status: "Granted" },
+    const accessRows = await prisma.$queryRaw<{ id: string }[]>`
+      SELECT "id"
+      FROM "Enrollment"
+      WHERE "userId" = ${user.id}
+        AND ("status" = 'Granted' OR "demoStarted" = true)
+    `;
+    const accessIds = accessRows.map((row) => row.id);
+
+    const enrollments = accessIds.length > 0
+      ? await prisma.enrollment.findMany({
+        where: { id: { in: accessIds } },
         select: {
           Course: {
             select: {
@@ -94,6 +103,7 @@ export async function GET(req: Request) {
           },
         },
       })
+      : [];
 
     const duration = Date.now() - startTime;
     console.log(

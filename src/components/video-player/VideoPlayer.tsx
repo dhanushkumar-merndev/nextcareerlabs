@@ -145,6 +145,9 @@ export function VideoPlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
+  const captionsEnabledRef = useRef(true);
+  const sidecarTrackRef = useRef<unknown | null>(null);
+  const removeSidecarTrackRef = useRef<() => void>(() => {});
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showCenterControls, setShowCenterControls] = useState(true);
@@ -180,6 +183,80 @@ export function VideoPlayer({
   const maxWatchedTimeRef = useRef<number>(initialMaxTime);
 
   const [hasCaptions, setHasCaptions] = useState(!!captionUrl);
+
+  const addSidecarTrack = useCallback((url: string) => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    const track = player.addRemoteTextTrack(
+      {
+        kind: "captions",
+        src: url,
+        srclang: "en",
+        label: "Sidecar-English",
+        default: true,
+      },
+      false,
+    );
+
+    sidecarTrackRef.current = track;
+    (track as unknown as { mode: string }).mode = "showing";
+    setHasCaptions(true);
+  }, []);
+
+  const removeSidecarTrack = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    if (sidecarTrackRef.current) {
+      try {
+        player.removeRemoteTextTrack(sidecarTrackRef.current);
+      } catch (error) {
+        console.warn("[DEBUG] VideoPlayer: remove sidecar ref failed", error);
+      }
+      sidecarTrackRef.current = null;
+    }
+
+    const tracks = player.textTracks() as unknown as Array<{
+      label?: string;
+    }>;
+
+    for (let i = tracks.length - 1; i >= 0; i--) {
+      if (tracks[i].label === "Sidecar-English") {
+        try {
+          player.removeRemoteTextTrack(tracks[i]);
+        } catch (error) {
+          console.warn("[DEBUG] VideoPlayer: remove sidecar track failed", error);
+        }
+      }
+    }
+  }, []);
+
+  removeSidecarTrackRef.current = removeSidecarTrack;
+
+  const applyCaptionMode = useCallback((enabled: boolean) => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    const tracks = player.textTracks() as unknown as Array<{
+      kind: string;
+      mode: string;
+    }>;
+
+    for (let i = 0; i < tracks.length; i++) {
+      if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
+        tracks[i].mode = enabled ? "showing" : "disabled";
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    captionsEnabledRef.current = captionsEnabled;
+    applyCaptionMode(captionsEnabled);
+    if (!captionsEnabled) {
+      removeSidecarTrackRef.current();
+    }
+  }, [applyCaptionMode, captionsEnabled]);
 
   // Initialize player only once, then update sources
   useEffect(() => {
@@ -354,13 +431,15 @@ export function VideoPlayer({
         const track = e.track;
         if (
           (track.kind === "captions" || track.kind === "subtitles") &&
-          captionsEnabled
+          captionsEnabledRef.current
         ) {
           console.log(
             "[DEBUG] VideoPlayer: Auto-enabling newly added track",
             track.label || track.id,
           );
           track.mode = "showing";
+        } else if (track.kind === "captions" || track.kind === "subtitles") {
+          track.mode = "disabled";
         }
         updateCaptionsStatus();
       };
@@ -535,33 +614,16 @@ export function VideoPlayer({
     }
 
     // 1. Remove ONLY our previous sidecar tracks, not manifest ones
-    const tracks = player.textTracks() as unknown as Array<{ kind: string; mode: string; label?: string }>;
-    for (let i = tracks.length - 1; i >= 0; i--) {
-      const track = tracks[i];
-      if (track.label === "Sidecar-English") {
-        player.removeRemoteTextTrack(track);
-      }
+    removeSidecarTrack();
+
+    if (!captionsEnabledRef.current) {
+      setHasCaptions(true);
+      return;
     }
 
     // 2. Add the new sidecar track
-    const track = player.addRemoteTextTrack(
-      {
-        kind: "captions",
-        src: captionUrl,
-        srclang: "en",
-        label: "Sidecar-English",
-        default: true,
-      },
-      false,
-    );
-
-    // Explicitly set mode (double-check for reliability)
-    if (captionsEnabled) {
-      (track as unknown as { mode: string }).mode = "showing";
-    }
-
-    setHasCaptions(true);
-  }, [captionUrl, isPlayerReady, captionsEnabled]);
+    addSidecarTrack(captionUrl);
+  }, [addSidecarTrack, captionUrl, isPlayerReady, removeSidecarTrack]);
 
   // Sync sources when they change after initialization
   useEffect(() => {
@@ -778,15 +840,16 @@ export function VideoPlayer({
   const toggleCaptions = (e?: React.MouseEvent | React.TouchEvent) => {
     e?.stopPropagation();
     if (playerRef.current) {
-      const tracks = playerRef.current.textTracks() as unknown as Array<{ kind: string; mode: string }>;
       const enabled = !captionsEnabled;
 
-      for (let i = 0; i < tracks.length; i++) {
-        if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
-          tracks[i].mode = enabled ? "showing" : "disabled";
-        }
+      captionsEnabledRef.current = enabled;
+      if (!enabled) {
+        removeSidecarTrack();
+      } else if (captionUrl) {
+        removeSidecarTrack();
+        addSidecarTrack(captionUrl);
       }
-
+      applyCaptionMode(enabled);
       setCaptionsEnabled(enabled);
       toast.success(enabled ? "Captions enabled" : "Captions disabled", {
         duration: 1000,

@@ -10,7 +10,11 @@ import {
 } from "@/lib/zodSchemas";
 import { Loader2, PlusCircle, Sparkles } from "lucide-react";
 import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import type { FieldErrors } from "react-hook-form";
+import {
+  getFirstFormErrorMessage,
+  safeZodResolver,
+} from "@/lib/safe-zod-resolver";
 import {
   Form,
   FormControl,
@@ -52,7 +56,7 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
   const queryClient = useQueryClient();
   const { user } = useSmartSession();
   const form = useForm<CourseSchemaType>({
-    resolver: zodResolver(courseSchema),
+    resolver: safeZodResolver(courseSchema),
     defaultValues: {
       title: data.title,
       description: data.description ?? undefined,
@@ -65,11 +69,10 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
       status: data.status as CourseSchemaType["status"],
       isFree: data.isFree ?? true,
       freeChaptersCount: data.freeChaptersCount ?? 0,
-      price: data.price ?? null,
     },
   });
 
-  const watchedIsFree = useWatch({ control: form.control, name: "isFree" });
+  const watchedHasDemo = useWatch({ control: form.control, name: "isFree" });
   const chapterCount = data.chapter?.length ?? 0;
 
   useEffect(() => {
@@ -77,12 +80,10 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
   }, [form.formState.isDirty, setDirty]);
 
   useEffect(() => {
-    if (watchedIsFree) {
-      form.setValue("price", null);
-    } else {
+    if (!watchedHasDemo) {
       form.setValue("freeChaptersCount", 0);
     }
-  }, [watchedIsFree, form]);
+  }, [watchedHasDemo, form]);
 
   function onSubmit(values: CourseSchemaType, skipRedirect = false) {
     if (!values.fileKey) {
@@ -155,12 +156,17 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
       }
     });
   }
+
+  function onInvalid(errors: FieldErrors<CourseSchemaType>) {
+    toast.error(getFirstFormErrorMessage(errors));
+  }
+
   return (
     <div className="px-4 md:px-6">
       <Form {...form}>
         <form
           className="space-y-6"
-          onSubmit={form.handleSubmit((values) => onSubmit(values))}
+          onSubmit={form.handleSubmit((values) => onSubmit(values), onInvalid)}
         >
           <FormField
             control={form.control}
@@ -195,9 +201,13 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                 className="w-fit cursor-pointer"
                 onClick={() => {
                   const titleValue = form.getValues("title");
-                  const slug = slugify(titleValue);
-                  form.setValue("slug", slug);
-                  form.trigger("title");
+                  const slug = slugify(titleValue, {
+                    lower: true,
+                    strict: true,
+                  });
+                  form.setValue("slug", slug, {
+                    shouldDirty: true,
+                  });
                 }}
               >
                 Generate Slug <Sparkles className="ml-1 size-4" />
@@ -366,26 +376,26 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
           </div>
 
           <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
-            <h3 className="font-semibold text-lg">Pricing</h3>
+            <h3 className="font-semibold text-lg">Access</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="isFree"
                 render={({ field }) => (
                   <FormItem className="w-full">
-                    <FormLabel>Course Type</FormLabel>
+                    <FormLabel>Access Type</FormLabel>
                     <Select
-                      onValueChange={(val) => field.onChange(val === "free")}
-                      defaultValue={field.value ? "free" : "paid"}
+                      onValueChange={(val) => field.onChange(val === "demo")}
+                      defaultValue={field.value ? "demo" : "request"}
                     >
                       <FormControl>
                         <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select Type" />
+                          <SelectValue placeholder="Select Access" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent className="max-h-60 overflow-y-auto">
-                        <SelectItem value="free">Free</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="request">Request Access</SelectItem>
+                        <SelectItem value="demo">Demo Chapters</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -393,13 +403,13 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                 )}
               />
 
-              {watchedIsFree ? (
+              {watchedHasDemo ? (
                 <FormField
                   control={form.control}
                   name="freeChaptersCount"
                   render={({ field }) => (
                     <FormItem className="w-full">
-                      <FormLabel>Free Chapters (Consecutive from start)</FormLabel>
+                      <FormLabel>Demo Chapters (from start)</FormLabel>
                       <FormControl>
                         <Input
                           placeholder={chapterCount === 0 ? "No chapters yet" : `1-${chapterCount}`}
@@ -416,33 +426,16 @@ export function EditCourseForm({ data, setDirty }: iAppProps) {
                         />
                       </FormControl>
                       {chapterCount === 0 && (
-                        <p className="text-xs text-muted-foreground">Add chapters first to enable free preview</p>
+                        <p className="text-xs text-muted-foreground">Add chapters first to enable demo access</p>
                       )}
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               ) : (
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem className="w-full">
-                      <FormLabel>Price (₹)</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Enter amount"
-                          type="number"
-                          min={0}
-                          {...field}
-                          onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                          value={field.value ?? ""}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                  Students must request access and wait for admin approval.
+                </div>
               )}
             </div>
           </div>

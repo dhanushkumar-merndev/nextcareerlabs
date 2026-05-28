@@ -26,14 +26,14 @@ export async function GET(req: Request) {
             return NextResponse.json({ hasAccess: cached, version: currentVersion });
         }
 
-        const enrollmentCount = await prisma.enrollment.count({
-            where: {
-                userId: user.id,
-                status: "Granted",
-            },
-        });
+        const enrollmentRows = await prisma.$queryRaw<{ count: bigint }[]>`
+            SELECT COUNT(*)::bigint AS count
+            FROM "Enrollment"
+            WHERE "userId" = ${user.id}
+              AND ("status" = 'Granted' OR "demoStarted" = true)
+        `;
 
-        const hasAccess = enrollmentCount > 0;
+        const hasAccess = Number(enrollmentRows[0]?.count ?? 0) > 0;
         await setCache(cacheKey, hasAccess, 2592000); // 30 days
 
         return NextResponse.json({ hasAccess, version: currentVersion });

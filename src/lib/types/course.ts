@@ -22,7 +22,8 @@ export type PublicCourseType = {
   enrollmentStatus?: string | null;
   isFree: boolean;
   freeChaptersCount: number;
-  price: number | null;
+  demoStarted?: boolean;
+  accessRequested?: boolean;
 };
 
 export type Course = PublicCourseType;

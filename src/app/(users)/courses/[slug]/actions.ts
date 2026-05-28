@@ -125,7 +125,7 @@ export async function enrollInCourseAction(
         message: "Course not found",
       };
     }
-    // Check if the user is already enrolled in the course
+    // Check if the user already has a demo/request/granted row for this course
     const existingEnrollment = await prisma.enrollment.findUnique({
       where: {
         userId_courseId: {
@@ -144,57 +144,56 @@ export async function enrollInCourseAction(
         };
       }
       if (existingEnrollment.status === "Pending") {
+        const requestRows = await prisma.$queryRaw<
+          { accessRequested: boolean }[]
+        >`SELECT "accessRequested" FROM "Enrollment" WHERE "id" = ${existingEnrollment.id} LIMIT 1`;
+
+        if (requestRows[0]?.accessRequested) {
+          return {
+            status: "error",
+            message: "Access request is already pending",
+          };
+        }
+      }
+      const userWithPhone = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { phoneNumber: true },
+      });
+      if (!userWithPhone?.phoneNumber) {
         return {
           status: "error",
-          message: "Access request is already pending",
+          message: "Please complete your profile with a phone number before requesting access.",
         };
       }
-      // If Rejected or Revoked, we allow re-requesting
-      // For free courses, auto-grant; for paid courses, set to Pending
-      const newStatus = course.isFree ? "Granted" : "Pending";
-      if (!course.isFree) {
-        const userWithPhone = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { phoneNumber: true },
-        });
-        if (!userWithPhone?.phoneNumber) {
-          return {
-            status: "error",
-            message: "Please complete your profile with a phone number before requesting access to paid courses.",
-          };
-        }
-      }
-      await prisma.enrollment.update({
-        where: { id: existingEnrollment.id },
-        data: {
-          status: newStatus,
-          grantedAt: course.isFree ? new Date() : null,
-          updatedAt: new Date(),
-        },
-      });
+      await prisma.$executeRaw`
+        UPDATE "Enrollment"
+        SET "status" = 'Pending', "accessRequested" = true, "grantedAt" = NULL, "updatedAt" = NOW()
+        WHERE "id" = ${existingEnrollment.id}
+      `;
     } else {
-      // For free courses, auto-grant access; for paid courses, require admin approval
-      if (!course.isFree) {
-        const userWithPhone = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { phoneNumber: true },
-        });
-        if (!userWithPhone?.phoneNumber) {
-          return {
-            status: "error",
-            message: "Please complete your profile with a phone number before requesting access to paid courses.",
-          };
-        }
+      const userWithPhone = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { phoneNumber: true },
+      });
+      if (!userWithPhone?.phoneNumber) {
+        return {
+          status: "error",
+          message: "Please complete your profile with a phone number before requesting access.",
+        };
       }
-      const newStatus = course.isFree ? "Granted" : "Pending";
-      await prisma.enrollment.create({
+      const createdEnrollment = await prisma.enrollment.create({
         data: {
           userId: user.id,
           courseId: course.id,
-          status: newStatus,
-          grantedAt: course.isFree ? new Date() : null,
+          status: "Pending",
+          grantedAt: null,
         },
       });
+      await prisma.$executeRaw`
+        UPDATE "Enrollment"
+        SET "accessRequested" = true, "updatedAt" = NOW()
+        WHERE "id" = ${createdEnrollment.id}
+      `;
     }
 
     // Invalidate caches to show updated status immediately (Admin & User side)
@@ -226,15 +225,103 @@ export async function enrollInCourseAction(
 
     return {
       status: "success",
-      enrollmentStatus: course.isFree ? "Granted" : "Pending",
-      message: course.isFree
-        ? "You now have access to this free course. Happy learning!"
-        : "Access requested successfully. Please wait for admin approval.",
+      enrollmentStatus: "Pending",
+      message: "Access requested successfully. Please wait for admin approval.",
     };
   } catch  {
     return {
       status: "error",
       message: "Failed to Enroll in Course",
+    };
+  }
+}
+
+export async function startDemoCourseAction(courseId: string): Promise<ApiResponse> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session) {
+    return {
+      status: "error",
+      message: "Please login to start the demo",
+    };
+  }
+
+  const user = session.user;
+
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        id: true,
+        slug: true,
+        isFree: true,
+        freeChaptersCount: true,
+      },
+    });
+
+    if (!course || !course.isFree || course.freeChaptersCount <= 0) {
+      return {
+        status: "error",
+        message: "Demo is not available for this course",
+      };
+    }
+
+    const existingEnrollment = await prisma.enrollment.findUnique({
+      where: {
+        userId_courseId: {
+          userId: user.id,
+          courseId: course.id,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (existingEnrollment) {
+      await prisma.$executeRaw`
+        UPDATE "Enrollment"
+        SET "demoStarted" = true, "updatedAt" = NOW()
+        WHERE "id" = ${existingEnrollment.id}
+      `;
+    } else {
+      const createdEnrollment = await prisma.enrollment.create({
+        data: {
+          userId: user.id,
+          courseId: course.id,
+          status: "Pending",
+        },
+      });
+      await prisma.$executeRaw`
+        UPDATE "Enrollment"
+        SET "demoStarted" = true, "accessRequested" = false, "updatedAt" = NOW()
+        WHERE "id" = ${createdEnrollment.id}
+      `;
+    }
+
+    await Promise.all([
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.USER_VERSION(user.id)),
+      invalidateUserEnrollmentCache(user.id),
+      invalidateCache(GLOBAL_CACHE_KEYS.USER_ENROLLMENTS(user.id, "latest")),
+      invalidateCache(GLOBAL_CACHE_KEYS.COURSE_DETAIL(course.slug)),
+      invalidateCache(`user:enrollment-map:${user.id}:*`),
+    ]);
+
+    revalidatePath(`/courses/${course.slug}`);
+    revalidatePath(`/dashboard`);
+    revalidatePath(`/dashboard/my-courses`);
+    revalidatePath(`/dashboard/available-courses`);
+    revalidatePath(`/dashboard/resources`);
+
+    return {
+      status: "success",
+      message: "Demo started",
+      enrollmentStatus: "Demo",
+    };
+  } catch {
+    return {
+      status: "error",
+      message: "Failed to start demo",
     };
   }
 }

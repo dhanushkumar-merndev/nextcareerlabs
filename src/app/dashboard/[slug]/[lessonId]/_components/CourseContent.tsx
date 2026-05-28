@@ -2,10 +2,10 @@
 
 import { getLessonContent } from "@/app/data/course/get-lesson-content";
 import { RenderDescription } from "@/components/rich-text-editor/RenderDescription";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { useConfetti2 } from "@/hooks/use-confetti2";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { BookIcon, Bot, CheckCircle, ChevronRight, Sparkles, X } from "lucide-react";
+import { BookIcon, Bot, CheckCircle, ChevronRight, Lock, Sparkles, X } from "lucide-react";
 import { updateVideoProgress, updateMultipleVideoProgress } from "../actions";
 
 import {
@@ -23,6 +23,7 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { secureStorage } from "@/lib/secure-storage";
 import { VideoPlayer as CustomPlayer } from "@/components/video-player/VideoPlayer";
 import CryptoJS from "crypto-js";
+import Link from "next/link";
 
 import { AssessmentModal } from "./AssessmentModal";
 
@@ -107,11 +108,20 @@ interface LessonContentData {
         slug: string;
         title?: string;
         isFree: boolean;
+        freeChaptersCount?: number;
       };
     };
     lessonProgress?: LessonProgressData[];
   };
   questions?: Question[];
+  version?: string;
+}
+
+interface LockedContentData {
+  status: "locked";
+  message: string;
+  courseSlug: string;
+  courseTitle: string;
   version?: string;
 }
 
@@ -1117,7 +1127,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   // ✅ Optimization: Instant Local + Background Version Check
   const cacheKey = `lesson_content_${lessonId}`;
   const cached = useMemo(
-    () => chatCache.get<LessonContentData>(cacheKey, userId),
+    () => chatCache.get<LessonContentData | LockedContentData>(cacheKey, userId),
     [cacheKey, userId],
   );
 
@@ -1129,6 +1139,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
       const clientVersion = cached?.version;
       const result = (await getLessonContent(lessonId, clientVersion)) as
         | { status: "not-modified"; version: string }
+        | LockedContentData
         | { status: "error"; message: string }
         | (LessonContentData & { status?: never });
 
@@ -1137,22 +1148,13 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
         return cached.data;
       }
 
-      if (result && result.status !== "error" && "lesson" in result) {
+      if (result && "status" in result && result.status === "locked") {
         chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
+        return result;
+      }
 
-        if (userId && result.lesson?.Chapter?.Course?.isFree) {
-          const cId = result.lesson.Chapter.Course.id;
-          if (!chatCache.get<boolean>(`enrolled_${cId}`, userId)?.data) {
-            chatCache.set(`enrolled_${cId}`, true, userId, undefined, PERMANENT_TTL);
-            chatCache.setNeedsSync(userId);
-            queryClient.refetchQueries({
-              predicate: (q) => {
-                const k = q.queryKey[0] as string;
-                return k === "enrolled_courses" || k.startsWith("available_courses");
-              }
-            });
-          }
-        }
+      if (result && (!("status" in result) || result.status !== "error") && "lesson" in result) {
+        chatCache.set(cacheKey, result, userId, result.version, PERMANENT_TTL);
       }
 
       return result;
@@ -1164,12 +1166,16 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     refetchOnMount: true, // ✅ Trigger version check in background if stale
   });
 
-  const rawData = lesson as LessonContentData | undefined;
-  const lessonData = rawData?.lesson;
+  const rawData = lesson as LessonContentData | LockedContentData | undefined;
+  const lockedData =
+    rawData && "status" in rawData && rawData.status === "locked"
+      ? rawData
+      : null;
+  const lessonData = rawData && "lesson" in rawData ? rawData.lesson : undefined;
 
   const questions = useMemo(() => {
-    return rawData?.questions ?? EMPTY_ARRAY;
-  }, [rawData?.questions]);
+    return rawData && "questions" in rawData ? rawData.questions ?? EMPTY_ARRAY : EMPTY_ARRAY;
+  }, [rawData]);
 
   // ✅ isLoadingMCQs state
   const [isLoadingMCQs, setIsLoadingMCQs] = useState(false);
@@ -1212,9 +1218,9 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     optimisticCompleted ||
     cachedEligibility ||
     lessonData?.lessonProgress?.some((p: LessonProgressData) => p.completed) ||
-    ((rawData?.lesson?.duration ?? 0) > 0 &&
+    ((lessonData?.duration ?? 0) > 0 &&
       (lessonData?.lessonProgress?.[0]?.restrictionTime || 0) >=
-        (rawData?.lesson?.duration ?? 0) * 60 * 0.9); // 90% threshold
+        (lessonData?.duration ?? 0) * 60 * 0.9); // 90% threshold
   // ✅ Seed assessment eligibility cache on mount/update if completed
   useEffect(() => {
     if (isCompleted) {
@@ -1247,6 +1253,28 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
 
   if (!mounted || isLoading) {
     return <LessonContentSkeleton />;
+  }
+
+  if (lockedData) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center p-6">
+        <div className="w-full max-w-md rounded-2xl border bg-card p-8 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Lock className="size-6" />
+          </div>
+          <h2 className="text-2xl font-bold">Request Access</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {lockedData.message}
+          </p>
+          <Link
+            href={`/courses/${lockedData.courseSlug}`}
+            className={buttonVariants({ className: "mt-6 w-full" })}
+          >
+            Request Access
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   if (!lessonData) {
@@ -1336,7 +1364,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
           <AlertDialogHeader>
             <AlertDialogTitle>Unlock Full Access</AlertDialogTitle>
             <AlertDialogDescription>
-              Paid courses have time-based restrictions — you must watch through the content to unlock progressively. Since this is a <strong>free course</strong>, you can unlock full access now with one click.
+              Demo lessons can be watched without admin approval. You can unlock seeking for this demo lesson with one click.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

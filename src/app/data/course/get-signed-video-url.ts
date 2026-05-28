@@ -7,6 +7,7 @@ import { tigris } from "@/lib/tigris";
 import { env } from "@/lib/env";
 import { requireUser } from "../user/require-user";
 import { prisma } from "@/lib/db";
+import { hasCourseContentAccess } from "@/lib/course-access";
 
 export async function getSignedVideoUrl(key: string) {
   if (!key) return { status: "error", message: "Key is required" };
@@ -14,7 +15,7 @@ export async function getSignedVideoUrl(key: string) {
   const t0 = Date.now();
   const user = await requireUser();
 
-  // Access Control: Verify user is enrolled and key belongs to an accessible lesson
+  // Access Control: Verify user has granted access or the key belongs to a demo lesson
   const baseKey = key.startsWith("hls/")
     ? key.split("/")[1]
     : key.replace(/\.[^/.]+$/, "");
@@ -26,12 +27,20 @@ export async function getSignedVideoUrl(key: string) {
         { videoKey: { contains: baseKey } },
         { transcription: { vttUrl: key } },
       ],
+    },
+    select: {
       Chapter: {
-        Course: {
-          enrollment: {
-            some: {
-              userId: user.id,
-              status: "Granted",
+        select: {
+          position: true,
+          Course: {
+            select: {
+              isFree: true,
+              freeChaptersCount: true,
+              enrollment: {
+                where: { userId: user.id },
+                select: { status: true },
+                take: 1,
+              },
             },
           },
         },
@@ -39,10 +48,20 @@ export async function getSignedVideoUrl(key: string) {
     },
   });
 
-  if (!lesson && user.role !== "admin") {
+  const canAccess = lesson
+    ? hasCourseContentAccess({
+        isAdmin: user.role === "admin",
+        enrollmentStatus: lesson.Chapter.Course.enrollment[0]?.status,
+        isFree: lesson.Chapter.Course.isFree,
+        freeChaptersCount: lesson.Chapter.Course.freeChaptersCount,
+        chapterPosition: lesson.Chapter.position,
+      })
+    : user.role === "admin";
+
+  if (!canAccess) {
     return {
       status: "error",
-      message: "Forbidden: You are not enrolled in this course",
+      message: "Forbidden: Request access to unlock this lesson",
     };
   }
 
@@ -91,22 +110,39 @@ export async function getBatchSignedVideoUrls(keys: string[]) {
           { videoKey: { contains: baseKeys[0] } }, // simplified check for batch
           { transcription: { vttUrl: { in: keys } } },
         ],
+      },
+      select: {
+        videoKey: true,
+        transcription: { select: { vttUrl: true } },
         Chapter: {
-          Course: {
-            enrollment: {
-              some: {
-                userId: user.id,
-                status: "Granted",
+          select: {
+            position: true,
+            Course: {
+              select: {
+                isFree: true,
+                freeChaptersCount: true,
+                enrollment: {
+                  where: { userId: user.id },
+                  select: { status: true },
+                  take: 1,
+                },
               },
             },
           },
         },
       },
-      select: { videoKey: true, transcription: { select: { vttUrl: true } } },
     });
 
     // Map back to authorized keys
     authorizedLessons.forEach((l) => {
+      const canAccess = hasCourseContentAccess({
+        enrollmentStatus: l.Chapter.Course.enrollment[0]?.status,
+        isFree: l.Chapter.Course.isFree,
+        freeChaptersCount: l.Chapter.Course.freeChaptersCount,
+        chapterPosition: l.Chapter.position,
+      });
+      if (!canAccess) return;
+
       if (l.videoKey) {
         const base = l.videoKey.startsWith("hls/")
           ? l.videoKey.split("/")[1]

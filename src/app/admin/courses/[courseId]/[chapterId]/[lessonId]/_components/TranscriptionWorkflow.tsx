@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, FileText, Sparkles, CheckCircle2, AlertTriangle, Copy, Save, Upload, Download, Trash2 } from "lucide-react";
-import { storeTranscription, getTranscription, deleteTranscription } from "@/app/admin/(lessons)/transcription/actions";
+import { storeTranscription, getTranscription, deleteTranscription, generateTranscriptionWithGroq } from "@/app/admin/(lessons)/transcription/actions";
 import { saveMCQs } from "@/app/admin/(lessons)/mcqs/actions";
 import { generateMCQPrompt, copyToClipboard, validateMCQJSON } from "@/lib/mcq/mcq-prompt-generator";
 import { useEffect } from "react";
@@ -51,7 +51,7 @@ export function TranscriptionWorkflow({
 }: TranscriptionWorkflowProps) {
 
 
-  const [status, setStatus] = useState<"idle" | "uploading" | "complete" | "error" | "saved">("idle");
+  const [status, setStatus] = useState<"idle" | "uploading" | "generating" | "complete" | "error" | "saved">("idle");
   const [vttContent, setVttContent] = useState<string | null>(null);
   const [pastedJson, setPastedJson] = useState("");
   const [isSavingMCQs, setIsSavingMCQs] = useState(false);
@@ -64,6 +64,16 @@ export function TranscriptionWorkflow({
   const audioUrl = videoKey && videoKey.includes('.')
     ? `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/hls/${videoKey.substring(0, videoKey.lastIndexOf('.'))}/audio.ogg`
     : null;
+
+  const refreshPreviewCaptions = async () => {
+    const check = await getTranscription(lessonId);
+    if (check.success && check.transcription?.vttUrl) {
+      const separator = check.transcription.vttUrl.includes("?") ? "&" : "?";
+      onTranscriptionUpload?.(
+        `${check.transcription.vttUrl}${separator}v=${Date.now()}`,
+      );
+    }
+  };
 
   // Load existing transcription on mount or when videoKey changes
   useEffect(() => {
@@ -170,13 +180,7 @@ export function TranscriptionWorkflow({
       }
 
       // 🔔 Notify parent to update preview player instantly
-      if (result.transcriptionId) {
-        // Fetch new VTT URL (or we could return it from storeTranscription)
-        const check = await getTranscription(lessonId);
-        if (check.success && check.transcription?.vttUrl) {
-          onTranscriptionUpload?.(check.transcription.vttUrl);
-        }
-      }
+      if (result.transcriptionId) await refreshPreviewCaptions();
 
       // If we already have MCQs, go back to "saved" status but with new transcript loaded
       if (hasMCQs) {
@@ -189,6 +193,37 @@ export function TranscriptionWorkflow({
       console.error("[VTT Upload Error]", error);
       setStatus("error");
       toast.error(error instanceof Error ? error.message : "Upload failed");
+    }
+  };
+
+  const handleGenerateWithGroq = async () => {
+    if (!audioUrl) {
+      toast.error("Upload/process the lesson video first so audio is available");
+      return;
+    }
+
+    try {
+      setStatus("generating");
+      const result = await generateTranscriptionWithGroq(
+        lessonId,
+        audioUrl,
+        videoKey,
+      );
+
+      if (!result.success || !result.vttContent) {
+        throw new Error(result.error || "Failed to generate captions");
+      }
+
+      setVttContent(result.vttContent);
+
+      await refreshPreviewCaptions();
+
+      setStatus(hasMCQs ? "saved" : "complete");
+      toast.success("Captions generated and uploaded");
+    } catch (error) {
+      console.error("[Groq Generate Error]", error);
+      setStatus("error");
+      toast.error(error instanceof Error ? error.message : "Generation failed");
     }
   };
 
@@ -298,6 +333,17 @@ export function TranscriptionWorkflow({
                 Upload .vtt
               </Button>
               {audioUrl && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleGenerateWithGroq}
+                >
+                  <Sparkles className="size-4 mr-2" />
+                  Generate VTT
+                </Button>
+              )}
+              {audioUrl && (
                 <Button type="button" size="sm" variant="outline" onClick={handleDownloadAudio}>
                   <Download className="size-4 mr-2" />
                   Download Audio
@@ -310,6 +356,13 @@ export function TranscriptionWorkflow({
             <div className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
               <span className="text-xs">Uploading...</span>
+            </div>
+          )}
+
+          {status === "generating" && (
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              <span className="text-xs">Generating captions...</span>
             </div>
           )}
 

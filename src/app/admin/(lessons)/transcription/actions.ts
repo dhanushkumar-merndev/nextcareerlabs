@@ -7,6 +7,69 @@ import { auth } from '@/lib/auth';
 import { headers } from 'next/headers';
 import { env } from '@/lib/env';
 
+type GroqTranscriptionSegment = {
+  start?: number;
+  end?: number;
+  text?: string;
+};
+
+type GroqTranscriptionResponse = {
+  text?: string;
+  segments?: GroqTranscriptionSegment[];
+  error?: {
+    message?: string;
+  };
+};
+
+function formatVttTimestamp(seconds: number) {
+  const safeSeconds = Math.max(0, seconds);
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const wholeSeconds = Math.floor(safeSeconds % 60);
+  const milliseconds = Math.round((safeSeconds - Math.floor(safeSeconds)) * 1000);
+
+  return `${hours.toString().padStart(2, '0')}:${minutes
+    .toString()
+    .padStart(2, '0')}:${wholeSeconds
+    .toString()
+    .padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`;
+}
+
+function buildVttFromGroqResponse(response: GroqTranscriptionResponse) {
+  const segments = response.segments?.filter(
+    (segment) =>
+      typeof segment.start === 'number' &&
+      typeof segment.end === 'number' &&
+      segment.text?.trim(),
+  );
+
+  if (segments?.length) {
+    return [
+      'WEBVTT',
+      '',
+      ...segments.flatMap((segment, index) => [
+        String(index + 1),
+        `${formatVttTimestamp(segment.start!)} --> ${formatVttTimestamp(segment.end!)}`,
+        segment.text!.trim(),
+        '',
+      ]),
+    ].join('\n');
+  }
+
+  if (response.text?.trim()) {
+    return [
+      'WEBVTT',
+      '',
+      '1',
+      '00:00:00.000 --> 00:00:10.000',
+      response.text.trim(),
+      '',
+    ].join('\n');
+  }
+
+  throw new Error('Groq did not return transcription text');
+}
+
 /**
  * Save transcription to S3 and database
  */
@@ -83,6 +146,86 @@ export async function storeTranscription(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to store transcription',
+    };
+  }
+}
+
+/**
+ * Generate WebVTT captions from the lesson audio using Groq Speech-to-Text.
+ */
+export async function generateTranscriptionWithGroq(
+  lessonId: string,
+  audioUrl: string,
+  videoKey?: string,
+): Promise<{
+  success: boolean;
+  transcriptionId?: string;
+  vttContent?: string;
+  error?: string;
+}> {
+  console.log(`[TranscriptionAction] Generating Groq transcription for lesson ${lessonId}`);
+
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session?.user || session.user.role !== 'admin') {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    const rl = await checkRateLimit(`action:generateTranscription:${session.user.id}`, 3, 60);
+    if (!rl.success) {
+      return { success: false, error: `Rate limit exceeded. Try again in ${rl.reset} seconds.` };
+    }
+
+    if (!audioUrl) {
+      return { success: false, error: 'Audio URL is required' };
+    }
+
+    const formData = new FormData();
+    formData.set('model', 'whisper-large-v3');
+    formData.set('url', audioUrl);
+    formData.set('response_format', 'verbose_json');
+    formData.append('timestamp_granularities[]', 'segment');
+    formData.set('temperature', '0');
+
+    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.GROQ_API_KEY}`,
+      },
+      body: formData,
+    });
+
+    const transcription = (await response.json()) as GroqTranscriptionResponse;
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error:
+          transcription.error?.message ||
+          `Groq transcription failed with status ${response.status}`,
+      };
+    }
+
+    const vttContent = buildVttFromGroqResponse(transcription);
+    const stored = await storeTranscription(lessonId, vttContent, videoKey);
+
+    if (!stored.success) {
+      return stored;
+    }
+
+    return {
+      success: true,
+      transcriptionId: stored.transcriptionId,
+      vttContent,
+    };
+  } catch (error) {
+    console.error('[Groq Transcription Error]', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to generate transcription',
     };
   }
 }

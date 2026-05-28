@@ -26,19 +26,24 @@ export async function checkIfCourseBought(courseId: string, userId?: string) {
     return cached === "__null__" ? null : cached;
   }
 
-  const enrollment = await prisma.enrollment.findUnique({
-    where: {
-      userId_courseId: {
-        courseId: courseId,
-        userId: finalUserId,
-      },
-    },
-    select: {
-      status: true,
-    },
-  });
+  const rows = await prisma.$queryRaw<
+    { status: string | null; demoStarted: boolean; accessRequested: boolean }[]
+  >`
+    SELECT "status"::text AS "status", "demoStarted", "accessRequested"
+    FROM "Enrollment"
+    WHERE "courseId" = ${courseId} AND "userId" = ${finalUserId}
+    LIMIT 1
+  `;
 
-  const result = enrollment?.status ?? null;
+  const enrollment = rows[0];
+  const result =
+    enrollment?.status === "Granted"
+      ? "Granted"
+      : enrollment?.accessRequested
+        ? "Pending"
+        : enrollment?.demoStarted
+          ? "Demo"
+          : null;
   await setCache(cacheKey, result ?? "__null__", 300); // 5 min TTL
 
   if (process.env.NODE_ENV === "development") {
@@ -47,4 +52,3 @@ export async function checkIfCourseBought(courseId: string, userId?: string) {
 
   return result;
 }
-

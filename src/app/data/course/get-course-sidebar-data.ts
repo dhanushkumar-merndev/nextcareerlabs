@@ -10,6 +10,7 @@ import {
   getUserPendingProgress,
   withDistributedLock,
 } from "@/lib/redis";
+import { hasCourseContentAccess } from "@/lib/course-access";
 
 export async function getCourseSidebarData(
   slug: string,
@@ -65,6 +66,7 @@ export async function getCourseSidebarData(
       select: {
         id: true, title: true, fileKey: true, duration: true,
         level: true, category: true, slug: true, isFree: true,
+        freeChaptersCount: true,
         smallDescription: true,
         chapter: {
           orderBy: { position: "asc" },
@@ -95,32 +97,45 @@ export async function getCourseSidebarData(
       return err;
     }
 
-    let enrollment = await prisma.enrollment.findUnique({
+    const enrollment = await prisma.enrollment.findUnique({
       where: { userId_courseId: { userId: session.id, courseId: course.id } },
+      select: { status: true },
     });
-    if (!enrollment || enrollment.status !== "Granted") {
-      if (course.isFree) {
-        enrollment = await prisma.enrollment.upsert({
-          where: { userId_courseId: { userId: session.id, courseId: course.id } },
-          update: { status: "Granted", grantedAt: new Date() },
-          create: { userId: session.id, courseId: course.id, status: "Granted", grantedAt: new Date() },
-        });
-      } else {
-        const err: { status: "not-enrolled"; course: null } = { status: "not-enrolled", course: null };
-        await setCache(cacheKey, err, 2592000);
-        return err;
-      }
+
+    const hasAnyDemo = course.isFree && course.freeChaptersCount > 0;
+    const hasFullAccess = enrollment?.status === "Granted";
+
+    if (!hasFullAccess && !hasAnyDemo) {
+      const err: { status: "not-enrolled"; course: null } = { status: "not-enrolled", course: null };
+      await setCache(cacheKey, err, 2592000);
+      return err;
     }
 
     if (process.env.NODE_ENV === "development") {
       console.log(`%c[Sidebar] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`, "color: #f97316");
     }
     course.duration = course.duration || 0;
-    course.chapter.forEach((ch) => ch.lesson.forEach((l) => { l.duration = l.duration || 0; }));
+    course.chapter.forEach((ch) => ch.lesson.forEach((lesson) => {
+      const l = lesson as typeof lesson & { isLocked: boolean };
+      const isLocked = !hasCourseContentAccess({
+        enrollmentStatus: enrollment?.status,
+        isFree: course.isFree,
+        freeChaptersCount: course.freeChaptersCount,
+        chapterPosition: ch.position,
+      });
+
+      l.isLocked = isLocked;
+      l.duration = isLocked ? 0 : l.duration || 0;
+      l.description = isLocked ? null : l.description;
+      l.thumbnailKey = isLocked ? null : l.thumbnailKey;
+      l.lessonProgress = isLocked ? [] : l.lessonProgress;
+    }));
 
     const pending = await getUserPendingProgress(session.id);
     if (Object.keys(pending).length > 0) {
       course.chapter.forEach((ch) => ch.lesson.forEach((lesson) => {
+        const safeLesson = lesson as typeof lesson & { isLocked?: boolean };
+        if (safeLesson.isLocked) return;
         const p = pending[lesson.id];
         if (p) {
           if (lesson.lessonProgress[0]) {
@@ -160,6 +175,7 @@ export type CourseSidebarCourseData = {
   category: string;
   slug: string;
   isFree: boolean;
+  freeChaptersCount: number;
   smallDescription: string;
   chapter: Array<{
     title: string;
@@ -169,9 +185,10 @@ export type CourseSidebarCourseData = {
       id: string;
       title: string;
       position: number;
-      description: string;
-      thumbnailKey: string;
+      description: string | null;
+      thumbnailKey: string | null;
       duration: number;
+      isLocked: boolean;
       lessonProgress: Array<{
         completed: boolean;
         quizPassed: boolean;

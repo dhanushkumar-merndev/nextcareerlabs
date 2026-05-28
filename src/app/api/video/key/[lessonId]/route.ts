@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { hasCourseContentAccess } from "@/lib/course-access";
 import { getCurrentUser } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -32,8 +33,11 @@ export async function GET(
         videoEncryptionKey: true,
         Chapter: {
           select: {
+            position: true,
             Course: {
               select: {
+                isFree: true,
+                freeChaptersCount: true,
                 enrollment: {
                   where: { userId: user.id },
                   select: { status: true }
@@ -50,9 +54,14 @@ export async function GET(
     }
 
     // 2. Access Check: Admin OR Granted Enrollment
-    const isAdmin = user.role === "admin";
     const enrollment = lesson.Chapter.Course.enrollment[0];
-    const hasAccess = isAdmin || (enrollment && enrollment.status === "Granted");
+    const hasAccess = hasCourseContentAccess({
+      isAdmin: user.role === "admin",
+      enrollmentStatus: enrollment?.status,
+      isFree: lesson.Chapter.Course.isFree,
+      freeChaptersCount: lesson.Chapter.Course.freeChaptersCount,
+      chapterPosition: lesson.Chapter.position,
+    });
 
     if (!hasAccess) {
       return new NextResponse("Forbidden", { status: 403 });

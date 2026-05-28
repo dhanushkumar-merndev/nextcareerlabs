@@ -17,7 +17,7 @@ import {
 import { ArrowLeft, Loader2, PlusCircle, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useForm, useWatch } from "react-hook-form";
-import type { FieldErrors, Resolver } from "react-hook-form";
+import type { FieldErrors } from "react-hook-form";
 import {
   Form,
   FormControl,
@@ -46,42 +46,17 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache } from "@/lib/chat-cache";
-
-const courseFormResolver: Resolver<CourseSchemaType> = async (values) => {
-  const validation = courseSchema.safeParse(values);
-
-  if (validation.success) {
-    return {
-      values: validation.data,
-      errors: {},
-    };
-  }
-
-  const errors: Record<string, { type: string; message: string }> = {};
-
-  for (const issue of validation.error.issues) {
-    const fieldName = issue.path[0]?.toString();
-
-    if (fieldName && !errors[fieldName]) {
-      errors[fieldName] = {
-        type: issue.code,
-        message: issue.message,
-      };
-    }
-  }
-
-  return {
-    values: {},
-    errors,
-  };
-};
+import {
+  getFirstFormErrorMessage,
+  safeZodResolver,
+} from "@/lib/safe-zod-resolver";
 
 export default function CourseCreationPage() {
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
   const { user } = useSmartSession();
   const form = useForm<CourseSchemaType>({
-    resolver: courseFormResolver,
+    resolver: safeZodResolver(courseSchema),
     defaultValues: {
       title: "",
       description: "",
@@ -94,20 +69,17 @@ export default function CourseCreationPage() {
       status: "Draft",
       isFree: false,
       freeChaptersCount: 0,
-      price: null,
     },
   });
-  const watchedIsFree = useWatch({ control: form.control, name: "isFree" });
+  const watchedHasDemo = useWatch({ control: form.control, name: "isFree" });
   const watchedSmallDescription =
     useWatch({ control: form.control, name: "smallDescription" }) ?? "";
 
   useEffect(() => {
-    if (watchedIsFree) {
-      form.setValue("price", null);
-    } else {
+    if (!watchedHasDemo) {
       form.setValue("freeChaptersCount", 0);
     }
-  }, [watchedIsFree, form]);
+  }, [watchedHasDemo, form]);
 
   function onSubmit(values: CourseSchemaType) {
     if (!values.fileKey) {
@@ -168,13 +140,12 @@ export default function CourseCreationPage() {
   }
 
   function onInvalid(errors: FieldErrors<CourseSchemaType>) {
-    const firstError = Object.values(errors)[0];
-    const message =
-      typeof firstError?.message === "string"
-        ? firstError.message
-        : "Please fill all required fields before creating the course";
-
-    toast.error(message);
+    toast.error(
+      getFirstFormErrorMessage(
+        errors,
+        "Please fill all required fields before creating the course",
+      ),
+    );
   }
 
   return (
@@ -405,26 +376,26 @@ export default function CourseCreationPage() {
               </div>
 
               <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
-                <h3 className="font-semibold text-lg">Pricing</h3>
+                <h3 className="font-semibold text-lg">Access</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="isFree"
                     render={({ field }) => (
                       <FormItem className="w-full">
-                        <FormLabel>Course Type</FormLabel>
+                        <FormLabel>Access Type</FormLabel>
                         <Select
-                          onValueChange={(val) => field.onChange(val === "free")}
-                          defaultValue={field.value ? "free" : "paid"}
+                          onValueChange={(val) => field.onChange(val === "demo")}
+                          defaultValue={field.value ? "demo" : "request"}
                         >
                           <FormControl>
                             <SelectTrigger className="w-full">
-                              <SelectValue placeholder="Select Type" />
+                            <SelectValue placeholder="Select Access" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="max-h-60 overflow-y-auto">
-                            <SelectItem value="free">Free</SelectItem>
-                            <SelectItem value="paid">Paid</SelectItem>
+                            <SelectItem value="request">Request Access</SelectItem>
+                            <SelectItem value="demo">Demo Chapters</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -432,13 +403,13 @@ export default function CourseCreationPage() {
                     )}
                   />
 
-                  {watchedIsFree ? (
+                  {watchedHasDemo ? (
                     <FormField
                       control={form.control}
                       name="freeChaptersCount"
                       render={({ field }) => (
                         <FormItem className="w-full">
-                          <FormLabel>Free Chapters (Consecutive)</FormLabel>
+                          <FormLabel>Demo Chapters</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="Set after adding chapters"
@@ -450,32 +421,15 @@ export default function CourseCreationPage() {
                               value={0}
                             />
                           </FormControl>
-                          <p className="text-xs text-muted-foreground">Add chapters in the course, then edit to set free preview</p>
+                          <p className="text-xs text-muted-foreground">Add chapters in the course, then edit to set the demo chapter count</p>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
                   ) : (
-                    <FormField
-                      control={form.control}
-                      name="price"
-                      render={({ field }) => (
-                        <FormItem className="w-full">
-                          <FormLabel>Price (₹)</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Enter amount"
-                              type="number"
-                              min={0}
-                              {...field}
-                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : null)}
-                              value={field.value ?? ""}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                      Students must request access and wait for admin approval.
+                    </div>
                   )}
                 </div>
               </div>

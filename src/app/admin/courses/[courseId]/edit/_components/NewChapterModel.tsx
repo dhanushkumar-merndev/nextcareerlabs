@@ -19,10 +19,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { tryCatch } from "@/hooks/try-catch";
 import { chapterSchema, ChapterSchemaType } from "@/lib/zodSchemas";
-import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  getFirstFormErrorMessage,
+  safeZodResolver,
+} from "@/lib/safe-zod-resolver";
 import { Loader2, Plus } from "lucide-react";
 import { useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, type FieldErrors } from "react-hook-form";
 import { useQueryClient } from "@tanstack/react-query";
 import { createChapter } from "../actions";
 import { toast } from "sonner";
@@ -40,7 +43,7 @@ export function NewChapterModel({
   const queryClient = useQueryClient();
 
   const form = useForm<ChapterSchemaType>({
-    resolver: zodResolver(chapterSchema),
+    resolver: safeZodResolver(chapterSchema),
     defaultValues: {
       name: "",
       courseId: courseId,
@@ -85,6 +88,10 @@ export function NewChapterModel({
     });
   }
 
+  function onInvalid(errors: FieldErrors<ChapterSchemaType>) {
+    toast.error(getFirstFormErrorMessage(errors));
+  }
+
   function handleOpenChange(open: boolean) {
     setIsOpen(open);
   }
@@ -104,7 +111,10 @@ export function NewChapterModel({
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form className="space-y-8" onSubmit={form.handleSubmit(onSubmit)}>
+          <form
+            className="space-y-8"
+            onSubmit={form.handleSubmit(onSubmit, onInvalid)}
+          >
             <FormField
               control={form.control}
               name="name"

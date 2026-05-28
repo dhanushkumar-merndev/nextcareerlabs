@@ -28,13 +28,13 @@ import {
   IconClock,
   IconPlayerPlay,
 } from "@tabler/icons-react";
-import { CheckIcon, TimerIcon } from "lucide-react";
+import { CheckIcon, Loader2, Lock, TimerIcon } from "lucide-react";
 import Link from "next/link";
-import { JSX } from "react";
+import { JSX, useTransition } from "react";
 import { EnrollmentButton } from "./EnrollmentButton";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getSlugPageDataAction } from "../actions";
+import { getSlugPageDataAction, startDemoCourseAction } from "../actions";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { useState, useEffect, useRef } from "react";
@@ -46,6 +46,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 // ✅ ADD import
 import { usePendingDetection } from "@/hooks/use-pending-detection";
+import { tryCatch } from "@/hooks/try-catch";
+import { toast } from "sonner";
 
 export function SlugPageWrapper({ slug }: { slug: string }) {
   const { session } = useSmartSession();
@@ -217,6 +219,15 @@ function SlugPageContent({
   currentUserId?: string;
 }) {
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [isDemoPending, startDemoTransition] = useTransition();
+  const hasDemo = course?.isFree && (course.freeChaptersCount ?? 0) > 0;
+  const firstLesson = course?.chapter
+    ?.slice()
+    .sort((a: ChapterT, b: ChapterT) => (a.position ?? 0) - (b.position ?? 0))
+    ?.[0]
+    ?.lesson?.slice()
+    .sort((a: LessonT, b: LessonT) => (a.position ?? 0) - (b.position ?? 0))
+    ?.[0];
 
   if (!course) {
     return (
@@ -230,6 +241,36 @@ function SlugPageContent({
         </Link>
       </div>
     );
+  }
+
+  function onStartDemo() {
+    if (isDemoPending || !course || !firstLesson) return;
+    if (!currentUserId) {
+      window.location.assign(
+        `/login?redirect=/dashboard/${course.slug}/${firstLesson.id}`,
+      );
+      return;
+    }
+
+    startDemoTransition(async () => {
+      const { data: result, error } = await tryCatch(
+        startDemoCourseAction(course.id),
+      );
+
+      if (error || result.status === "error") {
+        toast.error(result?.message ?? "Failed to start demo");
+        return;
+      }
+
+      chatCache.setNeedsSync(currentUserId);
+      chatCache.invalidateUserDashboardData(currentUserId);
+      chatCache.invalidate(`user_enrolled_courses_${currentUserId}`, currentUserId);
+      chatCache.invalidate(`available_courses_${currentUserId}`, currentUserId);
+      chatCache.invalidate(`course_${course.slug}`, currentUserId);
+      chatCache.invalidate(`course_${course.slug}`, undefined);
+
+      router.push(`/dashboard/${course.slug}/${firstLesson.id}`);
+    });
   }
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 mt-5 px-4 lg:px-6">
@@ -268,9 +309,9 @@ function SlugPageContent({
               <TimerIcon className="size-4" />
               <span>{course.duration} hours</span>
             </Badge>
-            {course.isFree ? (
+            {hasDemo ? (
               <Badge variant="outline" className="border-primary text-primary bg-transparent hover:bg-transparent">
-                Free
+                Demo
               </Badge>
             ) : null}
           </div>
@@ -307,17 +348,22 @@ function SlugPageContent({
               Lessons
             </div>
           </div>
-          {course.isFree && course.freeChaptersCount > 0 && (
+          {hasDemo && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-sm text-green-700">
-              <span className="font-medium">Free Preview:</span> First{" "}
+              <span className="font-medium">Demo:</span> First{" "}
               {course.freeChaptersCount} chapter
-              {course.freeChaptersCount > 1 ? "s" : ""} available without
-              enrollment
+              {course.freeChaptersCount > 1 ? "s" : ""} available without approval
             </div>
           )}
           {/* Course Chapters */}
           <div className="space-y-4">
-            {course.chapter.map((chapter: ChapterT, index: number) => (
+            {course.chapter.map((chapter: ChapterT, index: number) => {
+              const isLockedChapter =
+                enrollmentStatus !== "Granted" &&
+                hasDemo &&
+                (chapter.position ?? index + 1) > course.freeChaptersCount;
+
+              return (
               <Collapsible key={chapter.id} defaultOpen={index === 0}>
                 <Card className="p-0 overflow-hidden border-2 transition-all duration-200 hover:shadow-md gap-0">
                   <CollapsibleTrigger className="w-full">
@@ -328,8 +374,12 @@ function SlugPageContent({
                             {index + 1}
                           </p>
                           <div>
-                            <h3 className="text-xl font-semibold text-left">
+                            <h3 className={cn(
+                              "text-xl font-semibold text-left flex items-center gap-2",
+                              isLockedChapter && "text-muted-foreground",
+                            )}>
                               {chapter.title}
+                              {isLockedChapter && <Lock className="size-4" />}
                             </h3>
                             <p className="text-sm text-muted-foreground mt-1 text-left">
                               {chapter.lesson.length} Lesson
@@ -358,10 +408,19 @@ function SlugPageContent({
                           (lesson: LessonT, lessonIndex: number) => (
                             <div
                               key={lesson.id}
-                              className="flex items-center gap-4 rounded-lg p-3 hover:bg-accent transition-colors group"
+                              className={cn(
+                                "flex items-center gap-4 rounded-lg p-3 transition-colors group",
+                                isLockedChapter
+                                  ? "opacity-55"
+                                  : "hover:bg-accent",
+                              )}
                             >
                               <div className="flex size-8 items-center justify-center rounded-full bg-background border-2 border-primary/20">
-                                <IconPlayerPlay className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                {isLockedChapter ? (
+                                  <Lock className="size-4 text-muted-foreground" />
+                                ) : (
+                                  <IconPlayerPlay className="size-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                                )}
                               </div>
                               <div className="flex-1">
                                 <p className="font-medium text-sm">
@@ -379,7 +438,8 @@ function SlugPageContent({
                   </CollapsibleContent>
                 </Card>
               </Collapsible>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -480,6 +540,31 @@ function SlugPageContent({
                     >
                       Watch Course
                     </Link>
+                  ) : hasDemo && firstLesson ? (
+                    <div className="grid gap-3">
+                      <Button
+                        className="w-full"
+                        onClick={onStartDemo}
+                        disabled={isDemoPending}
+                      >
+                        {isDemoPending ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Loading...
+                          </>
+                        ) : enrollmentStatus === "Demo" ? (
+                          "Continue Demo"
+                        ) : (
+                          "Start Demo"
+                        )}
+                      </Button>
+                      <EnrollmentButton
+                        courseId={course.id}
+                        slug={slug}
+                        status={enrollmentStatus}
+                        isFree={course.isFree}
+                      />
+                    </div>
                   ) : (
                     <EnrollmentButton
                       courseId={course.id}

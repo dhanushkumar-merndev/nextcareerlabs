@@ -138,7 +138,7 @@ export function CourseSidebar({ course }: iAppProps) {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 flex-col">
       {/* HEADER (Desktop Only) */}
       <div className="hidden min-[1025px]:block">
         <CourseProgressBar course={course} />
@@ -268,7 +268,7 @@ export function CourseSidebar({ course }: iAppProps) {
 
       {/* DESKTOP ONLY */}
       <div
-        className="hidden min-[1025px]:block pt-4 pr-4 space-y-3 flex-1 overflow-y-auto min-h-0 no-scrollbar"
+        className="hidden min-[1025px]:block flex-1 min-h-0 space-y-3 overflow-y-auto overscroll-contain pt-4 pr-4 pb-6 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent"
         data-lenis-prevent
       >
         {course.chapter.map((chapter) => {

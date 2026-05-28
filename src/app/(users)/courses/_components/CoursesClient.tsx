@@ -14,7 +14,7 @@ import {
   PublicCourseCard,
   PublicCourseCardSkeleton,
 } from "../../_components/PublicCourseCard";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useInView } from "react-intersection-observer";
 import { CoursesCacheWithCursor, CoursesServerResult, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
@@ -38,12 +38,16 @@ export function CoursesClient({ initialData }: { initialData?: CoursesServerResu
   const searchParams = useSearchParams();
   const searchTitle = searchParams.get("title");
 
-  // Used to avoid hydration mismatch
-  const isHydrated = typeof window !== "undefined";
+  // Used to avoid hydration mismatch. The server and first client render must match.
+  const [isHydrated, setIsHydrated] = useState(false);
   const hasLogged = useRef<string | null>(null);
 
   // Normalize userId
   const safeUserId = currentUserId ?? undefined;
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   // Persistent Logging (SPA Compatible)
   useEffect(() => {
@@ -66,17 +70,18 @@ export function CoursesClient({ initialData }: { initialData?: CoursesServerResu
     rootMargin: "0px",
   });
 
-  const cached = chatCache.get<CoursesCacheWithCursor>(
-    "all_courses",
-    safeUserId,
-  );
+  const cached = isHydrated
+    ? chatCache.get<CoursesCacheWithCursor>("all_courses", safeUserId)
+    : undefined;
 
   // 🔹 DYNAMIC STALE TIME:
   // 30s if: 1. Mutation flag set, OR 2. Any pending enrollment exists in local cache.
   // 30m otherwise.
   // This ensures we check Redis on page open for pending users, but avoid hits on instant hard refresh.
-  const hasPending = safeUserId ? chatCache.hasAnyPending(safeUserId) : false;
-  const needsSync = safeUserId ? chatCache.needsSync(safeUserId) : false;
+  const hasPending =
+    isHydrated && safeUserId ? chatCache.hasAnyPending(safeUserId) : false;
+  const needsSync =
+    isHydrated && safeUserId ? chatCache.needsSync(safeUserId) : false;
 
   const dynamicStaleTime = hasPending || needsSync ? 0 : 30 * 60 * 1000;
 
@@ -151,7 +156,7 @@ export function CoursesClient({ initialData }: { initialData?: CoursesServerResu
       }
 
       // Fallback to cache even in initialData to prevent flickering
-      if (!searchTitle && typeof window !== "undefined" && cached) {
+      if (!searchTitle && isHydrated && cached) {
         return {
           pages: [
             {
@@ -166,7 +171,7 @@ export function CoursesClient({ initialData }: { initialData?: CoursesServerResu
     },
 
     initialDataUpdatedAt:
-      typeof window !== "undefined" && !searchTitle
+      isHydrated && !searchTitle
         ? cached?.timestamp
         : undefined,
 
@@ -322,7 +327,7 @@ export function CoursesClient({ initialData }: { initialData?: CoursesServerResu
     refetchOnWindowFocus: true,
     // 🔹 OPTIMIZATION: Wait for session to be stable before starting background sync
     // This prevents the "Double Fetch" (Guest then User) on refresh
-    enabled: !isSessionPending,
+    enabled: isHydrated && !isSessionPending,
   });
 
   // Flatten all pages into a single array

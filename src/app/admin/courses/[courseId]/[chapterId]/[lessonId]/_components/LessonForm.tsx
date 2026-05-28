@@ -21,11 +21,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { tryCatch } from "@/hooks/try-catch";
 import { lessonSchema, LessonSchemaType } from "@/lib/zodSchemas";
-import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  getFirstFormErrorMessage,
+  safeZodResolver,
+} from "@/lib/safe-zod-resolver";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, type FieldErrors } from "react-hook-form";
 import { toast } from "sonner";
 import { updateLesson } from "../actions";
 import { useRouter } from "next/navigation";
@@ -47,7 +50,7 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
   const queryClient = useQueryClient();
   const [captionUrl, setCaptionUrl] = useState<string | null>(data.transcription?.vttUrl ?? null);
   const form = useForm<LessonSchemaType>({
-    resolver: zodResolver(lessonSchema),
+    resolver: safeZodResolver(lessonSchema),
     defaultValues: {
       name: data.title,
       chapterId: chapterId,
@@ -106,6 +109,11 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       }
     });
   }
+
+  function onInvalid(errors: FieldErrors<LessonSchemaType>) {
+    toast.error(getFirstFormErrorMessage(errors));
+  }
+
   return (
     <div className="px-4 lg:px-6">
       <Link
@@ -124,7 +132,13 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form className="space-y-6" onSubmit={form.handleSubmit((values) => onSubmit(values, false))}>
+            <form
+              className="space-y-6"
+              onSubmit={form.handleSubmit(
+                (values) => onSubmit(values, false),
+                onInvalid,
+              )}
+            >
               <FormField
                 control={form.control}
                 name="name"
