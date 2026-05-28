@@ -942,9 +942,11 @@ function VideoPlayer({
   /* ============================================================
      HLS + VIDEO + CAPTION URL SETUP (with local 28-min cache)
   ============================================================ */
-  const urlCacheKey = `lesson_video_urls_${lessonId}`;
-  // 28 min TTL — just under the 30-min S3 signed URL expiry
-  const VIDEO_URL_TTL = 30 * 60 * 1000;
+  const urlCacheKey = `lesson_video_urls_${lessonId}_${videoKey}`;
+  // S3 signed video URLs expire after 10 minutes in getBatchSignedVideoUrls.
+  // Keep the local cache slightly shorter so Video.js never receives an expired
+  // XML error response where it expects an HLS playlist.
+  const VIDEO_URL_TTL = 9 * 60 * 1000;
 
   useEffect(() => {
     if (!videoKey) return;
