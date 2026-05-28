@@ -127,6 +127,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
   const [showSessionList, setShowSessionList] = useState(false);
   const [isDbReady, setIsDbReady] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [tourStep, setTourStep] = useState<number | null>(null);
   const isResizing = useRef(false);
 
   // Load sessions

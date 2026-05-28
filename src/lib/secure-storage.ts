@@ -42,6 +42,7 @@ function shadowSet(key: string, value: string) {
 
 let isInitialized = false;
 let initPromise: Promise<void> | null = null;
+let dbPromise: Promise<IDBDatabase> | null = null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 function hashKey(key: string): string {
@@ -66,14 +67,25 @@ function decrypt(ciphertext: string): string | null {
 
 // ─── IndexedDB Core ───────────────────────────────────────────────────────
 async function getDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       request.result.createObjectStore(STORE_NAME);
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
+    request.onblocked = () => {
+      dbPromise = null;
+      reject(request.error);
+    };
   });
+
+  return dbPromise;
 }
 
 async function idbSet(key: string, value: string): Promise<void> {

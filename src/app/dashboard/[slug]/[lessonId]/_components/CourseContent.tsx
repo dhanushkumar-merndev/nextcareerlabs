@@ -136,6 +136,8 @@ const EMPTY_ARRAY: Question[] = [];
 // to ensure React maintains a stable identity across renders
 const ONE_DAY_TTL = 24 * 60 * 60 * 1000;
 const ONE_YEAR_TTL = 365 * 24 * 60 * 60 * 1000;
+const PROGRESS_WRITE_INTERVAL_MS = 5000;
+const DELTA_WRITE_INTERVAL_MS = 10000;
 
 function VideoPlayer({
   thumbnailkey,
@@ -287,6 +289,10 @@ function VideoPlayer({
   const lastPositionRef = useRef<number>(initialTime);
   const sessionDeltaRef = useRef<number>(0);
   const lastSavedDeltaRef = useRef<number>(0);
+  const lastProgressSaveTimeRef = useRef<number>(initialTime);
+  const lastProgressWriteAtRef = useRef<number>(0);
+  const lastRestrictionWriteAtRef = useRef<number>(0);
+  const lastDeltaWriteAtRef = useRef<number>(0);
   const hasSyncedOnMountRef = useRef<boolean>(false);
   const isSyncingRef = useRef<boolean>(false);
 
@@ -389,9 +395,14 @@ function VideoPlayer({
     return userId.substring(0, 16).padEnd(16, "0");
   };
 
-  const saveUnsyncedDelta = useCallback(() => {
+  const saveUnsyncedDelta = useCallback((force = false) => {
     const val = sessionDeltaRef.current;
     if (val === 0) return;
+    const now = Date.now();
+    if (!force && now - lastDeltaWriteAtRef.current < DELTA_WRITE_INTERVAL_MS) {
+      return;
+    }
+    lastDeltaWriteAtRef.current = now;
 
     // ✅ SECURE: Encrypt before storing
     const encrypted = CryptoJS.AES.encrypt(
@@ -435,7 +446,17 @@ function VideoPlayer({
   /* ============================================================
      VIDEO POSITION TRACKING (localStorage for resume)
   ============================================================ */
-  const saveProgress = useCallback((time: number) => {
+  const saveProgress = useCallback((time: number, force = false) => {
+    const now = Date.now();
+    if (
+      !force &&
+      Math.abs(time - lastProgressSaveTimeRef.current) < 5 &&
+      now - lastProgressWriteAtRef.current < PROGRESS_WRITE_INTERVAL_MS
+    ) {
+      return;
+    }
+    lastProgressSaveTimeRef.current = time;
+    lastProgressWriteAtRef.current = now;
     secureStorage.setItemTracked(`video-progress-${lessonId}_${userId}`, time.toString());
     secureStorage.setItemTracked(`needs-sync-${lessonId}_${userId}`, "true"); // Mark dirty
   }, [lessonId, userId]);
@@ -594,18 +615,22 @@ function VideoPlayer({
       // ✅ 1. Update Restriction Instantly (Fixes "5 sec slow")
       if (currentTime > restrictionTimeRef.current) {
         restrictionTimeRef.current = currentTime;
-        secureStorage.setItemTracked(
-          `restriction-time-${lessonId}_${userId}`,
-          currentTime.toString(),
-        );
-        // ✅ Real-time dashboard override (1 day TTL)
-        chatCache.set(
-          `restriction_${lessonId}`,
-          currentTime,
-          userId,
-          undefined,
-          ONE_DAY_TTL,
-        );
+        const now = Date.now();
+        if (now - lastRestrictionWriteAtRef.current >= PROGRESS_WRITE_INTERVAL_MS) {
+          lastRestrictionWriteAtRef.current = now;
+          secureStorage.setItemTracked(
+            `restriction-time-${lessonId}_${userId}`,
+            currentTime.toString(),
+          );
+          // ✅ Real-time dashboard override (1 day TTL)
+          chatCache.set(
+            `restriction_${lessonId}`,
+            currentTime,
+            userId,
+            undefined,
+            ONE_DAY_TTL,
+          );
+        }
       }
 
       // ✅ 2. Real-time Assessment Eligibility Check (90% threshold)
@@ -668,12 +693,8 @@ function VideoPlayer({
       }
       lastPositionRef.current = currentTime;
 
-      // ✅ 3. Periodic Position Save (localStorage only - every 5 seconds)
-      const lastSavedTime = parseFloat(
-        secureStorage.getItem(`video-progress-${lessonId}_${userId}`) || "0",
-      );
-
-      if (Math.abs(currentTime - lastSavedTime) >= 1) {
+      // ✅ 3. Periodic Position Save (localStorage only - throttled)
+      if (Math.abs(currentTime - lastProgressSaveTimeRef.current) >= 5) {
         saveProgress(currentTime);
         saveUnsyncedDelta();
       }
@@ -687,26 +708,30 @@ function VideoPlayer({
 
   const onPause = useCallback(() => {
     // Save current breadcrumb to localStorage
-    saveProgress(lastPositionRef.current);
-    saveUnsyncedDelta(); // Ensure delta is saved on pause
+    saveProgress(lastPositionRef.current, true);
+    saveUnsyncedDelta(true); // Ensure delta is saved on pause
   }, [saveProgress, saveUnsyncedDelta]);
 
   const onRestrictionUpdate = useCallback(
     (maxTime: number) => {
       if (maxTime > restrictionTimeRef.current) {
         restrictionTimeRef.current = maxTime;
-        secureStorage.setItemTracked(
-          `restriction-time-${lessonId}_${userId}`,
-          maxTime.toString(),
-        );
-        // ✅ Real-time dashboard override (1 day TTL)
-        chatCache.set(
-          `restriction_${lessonId}`,
-          maxTime,
-          userId,
-          undefined,
-          ONE_DAY_TTL,
-        );
+        const now = Date.now();
+        if (now - lastRestrictionWriteAtRef.current >= PROGRESS_WRITE_INTERVAL_MS) {
+          lastRestrictionWriteAtRef.current = now;
+          secureStorage.setItemTracked(
+            `restriction-time-${lessonId}_${userId}`,
+            maxTime.toString(),
+          );
+          // ✅ Real-time dashboard override (1 day TTL)
+          chatCache.set(
+            `restriction_${lessonId}`,
+            maxTime,
+            userId,
+            undefined,
+            ONE_DAY_TTL,
+          );
+        }
       }
     },
     [lessonId, userId],
@@ -886,8 +911,8 @@ function VideoPlayer({
   useEffect(() => {
     const handleUnload = () => {
       if (sessionDeltaRef.current > 0) {
-        saveUnsyncedDelta();
-        saveProgress(lastPositionRef.current);
+        saveUnsyncedDelta(true);
+        saveProgress(lastPositionRef.current, true);
       }
     };
     window.addEventListener("beforeunload", handleUnload);
@@ -895,7 +920,7 @@ function VideoPlayer({
   }, [saveProgress, saveUnsyncedDelta]);
 
   /* ============================================================
-     TRACK WATCHED SECONDS (Every second during playback)
+     TRACK WATCHED SECONDS
   ============================================================ */
   // trackCoverage merged into onTimeUpdate for better synchronization
 
@@ -909,7 +934,7 @@ function VideoPlayer({
       if (document.visibilityState === "visible") {
         saveProgress(lastPositionRef.current);
       }
-    }, 1000);
+    }, PROGRESS_WRITE_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [lessonId, isCompleted, durationInSec, slug, actualDuration, saveProgress]);
@@ -1020,14 +1045,14 @@ function VideoPlayer({
   ============================================================ */
   useEffect(() => {
     const handleBeforeUnload = () => {
-      saveUnsyncedDelta();
-      saveProgress(lastPositionRef.current);
+      saveUnsyncedDelta(true);
+      saveProgress(lastPositionRef.current, true);
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        saveUnsyncedDelta();
-        saveProgress(lastPositionRef.current);
+        saveUnsyncedDelta(true);
+        saveProgress(lastPositionRef.current, true);
         syncToDB(); // Push to DB immediately on tab hide
       }
     };
@@ -1131,7 +1156,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     [cacheKey, userId],
   );
 
-  const { data: lesson, isLoading } = useQuery({
+  const { data: lesson } = useQuery({
     queryKey: ["lesson_content", lessonId],
     queryFn: async () => {
       // Pass cached version for cheap server-side version check
@@ -1249,9 +1274,7 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
     }
   }, [hasVideo]);
 
-  const [mounted] = useState(() => typeof window !== "undefined");
-
-  if (!mounted || isLoading) {
+  if (!lessonData) {
     return <LessonContentSkeleton />;
   }
 

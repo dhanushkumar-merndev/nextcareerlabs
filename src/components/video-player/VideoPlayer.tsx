@@ -27,7 +27,8 @@ if (typeof window !== "undefined") {
   vjs.log.warn = (...args: unknown[]) => {
     if (
       typeof args[0] === "string" &&
-      args[0].includes("beforeRequest is deprecated")
+      (args[0].includes("beforeRequest is deprecated") ||
+        args[0].includes("using Vhs."))
     )
       return;
     originalWarn(...args);
@@ -35,6 +36,22 @@ if (typeof window !== "undefined") {
 }
 
 if (typeof window !== "undefined") {
+  const vhsConfig = (videojs as unknown as {
+    Vhs?: {
+      BACK_BUFFER_LENGTH: number;
+      GOAL_BUFFER_LENGTH: number;
+      MAX_GOAL_BUFFER_LENGTH: number;
+      BUFFER_HIGH_WATER_LINE: number;
+    };
+  }).Vhs;
+
+  if (vhsConfig) {
+    vhsConfig.BACK_BUFFER_LENGTH = 15;
+    vhsConfig.GOAL_BUFFER_LENGTH = 20;
+    vhsConfig.MAX_GOAL_BUFFER_LENGTH = 30;
+    vhsConfig.BUFFER_HIGH_WATER_LINE = 20;
+  }
+
   const vjsxhr = videojs as unknown as { Vhs: { xhr: { beforeRequest: (options: Record<string, unknown>) => Record<string, unknown> } } };
   vjsxhr.Vhs.xhr.beforeRequest = (options) => {
     if (typeof options.uri === "string" && options.uri.includes("/api/video/key/")) {
@@ -155,6 +172,7 @@ export function VideoPlayer({
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fullscreenHandlerRef = useRef<(() => void) | null>(null);
   const [seekAnimation, setSeekAnimation] = useState<{
     type: "forward" | "backward";
     amount: number;
@@ -181,6 +199,7 @@ export function VideoPlayer({
   // Furthest point reached during this session or previous one (max progress high-water mark)
   const [maxWatchedTime, setMaxWatchedTime] = useState(initialMaxTime);
   const maxWatchedTimeRef = useRef<number>(initialMaxTime);
+  const lastMaxWatchedStateAtRef = useRef<number>(0);
 
   const [hasCaptions, setHasCaptions] = useState(!!captionUrl);
 
@@ -277,6 +296,7 @@ export function VideoPlayer({
       const videoElement = document.createElement("video");
       videoElement.className = "video-js vjs-big-play-centered vjs-fill";
       videoElement.setAttribute("playsinline", "true");
+      videoElement.setAttribute("preload", "metadata");
       videoElement.setAttribute("crossorigin", "anonymous");
       if (noDownload) {
         // Disable browser's native download button and Save-As menu
@@ -331,12 +351,12 @@ export function VideoPlayer({
               return options;
             },
             enableLowInitialPlaylist: true,
+            bufferBasedABR: true,
             smoothQualityChange: false,
             useDevicePixelRatio: true,
             experimentalExactSeeking: true,
             experimentalExactManifestTimings: true,
             handlePartialData: true, // Start playback before full segment loads
-            maxBufferLength: 30, // Buffer only 30s ahead (faster seeks)
           },
           nativeVideoTracks: false,
           nativeAudioTracks: false,
@@ -381,7 +401,11 @@ export function VideoPlayer({
           if (time > maxWatchedTimeRef.current) {
             const clamped = Math.min(player.duration() || 0, time);
             maxWatchedTimeRef.current = clamped;
-            setMaxWatchedTime(clamped);
+            const now = Date.now();
+            if (now - lastMaxWatchedStateAtRef.current >= 1000) {
+              lastMaxWatchedStateAtRef.current = now;
+              setMaxWatchedTime(clamped);
+            }
             onRestrictionUpdate?.(clamped);
           }
         }
@@ -477,6 +501,7 @@ export function VideoPlayer({
 
       const handleFullscreenChange = () =>
         setIsFullscreen(!!document.fullscreenElement);
+      fullscreenHandlerRef.current = handleFullscreenChange;
       document.addEventListener("fullscreenchange", handleFullscreenChange);
       player.on("fullscreenchange", handleFullscreenChange);
 
@@ -581,6 +606,18 @@ export function VideoPlayer({
 
     return () => {
       cancelAnimationFrame(frame);
+      if (fullscreenHandlerRef.current) {
+        document.removeEventListener("fullscreenchange", fullscreenHandlerRef.current);
+        fullscreenHandlerRef.current = null;
+      }
+      rangeCache.forEach((blobUrl) => {
+        if (blobUrl.startsWith("blob:")) URL.revokeObjectURL(blobUrl);
+      });
+      rangeCache.clear();
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      if (seekAnimationTimeoutRef.current) clearTimeout(seekAnimationTimeoutRef.current);
+      if (volumeAnimationTimeoutRef.current) clearTimeout(volumeAnimationTimeoutRef.current);
+      if (singleTapTimeoutRef.current) clearTimeout(singleTapTimeoutRef.current);
       if (playerRef.current) {
         setIsPlayerReady(false);
         playerRef.current.dispose();
@@ -1028,10 +1065,11 @@ export function VideoPlayer({
       }
     });
 
+    const maxPreloadImages = 3;
     console.log(
-      `VideoPlayer: Preloading ${uniqueImages.size} sprite images...`,
+      `VideoPlayer: Preloading ${Math.min(uniqueImages.size, maxPreloadImages)} of ${uniqueImages.size} sprite images...`,
     );
-    uniqueImages.forEach((url) => {
+    Array.from(uniqueImages).slice(0, maxPreloadImages).forEach((url) => {
       const img = new Image();
       img.src = url;
     });
@@ -1081,7 +1119,8 @@ export function VideoPlayer({
     }
 
     console.log("VideoPlayer: Fetching VTT from", spriteMetadata.url);
-    fetch(spriteMetadata.url)
+    const controller = new AbortController();
+    fetch(spriteMetadata.url, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error(`VTT fetch failed: ${res.status}`);
         return res.text();
@@ -1089,11 +1128,9 @@ export function VideoPlayer({
       .then((text) => {
         console.log("VideoPlayer: VTT Loaded, length:", text.length);
         const lines = text.split("\n");
-        // ... (rest of parser)
         const parsedCues: Array<{ startTime: number; endTime: number; url: string; x: number; y: number; w: number; h: number }> = [];
         let currentCue: Record<string, unknown> = {};
 
-        // Simple VTT parser
         lines.forEach((line) => {
           line = line.trim();
           if (line === "WEBVTT" || line === "") return;
@@ -1126,6 +1163,7 @@ export function VideoPlayer({
             currentCue = {};
           }
         });
+        if (controller.signal.aborted) return;
         console.log("VideoPlayer: Parsed Cues:", parsedCues.length);
         setVttCues(parsedCues);
 
@@ -1136,8 +1174,11 @@ export function VideoPlayer({
         preloadSpriteImages(parsedCues, spriteMetadata.url);
       })
       .catch((err) => {
+        if (err.name === "AbortError") return;
         console.error("VideoPlayer: Error loading VTT:", err);
       });
+
+    return () => controller.abort();
   }, [spriteMetadata?.url, preloadSpriteImages]);
 
   const [rangeCache] = useState<Map<string, string>>(new Map());

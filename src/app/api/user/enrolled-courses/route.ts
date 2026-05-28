@@ -79,10 +79,12 @@ export async function GET(req: Request) {
               slug: true,
               duration: true,
               chapter: {
+                orderBy: { position: "asc" },
                 select: {
                   id: true,
                   position: true,
                   lesson: {
+                    orderBy: { position: "asc" },
                     select: {
                       id: true,
                       position: true,

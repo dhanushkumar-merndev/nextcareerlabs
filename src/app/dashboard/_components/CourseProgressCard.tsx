@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,8 +26,27 @@ export function CourseProgressCard({ data }: iAppProps) {
     useCourseProgress({ courseData: course });
 
   const [imageLoaded, setImageLoaded] = useState(false);
-  const firstLessonId =
-    course.chapter?.[0]?.lesson?.[0]?.id ?? null;
+
+  const targetLessonId = useMemo(() => {
+    if (!course.chapter) return null;
+    const chapters = [...course.chapter].sort((a, b) => a.position - b.position);
+
+    let lastProgressLesson: { id: string; completed: boolean } | null = null;
+
+    for (const chapter of chapters) {
+      const lessons = [...(chapter.lesson ?? [])].sort((a, b) => a.position - b.position);
+      for (const lesson of lessons) {
+        const p = lesson.lessonProgress?.[0];
+        if (!p) continue;
+        const completed = p.completed || !!(lesson.duration && lesson.duration > 0 && p.restrictionTime >= lesson.duration * 0.9);
+        lastProgressLesson = { id: lesson.id, completed };
+        if (!completed) break;
+      }
+    }
+
+    if (lastProgressLesson && !lastProgressLesson.completed) return lastProgressLesson.id;
+    return chapters[0]?.lesson?.[0]?.id ?? null;
+  }, [course.chapter]);
 
   return (
     <Card className="group relative py-0 gap-0 hover:shadow-lg transition-all rounded-xl">
@@ -56,8 +75,8 @@ export function CourseProgressCard({ data }: iAppProps) {
         {/* Title */}
         <Link
           href={
-            firstLessonId
-              ? `/dashboard/${course.slug}/${firstLessonId}`
+            targetLessonId
+              ? `/dashboard/${course.slug}/${targetLessonId}`
               : `/dashboard/${course.slug}`
           }
           className="font-medium text-lg line-clamp-2 hover:underline group-hover:text-primary transition-colors"
@@ -92,13 +111,13 @@ export function CourseProgressCard({ data }: iAppProps) {
         <div className="mt-4 flex items-center gap-2">
           <Link
             href={
-              firstLessonId
-                ? `/dashboard/${course.slug}/${firstLessonId}`
+              targetLessonId
+                ? `/dashboard/${course.slug}/${targetLessonId}`
                 : `/dashboard/${course.slug}`
             }
             className={buttonVariants({ className: "w-1/2 rounded-lg" })}
           >
-            Watch Now
+            {progressPercentage === 0 ? "Watch Now" : progressPercentage === 100 ? "Review" : "Resume"}
           </Link>
 
           <Link
