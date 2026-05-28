@@ -4,7 +4,6 @@ import { hasCourseContentAccess } from "@/lib/course-access";
 import { getCurrentUser } from "@/lib/session";
 import { tigris } from "@/lib/tigris";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { NextRequest, NextResponse } from "next/server";
 
 function getBaseKey(key: string) {
@@ -12,7 +11,7 @@ function getBaseKey(key: string) {
   return key.replace(/\.[^/.]+$/, "");
 }
 
-function rewritePlaylistSegments(playlist: string, baseKey: string, segmentUrl: string) {
+function rewritePlaylistSegments(playlist: string, segmentUrl: string) {
   return playlist
     .split("\n")
     .map((line) => {
@@ -22,7 +21,7 @@ function rewritePlaylistSegments(playlist: string, baseKey: string, segmentUrl: 
         return segmentUrl;
       }
       if (trimmed.startsWith("http")) return line;
-      return `${env.AWS_ENDPOINT_URL_S3}/${env.S3_BUCKET_NAME}/hls/${baseKey}/${trimmed}`;
+      return segmentUrl;
     })
     .join("\n");
 }
@@ -81,7 +80,6 @@ export async function GET(
 
     const baseKey = getBaseKey(lesson.videoKey);
     const playlistKey = `hls/${baseKey}/master.m3u8`;
-    const segmentKey = `hls/${baseKey}/index.ts`;
 
     const playlistObject = await tigris.send(
       new GetObjectCommand({
@@ -95,16 +93,9 @@ export async function GET(
       return new NextResponse("Playlist not found", { status: 404 });
     }
 
-    const segmentUrl = await getSignedUrl(
-      tigris,
-      new GetObjectCommand({
-        Bucket: env.S3_BUCKET_NAME,
-        Key: segmentKey,
-      }),
-      { expiresIn: 60 * 60 * 4 },
-    );
+    const segmentUrl = `${req.nextUrl.origin}/api/video/segment/${lessonId}`;
 
-    return new NextResponse(rewritePlaylistSegments(playlist, baseKey, segmentUrl), {
+    return new NextResponse(rewritePlaylistSegments(playlist, segmentUrl), {
       headers: {
         "Content-Type": "application/vnd.apple.mpegurl",
         "Cache-Control": "private, max-age=300",
