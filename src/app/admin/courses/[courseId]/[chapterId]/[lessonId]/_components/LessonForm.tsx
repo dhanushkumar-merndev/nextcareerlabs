@@ -96,7 +96,11 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
       }
       if (result.status === "success") {
         chatCache.invalidate(`admin_course_${courseId}`);
+        chatCache.invalidate("admin_courses_list");
+        chatCache.invalidate("all_courses");
+        chatCache.invalidate("available_courses");
         queryClient.invalidateQueries({ queryKey: [`admin_course_${courseId}`] });
+        queryClient.invalidateQueries({ queryKey: ["admin_courses_list"] });
         form.reset(values);
         if (!skipRedirect) {
           toast.success(result.message);
@@ -199,13 +203,38 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                       <Uploader
                         onChange={(val: string | null) => {
                           field.onChange(val ?? "");
-                          // Auto-save to DB only on successful upload (when val is truthy)
-                          // This prevents losing the key if the user refreshes during transcoding.
+                          // Auto-save successful uploads and removals so DB cleanup runs immediately.
                           if (val) {
                             onSubmit({
                               ...form.getValues(),
                               videoKey: val,
                               duration: form.getValues("duration")
+                            }, true);
+                          } else {
+                            form.setValue("duration", undefined);
+                            form.setValue("spriteKey", undefined);
+                            form.setValue("spriteCols", undefined);
+                            form.setValue("spriteRows", undefined);
+                            form.setValue("spriteInterval", undefined);
+                            form.setValue("spriteWidth", undefined);
+                            form.setValue("spriteHeight", undefined);
+                            form.setValue("lowResKey", undefined);
+                            form.setValue("videoEncryptionKey", undefined);
+                            form.setValue("videoEncryptionIV", undefined);
+                            setCaptionUrl(null);
+                            onSubmit({
+                              ...form.getValues(),
+                              videoKey: null,
+                              duration: null,
+                              spriteKey: null,
+                              spriteCols: null,
+                              spriteRows: null,
+                              spriteInterval: null,
+                              spriteWidth: null,
+                              spriteHeight: null,
+                              lowResKey: null,
+                              videoEncryptionKey: null,
+                              videoEncryptionIV: null,
                             }, true);
                           }
                         }}

@@ -2,6 +2,14 @@ import { DeleteObjectCommand, ListObjectsV2Command, ListObjectsV2CommandOutput }
 import { tigris } from "./tigris";
 import { env } from "./env";
 
+function getVideoBaseKey(key: string) {
+  if (key.startsWith("hls/")) {
+    return key.split("/")[1] ?? key;
+  }
+
+  return key.replace(/\.[^/.]+$/, "");
+}
+
 /**
  * Deletes a file and its associated HLS segments (if any) from Tigris/S3.
  */
@@ -21,7 +29,7 @@ export async function deleteS3File(key: string) {
   }
 
   // 2. Delete the associated folders (HLS and Sprites)
-  const baseName = key.replace(/\.[^/.]+$/, "");
+  const baseName = getVideoBaseKey(key);
   const foldersToCleanup = [
     `hls/${baseName}/`,
     `sprites/${baseName}/`

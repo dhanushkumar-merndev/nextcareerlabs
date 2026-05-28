@@ -13,7 +13,12 @@ export default async function LessonIdPage({ params }: { params: Params }) {
 
   return (
     <div className="py-2.5 md:py-5">
-      <LessonForm data={lesson} chapterId={chapterId} courseId={courseId} />
+      <LessonForm
+        key={lessonId}
+        data={lesson}
+        chapterId={chapterId}
+        courseId={courseId}
+      />
     </div>
   );
 }

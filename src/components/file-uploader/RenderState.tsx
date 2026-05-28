@@ -98,7 +98,7 @@ export function RenderUploadedState({
         <VideoPlayer
           sources={[
             ...(hlsUrl ? [{ src: hlsUrl, type: "application/x-mpegURL" }] : []),
-            { src: previewUrl, type: "video/mp4" },
+            ...(!hlsUrl ? [{ src: previewUrl, type: "video/mp4" }] : []),
           ]}
           className="absolute inset-0 w-full h-full object-cover"
           onLoadedMetadata={onDurationLoaded}

@@ -8,7 +8,9 @@ import {
   invalidateCache,
   GLOBAL_CACHE_KEYS,
   dirtyCourse,
+  incrementGlobalVersion,
 } from "@/lib/redis";
+import { deleteS3File } from "@/lib/s3-delete-utils";
 
 export async function updateLesson(
   values: LessonSchemaType,
@@ -41,6 +43,7 @@ export async function updateLesson(
 
     const isVideoChanged = existingLesson?.videoKey !== result.data.videoKey;
 
+    let oldVideoKeyToDelete: string | null = null;
     const updateStartTime = Date.now();
     await prisma.$transaction(async (tx) => {
       await tx.lesson.update({
@@ -77,20 +80,17 @@ export async function updateLesson(
 
         // Cleanup old S3 files (HLS, Sprites, etc.)
         if (existingLesson?.videoKey) {
-          const { deleteS3File } = await import("@/lib/s3-delete-utils");
-          // Non-blocking cleanup (don't await to avoid slowing down the response)
-          deleteS3File(existingLesson.videoKey).catch((err) =>
-            console.error(
-              "[Cleanup Error] Failed to delete old video assets:",
-              err,
-            ),
-          );
+          oldVideoKeyToDelete = existingLesson.videoKey;
         }
       }
     });
     console.log(
       `[updateLesson] Transaction took ${Date.now() - updateStartTime}ms`,
     );
+
+    if (oldVideoKeyToDelete) {
+      await deleteS3File(oldVideoKeyToDelete);
+    }
 
     // Invalidate caches
     console.log(
@@ -105,6 +105,8 @@ export async function updateLesson(
       invalidateCache(`lesson:questions:${lessonId}`),
       invalidateCache(`lesson:content:${lessonId}`),
       dirtyCourse(result.data.courseId),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.ADMIN_COURSES_VERSION),
+      incrementGlobalVersion(GLOBAL_CACHE_KEYS.COURSES_VERSION),
     ]);
     console.log(
       `[updateLesson] Cache invalidation took ${Date.now() - cacheStartTime}ms`,

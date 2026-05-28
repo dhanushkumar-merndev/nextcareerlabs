@@ -69,9 +69,11 @@ interface UploaderState {
   fileType: "image" | "video";
   transcoding: boolean;
   transcodingProgress: number;
+  transcodeStatus?: string;
   spriteGenerating: boolean;
   spriteStatus?: string;
   spriteUploadProgress: number;
+  uploadStatus?: string;
   isSpriteGenerated?: boolean;
   baseKey?: string | null;
   duration?: number;
@@ -83,6 +85,12 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
   const fileUrl = constructUrl(value || "");
 
   // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
+  const getBaseKey = useCallback((key?: string | null) => {
+    if (!key) return null;
+    if (key.startsWith('hls/')) return key.split('/')[1] ?? null;
+    return key.replace(/\.[^/.]+$/, "");
+  }, []);
+
   const extractedBaseKey = value ? (() => {
     if (value.startsWith('hls/')) return value.split('/')[1];
     return value.replace(/\.[^/.]+$/, "");
@@ -123,8 +131,10 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         objectUrl: undefined,
         transcoding: false,
         transcodingProgress: 0,
+        transcodeStatus: undefined,
         spriteGenerating: false,
         spriteUploadProgress: 0,
+        uploadStatus: undefined,
         audioCompressing: false,
         baseKey: null,
       };
@@ -148,8 +158,10 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     objectUrl: value ? fileUrl : undefined,
     transcoding: false,
     transcodingProgress: 0,
+    transcodeStatus: undefined,
     spriteGenerating: false,
     spriteUploadProgress: 0,
+    uploadStatus: undefined,
     isSpriteGenerated: !!initialSpriteKey || !!extractedBaseKey,
     spriteMetadata: initialSpriteKey ? {
       spriteKey: initialSpriteKey
@@ -161,16 +173,45 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     audioCompressing: false,
   });
 
-  // Sync state when value prop changes (e.g. after router.refresh)
+  // Sync state when value prop changes (route changes, removals, or router.refresh).
   useEffect(() => {
-    if (value !== fileState.key) {
-      setFileState(prev => ({
+    setFileState(prev => {
+      if (value === prev.key && initialDuration === prev.duration) return prev;
+
+      const nextBaseKey = getBaseKey(value);
+      const nextSpriteMetadata = initialSpriteKey
+        ? { spriteKey: initialSpriteKey }
+        : nextBaseKey
+          ? { spriteKey: `sprites/${nextBaseKey}/thumbnails.vtt` }
+          : undefined;
+
+      if (prev.objectUrl?.startsWith("blob:")) {
+        URL.revokeObjectURL(prev.objectUrl);
+      }
+
+      return {
         ...prev,
+        file: null,
         key: value,
-        baseKey: value ? (value.startsWith('hls/') ? value.split('/')[1] : value.replace(/\.[^/.]+$/, "")) : null
-      }));
-    }
-  }, [fileState.key, value]);
+        objectUrl: value ? constructUrl(value) : undefined,
+        baseKey: nextBaseKey,
+        duration: initialDuration,
+        isSpriteGenerated: !!nextSpriteMetadata,
+        spriteMetadata: nextSpriteMetadata,
+        error: false,
+        isDeleting: false,
+        uploading: false,
+        progress: 0,
+        transcoding: false,
+        transcodingProgress: 0,
+        transcodeStatus: undefined,
+        spriteGenerating: false,
+        spriteUploadProgress: 0,
+        uploadStatus: undefined,
+        audioCompressing: false,
+      };
+    });
+  }, [getBaseKey, initialDuration, initialSpriteKey, value]);
 
   // Safety: Prevent closing tab during upload/processing
   useEffect(() => {
@@ -204,6 +245,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             ...s,
             transcoding: true,
             transcodingProgress: 0,
+            transcodeStatus: "Reading video...",
           }));
 
           const duration = await getVideoDuration(file);
@@ -232,14 +274,20 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           }
 
           const { m3u8, segments, audioBlob: transcodedAudio } = await transcodeToHLS(file, (p) => {
-            setFileState((s) => ({ ...s, transcodingProgress: p }));
+            const transcodeStatus =
+              p >= 70 && p < 100
+                ? "Compressing audio..."
+                : p >= 100
+                  ? "Video prepared"
+                  : "Preparing video for streaming...";
+            setFileState((s) => ({ ...s, transcodingProgress: p, transcodeStatus }));
           }, duration, encryptionMetadata ? {
             key: encryptionMetadata.key,
             iv: encryptionMetadata.iv,
             keyUrl: encryptionMetadata.keyUrl
           } : undefined);
           if (isCancelled()) return;
-          setFileState((s) => ({ ...s, transcoding: false }));
+          setFileState((s) => ({ ...s, transcoding: false, transcodeStatus: undefined }));
 
           // Use audio from combined session; fallback to standalone only if needed
           let audioBlob: Blob | null = transcodedAudio;
@@ -286,7 +334,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           if (isCancelled()) return;
 
           // 2. Prepare for upload
-          setFileState((s) => ({ ...s, uploading: true, spriteGenerating: false }));
+          setFileState((s) => ({ ...s, uploading: true, spriteGenerating: false, uploadStatus: "Getting upload URLs..." }));
           const baseKey = `${uuidv4()}-${file.name.replace(/\.[^/.]+$/, "")}`;
 
           // Create the list of all files that need pre-signed URLs
@@ -298,6 +346,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/master.m3u8`,
+              label: "playlist",
 
             },
             ...segments.map((segment) => ({
@@ -307,6 +356,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/${segment.name}`,
+              label: "video stream",
 
             })),
           ];
@@ -320,6 +370,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               isImage: false,
               isKeyDirect: true,
               customKey: `hls/${baseKey}/audio.ogg`,
+              label: "audio",
 
             });
           }
@@ -337,6 +388,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               isImage: false,
               isKeyDirect: true,
               customKey: `sprites/${baseKey}/${spriteResult.spriteFileName}`,
+              label: "preview sprites",
 
             });
 
@@ -349,6 +401,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               isImage: false,
               isKeyDirect: true,
               customKey: vttKey,
+              label: "thumbnail timeline",
 
             });
 
@@ -361,6 +414,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
                 isImage: false,
                 isKeyDirect: true,
                 customKey: `sprites/${baseKey}/preview_low.jpg`,
+                label: "preview image",
 
               });
             }
@@ -381,6 +435,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
 
           // 3. Upload Master Playlist (index 0)
           const m3u8Data = presignedUrls[0];
+          setFileState((s) => ({ ...s, uploadStatus: "Uploading playlist..." }));
           await fetch(m3u8Data.presignedUrl, {
             method: "PUT",
             body: m3u8,
@@ -397,6 +452,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           const uploadFileToS3 = async (index: number, blob: Blob, contentType: string) => {
             if (isCancelled()) return;
             const { presignedUrl } = presignedUrls[index];
+            const label = uploadRequests[index]?.label ?? "file";
             await new Promise<void>((resolve, reject) => {
               const xhr = new XMLHttpRequest();
               activeXHRs.current.add(xhr);
@@ -404,7 +460,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
               const updateProgress = () => {
                 const currentTotalLoaded = loadedBytes.reduce((a, b) => a + b, 0);
                 const globalProgress = Math.min(100, Math.round((currentTotalLoaded / totalBytes) * 100));
-                setFileState((s) => ({ ...s, progress: globalProgress }));
+                setFileState((s) => ({ ...s, progress: globalProgress, uploadStatus: `Uploading ${label}...` }));
               };
 
               // Real-time byte tracking
@@ -473,6 +529,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
 
           // Execute all in parallel (browser will throttle automatically)
           await Promise.all(uploadQueue.map(t => t()));
+          setFileState((s) => ({ ...s, uploadStatus: "Finalizing upload..." }));
 
           // Cleanup HLS blobs from memory
           segments.length = 0;
@@ -504,6 +561,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             baseKey: baseKey,
             duration: duration,
             file: null, // Release the File object from memory (can be hundreds of MB)
+            uploadStatus: undefined,
           }));
           onChange?.(finalKey);
           toast.success("Video processed and uploaded successfully");
@@ -574,6 +632,8 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           transcoding: false,
           audioCompressing: false,
           spriteGenerating: false,
+          transcodeStatus: undefined,
+          uploadStatus: undefined,
           progress: 0,
           error: true,
         }));
@@ -603,9 +663,11 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           fileType: fileTypeAccepted,
           transcoding: false,
           transcodingProgress: 0,
+          transcodeStatus: undefined,
           spriteGenerating: false,
           spriteStatus: undefined,
           spriteUploadProgress: 0,
+          uploadStatus: undefined,
           audioCompressing: false,
 
         });
@@ -658,8 +720,10 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         objectUrl: undefined,
         transcoding: false,
         transcodingProgress: 0,
+        transcodeStatus: undefined,
         spriteGenerating: false,
         spriteUploadProgress: 0,
+        uploadStatus: undefined,
         audioExtracting: false,
         audioProgress: 0,
       }));
@@ -699,16 +763,18 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
       let progress = fileState.progress;
 
       if (fileState.transcoding) {
-        label = "Preparing video for streaming...";
+        label = fileState.transcodeStatus || "Preparing video for streaming...";
         progress = fileState.transcodingProgress;
       }
       else if (fileState.audioCompressing) {
-        label = "Compressing audio...";
+        label = fileState.transcodeStatus || "Compressing audio...";
         progress = fileState.transcodingProgress;
       }
       else if (fileState.spriteGenerating) {
         label = fileState.spriteStatus || "Generating snappy thumbnails...";
         progress = fileState.spriteUploadProgress;
+      } else if (fileState.uploading) {
+        label = fileState.uploadStatus || label;
       }
 
       return (
