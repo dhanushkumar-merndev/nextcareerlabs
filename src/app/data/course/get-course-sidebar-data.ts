@@ -10,8 +10,6 @@ import {
   getUserPendingProgress,
   withDistributedLock,
 } from "@/lib/redis";
-import { hasCourseContentAccess } from "@/lib/course-access";
-
 export async function getCourseSidebarData(
   slug: string,
   clientVersion?: string,
@@ -61,75 +59,108 @@ export async function getCourseSidebarData(
     const recheck = await getCache<unknown>(cacheKey);
     if (recheck) return recheck;
 
-    const course = await prisma.course.findUnique({
+    const courseBase = await prisma.course.findUnique({
       where: { slug },
       select: {
         id: true, title: true, fileKey: true, duration: true,
         level: true, category: true, slug: true, isFree: true,
         freeChaptersCount: true,
         smallDescription: true,
-        chapter: {
-          orderBy: { position: "asc" },
-          select: {
-            title: true, id: true, position: true,
-            lesson: {
-              orderBy: { position: "asc" },
-              select: {
-                id: true, title: true, position: true,
-                description: true, thumbnailKey: true, duration: true,
-                lessonProgress: {
-                  where: { userId: session.id },
-                  select: {
-                    completed: true, quizPassed: true, lessonId: true,
-                    id: true, restrictionTime: true, lastWatched: true,
-                  },
-                },
-              },
-            },
-          },
-        },
       },
     });
 
-    if (!course) {
+    if (!courseBase) {
       const err: { status: "not-found"; course: null } = { status: "not-found", course: null };
       await setCache(cacheKey, err, 2592000);
       return err;
     }
 
-    const enrollment = await prisma.enrollment.findUnique({
-      where: { userId_courseId: { userId: session.id, courseId: course.id } },
-      select: { status: true },
-    });
+    const enrollmentRows = await prisma.$queryRaw<
+      { status: string | null; demoStarted: boolean }[]
+    >`
+      SELECT "status"::text AS "status", "demoStarted"
+      FROM "Enrollment"
+      WHERE "userId" = ${session.id} AND "courseId" = ${courseBase.id}
+      LIMIT 1
+    `;
+    const enrollment = enrollmentRows[0] ?? null;
 
-    const hasAnyDemo = course.isFree && course.freeChaptersCount > 0;
     const hasFullAccess = enrollment?.status === "Granted";
+    const hasDemoAccess = Boolean(enrollment?.demoStarted);
+    const hasCourseDemo = courseBase.isFree && courseBase.freeChaptersCount > 0;
 
-    if (!hasFullAccess && !hasAnyDemo) {
+    if (!hasFullAccess && !hasDemoAccess && !hasCourseDemo) {
       const err: { status: "not-enrolled"; course: null } = { status: "not-enrolled", course: null };
       await setCache(cacheKey, err, 2592000);
       return err;
     }
 
+    const demoBoundary = hasFullAccess ? 999999 : courseBase.freeChaptersCount;
+
+    const [demoChapters, lockedChapters] = await Promise.all([
+      prisma.chapter.findMany({
+        where: { courseId: courseBase.id, position: { lte: demoBoundary } },
+        orderBy: { position: "asc" },
+        select: {
+          title: true, id: true, position: true,
+          lesson: {
+            orderBy: { position: "asc" },
+            select: {
+              id: true, title: true, position: true,
+              description: true, thumbnailKey: true, duration: true,
+              lessonProgress: {
+                where: { userId: session.id },
+                select: {
+                  completed: true, quizPassed: true, lessonId: true,
+                  id: true, restrictionTime: true, lastWatched: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      prisma.chapter.findMany({
+        where: { courseId: courseBase.id, position: { gt: demoBoundary } },
+        orderBy: { position: "asc" },
+        select: {
+          title: true, id: true, position: true,
+          lesson: {
+            orderBy: { position: "asc" },
+            select: { id: true, title: true, position: true },
+          },
+        },
+      }),
+    ]);
+
+    const course = {
+      ...courseBase,
+      chapter: [
+        ...demoChapters.map((ch) => ({
+          ...ch,
+          lesson: ch.lesson.map((lesson) => ({
+            ...lesson,
+            isLocked: false,
+            duration: lesson.duration || 0,
+          })),
+        })),
+        ...lockedChapters.map((ch) => ({
+          ...ch,
+          lesson: ch.lesson.map((lesson) => ({
+            ...lesson,
+            description: null,
+            thumbnailKey: null,
+            duration: 0,
+            isLocked: true,
+            lessonProgress: [],
+          })),
+        })),
+      ],
+    };
+
     if (process.env.NODE_ENV === "development") {
       console.log(`%c[Sidebar] 🗄️  DB COMPUTE done in ${Date.now() - dbStart}ms`, "color: #f97316");
     }
     course.duration = course.duration || 0;
-    course.chapter.forEach((ch) => ch.lesson.forEach((lesson) => {
-      const l = lesson as typeof lesson & { isLocked: boolean };
-      const isLocked = !hasCourseContentAccess({
-        enrollmentStatus: enrollment?.status,
-        isFree: course.isFree,
-        freeChaptersCount: course.freeChaptersCount,
-        chapterPosition: ch.position,
-      });
-
-      l.isLocked = isLocked;
-      l.duration = isLocked ? 0 : l.duration || 0;
-      l.description = isLocked ? null : l.description;
-      l.thumbnailKey = isLocked ? null : l.thumbnailKey;
-      l.lessonProgress = isLocked ? [] : l.lessonProgress;
-    }));
 
     const pending = await getUserPendingProgress(session.id);
     if (Object.keys(pending).length > 0) {

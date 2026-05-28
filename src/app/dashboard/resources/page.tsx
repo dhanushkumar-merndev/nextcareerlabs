@@ -1,4 +1,3 @@
-
 import { ResourcesClient } from "./_components/ResourcesClient";
 
 export const dynamic = 'force-dynamic';

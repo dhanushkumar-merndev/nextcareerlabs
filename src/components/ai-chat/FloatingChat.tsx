@@ -675,13 +675,13 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
         <div
           onMouseDown={onResizeStart}
           onTouchStart={onResizeStart}
-          className="absolute bottom-0 right-0 size-5 cursor-se-resize z-10 flex items-end justify-end"
+          className="absolute bottom-1 right-1 size-5 cursor-se-resize z-10 flex items-end justify-end"
         >
           <svg
             width="10"
             height="10"
             viewBox="0 0 10 10"
-            className="text-muted-foreground/50 mr-0.5 mb-0.5"
+            className="text-primary/80 mr-0.5 mb-0.5"
           >
             <polygon points="10,0 10,10 0,10" fill="currentColor" stroke="none" />
           </svg>

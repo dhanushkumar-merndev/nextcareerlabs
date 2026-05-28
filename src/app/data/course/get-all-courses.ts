@@ -230,7 +230,10 @@ const getAllCoursesInternal = async (
 
     if (onlyAvailable) {
       resultCourses = allCourses
-        .filter((c) => map.get(c.id)?.status !== "Granted")
+        .filter((c) => {
+          const enrollment = map.get(c.id);
+          return enrollment?.status !== "Granted" && !enrollment?.demoStarted;
+        })
         .map((c) => ({
           ...c,
           enrollmentStatus: map.get(c.id)?.displayStatus ?? null,

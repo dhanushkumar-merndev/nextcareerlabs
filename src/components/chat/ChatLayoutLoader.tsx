@@ -7,7 +7,6 @@ import { ChatLayout } from "./ChatLayout";
 const DynamicChatLayout = dynamic(
   () => import("./ChatLayout").then((mod) => mod.ChatLayout),
   {
-    ssr: false,
     loading: () => <div className="flex-1 min-h-0 bg-muted/10 animate-pulse" />,
   },
 );

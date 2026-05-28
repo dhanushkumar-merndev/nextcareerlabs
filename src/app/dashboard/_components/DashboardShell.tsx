@@ -9,35 +9,13 @@ import { SiteHeader } from "@/components/sidebar/site-header";
 
 export function DashboardShell({
   children,
-  isEnrolledHint,
 }: {
   children: React.ReactNode;
-  isEnrolledHint?: boolean;
 }) {
-  const { session, isLoading: sessionLoading } = useSmartSession();
-
-  const { data: enrolledCourses } =
-    useEnrolledCourses(session?.user?.id, sessionLoading);
-
-  const isEnrolled =
-    enrolledCourses !== undefined
-      ? enrolledCourses.length > 0
-      : isEnrolledHint ?? false;
-
-  const prevEnrolled = useRef(isEnrolled);
-
-  useEffect(() => {
-    if (prevEnrolled.current !== isEnrolled) {
-      prevEnrolled.current = isEnrolled;
-      if (typeof document !== "undefined") {
-        document.cookie = `is_enrolled=${isEnrolled}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Lax`;
-      }
-    }
-  }, [isEnrolled]);
 
   return (
     <>
-      <AppSidebar variant="inset" isEnrolled={isEnrolled} />
+      <AppSidebar variant="inset" />
 
       <SidebarInset className="overflow-hidden">
         <SiteHeader />

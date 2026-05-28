@@ -1,15 +1,11 @@
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardShell } from "./_components/DashboardShell";
-import { cookies } from "next/headers";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cookieStore = await cookies();
-  const isEnrolledHeader = cookieStore.get("is_enrolled")?.value === "true";
-
   return (
     <SidebarProvider
       overlap={false}
@@ -20,7 +16,7 @@ export default async function DashboardLayout({
         } as React.CSSProperties
       }
     >
-      <DashboardShell isEnrolledHint={isEnrolledHeader}>
+      <DashboardShell>
         {children}
       </DashboardShell>
     </SidebarProvider>

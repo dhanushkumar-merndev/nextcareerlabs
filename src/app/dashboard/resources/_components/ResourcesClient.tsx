@@ -5,11 +5,15 @@ import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { useSmartSession } from "@/hooks/use-smart-session";
 import { ChatLayoutLoader } from "@/components/chat/ChatLayoutLoader";
 import { Card, CardContent } from "@/components/ui/card";
-import { redirect } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export function ResourcesClient() {
+  const router = useRouter();
   const { session, isLoading: sessionLoading } = useSmartSession();
+  const redirectedRef = useRef(false);
   const userId = session?.user.id;
   const isHydrated = typeof window !== "undefined";
 
@@ -21,7 +25,6 @@ export function ResourcesClient() {
       const cacheKey = "user_resources_access";
       const cached = chatCache.get<boolean>(cacheKey, userId);
 
-      // Tiered Fetch
       try {
         const res = await fetch(
           `/api/user/resources-access?version=${cached?.version || ""}`,
@@ -62,10 +65,17 @@ export function ResourcesClient() {
       typeof window !== "undefined" && userId
         ? chatCache.get<boolean>("user_resources_access", userId)?.timestamp
         : undefined,
-    staleTime: 1800000, // 30 mins
-    refetchInterval: 1800000, // 30 mins
+    staleTime: 1800000,
     refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    if (hasAccess === false && !checkingAccess && isHydrated && !redirectedRef.current) {
+      redirectedRef.current = true;
+      toast.info("You haven't enrolled in any course yet");
+      router.replace("/dashboard");
+    }
+  }, [hasAccess, checkingAccess, isHydrated, router]);
 
   if (!isHydrated || sessionLoading || checkingAccess) {
     return (
@@ -77,11 +87,9 @@ export function ResourcesClient() {
     );
   }
 
-  if (hasAccess === false && !checkingAccess && isHydrated) {
-    redirect("/dashboard");
-  }
-
   if (!userId) return null;
+
+  if (hasAccess === false) return null;
 
   return (
     <Card className="flex-1 min-h-0 border-0 shadow-none bg-transparent">

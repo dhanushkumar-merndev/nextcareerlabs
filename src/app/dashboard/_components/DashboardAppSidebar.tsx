@@ -102,9 +102,8 @@ const data = {
 };
 
 export function AppSidebar({
-  isEnrolled,
   ...props
-}: React.ComponentProps<typeof Sidebar> & { isEnrolled: boolean }) {
+}: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { isMobile, setOpenMobile } = useSidebar();
 
@@ -133,9 +132,6 @@ export function AppSidebar({
       return { ...item, isActive: pathname === item.url };
     })
     .filter((item) => {
-      if (item.title === "Resources") {
-        return isEnrolled;
-      }
       return true;
     });
 

@@ -228,7 +228,8 @@ export async function enrollInCourseAction(
       enrollmentStatus: "Pending",
       message: "Access requested successfully. Please wait for admin approval.",
     };
-  } catch  {
+  } catch (error) {
+    console.error("[enrollInCourseAction]", error);
     return {
       status: "error",
       message: "Failed to Enroll in Course",
@@ -318,7 +319,8 @@ export async function startDemoCourseAction(courseId: string): Promise<ApiRespon
       message: "Demo started",
       enrollmentStatus: "Demo",
     };
-  } catch {
+  } catch (error) {
+    console.error("[startDemoCourseAction]", error);
     return {
       status: "error",
       message: "Failed to start demo",

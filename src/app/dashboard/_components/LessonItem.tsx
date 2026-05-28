@@ -40,8 +40,10 @@ export const LessonItem = memo(function LessonItem({
       onClick={(event) => {
         if (!isLocked) return;
         event.preventDefault();
-        toast.info("Request access to unlock this lesson.");
-        router.push(`/courses/${slug}`);
+        toast.info("Request access to unlock this lesson and continue where you left off.", {
+          action: { label: "Request", onClick: () => router.push(`/courses/${slug}`) },
+          duration: 5000,
+        });
       }}
       className={cn(
         "w-full p-2 md:p-1.5 h-auto flex items-center justify-start rounded-xl transition-all border group relative overflow-hidden",

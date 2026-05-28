@@ -523,7 +523,13 @@ export async function getThreadsAction() {
   let groupWhere: Prisma.ChatGroupWhereInput = { name: { not: "Support", mode: "insensitive" } };
   if (!isAdmin) {
     const userEnrollments = await prisma.enrollment.findMany({
-      where: { userId: session.user.id, status: "Granted" },
+      where: {
+        userId: session.user.id,
+        OR: [
+          { status: "Granted" },
+          { demoStarted: true },
+        ],
+      },
       select: { courseId: true },
     });
     const courseIds = userEnrollments.map((e) => e.courseId);
@@ -598,9 +604,15 @@ export async function getThreadsAction() {
     // User Thread States
     prisma.userThreadState.findMany({ where: { userId: session.user.id } }),
 
-    // Enrolled Courses for Meta
+    // Enrolled Courses for Meta (Granted OR Demo)
     prisma.enrollment.findMany({
-      where: { userId: session.user.id, status: "Granted" },
+      where: {
+        userId: session.user.id,
+        OR: [
+          { status: "Granted" },
+          { demoStarted: true },
+        ],
+      },
       include: { Course: { select: { id: true, title: true } } },
     }),
 
@@ -893,7 +905,13 @@ export async function getThreadMessagesAction(
           course: {
             include: {
               enrollment: {
-                where: { userId: session.user.id, status: "Granted" },
+                where: {
+                  userId: session.user.id,
+                  OR: [
+                    { status: "Granted" },
+                    { demoStarted: true },
+                  ],
+                },
               },
             },
           },
