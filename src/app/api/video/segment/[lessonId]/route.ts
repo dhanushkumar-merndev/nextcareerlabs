@@ -1,75 +1,21 @@
-import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
-import { hasCourseContentAccess } from "@/lib/course-access";
-import { getCurrentUser } from "@/lib/session";
 import { tigris } from "@/lib/tigris";
+import { getAuthorizedVideoAccess } from "@/lib/video-access";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { NextRequest, NextResponse } from "next/server";
 
-function getBaseKey(key: string) {
-  if (key.startsWith("hls/")) return key.split("/")[1] ?? "";
-  return key.replace(/\.[^/.]+$/, "");
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function getSafeSegmentName(req: NextRequest) {
   const requested = req.nextUrl.searchParams.get("file") || "index.ts";
   const fileName = requested.split("?")[0]?.split("/").pop() || "";
 
-  if (!/^[A-Za-z0-9._-]+\.ts$/.test(fileName)) {
+  if (!/^[A-Za-z0-9._-]+\.(ts|m3u8)$/.test(fileName)) {
     return null;
   }
 
   return fileName;
-}
-
-async function getAuthorizedSegmentKey(lessonId: string, segmentName: string) {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return { error: new NextResponse("Unauthorized", { status: 401 }) };
-  }
-
-  const lesson = await prisma.lesson.findUnique({
-    where: { id: lessonId },
-    select: {
-      videoKey: true,
-      Chapter: {
-        select: {
-          position: true,
-          Course: {
-            select: {
-              isFree: true,
-              freeChaptersCount: true,
-              enrollment: {
-                where: { userId: user.id },
-                select: { status: true },
-                take: 1,
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!lesson?.videoKey) {
-    return { error: new NextResponse("Video not found", { status: 404 }) };
-  }
-
-  const enrollment = lesson.Chapter.Course.enrollment[0];
-  const hasAccess = hasCourseContentAccess({
-    isAdmin: user.role === "admin",
-    enrollmentStatus: enrollment?.status,
-    isFree: lesson.Chapter.Course.isFree,
-    freeChaptersCount: lesson.Chapter.Course.freeChaptersCount,
-    chapterPosition: lesson.Chapter.position,
-  });
-
-  if (!hasAccess) {
-    return { error: new NextResponse("Forbidden", { status: 403 }) };
-  }
-
-  return { key: `hls/${getBaseKey(lesson.videoKey)}/${segmentName}` };
 }
 
 export async function GET(
@@ -84,14 +30,17 @@ export async function GET(
       return new NextResponse("Invalid segment", { status: 400 });
     }
 
-    const result = await getAuthorizedSegmentKey(lessonId, segmentName);
+    const auth = await getAuthorizedVideoAccess(
+      lessonId,
+      req.nextUrl.searchParams.get("v"),
+    );
 
-    if (result.error) return result.error;
+    if (auth.error) return auth.error;
 
     const object = await tigris.send(
       new GetObjectCommand({
         Bucket: env.S3_BUCKET_NAME,
-        Key: result.key,
+        Key: `hls/${auth.access!.baseKey}/${segmentName}`,
         Range: req.headers.get("range") ?? undefined,
       }),
     );
@@ -109,7 +58,7 @@ export async function GET(
           ? { "Content-Length": object.ContentLength.toString() }
           : {}),
         ...(object.ContentRange ? { "Content-Range": object.ContentRange } : {}),
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": "private, max-age=31536000, immutable",
       },
     });
   } catch (error) {

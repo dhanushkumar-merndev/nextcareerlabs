@@ -208,6 +208,22 @@ export function VideoPlayer({
 
   const [hasCaptions, setHasCaptions] = useState(!!captionUrl);
 
+  const applyCaptionMode = useCallback((enabled: boolean) => {
+    const player = playerRef.current;
+    if (!player) return;
+
+    const tracks = player.textTracks() as unknown as Array<{
+      kind: string;
+      mode: string;
+    }>;
+
+    for (let i = 0; i < tracks.length; i++) {
+      if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
+        tracks[i].mode = enabled ? "showing" : "disabled";
+      }
+    }
+  }, []);
+
   const addSidecarTrack = useCallback((url: string) => {
     const player = playerRef.current;
     if (!player) return;
@@ -226,7 +242,21 @@ export function VideoPlayer({
     sidecarTrackRef.current = track;
     (track as unknown as { mode: string }).mode = "showing";
     setHasCaptions(true);
-  }, []);
+
+    const showSidecarTrack = () => {
+      if (!captionsEnabledRef.current) return;
+      try {
+        (track as unknown as { mode: string }).mode = "showing";
+        applyCaptionMode(true);
+        setCaptionsEnabled(true);
+      } catch (error) {
+        console.warn("[DEBUG] VideoPlayer: show sidecar track failed", error);
+      }
+    };
+
+    requestAnimationFrame(showSidecarTrack);
+    setTimeout(showSidecarTrack, 150);
+  }, [applyCaptionMode]);
 
   const removeSidecarTrack = useCallback(() => {
     const player = playerRef.current;
@@ -257,22 +287,6 @@ export function VideoPlayer({
   }, []);
 
   removeSidecarTrackRef.current = removeSidecarTrack;
-
-  const applyCaptionMode = useCallback((enabled: boolean) => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    const tracks = player.textTracks() as unknown as Array<{
-      kind: string;
-      mode: string;
-    }>;
-
-    for (let i = 0; i < tracks.length; i++) {
-      if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
-        tracks[i].mode = enabled ? "showing" : "disabled";
-      }
-    }
-  }, []);
 
   useEffect(() => {
     captionsEnabledRef.current = captionsEnabled;
@@ -743,7 +757,10 @@ export function VideoPlayer({
 
     // 2. Add the new sidecar track
     addSidecarTrack(captionUrl);
-  }, [addSidecarTrack, captionUrl, isPlayerReady, removeSidecarTrack]);
+
+    requestAnimationFrame(() => applyCaptionMode(true));
+    setTimeout(() => applyCaptionMode(true), 150);
+  }, [addSidecarTrack, applyCaptionMode, captionUrl, isPlayerReady, removeSidecarTrack]);
 
   // Sync sources when they change after initialization
   useEffect(() => {

@@ -46,7 +46,7 @@
       const ffmpegArgs = [
         "-i", inputName,
         "-c", "copy",
-        "-hls_time", "6",
+        "-hls_time", "1",
         "-hls_playlist_type", "vod",
         "-hls_flags", "single_file",
         "-f", "hls",

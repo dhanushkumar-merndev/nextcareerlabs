@@ -33,7 +33,7 @@ import { toast } from "sonner";
 import { updateLesson } from "../actions";
 import { useRouter } from "next/navigation";
 import { TranscriptionWorkflow } from "./TranscriptionWorkflow";
-import { env } from "@/lib/env";
+
 import { useState } from "react";
 import { chatCache } from "@/lib/chat-cache";
 import { useQueryClient } from "@tanstack/react-query";
@@ -201,14 +201,20 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                     <FormLabel>Video File</FormLabel>
                     <FormControl>
                       <Uploader
-                        onChange={(val: string | null) => {
+                        onChange={(val, metadata) => {
                           field.onChange(val ?? "");
                           // Auto-save successful uploads and removals so DB cleanup runs immediately.
                           if (val) {
                             onSubmit({
                               ...form.getValues(),
                               videoKey: val,
-                              duration: form.getValues("duration")
+                              duration: form.getValues("duration"),
+                              videoEncryptionKey:
+                                metadata?.videoEncryptionKey ??
+                                form.getValues("videoEncryptionKey"),
+                              videoEncryptionIV:
+                                metadata?.videoEncryptionIV ??
+                                form.getValues("videoEncryptionIV"),
                             }, true);
                           } else {
                             form.setValue("duration", undefined);
@@ -268,7 +274,6 @@ export function LessonForm({ data, chapterId, courseId }: iAppProps) {
                 <TranscriptionWorkflow
                   lessonId={data.id}
                   lessonTitle={data.title}
-                  videoUrl={`https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${watchedVideoKey}`}
                   videoKey={watchedVideoKey}
                   onComplete={() => router.refresh()}
                   onTranscriptionUpload={(url) => setCaptionUrl(url)}

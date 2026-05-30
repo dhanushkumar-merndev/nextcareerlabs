@@ -84,9 +84,14 @@ export interface SpriteMetadata {
   lowResKey?: string;
 }
 
+interface VideoUploadMetadata {
+  videoEncryptionKey?: string | null;
+  videoEncryptionIV?: string | null;
+}
+
 interface iAppProps {
   value?: string | null;
-  onChange: (value: string | null) => void;
+  onChange: (value: string | null, metadata?: VideoUploadMetadata) => void;
   onDurationChange?: (duration: number) => void;
   onSpriteChange?: (sprite: SpriteMetadata) => void;
   fileTypeAccepted: "image" | "video";
@@ -135,6 +140,44 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     return value.replace(/\.[^/.]+$/, "");
   })() : null;
 
+  const getHlsPlaylistUrl = useCallback((id: string, baseKey: string) => {
+    const params = new URLSearchParams({ v: baseKey });
+    return `/api/video/playlist/${id}?${params.toString()}`;
+  }, []);
+
+  const isHlsPlayable = useCallback(async (playlistUrl: string) => {
+    const playlistResponse = await fetch(playlistUrl, { cache: "no-store" });
+    if (!playlistResponse.ok) return false;
+
+    const playlist = await playlistResponse.text();
+    if (!playlist.includes("#EXTM3U")) return false;
+
+    const keyUri = playlist.match(/#EXT-X-KEY[^\n]*URI="([^"]+)"/)?.[1];
+    if (keyUri) {
+      const keyResponse = await fetch(new URL(keyUri, window.location.href), {
+        cache: "no-store",
+      });
+      if (!keyResponse.ok) return false;
+    }
+
+    const firstSegmentUri = playlist
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line && !line.startsWith("#"));
+
+    if (!firstSegmentUri) return false;
+
+    const segmentResponse = await fetch(
+      new URL(firstSegmentUri, window.location.href),
+      {
+        cache: "no-store",
+        headers: { Range: "bytes=0-0" },
+      },
+    );
+
+    return segmentResponse.ok || segmentResponse.status === 206;
+  }, []);
+
   // ── Cancel Infrastructure ──
   const abortRef = useRef<AbortController>(new AbortController());
   const activeXHRs = useRef<Set<XMLHttpRequest>>(new Set());
@@ -153,6 +196,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
 
     // 4. Reset state to empty
+    setHlsReady(false);
     setFileState(prev => {
       // Revoke blob URL if exists
       if (prev.objectUrl && prev.objectUrl.startsWith('blob:')) {
@@ -184,6 +228,11 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
 
     toast.info("Upload cancelled");
   }, [fileTypeAccepted]);
+
+  const justUploadedRef = useRef(false);
+  const [hlsReady, setHlsReady] = useState(
+    value ? !!lessonId : false
+  );
 
   const [fileState, setFileState] = useState<UploaderState>({
     error: false,
@@ -264,12 +313,46 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [fileState.uploading, fileState.transcoding, fileState.spriteGenerating]);
 
+  // After upload, poll until HLS playlist is confirmed available (DB save completed)
+  useEffect(() => {
+    if (!fileState.baseKey || !lessonId || fileState.uploading || fileState.file) {
+      return;
+    }
+
+    const baseKey = fileState.baseKey;
+
+    if (justUploadedRef.current) {
+      justUploadedRef.current = false;
+      let cancelled = false;
+      const playlistUrl = getHlsPlaylistUrl(lessonId, baseKey);
+      const poll = async () => {
+        while (!cancelled) {
+          try {
+            if (await isHlsPlayable(playlistUrl)) {
+              if (!cancelled) setHlsReady(true);
+              return;
+            }
+          } catch {}
+          await new Promise(r => setTimeout(r, 800));
+        }
+      };
+      poll();
+      return () => { cancelled = true; };
+    } else {
+      setHlsReady(true);
+    }
+  }, [fileState.baseKey, getHlsPlaylistUrl, isHlsPlayable, lessonId, fileState.uploading, fileState.file]);
+
   const uploadFile = useCallback(
     async (file: File) => {
       // Capture the signal NOW so it stays aborted even after handleCancelUpload
       // replaces abortRef.current with a fresh controller.
       const signal = abortRef.current.signal;
       const isCancelled = () => signal.aborted;
+
+      if (fileTypeAccepted === "video") {
+        setHlsReady(false);
+      }
 
       setFileState((prevState) => ({
         ...prevState,
@@ -606,7 +689,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           spriteResult = null;
 
 
-          const finalKey = `${baseKey}.${file.name.split(".").pop()}`;
+          const finalKey = `hls/${baseKey}/master.m3u8`;
 
           // Update Metadata if sprites were generated
           if (vttKey) {
@@ -630,9 +713,14 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             key: finalKey,
             baseKey: baseKey,
             duration: duration,
+            file: null, // Release the File object from memory (can be hundreds of MB)
             uploadStatus: undefined,
           }));
-          onChange?.(finalKey);
+          justUploadedRef.current = true;
+          onChange?.(finalKey, encryptionMetadata ? {
+            videoEncryptionKey: encryptionMetadata.keyBase64,
+            videoEncryptionIV: encryptionMetadata.iv,
+          } : undefined);
           toast.success("Video processed and uploaded successfully");
           // UNLOCK: Finished Memory-Intensive Phase
           (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
@@ -757,6 +845,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
   async function handleRemoveFile() {
     if (fileState.isDeleting || !fileState.objectUrl) return;
     try {
+      setHlsReady(false);
       setFileState((prevState) => ({
         ...prevState,
         isDeleting: true,
@@ -885,9 +974,14 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
       }
 
       const isExistingVideo = !fileState.file;
-      const hlsUrl = (isExistingVideo && lessonId && fileState.baseKey)
-        ? `/api/video/playlist/${lessonId}`
+      const hlsUrl = (isExistingVideo && lessonId && fileState.baseKey && hlsReady)
+        ? getHlsPlaylistUrl(lessonId, fileState.baseKey)
         : undefined;
+
+      // Show loading while waiting for HLS playlist to become available (DB save in progress)
+      if (isExistingVideo && lessonId && fileState.baseKey && !hlsReady) {
+        return <RenderUploadingState progress={100} label="Preparing video for playback..." />;
+      }
 
       // Reactive Sprite Metadata: Use state if available (new upload), otherwise derive from key (existing)
       const effectiveSpriteMetadata = fileState.spriteMetadata || (extractedBaseKey ? {

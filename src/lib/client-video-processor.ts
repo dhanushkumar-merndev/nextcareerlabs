@@ -46,7 +46,7 @@ async function ensureScriptsLoaded() {
   }
 
   await loadScript(`/ffmpeg/ffmpeg.js?v=final-1`);
-  await loadScript(`/ffmpeg/processor.js?v=single-ts-copy-validated-aac-1`);
+  await loadScript(`/ffmpeg/processor.js?v=single-ts-copy-hls-1s-1`);
 }
 
 export async function transcodeToHLS(

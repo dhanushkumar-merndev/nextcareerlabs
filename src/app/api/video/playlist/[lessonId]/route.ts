@@ -1,15 +1,14 @@
-import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
-import { hasCourseContentAccess } from "@/lib/course-access";
-import { getCurrentUser } from "@/lib/session";
 import { tigris } from "@/lib/tigris";
+import { getAuthorizedVideoAccess } from "@/lib/video-access";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { NextRequest, NextResponse } from "next/server";
 
-function getBaseKey(key: string) {
-  if (key.startsWith("hls/")) return key.split("/")[1] ?? "";
-  return key.replace(/\.[^/.]+$/, "");
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const SIGNED_SEGMENT_URL_TTL_SECONDS = 6 * 60 * 60;
 
 function getPlaylistMediaFile(line: string) {
   try {
@@ -20,23 +19,55 @@ function getPlaylistMediaFile(line: string) {
   }
 }
 
-function rewritePlaylist(playlist: string, segmentUrl: string, keyUrl: string) {
-  return playlist
-    .split("\n")
-    .map((line) => {
-      const trimmed = line.trim();
-      if (!trimmed) return line;
+async function getSignedSegmentUrl(baseKey: string, file: string) {
+  return getSignedUrl(
+    tigris,
+    new GetObjectCommand({
+      Bucket: env.S3_BUCKET_NAME,
+      Key: `hls/${baseKey}/${file}`,
+    }),
+    { expiresIn: SIGNED_SEGMENT_URL_TTL_SECONDS },
+  );
+}
 
-      if (trimmed.startsWith("#EXT-X-KEY")) {
-        return line.replace(/URI="[^"]*"/, `URI="${keyUrl}"`);
-      }
+async function rewritePlaylist(
+  playlist: string,
+  keyUrl: string,
+  baseKey: string,
+) {
+  const signedSegmentUrls = new Map<string, string>();
+  const rewrittenLines = [];
 
-      if (trimmed.startsWith("#")) return line;
+  for (const line of playlist.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      rewrittenLines.push(line);
+      continue;
+    }
 
-      const file = getPlaylistMediaFile(trimmed);
-      return `${segmentUrl}?file=${encodeURIComponent(file)}`;
-    })
-    .join("\n");
+    if (trimmed.startsWith("#EXT-X-KEY")) {
+      rewrittenLines.push(line.replace(/URI="[^"]*"/, `URI="${keyUrl}"`));
+      continue;
+    }
+
+    if (trimmed.startsWith("#")) {
+      rewrittenLines.push(line);
+      continue;
+    }
+
+    const file = getPlaylistMediaFile(trimmed);
+    const cachedUrl = signedSegmentUrls.get(file);
+    if (cachedUrl) {
+      rewrittenLines.push(cachedUrl);
+      continue;
+    }
+
+    const signedUrl = await getSignedSegmentUrl(baseKey, file);
+    signedSegmentUrls.set(file, signedUrl);
+    rewrittenLines.push(signedUrl);
+  }
+
+  return rewrittenLines.join("\n");
 }
 
 export async function GET(
@@ -45,53 +76,13 @@ export async function GET(
 ) {
   try {
     const { lessonId } = await params;
-    const user = await getCurrentUser();
+    const auth = await getAuthorizedVideoAccess(
+      lessonId,
+      req.nextUrl.searchParams.get("v"),
+    );
+    if (auth.error) return auth.error;
 
-    if (!user) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
-      select: {
-        videoKey: true,
-        Chapter: {
-          select: {
-            position: true,
-            Course: {
-              select: {
-                isFree: true,
-                freeChaptersCount: true,
-                enrollment: {
-                  where: { userId: user.id },
-                  select: { status: true },
-                  take: 1,
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!lesson?.videoKey) {
-      return new NextResponse("Video not found", { status: 404 });
-    }
-
-    const enrollment = lesson.Chapter.Course.enrollment[0];
-    const hasAccess = hasCourseContentAccess({
-      isAdmin: user.role === "admin",
-      enrollmentStatus: enrollment?.status,
-      isFree: lesson.Chapter.Course.isFree,
-      freeChaptersCount: lesson.Chapter.Course.freeChaptersCount,
-      chapterPosition: lesson.Chapter.position,
-    });
-
-    if (!hasAccess) {
-      return new NextResponse("Forbidden", { status: 403 });
-    }
-
-    const baseKey = getBaseKey(lesson.videoKey);
+    const baseKey = auth.access!.baseKey;
     const playlistKey = `hls/${baseKey}/master.m3u8`;
 
     const playlistObject = await tigris.send(
@@ -106,14 +97,14 @@ export async function GET(
       return new NextResponse("Playlist not found", { status: 404 });
     }
 
-    const keyUrl = `${req.nextUrl.origin}/api/video/key/${lessonId}`;
-    const segmentUrl = `${req.nextUrl.origin}/api/video/segment/${lessonId}`;
-    const rewrittenPlaylist = rewritePlaylist(playlist, segmentUrl, keyUrl);
+    const keyParams = new URLSearchParams({ v: baseKey });
+    const keyUrl = `${req.nextUrl.origin}/api/video/key/${lessonId}?${keyParams.toString()}`;
+    const rewrittenPlaylist = await rewritePlaylist(playlist, keyUrl, baseKey);
 
     return new NextResponse(rewrittenPlaylist, {
       headers: {
         "Content-Type": "application/vnd.apple.mpegurl",
-        "Cache-Control": "private, max-age=300",
+        "Cache-Control": "no-store, max-age=0",
       },
     });
   } catch (error) {

@@ -25,7 +25,6 @@ import {
 interface TranscriptionWorkflowProps {
   lessonId: string;
   lessonTitle: string;
-  videoUrl?: string;
   videoKey?: string;
   onComplete?: () => void;
   onTranscriptionUpload?: (url: string) => void;
@@ -69,9 +68,20 @@ export function TranscriptionWorkflow({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Derive compressed audio URL from videoKey
-  const audioUrl = videoKey && videoKey.includes('.')
-    ? `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/hls/${videoKey.substring(0, videoKey.lastIndexOf('.'))}/audio.ogg`
-    : null;
+  // Handles both old format ("uuid.mp4") and new format ("hls/uuid/master.m3u8")
+  const audioUrl = (() => {
+    if (!videoKey) return null;
+    let baseKey: string;
+    if (videoKey.startsWith('hls/')) {
+      baseKey = videoKey.split('/')[1] ?? '';
+    } else if (videoKey.includes('.')) {
+      baseKey = videoKey.substring(0, videoKey.lastIndexOf('.'));
+    } else {
+      baseKey = videoKey;
+    }
+    if (!baseKey) return null;
+    return `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/hls/${baseKey}/audio.ogg`;
+  })();
 
   const refreshPreviewCaptions = async () => {
     const check = await getTranscription(lessonId);

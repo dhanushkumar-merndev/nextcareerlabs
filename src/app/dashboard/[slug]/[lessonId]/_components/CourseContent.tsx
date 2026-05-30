@@ -139,6 +139,11 @@ const ONE_YEAR_TTL = 365 * 24 * 60 * 60 * 1000;
 const PROGRESS_WRITE_INTERVAL_MS = 5000;
 const DELTA_WRITE_INTERVAL_MS = 10000;
 
+function getVideoBaseKey(key: string) {
+  if (key.startsWith("hls/")) return key.split("/")[1] ?? "";
+  return key.replace(/\.[^/.]+$/, "");
+}
+
 function VideoPlayer({
   thumbnailkey,
   videoKey,
@@ -209,7 +214,7 @@ function VideoPlayer({
 
     // 2. Fallback: If no spriteKey but we have a videoKey, infer standard VTT path
     if (videoKey) {
-      const baseKey = videoKey.replace(/\.[^/.]+$/, "");
+      const baseKey = getVideoBaseKey(videoKey);
       const inferredKey = `sprites/${baseKey}/thumbnails.vtt`;
       // Sprites stay in the PUBLIC bucket for performance/simplicity
       const inferredUrl = `https://${env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES}.t3.storage.dev/${inferredKey}`;
@@ -963,7 +968,11 @@ function VideoPlayer({
           "%c[■ Video] 🟡 LOCAL HIT → using cached signed URLs (no S3 call)",
           "color: #eab308; font-weight: bold",
         );
-        if (cachedUrls.data.hls) setHlsUrl(cachedUrls.data.hls);
+        if (cachedUrls.data.hls && videoKey.startsWith('hls/')) {
+          setHlsUrl(cachedUrls.data.hls);
+        } else {
+          setHlsUrl(null);
+        }
         if (cachedUrls.data.video) setVideoUrl(cachedUrls.data.video);
         if (cachedUrls.data.caption !== undefined)
           setCaptionUrl(cachedUrls.data.caption || undefined);
@@ -976,7 +985,10 @@ function VideoPlayer({
         "color: #f97316; font-weight: bold",
       );
 
-      const playlistUrl = `/api/video/playlist/${lessonId}`;
+      const baseKey = getVideoBaseKey(videoKey);
+      const playlistUrl = `/api/video/playlist/${lessonId}?${new URLSearchParams({
+        v: baseKey,
+      }).toString()}`;
 
       const keysToSign = [videoKey];
       if (transcriptionUrl && !transcriptionUrl.startsWith("http")) {
@@ -992,8 +1004,14 @@ function VideoPlayer({
         const urlsToCache: { hls?: string; video?: string; caption?: string } =
           {};
 
-        setHlsUrl(playlistUrl);
-        urlsToCache.hls = playlistUrl;
+        if (videoKey.startsWith('hls/')) {
+          setHlsUrl(playlistUrl);
+          urlsToCache.hls = playlistUrl;
+        } else {
+          setHlsUrl(null);
+          urlsToCache.hls = undefined;
+        }
+
         if (urls[videoKey]) {
           setVideoUrl(urls[videoKey]);
           urlsToCache.video = urls[videoKey];
@@ -1100,7 +1118,7 @@ function VideoPlayer({
     >
       {sources.length > 0 && (
         <CustomPlayer
-          key={lessonId}
+          key={hlsUrl ?? videoUrl ?? lessonId}
           sources={sources}
           poster={thumbnailUrl}
           initialTime={resumeTime}
