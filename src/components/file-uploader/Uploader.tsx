@@ -12,7 +12,12 @@ import {
 import { toast } from "sonner";
 import { v4 as uuidv4 } from "uuid";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { transcodeToHLS, compressAudio } from "@/lib/client-video-processor";
+import {
+  MAX_BROWSER_TRANSCODE_SIZE_BYTES,
+  MAX_BROWSER_TRANSCODE_SIZE_LABEL,
+  transcodeToHLS,
+  compressAudio,
+} from "@/lib/client-video-processor";
 import { Loader2 } from "lucide-react";
 import { SpriteGenerator } from "@/lib/video/sprite-generator";
 
@@ -624,7 +629,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         const uploadErr = error as Error | null;
         // Don't show error toast if it was a user-initiated cancel
         if (isCancelled() || uploadErr?.message === "Upload cancelled" || uploadErr?.name === "AbortError") return;
-        toast.error("Something went wrong during upload");
+        toast.error(uploadErr?.message || "Something went wrong during upload");
         (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
         setFileState((prevState) => ({
           ...prevState,
@@ -751,7 +756,11 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         toast.error("Only one file can be uploaded at a time.");
       }
       if (fileSizeExceeded) {
-        toast.error("The file exceeds the maximum size of 5MB.");
+        toast.error(
+          `The file exceeds the maximum size of ${
+            fileTypeAccepted === "video" ? MAX_BROWSER_TRANSCODE_SIZE_LABEL : "5MB"
+          }.`,
+        );
       }
     }
   }
@@ -863,7 +872,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     maxFiles: 1,
     multiple: false,
     maxSize:
-      fileTypeAccepted === "video" ? 2 * 1024 * 1024 * 1024 : 5 * 1024 * 1024,
+      fileTypeAccepted === "video" ? MAX_BROWSER_TRANSCODE_SIZE_BYTES : 5 * 1024 * 1024,
     onDropRejected: rejectedFiles,
     disabled: fileState.uploading || !!fileState.objectUrl || fileState.transcoding || fileState.spriteGenerating,
   });

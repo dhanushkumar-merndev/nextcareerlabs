@@ -11,17 +11,30 @@ function getBaseKey(key: string) {
   return key.replace(/\.[^/.]+$/, "");
 }
 
-function rewritePlaylistSegments(playlist: string, segmentUrl: string) {
+function getPlaylistMediaFile(line: string) {
+  try {
+    const parsed = new URL(line);
+    return parsed.pathname.split("/").pop() || "index.ts";
+  } catch {
+    return line.split("?")[0]?.split("/").pop() || "index.ts";
+  }
+}
+
+function rewritePlaylist(playlist: string, segmentUrl: string, keyUrl: string) {
   return playlist
     .split("\n")
     .map((line) => {
       const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) return line;
-      if (trimmed === "index.ts" || trimmed.endsWith("/index.ts")) {
-        return segmentUrl;
+      if (!trimmed) return line;
+
+      if (trimmed.startsWith("#EXT-X-KEY")) {
+        return line.replace(/URI="[^"]*"/, `URI="${keyUrl}"`);
       }
-      if (trimmed.startsWith("http")) return line;
-      return segmentUrl;
+
+      if (trimmed.startsWith("#")) return line;
+
+      const file = getPlaylistMediaFile(trimmed);
+      return `${segmentUrl}?file=${encodeURIComponent(file)}`;
     })
     .join("\n");
 }
@@ -94,8 +107,9 @@ export async function GET(
     }
 
     const segmentUrl = `${req.nextUrl.origin}/api/video/segment/${lessonId}`;
+    const keyUrl = `${req.nextUrl.origin}/api/video/key/${lessonId}`;
 
-    return new NextResponse(rewritePlaylistSegments(playlist, segmentUrl), {
+    return new NextResponse(rewritePlaylist(playlist, segmentUrl, keyUrl), {
       headers: {
         "Content-Type": "application/vnd.apple.mpegurl",
         "Cache-Control": "private, max-age=300",

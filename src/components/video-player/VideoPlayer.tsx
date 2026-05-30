@@ -155,6 +155,9 @@ export function VideoPlayer({
   const videoRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<ReturnType<typeof videojs> | null>(null);
+  const sourceList = sources || (src ? [{ src, type }] : []);
+  const sourcesRef = useRef<VideoSource[]>(sourceList);
+  sourcesRef.current = sourceList;
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -309,7 +312,7 @@ export function VideoPlayer({
       }
       videoRef.current.appendChild(videoElement);
 
-      const currentSources = sources || (src ? [{ src, type }] : []);
+      const currentSources = sourcesRef.current;
 
       const player = (playerRef.current = videojs(videoElement, {
         autoplay: false,
@@ -423,6 +426,38 @@ export function VideoPlayer({
       player.on("ended", () => onEnded?.());
       player.on("error", () => {
         const err = player.error();
+        const availableSources = sourcesRef.current;
+        const currentSource = player.currentSource() as unknown as {
+          src?: string;
+        };
+        const currentSrc = currentSource.src || player.currentSrc();
+        const normalizeSrc = (value: string) => {
+          try {
+            return new URL(value, window.location.href).href;
+          } catch {
+            return value;
+          }
+        };
+        const normalizedCurrentSrc = normalizeSrc(currentSrc);
+        const currentIndex = availableSources.findIndex(
+          (source) => normalizeSrc(source.src) === normalizedCurrentSrc,
+        );
+        const fallbackSource = availableSources[currentIndex >= 0 ? currentIndex + 1 : 1];
+
+        if (fallbackSource) {
+          console.warn("VideoPlayer: Source failed, trying fallback source", {
+            failed: currentSrc,
+            fallback: fallbackSource.src,
+            error: err,
+          });
+          setError(null);
+          setIsBuffering(true);
+          (player as unknown as { error: (err: null) => void }).error(null);
+          player.src(fallbackSource);
+          player.load();
+          return;
+        }
+
         const errorMsg = err
           ? `Error ${err.code}: ${err.message}`
           : "An unknown error occurred";
@@ -665,8 +700,7 @@ export function VideoPlayer({
   // Sync sources when they change after initialization
   useEffect(() => {
     if (playerRef.current) {
-      const currentSources = sources || (src ? [{ src, type }] : []);
-      playerRef.current.src(currentSources);
+      playerRef.current.src(sourcesRef.current);
     }
   }, [sources, src, type]);
 

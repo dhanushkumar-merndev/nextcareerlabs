@@ -7,6 +7,9 @@ export interface TranscodeResult {
   audioBlob: Blob | null;
 }
 
+export const MAX_BROWSER_TRANSCODE_SIZE_BYTES = 1280 * 1024 * 1024;
+export const MAX_BROWSER_TRANSCODE_SIZE_LABEL = "1.25GB";
+
 // Helper to load a script dynamically
 function loadScript(url: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -28,8 +31,8 @@ function loadScript(url: string): Promise<void> {
   });
 }
 
-// Note: ffmpeg.wasm has a hard memory limit (~2GB). 
-// Processing files > 1.5GB on the client usually results in "out of bounds" crashes.
+// Note: ffmpeg.wasm has a hard memory limit (~2GB). Even with WORKERFS input
+// mounting, very large outputs can still exhaust the browser WASM heap.
 
 async function ensureScriptsLoaded() {
   if ("FFmpegWASM" in window && "transcodeVideoToHLS" in window) {
@@ -37,7 +40,7 @@ async function ensureScriptsLoaded() {
   }
 
   await loadScript(`/ffmpeg/ffmpeg.js?v=final-1`);
-  await loadScript(`/ffmpeg/processor.js?v=opt-2`);
+  await loadScript(`/ffmpeg/processor.js?v=segmented-aac-1`);
 }
 
 export async function transcodeToHLS(
@@ -46,6 +49,12 @@ export async function transcodeToHLS(
   duration: number,
   encryption?: { key: Uint8Array; iv: string; keyUrl: string; keyBase64?: string }
 ): Promise<TranscodeResult> {
+  if (file.size > MAX_BROWSER_TRANSCODE_SIZE_BYTES) {
+    throw new Error(
+      `This video is too large for in-browser processing. Please use a file under ${MAX_BROWSER_TRANSCODE_SIZE_LABEL}.`,
+    );
+  }
+
   await ensureScriptsLoaded();
 
   if (!window.transcodeVideoToHLS) {

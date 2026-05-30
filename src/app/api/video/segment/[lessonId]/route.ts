@@ -11,7 +11,18 @@ function getBaseKey(key: string) {
   return key.replace(/\.[^/.]+$/, "");
 }
 
-async function getAuthorizedSegmentKey(lessonId: string) {
+function getSafeSegmentName(req: NextRequest) {
+  const requested = req.nextUrl.searchParams.get("file") || "index.ts";
+  const fileName = requested.split("?")[0]?.split("/").pop() || "";
+
+  if (!/^[A-Za-z0-9._-]+\.ts$/.test(fileName)) {
+    return null;
+  }
+
+  return fileName;
+}
+
+async function getAuthorizedSegmentKey(lessonId: string, segmentName: string) {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -58,7 +69,7 @@ async function getAuthorizedSegmentKey(lessonId: string) {
     return { error: new NextResponse("Forbidden", { status: 403 }) };
   }
 
-  return { key: `hls/${getBaseKey(lesson.videoKey)}/index.ts` };
+  return { key: `hls/${getBaseKey(lesson.videoKey)}/${segmentName}` };
 }
 
 export async function GET(
@@ -67,7 +78,13 @@ export async function GET(
 ) {
   try {
     const { lessonId } = await params;
-    const result = await getAuthorizedSegmentKey(lessonId);
+    const segmentName = getSafeSegmentName(req);
+
+    if (!segmentName) {
+      return new NextResponse("Invalid segment", { status: 400 });
+    }
+
+    const result = await getAuthorizedSegmentKey(lessonId, segmentName);
 
     if (result.error) return result.error;
 
