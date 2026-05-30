@@ -2,11 +2,12 @@ import { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { checkRateLimit } from "@/lib/redis";
-import { generateMCQPromptFromStudyNotes } from "@/lib/mcq/mcq-prompt-generator";
+import { generateMCQPromptFromSummary } from "@/lib/mcq/mcq-prompt-generator";
 import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
-const MCQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const MCQ_MODEL = "qwen/qwen3-32b";
+const SUMMARY_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
 
 type GroqStreamChunk = {
   choices?: Array<{
@@ -108,21 +109,40 @@ async function callGroq(body: Record<string, unknown>) {
   throw new Error(lastError);
 }
 
-async function groqJSONRequest(messages: Array<{ role: "system" | "user"; content: string }>, maxTokens: number) {
+function enqueueEvent(controller: ReadableStreamDefaultController<Uint8Array>, event: StreamEvent) {
+  controller.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`));
+}
+
+async function summarizeChunk(
+  chunk: VttChunk,
+  lessonTitle: string,
+  index: number,
+  total: number,
+): Promise<string> {
   const response = await callGroq({
-    model: MCQ_MODEL,
-    messages,
+    model: SUMMARY_MODEL,
+    messages: [
+      {
+        role: "system",
+        content:
+          "Summarize this transcript chunk into concise study notes. Preserve key concepts, definitions, processes, examples, and important terms. Maximum 500 tokens. No JSON.",
+      },
+      {
+        role: "user",
+        content: `Lesson: ${lessonTitle}
+Chunk ${index + 1}/${total} (${chunk.startTime} to ${chunk.endTime})
+
+TRANSCRIPT CHUNK:
+${chunk.text}`,
+      },
+    ],
     temperature: 0.2,
-    max_tokens: maxTokens,
+    max_tokens: 700,
     stream: false,
   });
 
   const payload = await response.json();
   return String(payload?.choices?.[0]?.message?.content || "");
-}
-
-function enqueueEvent(controller: ReadableStreamDefaultController<Uint8Array>, event: StreamEvent) {
-  controller.enqueue(new TextEncoder().encode(`${JSON.stringify(event)}\n`));
 }
 
 async function streamMCQs(
@@ -132,56 +152,30 @@ async function streamMCQs(
 ) {
   try {
     const chunks = chunkVttForMCQs(vttContent);
-    const notes: string[] = [];
+    const summaries: string[] = [];
 
     enqueueEvent(controller, {
       type: "status",
-      message: `Preparing study notes from ${chunks.length} transcript chunks...`,
+      message: `Summarizing ${chunks.length} transcript chunks...`,
     });
 
     for (let index = 0; index < chunks.length; index += 1) {
       const chunk = chunks[index];
       enqueueEvent(controller, {
         type: "status",
-        message: `Reading transcript chunk ${index + 1}/${chunks.length}...`,
+        message: `Summarizing chunk ${index + 1}/${chunks.length}...`,
       });
 
-      const summary = await groqJSONRequest(
-        [
-          {
-            role: "system",
-            content:
-              "You extract professional assessment notes from transcript chunks. Return compact bullet notes only. No JSON.",
-          },
-          {
-            role: "user",
-            content: `Lesson: ${lessonTitle}
-Chunk ${index + 1}/${chunks.length} (${chunk.startTime} to ${chunk.endTime})
+      const summary = await summarizeChunk(chunk, lessonTitle, index, chunks.length);
 
-Extract 8-12 assessment-worthy learning points. Preserve:
-- core definitions and distinctions
-- process/workflow steps
-- examples used to explain concepts
-- cause/effect and benefits
-- terms learners may confuse
-
-Avoid trainer/platform/admin details unless they explain a technical concept.
-
-TRANSCRIPT CHUNK:
-${chunk.text}`,
-          },
-        ],
-        700,
-      );
-
-      notes.push(`Chunk ${index + 1} (${chunk.startTime} to ${chunk.endTime})\n${summary.trim()}`);
+      summaries.push(`Chunk ${index + 1} (${chunk.startTime} to ${chunk.endTime})\n${summary.trim()}`);
       if (index < chunks.length - 1) await sleep(300);
     }
 
-    const studyNotes = notes.join("\n\n").slice(0, 14000);
+    const combinedSummary = summaries.join("\n\n").slice(0, 6000);
     enqueueEvent(controller, {
       type: "status",
-      message: "Generating final 20-question MCQ JSON...",
+      message: "Generating 20 MCQs with Qwen...",
     });
 
     const groqResponse = await callGroq({
@@ -194,11 +188,11 @@ ${chunk.text}`,
         },
         {
           role: "user",
-          content: generateMCQPromptFromStudyNotes(studyNotes, lessonTitle),
+          content: generateMCQPromptFromSummary(combinedSummary, lessonTitle),
         },
       ],
       temperature: 0.15,
-      max_tokens: 5200,
+      max_tokens: 4000,
       stream: true,
     });
 
@@ -209,6 +203,7 @@ ${chunk.text}`,
     const reader = groqResponse.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let jsonStarted = false;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -226,10 +221,17 @@ ${chunk.text}`,
         if (!data || data === "[DONE]") continue;
 
         const parsed = JSON.parse(data) as GroqStreamChunk;
-        const content = parsed.choices?.[0]?.delta?.content;
-        if (content) {
-          enqueueEvent(controller, { type: "token", token: content });
+        let content = parsed.choices?.[0]?.delta?.content;
+        if (!content) continue;
+
+        if (!jsonStarted) {
+          const jsonStart = content.indexOf("{");
+          if (jsonStart === -1) continue;
+          jsonStarted = true;
+          content = content.slice(jsonStart);
         }
+
+        enqueueEvent(controller, { type: "token", token: content });
       }
     }
 

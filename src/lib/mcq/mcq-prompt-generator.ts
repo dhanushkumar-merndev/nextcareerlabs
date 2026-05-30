@@ -61,6 +61,50 @@ IMPORTANT:
 `;
 }
 
+export function generateMCQPromptFromSummary(
+  summary: string,
+  lessonTitle: string,
+): string {
+  return `Generate exactly 20 professional multiple-choice assessment questions from this lesson summary.
+
+LESSON: ${lessonTitle}
+
+SUMMARY:
+${summary}
+
+QUALITY REQUIREMENTS:
+- Questions must assess understanding of core concepts from the summary
+- Cover definitions, comparisons, workflows, cause/effect, examples, and applied scenarios
+- Use polished LMS-style wording suitable for a paid course assessment
+- Every question should be specific enough that a learner must understand the lesson context
+- Each question must have exactly 4 plausible options
+- Distractors must be realistic, not silly or obviously wrong
+- Only ONE option can be correct
+- Include concise but useful explanations, 1 sentence each
+- Difficulty distribution: 8 foundational, 7 intermediate, 5 applied/tough
+- Correct index must be balanced across 0, 1, 2, and 3
+- Do not ask about trainer identity, platform admin details, schedules, fees, or irrelevant company background
+- Do not invent content outside the summary
+
+OUTPUT FORMAT:
+{
+  "questions": [
+    {
+      "question": "In the lesson context, why does ...?",
+      "options": ["...", "...", "...", "..."],
+      "correctIdx": 0,
+      "explanation": "..."
+    }
+  ]
+}
+
+CRITICAL:
+- Return ONLY the raw JSON object. No markdown, no code fences, no \`\`\`json, no \`\`\`
+- No thinking, reasoning, or reflection blocks. No \`<think>\` tags or any other wrapper.
+- The first character of your response must be \`{\` and the last must be \`}\`
+`;
+}
+
 export function generateMCQPromptFromStudyNotes(
   studyNotes: string,
   lessonTitle: string,

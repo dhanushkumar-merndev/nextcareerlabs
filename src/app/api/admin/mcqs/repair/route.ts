@@ -6,7 +6,7 @@ import { env } from "@/lib/env";
 import { generateMCQPrompt, parseMCQJSONLoose, validateMCQJSON } from "@/lib/mcq/mcq-prompt-generator";
 
 export const runtime = "nodejs";
-const MCQ_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
+const MCQ_MODEL = "qwen/qwen3-32b";
 
 function parseGroqError(error: unknown) {
   return error && typeof error === "object" && "message" in error
