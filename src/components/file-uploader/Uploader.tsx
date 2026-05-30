@@ -630,7 +630,6 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             key: finalKey,
             baseKey: baseKey,
             duration: duration,
-            file: null, // Release the File object from memory (can be hundreds of MB)
             uploadStatus: undefined,
           }));
           onChange?.(finalKey);
