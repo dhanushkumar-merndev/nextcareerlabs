@@ -42,7 +42,7 @@ export function RenderErrorState() {
       <p className=" text-base font-semibold">Upload Failed</p>
       <p className="text-muted-foreground text-sm mt-1">something went wrong</p>
       <Button type="button" className="mt-4 cursor-pointer">
-        Retry fle selection
+        Click to open file
       </Button>
     </div>
   );

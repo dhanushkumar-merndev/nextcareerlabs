@@ -695,17 +695,24 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         if (isCancelled() || uploadErr?.message === "Upload cancelled" || uploadErr?.name === "AbortError") return;
         toast.error(uploadErr?.message || "Something went wrong during upload");
         (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
-        setFileState((prevState) => ({
-          ...prevState,
-          uploading: false,
-          transcoding: false,
-          audioCompressing: false,
-          spriteGenerating: false,
-          transcodeStatus: undefined,
-          uploadStatus: undefined,
-          progress: 0,
-          error: true,
-        }));
+        setFileState((prevState) => {
+          if (prevState.objectUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(prevState.objectUrl);
+          }
+          return {
+            ...prevState,
+            uploading: false,
+            transcoding: false,
+            audioCompressing: false,
+            spriteGenerating: false,
+            transcodeStatus: undefined,
+            uploadStatus: undefined,
+            progress: 0,
+            error: true,
+            objectUrl: undefined,
+            file: null,
+          };
+        });
       }
     },
     [fileTypeAccepted, onDurationChange, lessonId, onChange, onSpriteChange, onEncryptionChange]
