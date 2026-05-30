@@ -106,10 +106,11 @@ export async function GET(
       return new NextResponse("Playlist not found", { status: 404 });
     }
 
-    const segmentUrl = `${req.nextUrl.origin}/api/video/segment/${lessonId}`;
     const keyUrl = `${req.nextUrl.origin}/api/video/key/${lessonId}`;
+    const segmentUrl = `${req.nextUrl.origin}/api/video/segment/${lessonId}`;
+    const rewrittenPlaylist = rewritePlaylist(playlist, segmentUrl, keyUrl);
 
-    return new NextResponse(rewritePlaylist(playlist, segmentUrl, keyUrl), {
+    return new NextResponse(rewrittenPlaylist, {
       headers: {
         "Content-Type": "application/vnd.apple.mpegurl",
         "Cache-Control": "private, max-age=300",

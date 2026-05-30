@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Loader2, FileText, Sparkles, CheckCircle2, AlertTriangle, Copy, Save, Upload, Download, Trash2 } from "lucide-react";
 import { storeTranscription, getTranscription, deleteTranscription, generateTranscriptionWithGroq } from "@/app/admin/(lessons)/transcription/actions";
 import { saveMCQs } from "@/app/admin/(lessons)/mcqs/actions";
-import { generateMCQPrompt, copyToClipboard, validateMCQJSON } from "@/lib/mcq/mcq-prompt-generator";
+import { generateMCQPrompt, copyToClipboard, parseMCQJSONLoose, validateMCQJSON } from "@/lib/mcq/mcq-prompt-generator";
 import { useEffect } from "react";
 import { env } from "@/lib/env";
 import {
@@ -39,6 +39,12 @@ interface TranscriptionWorkflowProps {
   initialHasMCQs?: boolean;
 }
 
+type MCQStreamEvent =
+  | { type: "status"; message: string }
+  | { type: "token"; token: string }
+  | { type: "error"; error: string }
+  | { type: "done" };
+
 export function TranscriptionWorkflow({
   lessonId,
   lessonTitle,
@@ -55,6 +61,8 @@ export function TranscriptionWorkflow({
   const [vttContent, setVttContent] = useState<string | null>(null);
   const [pastedJson, setPastedJson] = useState("");
   const [isSavingMCQs, setIsSavingMCQs] = useState(false);
+  const [isGeneratingMCQs, setIsGeneratingMCQs] = useState(false);
+  const [mcqValidationMessage, setMcqValidationMessage] = useState<string | null>(null);
   const [hasMCQs, setHasMCQs] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -234,6 +242,135 @@ export function TranscriptionWorkflow({
     toast.success("AI Prompt copied! Paste into ChatGPT or Claude.");
   };
 
+  const repairMCQJSON = async (currentJson: string) => {
+    if (!vttContent) return null;
+
+    setMcqValidationMessage("Repairing generated JSON to exactly 20 questions...");
+
+    const response = await fetch("/api/admin/mcqs/repair", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        lessonTitle,
+        vttContent,
+        currentJson,
+      }),
+    });
+
+    const result = (await response.json().catch(() => null)) as { json?: string; error?: string } | null;
+    if (!response.ok || !result?.json) {
+      throw new Error(result?.error || "Failed to repair MCQs");
+    }
+
+    return result.json;
+  };
+
+  const handleGenerateMCQsWithGroq = async () => {
+    if (!vttContent) {
+      toast.error("Transcript is required before generating MCQs");
+      return;
+    }
+
+    try {
+      setIsGeneratingMCQs(true);
+      setMcqValidationMessage(null);
+      setPastedJson("");
+
+      const response = await fetch("/api/admin/mcqs/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          lessonTitle,
+          vttContent,
+        }),
+      });
+
+      if (!response.ok || !response.body) {
+        const error = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(error?.error || "Failed to start MCQ generation");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let streamedJson = "";
+      let eventBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        eventBuffer += decoder.decode(value, { stream: true });
+        const lines = eventBuffer.split("\n");
+        eventBuffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+
+          let event: MCQStreamEvent;
+          try {
+            event = JSON.parse(line) as MCQStreamEvent;
+          } catch {
+            streamedJson += line;
+            setPastedJson(streamedJson);
+            continue;
+          }
+
+          if (event.type === "status") {
+            setMcqValidationMessage(event.message);
+          } else if (event.type === "token") {
+            streamedJson += event.token;
+            setPastedJson(streamedJson);
+          } else if (event.type === "error") {
+            throw new Error(event.error);
+          }
+        }
+      }
+
+      eventBuffer += decoder.decode();
+      if (eventBuffer.trim()) {
+        try {
+          const event = JSON.parse(eventBuffer) as MCQStreamEvent;
+          if (event.type === "token") streamedJson += event.token;
+          if (event.type === "error") throw new Error(event.error);
+        } catch {
+          streamedJson += eventBuffer;
+        }
+      }
+      setPastedJson(streamedJson);
+
+      let validation = validateMCQJSON(streamedJson);
+      if (!validation.valid) {
+        const loose = parseMCQJSONLoose(streamedJson);
+        if (loose.valid && loose.questions && loose.questions.length < 20) {
+          const repairedJson = await repairMCQJSON(streamedJson);
+          if (repairedJson) {
+            streamedJson = repairedJson;
+            setPastedJson(repairedJson);
+            validation = validateMCQJSON(repairedJson);
+          }
+        }
+      }
+
+      if (!validation.valid) {
+        setMcqValidationMessage(validation.error || "Generated JSON needs review");
+        toast.error(validation.error || "Generated JSON needs review");
+        return;
+      }
+
+      setMcqValidationMessage("Valid JSON: 20 questions ready to save.");
+      toast.success("MCQs generated. Review and save.");
+    } catch (error) {
+      console.error("[Groq MCQ Generate Error]", error);
+      toast.error(error instanceof Error ? error.message : "Failed to generate MCQs");
+    } finally {
+      setIsGeneratingMCQs(false);
+    }
+  };
+
   const handleSaveMCQs = async () => {
     if (!pastedJson.trim()) {
       toast.error("Please paste the AI's JSON output first");
@@ -245,6 +382,7 @@ export function TranscriptionWorkflow({
 
       const validation = validateMCQJSON(pastedJson);
       if (!validation.valid) {
+        setMcqValidationMessage(validation.error || "Invalid JSON format");
         toast.error(validation.error || "Invalid JSON format");
         return;
       }
@@ -254,6 +392,7 @@ export function TranscriptionWorkflow({
       if (result.success) {
         toast.success(`Saved ${result.count} MCQs!`);
         setPastedJson("");
+        setMcqValidationMessage(null);
         setHasMCQs(true);
         setStatus("saved"); // Switch to saved state
         onComplete?.();
@@ -418,45 +557,75 @@ export function TranscriptionWorkflow({
             <h5 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
               <Sparkles className="size-3 text-amber-500" />
               MCQ Generation
+              <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">
+                NEW
+              </span>
             </h5>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs gap-1.5 cursor-pointer"
-              onClick={handleCopyPrompt}
-            >
-              <Copy className="size-3" />
-              Copy AI Prompt
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 text-xs gap-1.5 cursor-pointer"
+                onClick={handleGenerateMCQsWithGroq}
+                disabled={isGeneratingMCQs}
+              >
+                {isGeneratingMCQs ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}
+                Generate MCQs
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs gap-1.5 cursor-pointer"
+                onClick={handleCopyPrompt}
+                disabled={isGeneratingMCQs}
+              >
+                <Copy className="size-3" />
+                Copy Prompt
+              </Button>
+            </div>
           </div>
 
           <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
             <p className="text-[10px] font-medium text-muted-foreground mb-1">HOW TO USE:</p>
             <ol className="text-[10px] space-y-0.5 list-decimal list-inside text-muted-foreground">
-              <li>Click <strong>Copy AI Prompt</strong> above</li>
-              <li>Paste into <strong>ChatGPT</strong> or <strong>Claude</strong></li>
-              <li>Copy the JSON response</li>
-              <li>Paste it below and save</li>
+              <li>Click <strong>Generate MCQs</strong> to stream JSON from Groq/Qwen directly</li>
+              <li>Review the generated JSON in the box below</li>
+              <li>Click <strong>Process & Save MCQs</strong> after validation passes</li>
+              <li>Use <strong>Copy Prompt</strong> only if you want the manual fallback</li>
             </ol>
           </div>
 
           <div className="space-y-2">
             <label className="text-[10px] font-medium text-muted-foreground">
-              PASTE AI JSON OUTPUT (EXACTLY 20 QUESTIONS)
+              AI JSON OUTPUT (EXACTLY 20 QUESTIONS)
             </label>
             <Textarea
               placeholder='[ { "question": "...", "options": [...], "correctIdx": 0, "explanation": "..." }, ... ]'
               value={pastedJson}
-              onChange={(e) => setPastedJson(e.target.value)}
+              onChange={(e) => {
+                setPastedJson(e.target.value);
+                setMcqValidationMessage(null);
+              }}
               className="min-h-[120px] text-xs font-mono"
             />
+            {isGeneratingMCQs && (
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" />
+                Streaming JSON from Groq/Qwen...
+              </div>
+            )}
+            {mcqValidationMessage && (
+              <p className="text-[10px] text-muted-foreground">
+                {mcqValidationMessage}
+              </p>
+            )}
             <Button
               type="button"
               size="sm"
               className="w-full h-8 text-xs gap-1.5"
               onClick={handleSaveMCQs}
-              disabled={isSavingMCQs || !pastedJson.trim()}
+              disabled={isSavingMCQs || isGeneratingMCQs || !pastedJson.trim()}
             >
               {isSavingMCQs ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
               Process & Save MCQs

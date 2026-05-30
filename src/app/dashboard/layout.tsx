@@ -1,11 +1,14 @@
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DashboardShell } from "./_components/DashboardShell";
+import { requireUser } from "@/app/data/user/require-user";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  await requireUser();
+
   return (
     <SidebarProvider
       overlap={false}

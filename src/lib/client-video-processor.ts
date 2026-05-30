@@ -7,6 +7,12 @@ export interface TranscodeResult {
   audioBlob: Blob | null;
 }
 
+export interface ProcessingProgressInfo {
+  phase?: "hls" | "audio";
+  processedSeconds?: number;
+  totalSeconds?: number;
+}
+
 export const MAX_BROWSER_TRANSCODE_SIZE_BYTES = 1280 * 1024 * 1024;
 export const MAX_BROWSER_TRANSCODE_SIZE_LABEL = "1.25GB";
 
@@ -40,12 +46,12 @@ async function ensureScriptsLoaded() {
   }
 
   await loadScript(`/ffmpeg/ffmpeg.js?v=final-1`);
-  await loadScript(`/ffmpeg/processor.js?v=segmented-aac-1`);
+  await loadScript(`/ffmpeg/processor.js?v=single-ts-copy-validated-aac-1`);
 }
 
 export async function transcodeToHLS(
   file: File,
-  onProgress: (progress: number) => void,
+  onProgress: (progress: number, info?: ProcessingProgressInfo) => void,
   duration: number,
   encryption?: { key: Uint8Array; iv: string; keyUrl: string; keyBase64?: string }
 ): Promise<TranscodeResult> {
@@ -66,7 +72,8 @@ export async function transcodeToHLS(
 
 export async function compressAudio(
   file: File,
-  onProgress: (progress: number) => void
+  onProgress: (progress: number, info?: ProcessingProgressInfo) => void,
+  duration?: number
 ): Promise<Blob> {
   await ensureScriptsLoaded();
 
@@ -74,7 +81,7 @@ export async function compressAudio(
     throw new Error("Audio compressor script not initialized properly");
   }
 
-  return window.compressAudio(file, onProgress);
+  return window.compressAudio(file, onProgress, duration);
 }
 
 // Keep this to satisfy types, but it's now handled by processor.js
@@ -87,7 +94,7 @@ declare global {
   interface Window {
     transcodeVideoToHLS: (
       file: File,
-      onProgress: (progress: number) => void,
+      onProgress: (progress: number, info?: ProcessingProgressInfo) => void,
       duration: number,
       encryption?: { key: Uint8Array; iv: string; keyUrl: string }
     ) => Promise<TranscodeResult & { audioBlob: Blob | null }>;
@@ -95,7 +102,8 @@ declare global {
     FFmpegUtil: unknown;
     compressAudio: (
       file: File,
-      onProgress: (progress: number) => void
+      onProgress: (progress: number, info?: ProcessingProgressInfo) => void,
+      duration?: number
     ) => Promise<Blob>;
   }
 }

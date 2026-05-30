@@ -18,6 +18,8 @@ import {
   transcodeToHLS,
   compressAudio,
 } from "@/lib/client-video-processor";
+import type { ProcessingProgressInfo } from "@/lib/client-video-processor";
+import { validateMp4ForFastHls } from "@/lib/mp4-upload-validation";
 import { Loader2 } from "lucide-react";
 import { SpriteGenerator } from "@/lib/video/sprite-generator";
 
@@ -39,6 +41,38 @@ const getVideoDuration = (file: File | string): Promise<number> => {
     video.src = typeof file === "string" ? file : URL.createObjectURL(file);
   });
 };
+
+function formatProcessTime(seconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds || 0));
+  const h = Math.floor(safeSeconds / 3600);
+  const m = Math.floor((safeSeconds % 3600) / 60);
+  const s = safeSeconds % 60;
+
+  if (h > 0) {
+    return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  }
+
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function getAudioProgressLabel(
+  progress: number,
+  info: ProcessingProgressInfo | undefined,
+  duration: number,
+) {
+  const audioProgress = Math.max(
+    1,
+    Math.min(100, Math.round(((progress - 70) / 25) * 100)),
+  );
+  const totalSeconds = info?.totalSeconds || Math.round(duration || 0);
+  const processedSeconds = info?.processedSeconds ?? Math.floor((audioProgress / 100) * totalSeconds);
+
+  if (totalSeconds > 0) {
+    return `Compressing audio... ${formatProcessTime(processedSeconds)} / ${formatProcessTime(totalSeconds)}`;
+  }
+
+  return `Compressing audio... ${audioProgress}%`;
+}
 
 export interface SpriteMetadata {
   spriteKey: string;
@@ -250,6 +284,21 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             ...s,
             transcoding: true,
             transcodingProgress: 0,
+            transcodeStatus: "Checking video compatibility...",
+          }));
+
+          const compatibility = await validateMp4ForFastHls(file);
+          if (!compatibility.valid) {
+            throw new Error(compatibility.reason || "Invalid video. Please upload H.264 video with AAC audio.");
+          }
+
+          console.log("[Uploader] Fast HLS compatibility OK", {
+            videoCodec: compatibility.videoCodec,
+            audioCodec: compatibility.audioCodec,
+          });
+
+          setFileState((s) => ({
+            ...s,
             transcodeStatus: "Reading video...",
           }));
 
@@ -278,13 +327,13 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             console.log("[Uploader] Encryption metadata generated", { iv, keyUrl });
           }
 
-          const { m3u8, segments, audioBlob: transcodedAudio } = await transcodeToHLS(file, (p) => {
+          const { m3u8, segments, audioBlob: transcodedAudio } = await transcodeToHLS(file, (p, info) => {
             const transcodeStatus =
               p >= 70 && p < 100
-                ? "Compressing audio..."
+                ? getAudioProgressLabel(p, info, duration)
                 : p >= 100
                   ? "Video prepared"
-                  : "Preparing video for streaming...";
+                  : "Preparing video stream and audio...";
             setFileState((s) => ({ ...s, transcodingProgress: p, transcodeStatus }));
           }, duration, encryptionMetadata ? {
             key: encryptionMetadata.key,
@@ -297,11 +346,22 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           // Use audio from combined session; fallback to standalone only if needed
           let audioBlob: Blob | null = transcodedAudio;
           if (!audioBlob) {
-            setFileState((s) => ({ ...s, audioCompressing: true, transcodingProgress: 0 }));
+            setFileState((s) => ({
+              ...s,
+              audioCompressing: true,
+              transcodingProgress: 1,
+              transcodeStatus: "Compressing audio... 1%",
+            }));
             try {
-              audioBlob = await compressAudio(file, (p) => {
-                setFileState(s => ({ ...s, transcodingProgress: p }));
-              });
+              audioBlob = await compressAudio(file, (p, info) => {
+                const processedSeconds =
+                  info?.processedSeconds ?? Math.floor((p / 100) * duration);
+                setFileState(s => ({
+                  ...s,
+                  transcodingProgress: p,
+                  transcodeStatus: `Compressing audio... ${formatProcessTime(processedSeconds)} / ${formatProcessTime(duration)}`,
+                }));
+              }, duration);
             } catch (audioErr) {
               console.error("Audio compression fallback failed:", audioErr);
             }
@@ -313,7 +373,12 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           }
 
           // 1.5 Generate Sprites (New Auto Step)
-          setFileState((s) => ({ ...s, spriteGenerating: true, spriteUploadProgress: 0 }));
+          setFileState((s) => ({
+            ...s,
+            spriteGenerating: true,
+            spriteUploadProgress: 1,
+            spriteStatus: "Preparing thumbnails...",
+          }));
           toast.info("Generating thumbnails...");
 
           let spriteResult: { combinedBlob: Blob | null; vttBlob: Blob | null; previewLowBlob?: Blob; spriteFileName: string } | null = null;

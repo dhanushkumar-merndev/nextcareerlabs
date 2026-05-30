@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { chatCache } from "@/lib/chat-cache";
 import { getAuthSessionAction } from "@/app/(auth)/auth-session";
 import type { AuthSession } from "@/lib/types/auth";
@@ -24,6 +25,9 @@ export function invalidateAuthSessionCache(queryClient: ReturnType<typeof useQue
 
 export function useSmartSession(initialDataFromServer?: SessionData) {
     const queryClient = useQueryClient();
+    const router = useRouter();
+    const pathname = usePathname();
+    const hadSessionRef = useRef(false);
 
     const { data: session, isLoading, refetch } = useQuery({
         queryKey: [CACHE_KEY],
@@ -79,10 +83,31 @@ export function useSmartSession(initialDataFromServer?: SessionData) {
         initialDataUpdatedAt: () => 0,
 
         staleTime: HEARTBEAT_INTERVAL,
-        refetchInterval: HEARTBEAT_INTERVAL,
-        refetchOnWindowFocus: false,
+        refetchInterval: false,
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
         refetchOnMount: true,
     });
+
+    useEffect(() => {
+        if (session) {
+            hadSessionRef.current = true;
+        }
+    }, [session]);
+
+    useEffect(() => {
+        const isProtectedPath =
+            pathname?.startsWith("/dashboard") || pathname?.startsWith("/admin");
+
+        if (isLoading || session || !hadSessionRef.current || !isProtectedPath) {
+            return;
+        }
+
+        chatCache.invalidate(CACHE_KEY);
+        queryClient.setQueryData([CACHE_KEY], null);
+        const redirect = pathname ? `&redirect=${encodeURIComponent(pathname)}` : "";
+        router.replace(`/login?auth_failure=true${redirect}`);
+    }, [isLoading, pathname, queryClient, router, session]);
 
     useEffect(() => {
         const handleStorage = (e: StorageEvent) => {

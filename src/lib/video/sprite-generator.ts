@@ -56,10 +56,12 @@ export class SpriteGenerator {
   ): Promise<SpriteGenerationResult> {
     const objectUrl = URL.createObjectURL(file);
     this.video.src = objectUrl;
+    onProgress?.(1, "Reading video metadata...");
 
     try {
       await this.loadVideoMetadata();
       const duration = this.video.duration;
+      onProgress?.(2, "Preparing thumbnail frames...");
       
       const startTimestamp = timeRange?.start ?? 0;
       const endTimestamp = timeRange?.end ?? duration;
@@ -128,7 +130,7 @@ export class SpriteGenerator {
           
           if (globalFrameIndex % 5 === 0 && onProgress) {
              const processed = globalFrameIndex - startFrameIndex;
-             const percent = Math.round((processed / totalFramesToProcess) * 95);
+             const percent = 2 + Math.round((processed / totalFramesToProcess) * 93);
              onProgress(Math.min(95, percent), `Generating snapshots...`);
           }
 

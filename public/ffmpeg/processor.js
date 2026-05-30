@@ -1,7 +1,4 @@
 (function () {
-  const MAX_HLS_SEGMENTS = 200;
-  const MIN_HLS_SEGMENT_SECONDS = 6;
-
   async function createFFmpeg() {
     const { FFmpeg } = window.FFmpegWASM;
     const ffmpeg = new FFmpeg();
@@ -15,62 +12,16 @@
     return ffmpeg;
   }
 
-  function getHlsSegmentTime(duration) {
-    const durationInSeconds = Number(duration);
-
-    if (!Number.isFinite(durationInSeconds) || durationInSeconds <= 0) {
-      return String(MIN_HLS_SEGMENT_SECONDS);
-    }
-
-    return String(
-      Math.max(
-        MIN_HLS_SEGMENT_SECONDS,
-        Math.ceil(durationInSeconds / MAX_HLS_SEGMENTS),
-      ),
-    );
-  }
-
-  async function prepareInput(ffmpeg, file, fallbackName) {
-    try {
-      try { await ffmpeg.createDir("/input"); } catch {}
-      await ffmpeg.mount("WORKERFS", { files: [file] }, "/input");
-      return {
-        inputPath: `/input/${file.name}`,
-        mounted: true,
-      };
-    } catch (mountErr) {
-      console.warn("[Processor] WORKERFS mount failed, falling back to MEMFS:", mountErr);
-      const fileData = await file.arrayBuffer();
-      await ffmpeg.writeFile(fallbackName, new Uint8Array(fileData));
-      return {
-        inputPath: fallbackName,
-        mounted: false,
-      };
-    }
-  }
-
-  async function cleanupInput(ffmpeg, mounted, fallbackName) {
-    if (mounted) {
-      try { await ffmpeg.unmount("/input"); } catch {}
-      return;
-    }
-
-    try { await ffmpeg.deleteFile(fallbackName); } catch {}
-  }
-
-  // Combined HLS packaging + audio compression in a SINGLE FFmpeg session.
-  // WORKERFS avoids copying the source video into WASM memory, while segmented
-  // HLS avoids creating one huge .ts blob that can trigger browser/WASM overflow.
+  // Combined HLS transcode + audio compression in a SINGLE FFmpeg session.
+  // The input file is loaded into WASM memory once and reused for both operations,
+  // saving 10-30s that would otherwise be spent re-initializing FFmpeg + re-reading the file.
   window.transcodeVideoToHLS = async function (file, onProgress, duration, encryption = null) {
     const ffmpeg = await createFFmpeg();
     const inputName = "input.mp4";
     const hlsOutputName = "index.m3u8";
-    const segmentPattern = "segment_%05d.ts";
     const audioOutputName = "compressed.ogg";
     const keyInfoName = "enc.keyinfo";
     const keyFileName = "enc.key";
-    let inputPath = inputName;
-    let mountedInput = false;
 
     let lastProgress = 0;
     const progressHandler = ({ progress }) => {
@@ -84,34 +35,24 @@
     ffmpeg.on("progress", progressHandler);
 
     try {
+      // Write file to WASM memory ONCE (this is the expensive part)
       onProgress?.(2);
       lastProgress = 2;
-      const preparedInput = await prepareInput(ffmpeg, file, inputName);
-      inputPath = preparedInput.inputPath;
-      mountedInput = preparedInput.mounted;
+      const fileData = await file.arrayBuffer();
+      await ffmpeg.writeFile(inputName, new Uint8Array(fileData));
       onProgress?.(5);
       lastProgress = 5;
-      const hlsSegmentTime = getHlsSegmentTime(duration);
 
       const ffmpegArgs = [
-        "-i", inputPath,
-        "-map", "0:v:0",
-        "-map", "0:a:0?",
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-ac", "2",
-        "-ar", "48000",
-        "-sn",
-        "-dn",
-        "-max_muxing_queue_size", "1024",
-        "-hls_time", hlsSegmentTime,
+        "-i", inputName,
+        "-c", "copy",
+        "-hls_time", "6",
         "-hls_playlist_type", "vod",
-        "-hls_segment_filename", segmentPattern,
-        "-f", "hls"
+        "-hls_flags", "single_file",
+        "-f", "hls",
       ];
 
-      // Phase 1: segmented HLS with playable AAC audio.
+      // Phase 1: Byte-Range HLS. Upload validation only allows H.264 + AAC for fast copy.
       // If encryption is provided, setup the key info file
       if (encryption && encryption.key && encryption.iv && encryption.keyUrl) {
         console.log("[Processor] HLS Encryption Enabled");
@@ -122,7 +63,7 @@
         const keyInfoContent = `${encryption.keyUrl}\n${keyFileName}\n${encryption.iv}`;
         await ffmpeg.writeFile(keyFileName, encryption.key); // encryption.key should be Uint8Array (16 bytes)
         await ffmpeg.writeFile(keyInfoName, keyInfoContent);
-        
+
         ffmpegArgs.push("-hls_key_info_file", keyInfoName);
       }
 
@@ -137,29 +78,18 @@
 
       const segments = [];
       const files = await ffmpeg.listDir(".");
-      const segmentFiles = files
-        .filter((f) => !f.isDir && /^segment_\d+\.ts$/.test(f.name))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-      for (const f of segmentFiles) {
-        try {
+      for (const f of files) {
+        if (f.name === "index.ts") {
           const data = await ffmpeg.readFile(f.name);
           segments.push({
             name: f.name,
             blob: new Blob([data], { type: "video/MP2T" }),
           });
-          await ffmpeg.deleteFile(f.name);
-        } catch (segmentErr) {
-          console.warn(`[Processor] Failed reading HLS segment ${f.name}:`, segmentErr);
-          throw segmentErr;
         }
       }
 
-      if (segments.length === 0) {
-        throw new Error("HLS processing did not produce any playable segments");
-      }
-
-      // Phase 2: sidecar audio compression for transcription workflows.
+      // Phase 2: Audio compression (reusing the already-loaded input file!)
+      // No need to re-read the file, it's still in WASM memory from Phase 1.
       ffmpeg.off("progress", progressHandler);
       let audioLastProgress = 70;
       const audioProgressHandler = ({ progress }) => {
@@ -175,13 +105,12 @@
       let audioBlob = null;
       try {
         await ffmpeg.exec([
-          "-i", inputPath,
-          "-map", "0:a:0",
+          "-i", inputName,
           "-ar", "16000",
           "-ac", "1",
           "-b:a", "32k",
           "-vn",
-          audioOutputName
+          audioOutputName,
         ]);
 
         const audioData = await ffmpeg.readFile(audioOutputName);
@@ -198,18 +127,15 @@
       console.error("HLS: Error:", err);
       throw err;
     } finally {
-      await cleanupInput(ffmpeg, mountedInput, inputName);
       try { await ffmpeg.terminate(); } catch {}
     }
   };
 
-  // Standalone fallback — only used if audio wasn't extracted during HLS transcode
+  // Standalone fallback, only used if audio wasn't extracted during HLS transcode
   window.compressAudio = async function (file, onProgress) {
     const ffmpeg = await createFFmpeg();
     const inputName = "input_audio.mp4";
     const outputName = "compressed.ogg";
-    let inputPath = inputName;
-    let mountedInput = false;
 
     let lastProgress = 0;
     const progressHandler = ({ progress }) => {
@@ -224,20 +150,18 @@
     try {
       onProgress?.(5);
       lastProgress = 5;
-      const preparedInput = await prepareInput(ffmpeg, file, inputName);
-      inputPath = preparedInput.inputPath;
-      mountedInput = preparedInput.mounted;
+      const fileData = await file.arrayBuffer();
+      await ffmpeg.writeFile(inputName, new Uint8Array(fileData));
       onProgress?.(10);
       lastProgress = 10;
 
       await ffmpeg.exec([
-        "-i", inputPath,
-        "-map", "0:a:0",
+        "-i", inputName,
         "-ar", "16000",
         "-ac", "1",
         "-b:a", "32k",
         "-vn",
-        outputName
+        outputName,
       ]);
 
       const audioData = await ffmpeg.readFile(outputName);
@@ -247,7 +171,6 @@
       console.error("Audio Compression Error:", err);
       throw err;
     } finally {
-      await cleanupInput(ffmpeg, mountedInput, inputName);
       try { await ffmpeg.terminate(); } catch {}
     }
   };

@@ -359,7 +359,7 @@ function VideoPlayer({
   const sources = useMemo(() => {
     const list = [];
     if (hlsUrl) list.push({ src: hlsUrl, type: "application/x-mpegURL" });
-    if (videoUrl) list.push({ src: videoUrl, type: "video/mp4" });
+    if (!hlsUrl && videoUrl) list.push({ src: videoUrl, type: "video/mp4" });
     return list;
   }, [hlsUrl, videoUrl]);
 

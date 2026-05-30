@@ -158,6 +158,7 @@ export function VideoPlayer({
   const sourceList = sources || (src ? [{ src, type }] : []);
   const sourcesRef = useRef<VideoSource[]>(sourceList);
   sourcesRef.current = sourceList;
+  const fallbackAttemptedRef = useRef<Set<string>>(new Set());
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -174,6 +175,7 @@ export function VideoPlayer({
   const [isBuffering, setIsBuffering] = useState(false);
   const [isPlayerReady, setIsPlayerReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hasLoggedPlaybackDetailsRef = useRef(false);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fullscreenHandlerRef = useRef<(() => void) | null>(null);
   const [seekAnimation, setSeekAnimation] = useState<{
@@ -423,6 +425,36 @@ export function VideoPlayer({
         const d = player.duration() || 0;
         if (d > 0) setDuration(d);
       });
+      player.on("loadeddata", () => {
+        if (hasLoggedPlaybackDetailsRef.current) return;
+        hasLoggedPlaybackDetailsRef.current = true;
+        const audioTracks = player.audioTracks?.();
+        const audioTrackList = audioTracks as unknown as {
+          length: number;
+          [index: number]: unknown;
+          item?: (index: number) => unknown;
+        } | undefined;
+        console.log("VideoPlayer: playback details", {
+          currentSource: player.currentSource(),
+          currentSrc: player.currentSrc(),
+          audioTracks: audioTrackList
+            ? Array.from({ length: audioTrackList.length }).map((_, index) => {
+                const track = (audioTrackList.item?.(index) ?? audioTrackList[index]) as {
+                  enabled?: boolean;
+                  kind?: string;
+                  label?: string;
+                  language?: string;
+                };
+                return {
+                  enabled: track.enabled,
+                  kind: track.kind,
+                  label: track.label,
+                  language: track.language,
+                };
+              })
+            : [],
+        });
+      });
       player.on("ended", () => onEnded?.());
       player.on("error", () => {
         const err = player.error();
@@ -442,9 +474,18 @@ export function VideoPlayer({
         const currentIndex = availableSources.findIndex(
           (source) => normalizeSrc(source.src) === normalizedCurrentSrc,
         );
-        const fallbackSource = availableSources[currentIndex >= 0 ? currentIndex + 1 : 1];
+        const fallbackSource = availableSources.find((source, index) => {
+          if (index <= currentIndex) return false;
+          const normalizedSource = normalizeSrc(source.src);
+          return (
+            normalizedSource !== normalizedCurrentSrc &&
+            !fallbackAttemptedRef.current.has(normalizedSource)
+          );
+        });
 
         if (fallbackSource) {
+          const wasPlaying = !player.paused();
+          fallbackAttemptedRef.current.add(normalizeSrc(fallbackSource.src));
           console.warn("VideoPlayer: Source failed, trying fallback source", {
             failed: currentSrc,
             fallback: fallbackSource.src,
@@ -455,6 +496,13 @@ export function VideoPlayer({
           (player as unknown as { error: (err: null) => void }).error(null);
           player.src(fallbackSource);
           player.load();
+          if (wasPlaying) {
+            void player.play()?.catch((playErr: Error) => {
+              if (playErr.name !== "AbortError") {
+                console.error("VideoPlayer fallback play() error:", playErr);
+              }
+            });
+          }
           return;
         }
 
@@ -700,6 +748,7 @@ export function VideoPlayer({
   // Sync sources when they change after initialization
   useEffect(() => {
     if (playerRef.current) {
+      fallbackAttemptedRef.current.clear();
       playerRef.current.src(sourcesRef.current);
     }
   }, [sources, src, type]);
@@ -1244,12 +1293,45 @@ export function VideoPlayer({
     setPreviewWidth(window.innerWidth < 640 ? 180 : 240);
   }, []);
 
+  const getLowResSpritePosition = (time: number, intervalOverride?: number) => {
+    if (!spriteMetadata?.lowResUrl) return null;
+
+    const effectiveInterval =
+      intervalOverride && intervalOverride > 0
+        ? intervalOverride
+        : spriteMetadata.interval && spriteMetadata.interval > 0
+          ? spriteMetadata.interval
+          : 10;
+    const index = Math.max(0, Math.floor(time / effectiveInterval));
+
+    // Low-res grid constants matched with sprite-generator.ts
+    const lowCols = 25;
+    const lowFrameW = 40;
+    const lowFrameH = 22;
+    const lowScale = previewWidth / lowFrameW;
+    const totalFrames = Math.max(1, Math.ceil((duration || effectiveInterval) / effectiveInterval));
+    const lowRows = Math.max(1, Math.ceil(totalFrames / lowCols));
+    const col = index % lowCols;
+    const row = Math.floor(index / lowCols);
+
+    return {
+      backgroundImage: `url(${spriteMetadata.lowResUrl})`,
+      backgroundPosition: `-${col * previewWidth}px -${row * (lowFrameH * lowScale)}px`,
+      backgroundSize: `${lowCols * previewWidth}px ${lowRows * (lowFrameH * lowScale)}px`,
+      width: previewWidth,
+      height: Math.round(lowFrameH * lowScale),
+      isHighRes: false,
+      startTime: index * effectiveInterval,
+    };
+  };
+
   const getSpritePosition = (time: number) => {
     if (!spriteMetadata) return null;
 
     if (vttCues.length > 0) {
       const cue = vttCues.find((c) => time >= c.startTime && time < c.endTime);
       if (!cue) return null;
+      const lowRes = getLowResSpritePosition(time, cue.endTime - cue.startTime);
 
       const baseUrl = spriteMetadata.url.substring(
         0,
@@ -1313,41 +1395,14 @@ export function VideoPlayer({
           sourceHeight: cue.h,
           startTime: cue.startTime,
           isHighRes: true,
+          lowRes,
         };
       }
     }
 
-    // 3. Fallback to Low-Res Grid if High-Res is pending
-    if (spriteMetadata?.lowResUrl) {
-      // High-res interval is used for both
-      const index = Math.floor(time / spriteMetadata.interval);
-
-      // Low-res grid constants (matched with sprite-generator.ts)
-      const lowCols = 25;
-
-      const col = index % lowCols;
-      const row = Math.floor(index / lowCols);
-
-      // Match preview-generator.ts: low-res frames are 40x22
-      const lowFrameW = 40;
-      const lowFrameH = 22;
-
-      // Scale the 40px frame to fill PREVIEW_DISPLAY_WIDTH
-      const lowScale = previewWidth / lowFrameW;
-
-      const totalFrames = Math.ceil(duration / (spriteMetadata.interval || 10));
-      const lowRows = Math.ceil(totalFrames / lowCols);
-
-      return {
-        backgroundImage: `url(${spriteMetadata.lowResUrl})`,
-        backgroundPosition: `-${col * previewWidth}px -${row * (lowFrameH * lowScale)}px`,
-        backgroundSize: `${lowCols * previewWidth}px ${lowRows * (lowFrameH * lowScale)}px`,
-        width: previewWidth,
-        height: Math.round(lowFrameH * lowScale),
-        isHighRes: false,
-        startTime: index * spriteMetadata.interval,
-      };
-    }
+    // 3. Fallback to Low-Res Grid if VTT/high-res is not ready yet
+    const lowResOnly = getLowResSpritePosition(time);
+    if (lowResOnly) return lowResOnly;
 
     // Legacy Grid Logic (Ensure metadata exists)
     if (!spriteMetadata || !spriteMetadata.cols || !spriteMetadata.interval) {
@@ -1631,6 +1686,12 @@ export function VideoPlayer({
                   ? getSpritePosition(hoverPosition.time)
                   : null;
                 const snapTime = spritePos?.startTime ?? hoverPosition.time;
+                const lowResSprite =
+                  spritePos && "lowRes" in spritePos && spritePos.lowRes
+                    ? spritePos.lowRes
+                    : spritePos?.isHighRes
+                      ? null
+                      : spritePos;
 
                 // ✅ User Request: Hide strip (thumbnails) until watched
                 if (restrictSeeking && snapTime > maxWatchedTime + 1) {
@@ -1671,22 +1732,22 @@ export function VideoPlayer({
                               height: `${spritePos.height}px`,
                             }}
                           >
-                            {/* Low Res Layer (visible while loading HD or as base) */}
-                            {(!spritePos.isHighRes || true) && (
+                            {/* Low-res preview_low.jpg: instant base layer */}
+                            {lowResSprite && (
                               <div
                                 className={cn(
                                   "absolute inset-0 transition-opacity duration-300",
                                   spritePos.isHighRes
-                                    ? "opacity-0"
+                                    ? "opacity-100"
                                     : "opacity-100 blur-[2px] scale-105",
                                 )}
                                 style={{
                                   width: `${spritePos.width}px`,
                                   height: `${spritePos.height}px`,
-                                  backgroundImage: spritePos.backgroundImage,
+                                  backgroundImage: lowResSprite.backgroundImage,
                                   backgroundPosition:
-                                    spritePos.backgroundPosition,
-                                  backgroundSize: spritePos.backgroundSize,
+                                    lowResSprite.backgroundPosition,
+                                  backgroundSize: lowResSprite.backgroundSize,
                                   backgroundRepeat: "no-repeat",
                                   imageRendering: "crisp-edges" as React.CSSProperties["imageRendering"],
                                 }}
