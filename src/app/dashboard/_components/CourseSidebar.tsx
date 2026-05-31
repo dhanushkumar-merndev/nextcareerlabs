@@ -12,7 +12,7 @@ import { LessonItem } from "./LessonItem";
 import { usePathname } from "next/navigation";
 import { CourseProgressBar } from "./CourseProgressBar";
 import { CircularProgress } from "@/components/ui/circular-progress";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +31,16 @@ interface iAppProps {
   course: CourseData;
 }
 
+function getOpenChapterId(course: CourseData, pathname: string) {
+  if (!course?.chapter?.length) return null;
+  const lessonId = pathname.split("/").pop();
+  return (
+    course.chapter.find((c) => c.lesson.some((l) => l.id === lessonId))?.id ||
+    course.chapter[0]?.id ||
+    null
+  );
+}
+
 export function CourseSidebar({ course }: iAppProps) {
   const { session } = useSmartSession();
   const userId = session?.user.id;
@@ -38,100 +48,94 @@ export function CourseSidebar({ course }: iAppProps) {
   const pathname = usePathname();
   const currentLessonId = pathname.split("/").pop();
 
-  const [openChapter, setOpenChapter] = useState<string | null>(null);
+  const [openChapter, setOpenChapter] = useState<string | null>(() =>
+    getOpenChapterId(course, pathname),
+  );
+  const [prevPathname, setPrevPathname] = useState(pathname);
+  const [prevCourse, setPrevCourse] = useState(course);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   const [chapterProgressMap, setChapterProgressMap] = useState<
     Record<string, number>
   >({});
 
-  const calculateChapterProgress = useCallback(() => {
-    if (!course?.chapter) return;
+  useEffect(() => {
+    const calculateChapterProgress = () => {
+      if (!course?.chapter) return;
 
-    const newMap: Record<string, number> = {};
+      const newMap: Record<string, number> = {};
 
-    course.chapter.forEach((chapter) => {
-      const total = chapter.lesson.length;
-      if (total === 0) {
-        newMap[chapter.id] = 0;
-        return;
-      }
+      course.chapter.forEach((chapter) => {
+        const total = chapter.lesson.length;
+        if (total === 0) {
+          newMap[chapter.id] = 0;
+          return;
+        }
 
-      let totalChapterDuration = 0;
-      let totalChapterWatched = 0;
-      let completedCount = 0;
+        let totalChapterDuration = 0;
+        let totalChapterWatched = 0;
+        let completedCount = 0;
 
-      chapter.lesson.forEach((lesson) => {
-        // 1. Get Duration: DB is the primary source (stable across sessions)
-        const dbDuration = lesson.duration || 0;
-        const cachedDuration = chatCache.get<number>(
-          `duration_${lesson.id}`,
-          userId,
-        )?.data;
-        const localDuration = parseFloat(
-          secureStorage.getItem(`duration-${lesson.id}_${userId}`) || "0",
-        );
-        const duration = dbDuration || cachedDuration || localDuration || 0;
-        totalChapterDuration += duration;
+        chapter.lesson.forEach((lesson) => {
+          const dbDuration = lesson.duration || 0;
+          const cachedDuration = chatCache.get<number>(
+            `duration_${lesson.id}`,
+            userId,
+          )?.data;
+          const localDuration = parseFloat(
+            secureStorage.getItem(`duration-${lesson.id}_${userId}`) || "0",
+          );
+          const duration = dbDuration || cachedDuration || localDuration || 0;
+          totalChapterDuration += duration;
 
-        // 2. Get Restriction / Watched Time (high-water-mark sources only)
-        const cachedRestriction = chatCache.get<number>(
-          `restriction_${lesson.id}`,
-          userId,
-        )?.data;
-        const localRestriction = parseFloat(
-          secureStorage.getItem(`restriction-time-${lesson.id}_${userId}`) || "0",
-        );
+          const cachedRestriction = chatCache.get<number>(
+            `restriction_${lesson.id}`,
+            userId,
+          )?.data;
+          const localRestriction = parseFloat(
+            secureStorage.getItem(`restriction-time-${lesson.id}_${userId}`) || "0",
+          );
 
-        const effectiveRestriction = Math.max(
-          lesson.lessonProgress?.[0]?.restrictionTime || 0,
-          cachedRestriction || 0,
-          localRestriction,
-        );
+          const effectiveRestriction = Math.max(
+            lesson.lessonProgress?.[0]?.restrictionTime || 0,
+            cachedRestriction || 0,
+            localRestriction,
+          );
 
-        // 3. Completion check
-        const isCompleted =
-                    lesson.lessonProgress?.some((p) => p.completed) ||
-          (duration > 0 && effectiveRestriction >= duration * 0.9);
+          const isCompleted =
+            lesson.lessonProgress?.some((p) => p.completed) ||
+            (duration > 0 && effectiveRestriction >= duration * 0.9);
 
-        if (isCompleted) {
-          completedCount++;
-          totalChapterWatched += duration;
+          if (isCompleted) {
+            completedCount += 1;
+            totalChapterWatched += duration;
+          } else {
+            totalChapterWatched += Math.min(effectiveRestriction, duration);
+          }
+        });
+
+        if (totalChapterDuration > 0) {
+          newMap[chapter.id] = Math.round(
+            (totalChapterWatched / totalChapterDuration) * 100,
+          );
         } else {
-          totalChapterWatched += Math.min(effectiveRestriction, duration);
+          newMap[chapter.id] = Math.round((completedCount / total) * 100);
         }
       });
 
-      if (totalChapterDuration > 0) {
-        newMap[chapter.id] = Math.round(
-          (totalChapterWatched / totalChapterDuration) * 100,
-        );
-      } else {
-        newMap[chapter.id] = Math.round((completedCount / total) * 100);
-      }
-    });
+      setChapterProgressMap(newMap);
+    };
 
-    setChapterProgressMap(newMap);
-  }, [course, userId]);
-
-  useEffect(() => {
     calculateChapterProgress();
     const interval = setInterval(calculateChapterProgress, 5000);
     return () => clearInterval(interval);
-  }, [calculateChapterProgress]);
+  }, [course, userId]);
 
-  // ✅ Fixed: derive lessonId inside effect, depend on pathname not currentLessonId
-  useEffect(() => {
-    if (!course?.chapter?.length) return;
-    const lessonId = pathname.split("/").pop();
-    const found =
-      course.chapter.find((c) =>
-        c.lesson.some((l) => l.id === lessonId),
-      )?.id ||
-      course.chapter[0]?.id ||
-      null;
-    setOpenChapter(found);
-  }, [course, pathname]);
+  if (prevPathname !== pathname || prevCourse !== course) {
+    setPrevPathname(pathname);
+    setPrevCourse(course);
+    setOpenChapter(getOpenChapterId(course, pathname));
+  }
 
   const toggleChapter = (id: string) => {
     setOpenChapter((prev) => (prev === id ? null : id));

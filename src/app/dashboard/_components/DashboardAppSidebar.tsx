@@ -131,7 +131,7 @@ export function AppSidebar({
       }
       return { ...item, isActive: pathname === item.url };
     })
-    .filter((item) => {
+    .filter(() => {
       return true;
     });
 

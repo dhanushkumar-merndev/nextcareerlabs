@@ -3,7 +3,7 @@
 import type { Transition } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
-import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect } from "react";
+import { forwardRef, useImperativeHandle, useRef, useEffect } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -69,30 +69,24 @@ const LayersIcon = forwardRef<LayersIconHandle, LayersIconProps>(
       };
     });
 
-    const handleMouseEnter = useCallback(
-      async (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!isMounted.current) return;
-        if (isControlledRef.current) {
-          onMouseEnter?.(e);
-        } else {
-          await controls.start("firstState");
-          await controls.start("secondState");
-        }
-      },
-      [controls, onMouseEnter]
-    );
+    const handleMouseEnter = async (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isMounted.current) return;
+      if (isControlledRef.current) {
+        onMouseEnter?.(e);
+      } else {
+        await controls.start("firstState");
+        await controls.start("secondState");
+      }
+    };
 
-    const handleMouseLeave = useCallback(
-      (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!isMounted.current) return;
         if (isControlledRef.current) {
           onMouseLeave?.(e);
         } else {
           controls.start("normal");
         }
-      },
-      [controls, onMouseLeave]
-    );
+    };
 
     return (
       <div

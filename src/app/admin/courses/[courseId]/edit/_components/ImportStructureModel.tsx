@@ -17,7 +17,6 @@ import { chatCache } from "@/lib/chat-cache";
 import { useQueryClient } from "@tanstack/react-query";
 import { Clipboard, FileJson, Loader2, Sparkles } from "lucide-react";
 import {
-  useMemo,
   useState,
   useTransition,
   type TouchEvent,
@@ -84,8 +83,7 @@ export function ImportStructureModel({
   const [isPending, startTransition] = useTransition();
   const queryClient = useQueryClient();
 
-  const prompt = useMemo(
-    () => `Create a production-quality course structure JSON for this course: "${courseTitle}".
+  const prompt = `Create a production-quality course structure JSON for this course: "${courseTitle}".
 
 Use the course reference/description that I paste after these instructions as the main source. Build the chapters, lesson names, and lesson descriptions from that reference. Do not ignore the reference.
 
@@ -123,9 +121,7 @@ Rules:
 
 After this line, I will paste the full course description/reference:
 
-PASTE COURSE DESCRIPTION HERE`,
-    [courseTitle],
-  );
+PASTE COURSE DESCRIPTION HERE`;
 
   async function copyPrompt() {
     await navigator.clipboard.writeText(prompt);

@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   getThreadMessagesAction,
   replyToTicketAction,
@@ -56,6 +56,10 @@ import { constructUrl } from "@/hooks/use-construct-url";
 import { chatCache, getSidebarKey, getSidebarLocalKey } from "@/lib/chat-cache";
 import { secureStorage } from "@/lib/secure-storage";
 import { useSmartSession } from "@/hooks/use-smart-session";
+
+function getTimestamp() {
+  return Date.now();
+}
 
 interface ChatWindowProps {
   threadId: string;
@@ -118,7 +122,6 @@ export function ChatWindow({
   >(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const lastThreadId = useRef(threadId);
   const hasLoggedMessages = useRef<string | null>(null);
 
   useEffect(() => {
@@ -220,36 +223,42 @@ type SidebarQueryData = { threads: ThreadData[] };
 
 const typedData = data as unknown as MessagesQueryData | undefined;
 const pages = typedData?.pages;
-const messages = useMemo(
-  () => {
-    const flat = pages?.flatMap((page) => page.messages) || [];
-    const seen = new Set<string>();
-    return flat.filter((msg) => {
-      if (seen.has(msg.id)) return false;
-      seen.add(msg.id);
-      return true;
-    });
-  },
-  [pages],
-);
-const threadState = useMemo(
-  () => pages?.[0]?.state,
-  [pages],
-);
+const flatMessages = pages?.flatMap((page) => page.messages) || [];
+const seenMessageIds = new Set<string>();
+const messages = flatMessages.filter((msg) => {
+  if (seenMessageIds.has(msg.id)) return false;
+  seenMessageIds.add(msg.id);
+  return true;
+});
+const threadState = pages?.[0]?.state;
+const supportBanned = !isGroup
+  ? messages.find((m: ThreadMessage) => m.senderId !== currentUserId)?.sender
+      ?.isSupportBanned
+  : undefined;
 
-  useEffect(() => {
-    // Reset state when switching threads (only if truly new)
-    if (lastThreadId.current !== threadId) {
-      lastThreadId.current = threadId;
-      setInputText("");
-      setImageUrl("");
-      // Correctly initialize archive state from current threadState to prevent flicker
-      setIsArchived(threadState?.isArchived || false);
-      setIsBanned(false);
-
-      setShowGroupInfo(false);
-    }
-  }, [threadId, threadState]);
+  const [prevThreadId, setPrevThreadId] = useState(threadId);
+  const [prevThreadState, setPrevThreadState] = useState(threadState);
+  const [prevSupportBanned, setPrevSupportBanned] = useState(supportBanned);
+  if (prevThreadId !== threadId) {
+    setPrevThreadId(threadId);
+    setPrevThreadState(threadState);
+    setPrevSupportBanned(supportBanned);
+    setInputText("");
+    setImageUrl("");
+    setFileUrl("");
+    setFileName("");
+    setIsArchived(threadState?.isArchived || false);
+    setIsBanned(false);
+    setShowGroupInfo(false);
+  }
+  if (prevThreadState !== threadState) {
+    setPrevThreadState(threadState);
+    setIsArchived(threadState?.isArchived || false);
+  }
+  if (prevSupportBanned !== supportBanned) {
+    setPrevSupportBanned(supportBanned);
+    setIsBanned(!!supportBanned);
+  }
 
   // Cross-Tab Sync: Listen for storage changes from other tabs (participants)
   useEffect(() => {
@@ -277,20 +286,6 @@ const threadState = useMemo(
 
   // Read status is now updated during message fetch in getThreadMessagesAction
 
-  useEffect(() => {
-    if (threadState) {
-      setIsArchived(threadState.isArchived);
-    }
-
-    // Check for ban status
-    if (!isGroup && messages.length > 0) {
-      const otherUser = messages.find((m: ThreadMessage) => m.senderId !== currentUserId);
-      if (otherUser && otherUser.sender) {
-        setIsBanned(!!otherUser.sender.isSupportBanned);
-      }
-    }
-  }, [messages, threadState, currentUserId, isGroup]);
-
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.currentTarget;
     if (target.scrollTop === 0 && hasNextPage && !isFetchingNextPage) {
@@ -303,13 +298,6 @@ const threadState = useMemo(
     }
   };
 
-  useEffect(() => {
-    if (!loading && messages.length > 0 && !isFetchingNextPage) {
-      // Very short delay for DOM render, then instant scroll to prevent flicker
-      setTimeout(() => scrollToBottom(true), 50);
-    }
-  }, [loading, threadId, messages.length, isFetchingNextPage]);
-
   const scrollToBottom = (instant = false) => {
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({
@@ -321,6 +309,13 @@ const threadState = useMemo(
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   };
+
+  useEffect(() => {
+    if (!loading && messages.length > 0 && !isFetchingNextPage) {
+      const timeoutId = setTimeout(() => scrollToBottom(true), 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [loading, threadId, messages.length, isFetchingNextPage]);
 
   const handleSendMessage = async () => {
     if (!inputText.trim() && !imageUrl && !fileUrl) return;
@@ -342,7 +337,7 @@ const threadState = useMemo(
 
     // We don't set sending=true here anymore to avoid blocking the UI
 
-    const tempId = `temp-${Date.now()}`;
+    const tempId = `temp-${getTimestamp()}`;
     const optimisticMessage = {
       id: tempId,
       content: textToSend,
@@ -436,7 +431,8 @@ const threadState = useMemo(
               fileName: fName || undefined,
             });
           } else {
-            throw new Error("Recipient not found");
+            toast.error("Recipient not found");
+            return;
           }
         } else {
           result = await sendNotificationAction({
@@ -610,9 +606,10 @@ const threadState = useMemo(
 
       // Reset input value to allow re-uploading same file
       if (e.target) e.target.value = "";
+      setIsUploading(false);
+      setUploadProgress(0);
     } catch {
       toast.error("Upload failed");
-    } finally {
       setIsUploading(false);
       setUploadProgress(0);
     }
@@ -673,9 +670,10 @@ const threadState = useMemo(
 
       // Reset input value to allow re-uploading same file
       if (e.target) e.target.value = "";
+      setIsUploading(false);
+      setUploadProgress(0);
     } catch {
       toast.error("Upload failed");
-    } finally {
       setIsUploading(false);
       setUploadProgress(0);
     }
@@ -763,9 +761,10 @@ const threadState = useMemo(
 
       // Reset input value to allow re-uploading same file
       if (e.target) e.target.value = "";
+      setIsEditUploading(false);
+      setUploadProgress(0);
     } catch {
       toast.error("Upload failed");
-    } finally {
       setIsEditUploading(false);
       setUploadProgress(0);
     }
@@ -830,9 +829,10 @@ const threadState = useMemo(
 
       // Reset input value to allow re-uploading same file
       if (e.target) e.target.value = "";
+      setIsEditFileUploading(false);
+      setUploadProgress(0);
     } catch {
       toast.error("Upload failed");
-    } finally {
       setIsEditFileUploading(false);
       setUploadProgress(0);
     }
@@ -1061,7 +1061,11 @@ const threadState = useMemo(
     try {
       const res = await deleteMessageAction(id);
       if (res && !res.success) {
-        throw new Error(res.error || "Failed to delete");
+        queryClient.invalidateQueries({
+          queryKey: ["messages", threadId, currentUserId],
+        });
+        toast.error(res.error || "Failed to delete");
+        return;
       }
 
       // Only invalidate local caches — do NOT refetch messages from server IMMEDIATELY.
@@ -1143,9 +1147,9 @@ const threadState = useMemo(
       toast.success(
         res.banned ? "User banned from tickets" : "User access restored",
       );
+      setIsBusy(false);
     } catch {
       toast.error("Failed to update ban status");
-    } finally {
       setIsBusy(false);
     }
   };
@@ -1199,12 +1203,12 @@ const threadState = useMemo(
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
       });
+      setIsBusy(false);
     } catch {
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
       });
       toast.error("Failed to update ticket status");
-    } finally {
       setIsBusy(false);
     }
   };
@@ -1267,6 +1271,7 @@ const threadState = useMemo(
       queryClient.invalidateQueries({
         queryKey: ["messages", threadId, currentUserId],
       });
+      setIsBusy(false);
     } catch {
       // REVERT ON FAILURE
       setIsArchived(!nextArchived);
@@ -1276,7 +1281,6 @@ const threadState = useMemo(
       });
 
       toast.error("Failed to archive chat");
-    } finally {
       setIsBusy(false);
     }
   };
@@ -1315,16 +1319,16 @@ const threadState = useMemo(
         queryKey: ["messages", threadId, currentUserId],
       });
       toast.success("Chat deleted successfully");
+      setIsBusy(false);
     } catch {
       toast.error("Failed to remove");
       // Trigger refresh to bring it back if optimistic failed
       window.dispatchEvent(new Event("chat-refresh"));
-    } finally {
       setIsBusy(false);
     }
   };
 
-  const handleShowGroupInfo = async () => {
+  async function handleShowGroupInfo() {
     if (!isGroup) return;
 
     // 1. Load from LocalStorage instantly
@@ -1333,7 +1337,7 @@ const threadState = useMemo(
 
     // Industry Standard: Only refresh if data is older than 30 mins (stale)
     // We store the timestamp in the cache entry itself
-    const now = Date.now();
+    const now = getTimestamp();
     const STALE_TIME = 30 * 60 * 1000; // 30 minutes
 
     let isStale = true;
@@ -1380,7 +1384,32 @@ const threadState = useMemo(
         if (!cached) toast.error("Failed to load group info");
       }
     }
-  };
+  }
+
+  async function triggerDirectDownload(
+    url: string,
+    fileName: string,
+    id: string,
+  ) {
+    if (downloadingFileId) return;
+    setDownloadingFileId(id);
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+      setDownloadingFileId(null);
+    } catch {
+      window.open(url, "_blank");
+      setDownloadingFileId(null);
+    }
+  }
 
   const displayAvatar = avatarUrl
     ? avatarUrl.startsWith("http") || avatarUrl.startsWith("/")
@@ -2299,29 +2328,4 @@ const threadState = useMemo(
       </Dialog>
     </div>
   );
-
-  async function triggerDirectDownload(
-    url: string,
-    fileName: string,
-    id: string,
-  ) {
-    if (downloadingFileId) return;
-    setDownloadingFileId(id);
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch {
-      window.open(url, "_blank");
-    } finally {
-      setDownloadingFileId(null);
-    }
-  }
 }

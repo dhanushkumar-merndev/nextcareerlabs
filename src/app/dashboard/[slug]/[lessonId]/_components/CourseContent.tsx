@@ -9,7 +9,6 @@ import { BookIcon, Bot, CheckCircle, ChevronRight, Lock, Sparkles, X } from "luc
 import { updateVideoProgress, updateMultipleVideoProgress } from "../actions";
 
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -198,7 +197,7 @@ function VideoPlayer({
     lessonIdRef.current = lessonId;
   }, [lessonId]);
 
-  const spriteMetadata = useMemo(() => {
+  const spriteMetadata = (() => {
     // 1. If we have an explicit spriteKey, use it (VTT or Legacy)
     if (spriteKey) {
       return {
@@ -233,7 +232,7 @@ function VideoPlayer({
     }
 
     return undefined;
-  }, [spriteKey, videoKey, spriteUrl, lowResUrl, spriteCols, spriteRows, spriteInterval, spriteWidth, spriteHeight]);
+  })();
 
   // ✅ Prefetch VTT metadata
   useEffect(() => {
@@ -361,17 +360,17 @@ function VideoPlayer({
     );
   }, [lessonId, initialRestrictionTime, userId]);
 
-  const sources = useMemo(() => {
+  const sources = (() => {
     const list = [];
     if (hlsUrl) list.push({ src: hlsUrl, type: "application/x-mpegURL" });
     if (!hlsUrl && videoUrl) list.push({ src: videoUrl, type: "video/mp4" });
     return list;
-  }, [hlsUrl, videoUrl]);
+  })();
 
-  const fullSpriteMetadata = useMemo(() => {
+  const fullSpriteMetadata = (() => {
     if (!spriteMetadata) return undefined;
     return { ...spriteMetadata, initialCues: vttCues };
-  }, [spriteMetadata, vttCues]);
+  })();
 
   /* ============================================================
      STORAGE HELPERS (Cookie + LocalStorage)
@@ -400,7 +399,7 @@ function VideoPlayer({
     return userId.substring(0, 16).padEnd(16, "0");
   };
 
-  const saveUnsyncedDelta = useCallback((force = false) => {
+  const saveUnsyncedDelta = (force = false) => {
     const val = sessionDeltaRef.current;
     if (val === 0) return;
     const now = Date.now();
@@ -417,7 +416,7 @@ function VideoPlayer({
 
     secureStorage.setItemTracked(`unsynced-delta-${lessonId}_${userId}`, encrypted);
     setCookie(`unsynced-delta-${lessonId}_${userId}`, encrypted);
-  }, [lessonId, userId]);
+  };
 
   const loadUnsyncedDelta = (): number => {
     // Check localStorage first, then cookie
@@ -441,17 +440,17 @@ function VideoPlayer({
     }
   };
 
-  const clearLocalDelta = useCallback(() => {
+  const clearLocalDelta = () => {
     sessionDeltaRef.current = 0;
     lastSavedDeltaRef.current = 0;
     secureStorage.removeItemTracked(`unsynced-delta-${lessonId}_${userId}`);
     deleteCookie(`unsynced-delta-${lessonId}_${userId}`);
-  }, [lessonId, userId]);
+  };
 
   /* ============================================================
      VIDEO POSITION TRACKING (localStorage for resume)
   ============================================================ */
-  const saveProgress = useCallback((time: number, force = false) => {
+  const saveProgress = (time: number, force = false) => {
     const now = Date.now();
     if (
       !force &&
@@ -464,7 +463,7 @@ function VideoPlayer({
     lastProgressWriteAtRef.current = now;
     secureStorage.setItemTracked(`video-progress-${lessonId}_${userId}`, time.toString());
     secureStorage.setItemTracked(`needs-sync-${lessonId}_${userId}`, "true"); // Mark dirty
-  }, [lessonId, userId]);
+  };
 
   /* ============================================================
      SYNC TO DATABASE
@@ -594,13 +593,12 @@ function VideoPlayer({
     } finally {
       isSyncingRef.current = false;
     }
-  }, [lessonId, userId, queryClient, clearLocalDelta]);
+  });
 
   /* ============================================================
      VIDEO EVENT HANDLERS (Memoized for stability)
   ============================================================ */
-  const onLoadedMetadata = useCallback(
-    (duration: number) => {
+  const onLoadedMetadata = (duration: number) => {
       setActualDuration(duration);
       // ✅ Save duration locally for real-time dashboard progress calculation (1 day TTL)
       chatCache.set(
@@ -611,12 +609,9 @@ function VideoPlayer({
         ONE_DAY_TTL,
       );
       secureStorage.setItemTracked(`duration-${lessonId}_${userId}`, duration.toString());
-    },
-    [lessonId, userId],
-  );
+  };
 
-  const onTimeUpdate = useCallback(
-    (currentTime: number) => {
+  const onTimeUpdate = (currentTime: number) => {
       // ✅ 1. Update Restriction Instantly (Fixes "5 sec slow")
       if (currentTime > restrictionTimeRef.current) {
         restrictionTimeRef.current = currentTime;
@@ -703,22 +698,19 @@ function VideoPlayer({
         saveProgress(currentTime);
         saveUnsyncedDelta();
       }
-    },
-    [lessonId, userId, saveProgress, saveUnsyncedDelta],
-  );
+  };
 
-  const onPlay = useCallback(() => {
+  const onPlay = () => {
     // Starting position is already tracked by onTimeUpdate
-  }, []);
+  };
 
-  const onPause = useCallback(() => {
+  const onPause = () => {
     // Save current breadcrumb to localStorage
     saveProgress(lastPositionRef.current, true);
     saveUnsyncedDelta(true); // Ensure delta is saved on pause
-  }, [saveProgress, saveUnsyncedDelta]);
+  };
 
-  const onRestrictionUpdate = useCallback(
-    (maxTime: number) => {
+  const onRestrictionUpdate = (maxTime: number) => {
       if (maxTime > restrictionTimeRef.current) {
         restrictionTimeRef.current = maxTime;
         const now = Date.now();
@@ -738,15 +730,13 @@ function VideoPlayer({
           );
         }
       }
-    },
-    [lessonId, userId],
-  );
+  };
 
-  const onEnded = useCallback(() => {
+  const onEnded = () => {
     syncToDB();
     // ✅ Unlock seeking immediately when video ends
     setOptimisticCompleted(true);
-  }, [setOptimisticCompleted, syncToDB]);
+  };
 
   // const thumbnailUrl = useConstructUrl(thumbnailkey); // Removed duplicate
 
@@ -1277,17 +1267,12 @@ export function CourseContent({ lessonId, userId }: iAppProps) {
   const hasVideo = Boolean(lessonData?.videoKey);
 
   // ✅ onSubmit: opens the assessment modal
-  const onSubmit = useCallback(async () => {
+  const onSubmit = async () => {
     if (!hasVideo) return;
     setIsLoadingMCQs(true);
-    try {
-      setIsAssessmentOpen(true);
-    } catch (e) {
-      console.error("[onSubmit] Error:", e);
-    } finally {
-      setIsLoadingMCQs(false);
-    }
-  }, [hasVideo]);
+    setIsAssessmentOpen(true);
+    setIsLoadingMCQs(false);
+  };
 
   if (!lessonData) {
     return <LessonContentSkeleton />;

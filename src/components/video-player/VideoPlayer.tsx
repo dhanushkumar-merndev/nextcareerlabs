@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 import {
@@ -98,6 +98,106 @@ export interface SpriteMetadata {
   initialCues?: Array<{ startTime: number; endTime: number; url: string; x: number; y: number; w: number; h: number }>;
 }
 
+function applyCaptionModeToPlayer(
+  player: ReturnType<typeof videojs> | null,
+  enabled: boolean,
+) {
+  if (!player) return;
+
+  const tracks = player.textTracks() as unknown as Array<{
+    kind: string;
+    mode: string;
+  }>;
+
+  for (let i = 0; i < tracks.length; i++) {
+    if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
+      tracks[i].mode = enabled ? "showing" : "disabled";
+    }
+  }
+}
+
+function removeSidecarTrackFromPlayer(
+  player: ReturnType<typeof videojs> | null,
+  sidecarTrackRef: React.MutableRefObject<unknown | null>,
+) {
+  if (!player) return;
+
+  if (sidecarTrackRef.current) {
+    try {
+      player.removeRemoteTextTrack(sidecarTrackRef.current);
+    } catch (error) {
+      console.warn("[DEBUG] VideoPlayer: remove sidecar ref failed", error);
+    }
+    sidecarTrackRef.current = null;
+  }
+
+  const tracks = player.textTracks() as unknown as Array<{
+    label?: string;
+  }>;
+
+  for (let i = tracks.length - 1; i >= 0; i--) {
+    if (tracks[i].label === "Sidecar-English") {
+      try {
+        player.removeRemoteTextTrack(tracks[i]);
+      } catch (error) {
+        console.warn("[DEBUG] VideoPlayer: remove sidecar track failed", error);
+      }
+    }
+  }
+}
+
+type SpriteCue = {
+  startTime: number;
+  endTime: number;
+  url: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+function preloadSpriteImages(
+  cues: SpriteCue[],
+  vttUrl: string,
+  lowResUrl?: string,
+) {
+  if (cues.length === 0) return;
+
+  if (lowResUrl) {
+    const img = new Image();
+    img.src = lowResUrl;
+    console.log("VideoPlayer: Preloading low-res grid...");
+  }
+
+  const baseUrl = vttUrl.substring(0, vttUrl.lastIndexOf("/") + 1);
+  const firstCue = cues[0];
+  if (firstCue?.url?.includes("#range=")) {
+    console.log(
+      "VideoPlayer: Byte-Range mode detected. Preloading first stripe...",
+    );
+    return;
+  }
+
+  const uniqueImages = new Set<string>();
+  cues.forEach((cue) => {
+    if (cue.url) {
+      const imageUrl = cue.url.startsWith("http")
+        ? cue.url
+        : baseUrl + cue.url;
+      uniqueImages.add(imageUrl);
+    }
+  });
+
+  const maxPreloadImages = 3;
+  console.log(
+    `VideoPlayer: Preloading ${Math.min(uniqueImages.size, maxPreloadImages)} of ${uniqueImages.size} sprite images...`,
+  );
+  Array.from(uniqueImages).slice(0, maxPreloadImages).forEach((url) => {
+    const img = new Image();
+    img.src = url;
+  });
+}
+
 interface VideoPlayerProps {
   src?: string;
   sources?: VideoSource[];
@@ -168,7 +268,6 @@ export function VideoPlayer({
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
   const captionsEnabledRef = useRef(true);
   const sidecarTrackRef = useRef<unknown | null>(null);
-  const removeSidecarTrackRef = useRef<() => void>(() => {});
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [showCenterControls, setShowCenterControls] = useState(true);
@@ -208,23 +307,7 @@ export function VideoPlayer({
 
   const [hasCaptions, setHasCaptions] = useState(!!captionUrl);
 
-  const applyCaptionMode = useCallback((enabled: boolean) => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    const tracks = player.textTracks() as unknown as Array<{
-      kind: string;
-      mode: string;
-    }>;
-
-    for (let i = 0; i < tracks.length; i++) {
-      if (tracks[i].kind === "captions" || tracks[i].kind === "subtitles") {
-        tracks[i].mode = enabled ? "showing" : "disabled";
-      }
-    }
-  }, []);
-
-  const addSidecarTrack = useCallback((url: string) => {
+  const addSidecarTrack = (url: string) => {
     const player = playerRef.current;
     if (!player) return;
 
@@ -247,7 +330,7 @@ export function VideoPlayer({
       if (!captionsEnabledRef.current) return;
       try {
         (track as unknown as { mode: string }).mode = "showing";
-        applyCaptionMode(true);
+        applyCaptionModeToPlayer(playerRef.current, true);
         setCaptionsEnabled(true);
       } catch (error) {
         console.warn("[DEBUG] VideoPlayer: show sidecar track failed", error);
@@ -256,45 +339,15 @@ export function VideoPlayer({
 
     requestAnimationFrame(showSidecarTrack);
     setTimeout(showSidecarTrack, 150);
-  }, [applyCaptionMode]);
-
-  const removeSidecarTrack = useCallback(() => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    if (sidecarTrackRef.current) {
-      try {
-        player.removeRemoteTextTrack(sidecarTrackRef.current);
-      } catch (error) {
-        console.warn("[DEBUG] VideoPlayer: remove sidecar ref failed", error);
-      }
-      sidecarTrackRef.current = null;
-    }
-
-    const tracks = player.textTracks() as unknown as Array<{
-      label?: string;
-    }>;
-
-    for (let i = tracks.length - 1; i >= 0; i--) {
-      if (tracks[i].label === "Sidecar-English") {
-        try {
-          player.removeRemoteTextTrack(tracks[i]);
-        } catch (error) {
-          console.warn("[DEBUG] VideoPlayer: remove sidecar track failed", error);
-        }
-      }
-    }
-  }, []);
-
-  removeSidecarTrackRef.current = removeSidecarTrack;
+  };
 
   useEffect(() => {
     captionsEnabledRef.current = captionsEnabled;
-    applyCaptionMode(captionsEnabled);
+    applyCaptionModeToPlayer(playerRef.current, captionsEnabled);
     if (!captionsEnabled) {
-      removeSidecarTrackRef.current();
+      removeSidecarTrackFromPlayer(playerRef.current, sidecarTrackRef);
     }
-  }, [applyCaptionMode, captionsEnabled]);
+  }, [captionsEnabled]);
 
   // Initialize player only once, then update sources
   useEffect(() => {
@@ -748,7 +801,7 @@ export function VideoPlayer({
     }
 
     // 1. Remove ONLY our previous sidecar tracks, not manifest ones
-    removeSidecarTrack();
+    removeSidecarTrackFromPlayer(playerRef.current, sidecarTrackRef);
 
     if (!captionsEnabledRef.current) {
       setHasCaptions(true);
@@ -758,9 +811,9 @@ export function VideoPlayer({
     // 2. Add the new sidecar track
     addSidecarTrack(captionUrl);
 
-    requestAnimationFrame(() => applyCaptionMode(true));
-    setTimeout(() => applyCaptionMode(true), 150);
-  }, [addSidecarTrack, applyCaptionMode, captionUrl, isPlayerReady, removeSidecarTrack]);
+    requestAnimationFrame(() => applyCaptionModeToPlayer(playerRef.current, true));
+    setTimeout(() => applyCaptionModeToPlayer(playerRef.current, true), 150);
+  }, [captionUrl, isPlayerReady]);
 
   // Sync sources when they change after initialization
   useEffect(() => {
@@ -896,8 +949,7 @@ export function VideoPlayer({
     }
   };
 
-  const handleSeek = useCallback(
-    (value: number[]) => {
+  const handleSeek = (value: number[]) => {
       if (!value || isNaN(value[0])) return;
 
       // Lock status and update UI state only for performance
@@ -911,12 +963,9 @@ export function VideoPlayer({
       }
 
       setCurrentTime(time);
-    },
-    [duration, restrictSeeking, maxWatchedTime],
-  );
+  };
 
-  const handleSeekCommit = useCallback(
-    (value: number[]) => {
+  const handleSeekCommit = (value: number[]) => {
       if (!playerRef.current || !value || isNaN(value[0])) {
         isSeekingRef.current = false;
         return;
@@ -936,19 +985,12 @@ export function VideoPlayer({
           Math.floor(time / spriteMetadata.interval) * spriteMetadata.interval;
       }
 
-      try {
-        playerRef.current?.currentTime(time);
-        setCurrentTime(time);
-      } finally {
-        // Small delay before unlocking to prevent the next 'timeupdate'
-        // from snapping the UI back to the old position before the seek completes
-        setTimeout(() => {
-          isSeekingRef.current = false;
-        }, 50);
-      }
-    },
-    [duration, spriteMetadata?.interval, restrictSeeking, maxWatchedTime],
-  );
+      playerRef.current?.currentTime(time);
+      setCurrentTime(time);
+      setTimeout(() => {
+        isSeekingRef.current = false;
+      }, 50);
+  };
 
   const toggleMute = (e?: React.MouseEvent | React.TouchEvent) => {
     e?.stopPropagation();
@@ -962,12 +1004,12 @@ export function VideoPlayer({
     });
   };
 
-  const handleVolumeChange = useCallback((value: number[]) => {
+  const handleVolumeChange = (value: number[]) => {
     const vol = value[0];
     setVolume(vol);
     if (playerRef.current) playerRef.current.volume(vol);
     setIsMuted(vol === 0);
-  }, []);
+  };
 
   const handlePlaybackRate = (rate: number) => {
     setPlaybackRate(rate);
@@ -981,12 +1023,12 @@ export function VideoPlayer({
 
       captionsEnabledRef.current = enabled;
       if (!enabled) {
-        removeSidecarTrack();
+        removeSidecarTrackFromPlayer(playerRef.current, sidecarTrackRef);
       } else if (captionUrl) {
-        removeSidecarTrack();
+        removeSidecarTrackFromPlayer(playerRef.current, sidecarTrackRef);
         addSidecarTrack(captionUrl);
       }
-      applyCaptionMode(enabled);
+      applyCaptionModeToPlayer(playerRef.current, enabled);
       setCaptionsEnabled(enabled);
       toast.success(enabled ? "Captions enabled" : "Captions disabled", {
         duration: 1000,
@@ -1131,57 +1173,17 @@ export function VideoPlayer({
     spriteMetadata?.initialCues || [],
   );
 
-  // Preload sprite images/ranges so they're cached by browser
-  const preloadSpriteImages = useCallback((cues: Array<{ startTime: number; endTime: number; url: string; x: number; y: number; w: number; h: number }>, vttUrl: string) => {
-    if (cues.length === 0) return;
-
-    // ✅ Preload Low-Res Grid First (Instant Placeholder)
-    if (spriteMetadata?.lowResUrl) {
-      const img = new Image();
-      img.src = spriteMetadata.lowResUrl;
-      console.log("VideoPlayer: Preloading low-res grid...");
-    }
-
-    const baseUrl = vttUrl.substring(0, vttUrl.lastIndexOf("/") + 1);
-
-    // For Byte-Range consolidated sprites, we don't want to preload the WHOLE .bin
-    // We only preload the FIRST stripe to give instant feedback
-    const firstCue = cues[0];
-    if (firstCue?.url?.includes("#range=")) {
-      console.log(
-        "VideoPlayer: Byte-Range mode detected. Preloading first stripe...",
-      );
-      // getSpritePosition will handle the specific range fetch
-      return;
-    }
-
-    const uniqueImages = new Set<string>();
-    cues.forEach((cue) => {
-      if (cue.url) {
-        const imageUrl = cue.url.startsWith("http")
-          ? cue.url
-          : baseUrl + cue.url;
-        uniqueImages.add(imageUrl);
-      }
-    });
-
-    const maxPreloadImages = 3;
-    console.log(
-      `VideoPlayer: Preloading ${Math.min(uniqueImages.size, maxPreloadImages)} of ${uniqueImages.size} sprite images...`,
-    );
-    Array.from(uniqueImages).slice(0, maxPreloadImages).forEach((url) => {
-      const img = new Image();
-      img.src = url;
-    });
-  }, [spriteMetadata?.lowResUrl]);
-
   // Sync initial cues if they arrive later
   useEffect(() => {
     if (spriteMetadata?.initialCues && spriteMetadata.initialCues.length > 0) {
       setVttCues(spriteMetadata.initialCues);
-      preloadSpriteImages(spriteMetadata.initialCues, spriteMetadata.url ?? "");
+      preloadSpriteImages(
+        spriteMetadata.initialCues,
+        spriteMetadata.url ?? "",
+        spriteMetadata.lowResUrl,
+      );
     }
-  }, [spriteMetadata?.initialCues, spriteMetadata?.url, preloadSpriteImages]);
+  }, [spriteMetadata?.initialCues, spriteMetadata?.url, spriteMetadata?.lowResUrl]);
 
   // Fetch and parse VTT if spriteMetadata.url contains .vtt
   useEffect(() => {
@@ -1211,7 +1213,7 @@ export function VideoPlayer({
         setVttCues(parsedCache);
 
         // ✅ Preload sprite images from cache
-        preloadSpriteImages(parsedCache, spriteMetadata.url);
+        preloadSpriteImages(parsedCache, spriteMetadata.url, spriteMetadata.lowResUrl);
         return;
       } catch {
         console.warn("VideoPlayer: Cache parse failed, fetching fresh");
@@ -1271,7 +1273,7 @@ export function VideoPlayer({
         sessionStorage.setItem(cacheKey, JSON.stringify(parsedCues));
 
         // ✅ Preload all sprite images
-        preloadSpriteImages(parsedCues, spriteMetadata.url);
+        preloadSpriteImages(parsedCues, spriteMetadata.url, spriteMetadata.lowResUrl);
       })
       .catch((err) => {
         if (err.name === "AbortError") return;
@@ -1279,7 +1281,7 @@ export function VideoPlayer({
       });
 
     return () => controller.abort();
-  }, [spriteMetadata?.url, preloadSpriteImages]);
+  }, [spriteMetadata?.url, spriteMetadata?.lowResUrl]);
 
   const [rangeCache] = useState<Map<string, string>>(new Map());
   const fullBinaryRef = useRef<Blob | null>(null);

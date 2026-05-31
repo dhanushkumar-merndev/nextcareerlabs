@@ -65,7 +65,9 @@ export function LessonQuiz({
       const response = await submitQuiz(lessonId, answerArray);
 
       if (!response.success) {
-        throw new Error(response.error || 'Failed to submit quiz');
+        toast.error(response.error || 'Failed to submit quiz');
+        setIsSubmitting(false);
+        return;
       }
 
       setResult({
@@ -86,9 +88,9 @@ export function LessonQuiz({
       } else {
         toast.error('You need 15/20 to pass. Try again!');
       }
+      setIsSubmitting(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to submit quiz');
-    } finally {
       setIsSubmitting(false);
     }
   }

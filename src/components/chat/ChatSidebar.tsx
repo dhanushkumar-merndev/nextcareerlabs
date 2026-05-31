@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -68,13 +68,13 @@ export function ChatSidebar({
 
   const queryClient = useQueryClient();
 
-  const refetch = useCallback(() => {
-    queryClient.invalidateQueries({ 
-      queryKey: getSidebarKey(currentUserId, isAdmin) 
-    });
-  }, [queryClient, currentUserId, isAdmin]);
-
   useEffect(() => {
+    const refetch = () => {
+      queryClient.invalidateQueries({
+        queryKey: getSidebarKey(currentUserId, isAdmin),
+      });
+    };
+
     const handleThreadUpdate = (e: CustomEvent) => {
       const detail = e.detail as {
         threadId?: string;
@@ -135,7 +135,7 @@ export function ChatSidebar({
       window.removeEventListener("chat-refresh", handleRefresh);
       window.removeEventListener("chat-thread-update", handleThreadUpdate as EventListener);
     };
-  }, [refetch, currentUserId, isAdmin, onSelectThread, queryClient, selectedThreadId]);
+  }, [currentUserId, isAdmin, onSelectThread, queryClient, selectedThreadId]);
 
   // Auto-select thread from URL (only on initial load or explicit URL change)
   const hasAutoSelectedRef = useRef(false);

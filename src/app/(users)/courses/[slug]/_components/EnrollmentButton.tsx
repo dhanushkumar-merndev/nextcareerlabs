@@ -10,7 +10,7 @@
 "use client";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { tryCatch } from "@/hooks/try-catch";
-import { useTransition, useState, useEffect } from "react";
+import { useTransition, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { enrollInCourseAction } from "../actions";
 import { toast } from "sonner";
@@ -34,11 +34,13 @@ export function EnrollmentButton({
   const { session } = useSmartSession();
   const [isPending, startTransition] = useTransition();
   const [currentStatus, setCurrentStatus] = useState(status);
+  const [prevStatus, setPrevStatus] = useState(status);
   const [showPhoneDialog, setShowPhoneDialog] = useState(false);
 
-  useEffect(() => {
+  if (status !== prevStatus) {
+    setPrevStatus(status);
     setCurrentStatus(status);
-  }, [status]);
+  }
 
   function onSubmit() {
     if (isPending || currentStatus === "Pending") return;

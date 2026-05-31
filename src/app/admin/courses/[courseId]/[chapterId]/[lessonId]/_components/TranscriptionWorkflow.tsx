@@ -117,9 +117,8 @@ export function TranscriptionWorkflow({
           }
         } catch (err) {
           console.warn("[TranscriptionWorkflow] Initial load failed:", err);
-        } finally {
-          setIsInitialLoading(false);
         }
+        setIsInitialLoading(false);
         return;
       }
 
@@ -149,9 +148,8 @@ export function TranscriptionWorkflow({
         }
       } catch (err) {
         console.warn("[TranscriptionWorkflow] Load failed:", err);
-      } finally {
-        setIsInitialLoading(false);
       }
+      setIsInitialLoading(false);
     };
     loadExisting();
   }, [lessonId, videoKey, initialHasMCQs, initialTranscription]);
@@ -194,7 +192,9 @@ export function TranscriptionWorkflow({
       const result = await storeTranscription(lessonId, content, videoKey);
 
       if (!result.success) {
-        throw new Error(result.error || "Failed to save transcription");
+        setStatus("error");
+        toast.error(result.error || "Failed to save transcription");
+        return;
       }
 
       // 🔔 Notify parent to update preview player instantly
@@ -229,7 +229,9 @@ export function TranscriptionWorkflow({
       );
 
       if (!result.success || !result.vttContent) {
-        throw new Error(result.error || "Failed to generate captions");
+        setStatus("error");
+        toast.error(result.error || "Failed to generate captions");
+        return;
       }
 
       setVttContent(result.vttContent);
@@ -271,7 +273,8 @@ export function TranscriptionWorkflow({
 
     const result = (await response.json().catch(() => null)) as { json?: string; error?: string } | null;
     if (!response.ok || !result?.json) {
-      throw new Error(result?.error || "Failed to repair MCQs");
+      setMcqValidationMessage(result?.error || "Failed to repair MCQs");
+      return null;
     }
 
     return result.json;
@@ -301,7 +304,9 @@ export function TranscriptionWorkflow({
 
       if (!response.ok || !response.body) {
         const error = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(error?.error || "Failed to start MCQ generation");
+        toast.error(error?.error || "Failed to start MCQ generation");
+        setIsGeneratingMCQs(false);
+        return;
       }
 
       const reader = response.body.getReader();
@@ -335,7 +340,9 @@ export function TranscriptionWorkflow({
             streamedJson += event.token;
             setPastedJson(streamedJson);
           } else if (event.type === "error") {
-            throw new Error(event.error);
+            toast.error(event.error);
+            setIsGeneratingMCQs(false);
+            return;
           }
         }
       }
@@ -345,7 +352,11 @@ export function TranscriptionWorkflow({
         try {
           const event = JSON.parse(eventBuffer) as MCQStreamEvent;
           if (event.type === "token") streamedJson += event.token;
-          if (event.type === "error") throw new Error(event.error);
+          if (event.type === "error") {
+            toast.error(event.error);
+            setIsGeneratingMCQs(false);
+            return;
+          }
         } catch {
           streamedJson += eventBuffer;
         }
@@ -373,10 +384,10 @@ export function TranscriptionWorkflow({
 
       setMcqValidationMessage("Valid JSON: 20 questions ready to save.");
       toast.success("MCQs generated. Review and save.");
+      setIsGeneratingMCQs(false);
     } catch (error) {
       console.error("[Groq MCQ Generate Error]", error);
       toast.error(error instanceof Error ? error.message : "Failed to generate MCQs");
-    } finally {
       setIsGeneratingMCQs(false);
     }
   };
@@ -394,6 +405,7 @@ export function TranscriptionWorkflow({
       if (!validation.valid) {
         setMcqValidationMessage(validation.error || "Invalid JSON format");
         toast.error(validation.error || "Invalid JSON format");
+        setIsSavingMCQs(false);
         return;
       }
 
@@ -409,9 +421,9 @@ export function TranscriptionWorkflow({
       } else {
         toast.error(result.error || "Failed to save MCQs");
       }
+      setIsSavingMCQs(false);
     } catch {
       toast.error("An error occurred while saving MCQs");
-    } finally {
       setIsSavingMCQs(false);
     }
   };
@@ -447,9 +459,9 @@ export function TranscriptionWorkflow({
       } else {
         toast.error(result.error || "Failed to delete");
       }
+      setIsDeleting(false);
     } catch {
       toast.error("Cleanup failed");
-    } finally {
       setIsDeleting(false);
     }
   };

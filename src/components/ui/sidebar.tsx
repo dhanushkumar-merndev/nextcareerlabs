@@ -86,32 +86,34 @@ function SidebarProvider({
     openRef.current = open;
   });
 
-  const setOpen = React.useCallback(
-    (value: boolean | ((value: boolean) => boolean)) => {
-      const openState = typeof value === "function" ? value(openRef.current) : value;
-      if (setOpenProp) {
-        setOpenProp(openState);
-      } else {
-        _setOpen(openState);
-      }
+  const setOpen = (value: boolean | ((value: boolean) => boolean)) => {
+    const openState = typeof value === "function" ? value(openRef.current) : value;
+    if (setOpenProp) {
+      setOpenProp(openState);
+    } else {
+      _setOpen(openState);
+    }
 
-      // This sets the cookie to keep the sidebar state.
-      document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
-    },
-    [setOpenProp],
-  );
+    // This sets the cookie to keep the sidebar state.
+    document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+  };
 
   // Helper to toggle the sidebar.
-  const toggleSidebar = React.useCallback(() => {
+  const toggleSidebar = () => {
     return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-  }, [isMobile, setOpen, setOpenMobile]);
+  };
 
   // Handle auto-collapse on desktop for lesson pages
   React.useEffect(() => {
     if (!isMobile && isLessonPage) {
-      setOpen(false);
+      if (setOpenProp) {
+        setOpenProp(false);
+      } else {
+        _setOpen(false);
+      }
+      document.cookie = `${SIDEBAR_COOKIE_NAME}=false; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
     }
-  }, [pathname, isMobile, isLessonPage, setOpen]);
+  }, [pathname, isMobile, isLessonPage, setOpenProp]);
 
   // Adds a keyboard shortcut to toggle the sidebar.
   React.useEffect(() => {
@@ -121,40 +123,38 @@ function SidebarProvider({
         (event.metaKey || event.ctrlKey)
       ) {
         event.preventDefault();
-        toggleSidebar();
+        if (isMobile) {
+          setOpenMobile((open) => !open);
+        } else {
+          const openState = !openRef.current;
+          if (setOpenProp) {
+            setOpenProp(openState);
+          } else {
+            _setOpen(openState);
+          }
+          document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+        }
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleSidebar]);
+  }, [isMobile, setOpenProp]);
 
   // We add a state so that we can do data-state="expanded" or "collapsed".
   // This makes it easier to style the sidebar with Tailwind classes.
   const state = open ? "expanded" : "collapsed";
 
-  const contextValue = React.useMemo<SidebarContextProps>(
-    () => ({
-      state,
-      open,
-      setOpen,
-      isMobile,
-      openMobile,
-      setOpenMobile,
-      toggleSidebar,
-      overlap,
-    }),
-    [
-      state,
-      open,
-      setOpen,
-      isMobile,
-      openMobile,
-      setOpenMobile,
-      toggleSidebar,
-      overlap,
-    ],
-  );
+  const contextValue: SidebarContextProps = {
+    state,
+    open,
+    setOpen,
+    isMobile,
+    openMobile,
+    setOpenMobile,
+    toggleSidebar,
+    overlap,
+  };
 
   return (
     <SidebarContext.Provider value={contextValue}>

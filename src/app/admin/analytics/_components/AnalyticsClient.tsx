@@ -41,7 +41,6 @@ import {
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatIST } from "@/lib/utils";
-import Loader from "@/components/ui/Loader";
 import { chatCache, PERMANENT_TTL } from "@/lib/chat-cache";
 import { useRouter } from "next/navigation";
 

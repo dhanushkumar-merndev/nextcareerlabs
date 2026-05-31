@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import TextAlign from "@tiptap/extension-text-align";
@@ -8,14 +7,12 @@ import { generateHTML } from "@tiptap/html";
 import parse, { HTMLReactParserOptions, Element } from "html-react-parser";
 
 export function RenderDescription({ json }: { json: JSONContent }) {
-  const output = useMemo(() => {
-    return generateHTML(json, [
-      StarterKit,
-      TextAlign.configure({
-        types: ["heading", "paragraph"],
-      }),
-    ]);
-  }, [json]);
+  const output = generateHTML(json, [
+    StarterKit,
+    TextAlign.configure({
+      types: ["heading", "paragraph"],
+    }),
+  ]);
 
   const options: HTMLReactParserOptions = {
     replace: (domNode) => {

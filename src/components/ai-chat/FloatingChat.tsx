@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Bot, X, Send, ChevronDown, Maximize2, Minimize2, Menu, Plus, Trash2, Loader2, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { getSessions, createSession, getMessages, saveMessages, updateSessionTimestamp, updateSessionTitle, deleteSession } from "@/lib/chat-db";
 import type { ChatSession, ChatMessage as DBChatMessage } from "@/lib/chat-db";
 
-const timestampRegex = /(?:\[)?(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)\s*-->\s*(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)(?:\])?|\[(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)\]/g;
+const timestampRegexSource = String.raw`(?:\[)?(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)\s*-->\s*(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)(?:\])?|\[(\d{1,2}:\d{2}:\d{2}(?:\.\d+)?)\]`;
 
 const toSeconds = (t: string) => {
   const parts = t.split(":").map(Number);
@@ -46,33 +46,29 @@ function TimestampBadge({ start, end, videoDuration, restrictionTime }: { start:
 }
 
 function MarkdownWithTimestamps({ content, videoDuration, restrictionTime }: { content: string; videoDuration?: number; restrictionTime?: number }) {
-  const segments = useMemo(() => {
-    const all: { type: "text" | "badge"; text?: string; start?: string; end?: string }[] = [];
-    let last = 0;
-    let m: RegExpExecArray | null;
-    while ((m = timestampRegex.exec(content)) !== null) {
-      if (m.index > last) {
-        let text = content.slice(last, m.index);
-        // Strip trailing punctuation/whitespace from text before a badge (sentence punctuation around timestamp)
-        text = text.replace(/[\s\n\r]*[.,!?:;]+[\s\n\r]*$/, "");
-        if (text) all.push({ type: "text", text });
-      }
-      if (m[1] !== undefined) {
-        all.push({ type: "badge", start: trimTimestamp(m[1]), end: trimTimestamp(m[2]) });
-      } else if (m[3] !== undefined) {
-        const t = trimTimestamp(m[3]);
-        all.push({ type: "badge", start: t, end: t });
-      }
-      last = m.index + m[0].length;
+  const timestampRegex = new RegExp(timestampRegexSource, "g");
+  const segments: { type: "text" | "badge"; text?: string; start?: string; end?: string }[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = timestampRegex.exec(content)) !== null) {
+    if (m.index > last) {
+      let text = content.slice(last, m.index);
+      text = text.replace(/[\s\n\r]*[.,!?:;]+[\s\n\r]*$/, "");
+      if (text) segments.push({ type: "text", text });
     }
-    if (last < content.length) {
-      let text = content.slice(last);
-      // Strip leading punctuation/whitespace after last badge (sentence punctuation around timestamp)
-      text = text.replace(/^[\s\n\r]*[.,!?:;:]+[\s\n\r]*/, "");
-      if (text) all.push({ type: "text", text });
+    if (m[1] !== undefined) {
+      segments.push({ type: "badge", start: trimTimestamp(m[1]), end: trimTimestamp(m[2]) });
+    } else if (m[3] !== undefined) {
+      const t = trimTimestamp(m[3]);
+      segments.push({ type: "badge", start: t, end: t });
     }
-    return all;
-  }, [content]);
+    last = m.index + m[0].length;
+  }
+  if (last < content.length) {
+    let text = content.slice(last);
+    text = text.replace(/^[\s\n\r]*[.,!?:;:]+[\s\n\r]*/, "");
+    if (text) segments.push({ type: "text", text });
+  }
 
   return (
     <>
@@ -127,8 +123,8 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
   const [showSessionList, setShowSessionList] = useState(false);
   const [isDbReady, setIsDbReady] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
-  const [tourStep, setTourStep] = useState<number | null>(null);
   const isResizing = useRef(false);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
 
   // Load sessions
   useEffect(() => {
@@ -162,21 +158,21 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
     });
   }, [currentSessionId]);
 
-  const switchSession = useCallback(async (sessionId: string) => {
+  const switchSession = async (sessionId: string) => {
     setCurrentSessionId(sessionId);
     setShowSessionList(false);
     hasNamed.current = false;
-  }, []);
+  };
 
-  const handleNewSession = useCallback(async () => {
+  const handleNewSession = async () => {
     const s = await createSession(lessonId, userId);
     setSessions((prev) => [s, ...prev]);
     setCurrentSessionId(s.id);
     setShowSessionList(false);
     hasNamed.current = false;
-  }, [lessonId, userId]);
+  };
 
-  const handleDeleteSession = useCallback(async (e: React.MouseEvent, sessionId: string) => {
+  const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     await deleteSession(sessionId);
     setSessions((prev) => {
@@ -190,7 +186,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
       }
       return next;
     });
-  }, [currentSessionId]);
+  };
 
   useEffect(() => {
     const check = () => {
@@ -208,15 +204,15 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
     }
   }, [isOpen]);
 
-  const handleClose = useCallback(() => {
+  const handleClose = () => {
     setIsAnimatingOut(true);
     setTimeout(() => {
       onClose();
       setIsAnimatingOut(false);
     }, 300);
-  }, [onClose]);
+  };
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
+  const onMouseDown = (e: React.MouseEvent) => {
     const header = (e.target as HTMLElement).closest(".chat-header");
     if (!header) return;
     if (!chatRef.current) return;
@@ -232,9 +228,9 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
       baseY: rect.top,
     };
     setIsDragging(true);
-  }, []);
+  };
 
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
+  const onTouchStart = (e: React.TouchEvent) => {
     const header = (e.target as HTMLElement).closest(".chat-header");
     if (!header) return;
     if (!chatRef.current) return;
@@ -251,7 +247,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
       baseY: rect.top,
     };
     setIsDragging(true);
-  }, []);
+  };
 
   useEffect(() => {
     if (!isDragging) return;
@@ -305,9 +301,10 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
     };
   }, [isDragging]);
 
-  const onResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+  const onResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    resizeCleanupRef.current?.();
     isResizing.current = true;
     setShowResizeOverlay(true);
     const startX = "touches" in e ? e.touches[0].clientX : e.clientX;
@@ -326,17 +323,29 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
         height: Math.max(420, startH + cy - startY),
       });
     };
-    const onUp = () => {
+    const cleanupResize = () => {
       isResizing.current = false;
       setShowResizeOverlay(false);
       document.body.style.userSelect = "";
       document.body.style.cursor = "";
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", cleanupResize);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", cleanupResize);
+      resizeCleanupRef.current = null;
     };
     window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("mouseup", cleanupResize);
     window.addEventListener("touchmove", onMove, { passive: true });
-    window.addEventListener("touchend", onUp);
-  }, [size]);
+    window.addEventListener("touchend", cleanupResize);
+    resizeCleanupRef.current = cleanupResize;
+  };
+
+  useEffect(() => {
+    return () => {
+      resizeCleanupRef.current?.();
+    };
+  }, []);
 
   // Scroll to bottom on new messages, show arrow when user scrolls up
   useEffect(() => {
@@ -359,12 +368,12 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
     }
   }, [streamingText]);
 
-  const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const target = e.target as HTMLDivElement;
     setShowScrollBtn(target.scrollHeight - target.scrollTop - target.clientHeight > 100);
-  }, []);
+  };
 
-  const sendMessage = useCallback(async () => {
+  const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
     // Create session on first message
@@ -425,7 +434,7 @@ export function FloatingChat({ lessonId, userId, vttText, remaining, isOpen, onC
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, currentSessionId, lessonId, userId, messages, vttText]);
+  };
 
   // Save messages to IndexedDB when they change
   const lastSavedCount = useRef(0);

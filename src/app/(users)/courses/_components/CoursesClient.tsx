@@ -14,12 +14,16 @@ import {
   PublicCourseCard,
   PublicCourseCardSkeleton,
 } from "../../_components/PublicCourseCard";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useInView } from "react-intersection-observer";
 import { CoursesCacheWithCursor, CoursesServerResult, PublicCourseType } from "@/lib/types/course";
 import { useSearchParams } from "next/navigation";
 import type { InfiniteData } from "@tanstack/react-query";
 import { usePendingDetection } from "@/hooks/use-pending-detection";
+
+const subscribeToClientReady = () => () => {};
+const getClientReadySnapshot = () => true;
+const getServerReadySnapshot = () => false;
 
 // Each page returned by React Query
 type CoursesPage = {
@@ -39,15 +43,15 @@ export function CoursesClient({ initialData }: { initialData?: CoursesServerResu
   const searchTitle = searchParams.get("title");
 
   // Used to avoid hydration mismatch. The server and first client render must match.
-  const [isHydrated, setIsHydrated] = useState(false);
+  const isHydrated = useSyncExternalStore(
+    subscribeToClientReady,
+    getClientReadySnapshot,
+    getServerReadySnapshot,
+  );
   const hasLogged = useRef<string | null>(null);
 
   // Normalize userId
   const safeUserId = currentUserId ?? undefined;
-
-  useEffect(() => {
-    setIsHydrated(true);
-  }, []);
 
   // Persistent Logging (SPA Compatible)
   useEffect(() => {

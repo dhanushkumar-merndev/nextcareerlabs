@@ -3,7 +3,6 @@ import { cn } from "@/lib/utils";
 import { Play, Check, Lock } from "lucide-react";
 import Link from "next/link";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { memo } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
@@ -23,7 +22,7 @@ interface iAppProps {
   courseThumbnail?: string | null;
 }
 
-export const LessonItem = memo(function LessonItem({
+export function LessonItem({
   lesson,
   slug,
   isActive,
@@ -137,4 +136,4 @@ export const LessonItem = memo(function LessonItem({
       </div>
     </Link>
   );
-});
+}

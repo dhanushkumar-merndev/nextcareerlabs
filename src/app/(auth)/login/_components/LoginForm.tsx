@@ -102,12 +102,10 @@ export function LoginForm() {
 
 
 
-  // Normalize email and avoid extra re-renders
-  const normalizedEmail = React.useMemo(() => email.trim().toLowerCase(), [email]);
-  // Validate email
-  const isValidEmail = React.useCallback((email: string) => {
+  const normalizedEmail = email.trim().toLowerCase();
+  const isValidEmail = (email: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }, []);
+  };
 
 // Google signin with email check
   async function signInWithGoogle() {
@@ -251,6 +249,5 @@ async function signInWithEmail() {
     </Card>
   );
 }
-
 
 

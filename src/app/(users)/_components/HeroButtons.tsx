@@ -2,14 +2,21 @@
 
 "use client";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import { buttonVariants } from "@/components/ui/button";
 import { useSmartSession } from "@/hooks/use-smart-session";
 
+const subscribeToClientReady = () => () => {};
+const getClientReadySnapshot = () => true;
+const getServerReadySnapshot = () => false;
+
 export default function HeroButtons() {
     const { session } = useSmartSession();
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => { setMounted(true); }, []); // eslint-disable-line react-hooks/set-state-in-effect
+    const mounted = useSyncExternalStore(
+        subscribeToClientReady,
+        getClientReadySnapshot,
+        getServerReadySnapshot,
+    );
 
     // Determine the dashboard link based on role
     const dashboardLink = session?.user?.role === "admin" ? "/admin" : "/dashboard";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatWindow } from "./ChatWindow";
 import { MessageSquarePlus } from "lucide-react";
@@ -227,23 +227,19 @@ export function ChatLayout({
     setSelectedThread(null);
   };
 
-  // Memoize handleSelectThread to prevent auto-select effect from running repeatedly
-  // Also sync URL when user manually selects a thread
-  const handleSelectThread = useCallback(
-    (thread: { id: string; name: string; image?: string; type?: string } | null) => {
-      setSelectedThread(thread);
+  const handleSelectThread = (
+    thread: { id: string; name: string; image?: string; type?: string } | null,
+  ) => {
+    setSelectedThread(thread);
 
-      // Silent URL update to avoid redundant server-side render
-      const url = new URL(window.location.href);
-      if (thread) {
-        url.searchParams.set("threadId", thread.id);
-      } else {
-        url.searchParams.delete("threadId");
-      }
-      window.history.replaceState(null, "", url.toString());
-    },
-    [],
-  );
+    const url = new URL(window.location.href);
+    if (thread) {
+      url.searchParams.set("threadId", thread.id);
+    } else {
+      url.searchParams.delete("threadId");
+    }
+    window.history.replaceState(null, "", url.toString());
+  };
 
   // Custom hook or simple check for mobile
   // For simplicity, using CSS display logic mostly, but state helps for "view" mode

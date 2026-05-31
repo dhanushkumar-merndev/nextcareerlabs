@@ -1,0 +1,1101 @@
+react-doctor v0.2.14
+
+Scanning changes: (detached HEAD) → pull request target
+
+  
+
+  ✗ react-hooks-js/set-state-in-effect                        ×9
+      React Compiler can't optimize this code
+      → Error: Calling setState synchronously within an effect can trigger cascading renders
+      
+      Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+      * Update external systems with the latest state from React.
+      * Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+      
+      Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-hooks-js/set-state-in-effect.md
+      src/components/ai-chat/FloatingChat.tsx:144
+      src/components/ai-chat/FloatingChat.tsx:203
+      src/components/ai-chat/FloatingChat.tsx:465
+      src/components/ui/sidebar.tsx:112
+      src/components/video-player/VideoPlayer.tsx:1179
+      src/components/video-player/VideoPlayer.tsx:1197
+      src/components/video-player/VideoPlayer.tsx:1312
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:208
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:340
+
+  ✗ react-hooks-js/todo                                       ×7
+      React Compiler can't optimize this code
+      → Todo: (BuildHIR::lowerStatement) Handle TryStatement with a finalizer ('finally') clause
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-hooks-js/todo.md
+      src/components/ai-chat/FloatingChat.tsx:396
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:262
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:283
+      src/app/(users)/courses/[slug]/_components/EnrollmentButton.tsx:57
+      src/app/(users)/_components/PublicCourseCard.tsx:52
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:479
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1364
+
+  ✗ react-doctor/no-effect-with-fresh-deps                    ×7
+      useEffect dep array element `saveProgress` is a render-local function (declared in the same component scope); `===` will always fail because the binding is re-allocated each render. Hoist it to module scope or wrap it in useMemo/useCallback.
+      → Move the constructed value into the hook body (so it's recomputed during render) and instead depend on its primitive inputs, or wrap the value in useMemo / useCallback so its reference is stable.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-effect-with-fresh-deps.md
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:915
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:915
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:935
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1046
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1072
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1072
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1072
+
+  ✗ react-doctor/react-compiler-no-manual-memoization         ×6
+      Remove `useCallback` — React Compiler auto-memoizes every function in this component. Manual `useCallback` adds noise without improving performance.
+      → Delete the `useMemo` / `useCallback` / `memo` call and use the bare expression or component — React Compiler memoizes it for you.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/react-compiler-no-manual-memoization.md
+      src/app/admin/courses/[courseId]/edit/_components/CourseStructure.tsx:112
+      src/app/admin/requests/_components/RequestsTable.tsx:169
+      src/app/admin/requests/_components/RequestsTable.tsx:360
+      src/app/admin/requests/_components/RequestsTable.tsx:497
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1159
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1206
+
+  ✗ react-hooks-js/immutability                               ×5
+      React Compiler can't optimize this code
+      → Error: This value cannot be modified
+      
+      Modifying a value used previously in an effect function or as an effect dependency is not allowed. Consider moving the modification before calling useEffect().
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-hooks-js/immutability.md
+      src/components/ai-chat/FloatingChat.tsx:445
+      src/components/video-player/VideoPlayer.tsx:684
+      src/components/video-player/VideoPlayer.tsx:722
+      src/components/video-player/VideoPlayer.tsx:1088
+      src/components/video-player/VideoPlayer.tsx:763
+
+  ✗ react-hooks-js/refs                                       ×4
+      React Compiler can't optimize this code
+      → Error: Cannot access refs during render
+      
+      React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-hooks-js/refs.md
+      src/components/video-player/VideoPlayer.tsx:260
+      src/components/video-player/VideoPlayer.tsx:1703
+      src/components/video-player/VideoPlayer.tsx:1952
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1125
+
+  ✗ react-doctor/no-adjust-state-on-prop-change               ×2
+      State adjusted in a useEffect when a prop changes — forces an extra render with a stale UI between the two commits. Adjust the state during render with a `prev`-prop comparison instead, or refactor to remove the duplicated state.
+      → Adjust the state inline during render with a `prev`-prop comparison (`if (prop !== prevProp) { setPrevProp(prop); setX(...); }`), or refactor to remove the duplicated state. Routing the adjustment through a useEffect forces an extra render with a stale UI between the two commits. See https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-adjust-state-on-prop-change.md
+      src/components/ai-chat/FloatingChat.tsx:203
+      src/app/dashboard/_components/CourseSidebar.tsx:129
+
+  ✗ react-doctor/effect-needs-cleanup                         ×2
+      useEffect schedules `setTimeout(...)` but never returns a cleanup — leaks the registration on every re-run and on unmount. Return a cleanup function that calls clearTimeout(...)
+      → Return a cleanup function that releases the subscription / timer: `return () => target.removeEventListener(name, handler)` for listeners, `return () => clearInterval(id)` / `clearTimeout(id)` for timers, or `return unsubscribe` if the subscribe call already returned one
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/effect-needs-cleanup.md
+      src/components/file-uploader/Uploader.tsx:321
+      src/components/video-player/VideoPlayer.tsx:781
+
+  ⚠ react-doctor/design-no-redundant-size-axes                ×182
+      w-80 h-80 → use the shorthand size-80 (Tailwind v3.4+)
+      → Collapse `w-N h-N` to `size-N` (Tailwind v3.4+) when both axes match
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/design-no-redundant-size-axes.md
+      src/app/not-found.tsx:123
+      src/app/not-found.tsx:124
+      src/app/not-found.tsx:125
+      src/app/not-found.tsx:126
+      src/app/not-found.tsx:132
+      src/app/not-found.tsx:133
+      src/app/not-found.tsx:135
+      src/app/not-found.tsx:185
+      src/app/not-found.tsx:193
+      src/components/chat/ChatSkeleton.tsx:12
+      src/components/chat/ChatSkeleton.tsx:34
+      src/components/chat/ChatSkeleton.tsx:51
+      src/components/chat/ChatSkeleton.tsx:52
+      src/components/sidebar/nav-user.tsx:59
+      src/components/sidebar/nav-user.tsx:81
+      src/components/sidebar/nav-user.tsx:124
+      src/components/student/LessonQuiz.tsx:108
+      src/components/student/LessonQuiz.tsx:139
+      src/components/student/LessonQuiz.tsx:184
+      src/components/student/LessonQuiz.tsx:189
+      src/components/student/LessonQuiz.tsx:211
+      src/components/student/LessonQuiz.tsx:221
+      src/components/student/LessonQuiz.tsx:253
+      src/components/student/LessonQuiz.tsx:255
+      src/components/student/LessonQuiz.tsx:274
+      src/components/student/LessonQuiz.tsx:280
+      src/app/banned/page.tsx:10
+      src/components/ui/themeToggle.tsx:21
+      src/components/ui/themeToggle.tsx:22
+      src/components/file-uploader/RenderState.tsx:168
+      src/components/file-uploader/RenderState.tsx:184
+      src/components/ui/chart.tsx:283
+      src/components/video-player/VideoPlayer.tsx:1813
+      src/components/video-player/VideoPlayer.tsx:1931
+      src/components/video-player/VideoPlayer.tsx:1980
+      src/components/chat/ChatWindow.tsx:1430
+      src/components/chat/ChatWindow.tsx:1433
+      src/components/chat/ChatWindow.tsx:1442
+      src/components/chat/ChatWindow.tsx:1445
+      src/components/chat/ChatWindow.tsx:1476
+      src/components/chat/ChatWindow.tsx:1479
+      src/components/chat/ChatWindow.tsx:1481
+      src/components/chat/ChatWindow.tsx:1491
+      src/components/chat/ChatWindow.tsx:1507
+      src/components/chat/ChatWindow.tsx:1509
+      src/components/chat/ChatWindow.tsx:1521
+      src/components/chat/ChatWindow.tsx:1533
+      src/components/chat/ChatWindow.tsx:1535
+      src/components/chat/ChatWindow.tsx:1554
+      src/components/chat/ChatWindow.tsx:1602
+      src/components/chat/ChatWindow.tsx:1652
+      src/components/chat/ChatWindow.tsx:1723
+      src/components/chat/ChatWindow.tsx:1740
+      src/components/chat/ChatWindow.tsx:1748
+      src/components/chat/ChatWindow.tsx:1768
+      src/components/chat/ChatWindow.tsx:1769
+      src/components/chat/ChatWindow.tsx:1782
+      src/components/chat/ChatWindow.tsx:1793
+      src/components/chat/ChatWindow.tsx:1795
+      src/components/chat/ChatWindow.tsx:1805
+      src/components/chat/ChatWindow.tsx:1807
+      src/components/chat/ChatWindow.tsx:1809
+      src/components/chat/ChatWindow.tsx:1846
+      src/components/chat/ChatWindow.tsx:1852
+      src/components/chat/ChatWindow.tsx:1915
+      src/components/chat/ChatWindow.tsx:1962
+      src/components/chat/ChatWindow.tsx:1964
+      src/components/chat/ChatWindow.tsx:2020
+      src/components/chat/ChatWindow.tsx:2030
+      src/components/chat/ChatWindow.tsx:2074
+      src/components/chat/ChatWindow.tsx:2080
+      src/components/chat/ChatWindow.tsx:2087
+      src/components/chat/ChatWindow.tsx:2096
+      src/components/chat/ChatWindow.tsx:2104
+      src/components/chat/ChatWindow.tsx:2106
+      src/components/chat/ChatWindow.tsx:2121
+      src/components/chat/ChatWindow.tsx:2129
+      src/components/chat/ChatWindow.tsx:2131
+      src/components/chat/ChatWindow.tsx:2158
+      src/components/chat/ChatWindow.tsx:2164
+      src/components/chat/ChatWindow.tsx:2201
+      src/components/chat/ChatWindow.tsx:2209
+      src/components/chat/ChatWindow.tsx:2210
+      src/components/chat/ChatWindow.tsx:2225
+      src/components/chat/ChatWindow.tsx:2227
+      src/components/chat/ChatWindow.tsx:2264
+      src/components/chat/ChatWindow.tsx:2272
+      src/components/chat/ChatWindow.tsx:2274
+      src/components/chat/ChatWindow.tsx:2288
+      src/components/chat/ChatWindow.tsx:2296
+      src/components/chat/ChatWindow.tsx:2298
+      src/components/analytics/GrowthChartWithFilter.tsx:99
+      src/components/analytics/GrowthChartWithFilter.tsx:153
+      src/components/chat/ChatLayout.tsx:261
+      src/components/chat/ChatLayout.tsx:298
+      src/components/chat/ChatLayout.tsx:299
+      src/components/chat/ChatSidebar.tsx:219
+      src/components/chat/ChatSidebar.tsx:227
+      src/components/chat/ChatSidebar.tsx:250
+      src/components/chat/ChatSidebar.tsx:285
+      src/components/chat/ChatSidebar.tsx:310
+      src/components/chat/ChatSidebar.tsx:311
+      src/components/chat/ChatSidebar.tsx:330
+      src/components/chat/ChatSidebar.tsx:338
+      src/components/sidebar/app-sidebar.tsx:128
+      src/app/dashboard/_components/DashboardAppSidebar.tsx:148
+      src/app/dashboard/[slug]/[lessonId]/_components/lessonSkeleton.tsx:43
+      src/app/dashboard/[slug]/[lessonId]/_components/lessonSkeleton.tsx:44
+      src/app/(users)/privacy/page.tsx:112
+      src/app/(users)/privacy/page.tsx:178
+      src/app/(users)/privacy/page.tsx:195
+      src/app/(users)/privacy/page.tsx:224
+      src/app/(users)/privacy/page.tsx:264
+      src/app/(users)/privacy/page.tsx:274
+      src/app/(users)/privacy/page.tsx:282
+      src/app/(users)/courses/_components/CourseSearch.tsx:56
+      src/app/(users)/courses/_components/CourseSearch.tsx:67
+      src/app/(users)/courses/_components/CourseSearch.tsx:73
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:654
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:739
+      src/app/admin/courses/_components/AdminCourseSearch.tsx:44
+      src/app/admin/courses/_components/AdminCourseSearch.tsx:54
+      src/app/admin/courses/_components/AdminCourseSearch.tsx:60
+      src/app/(users)/_components/SupportTicketDialog.tsx:279
+      src/app/(users)/_components/SupportTicketDialog.tsx:280
+      src/app/(users)/_components/SupportTicketDialog.tsx:385
+      src/app/admin/requests/_components/table-skeletons.tsx:63
+      src/app/admin/courses/[courseId]/edit/_components/EditCourseSkeleton.tsx:12
+      src/app/(users)/_components/Footer.tsx:20
+      src/app/(users)/_components/Footer.tsx:29
+      src/app/(users)/_components/Footer.tsx:66
+      src/app/(users)/_components/Footer.tsx:88
+      src/app/(users)/courses/[slug]/_components/SlugPageSkeleton.tsx:67
+      src/app/(users)/_components/PhoneNumberDialog.tsx:161
+      src/app/(users)/terms/page.tsx:113
+      src/app/(users)/terms/page.tsx:179
+      src/app/(users)/terms/page.tsx:196
+      src/app/(users)/terms/page.tsx:225
+      src/app/(users)/terms/page.tsx:246
+      src/app/(users)/terms/page.tsx:284
+      src/app/(users)/terms/page.tsx:294
+      src/app/(users)/terms/page.tsx:302
+      src/app/(users)/_components/PublicCourseCard.tsx:322
+      src/app/(users)/_components/PublicCourseCard.tsx:326
+      src/app/admin/courses/_components/AdminCourseCard.tsx:118
+      src/app/admin/courses/_components/AdminCourseCard.tsx:139
+      src/app/admin/courses/_components/AdminCourseCard.tsx:143
+      src/app/admin/analytics/_components/UserList.tsx:344
+      src/app/admin/analytics/_components/UserList.tsx:375
+      src/app/admin/analytics/_components/UserList.tsx:414
+      src/app/admin/analytics/_components/UserList.tsx:507
+      src/app/admin/analytics/_components/UserList.tsx:509
+      src/app/admin/analytics/_components/UserList.tsx:512
+      src/app/admin/analytics/_components/UserList.tsx:514
+      src/app/admin/analytics/_components/UserList.tsx:533
+      src/app/admin/analytics/_components/UserList.tsx:547
+      src/app/admin/analytics/_components/UserList.tsx:576
+      src/app/admin/analytics/_components/UserList.tsx:580
+      src/app/admin/analytics/_components/UserList.tsx:655
+      src/app/(users)/_components/NavbarWrapper.tsx:13
+      src/app/(users)/_components/NavbarWrapper.tsx:24
+      src/app/(users)/_components/NavbarWrapper.tsx:30
+      src/app/(users)/_components/NavbarWrapper.tsx:31
+      src/app/admin/requests/_components/RequestsTable.tsx:557
+      src/app/admin/requests/_components/RequestsTable.tsx:1053
+      src/app/admin/requests/_components/RequestsTable.tsx:1056
+      src/app/admin/requests/_components/RequestsTable.tsx:1071
+      src/app/admin/requests/_components/RequestsTable.tsx:1087
+      src/app/admin/requests/_components/RequestsTable.tsx:1099
+      src/app/admin/requests/_components/RequestsTable.tsx:1116
+      src/app/admin/requests/_components/RequestsTable.tsx:1126
+      src/app/admin/requests/_components/RequestsTable.tsx:1142
+      src/app/admin/analytics/_components/AnalyticsClient.tsx:343
+      src/app/(users)/_components/Stacking.tsx:202
+      src/app/(users)/_components/Navbar.tsx:149
+      src/app/(users)/_components/Navbar.tsx:238
+      src/app/(users)/_components/Navbar.tsx:318
+      src/app/(users)/_components/Navbar.tsx:373
+      src/app/(users)/_components/Navbar.tsx:398
+      src/app/(users)/_components/Navbar.tsx:410
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1617
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1626
+
+  ⚠ react-doctor/no-event-handler                             ×51
+      Avoid using props and effects as an event handler. Instead, move the handler to the parent component.
+      → Move the side effect into the event handler that triggers it, instead of guarding on its state inside a useEffect. See https://react.dev/learn/you-might-not-need-an-effect#sharing-logic-between-event-handlers
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-event-handler.md
+      src/components/ui/calendar.tsx:192
+      src/components/ai-chat/FloatingChat.tsx:202
+      src/components/ai-chat/FloatingChat.tsx:352
+      src/components/ai-chat/FloatingChat.tsx:352
+      src/components/ai-chat/FloatingChat.tsx:352
+      src/components/ai-chat/FloatingChat.tsx:366
+      src/components/ai-chat/FloatingChat.tsx:461
+      src/components/file-uploader/Uploader.tsx:1052
+      src/components/file-uploader/Uploader.tsx:248
+      src/components/file-uploader/Uploader.tsx:249
+      src/components/file-uploader/Uploader.tsx:257
+      src/components/file-uploader/Uploader.tsx:264
+      src/components/video-player/VideoPlayer.tsx:347
+      src/components/video-player/VideoPlayer.tsx:783
+      src/components/video-player/VideoPlayer.tsx:783
+      src/components/video-player/VideoPlayer.tsx:1178
+      src/components/chat/ChatWindow.tsx:128
+      src/components/chat/ChatWindow.tsx:129
+      src/components/chat/ChatLayout.tsx:60
+      src/components/chat/ChatLayout.tsx:56
+      src/components/chat/ChatSidebar.tsx:149
+      src/components/chat/ChatSidebar.tsx:149
+      src/app/dashboard/_components/SidebarContainer.tsx:34
+      src/app/dashboard/_components/SidebarContainer.tsx:34
+      src/app/dashboard/_components/SidebarContainer.tsx:35
+      src/app/dashboard/_components/SidebarContainer.tsx:36
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:207
+      src/app/admin/analytics/users/[userId]/_components/UserAnalyticsClient.tsx:32
+      src/app/admin/analytics/users/[userId]/_components/UserAnalyticsClient.tsx:47
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:100
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:132
+      src/app/admin/analytics/_components/UserList.tsx:52
+      src/app/admin/analytics/_components/UserList.tsx:52
+      src/app/admin/analytics/_components/UserList.tsx:43
+      src/app/admin/analytics/_components/UserList.tsx:42
+      src/app/admin/analytics/_components/UserList.tsx:83
+      src/app/admin/analytics/_components/UserList.tsx:83
+      src/app/admin/courses/[courseId]/edit/_components/EditCourseForm.tsx:61
+      src/app/(users)/courses/[slug]/_components/SlugPageWrapper.tsx:63
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:423
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:423
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:797
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:940
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:940
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:955
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:984
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1232
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1165
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1160
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1248
+      src/app/(users)/courses/_components/CoursesClient.tsx:149
+
+  ⚠ react-doctor/button-has-type                              ×45
+      `<button>` elements must have an explicit `type` attribute.
+      → Set `type="button"` (or `"submit"` / `"reset"`) explicitly on every `<button>`.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/button-has-type.md
+      src/components/ai-chat/FloatingChat.tsx:38
+      src/components/ai-chat/FloatingChat.tsx:489
+      src/components/ai-chat/FloatingChat.tsx:497
+      src/components/ai-chat/FloatingChat.tsx:516
+      src/components/ai-chat/FloatingChat.tsx:546
+      src/components/ai-chat/FloatingChat.tsx:560
+      src/components/ai-chat/FloatingChat.tsx:578
+      src/components/ai-chat/FloatingChat.tsx:613
+      src/components/ai-chat/FloatingChat.tsx:651
+      src/components/ui/sidebar.tsx:319
+      src/components/chat/ChatWindow.tsx:2071
+      src/components/chat/ChatWindow.tsx:2084
+      src/components/chat/ChatWindow.tsx:2197
+      src/components/chat/ChatWindow.tsx:2220
+      src/components/chat/ChatSidebar.tsx:305
+      src/components/chat/ChatSidebar.tsx:325
+      src/components/chat/ChatSidebar.tsx:340
+      src/app/admin/courses/[courseId]/edit/_components/BackConfirm.tsx:50
+      src/app/(users)/courses/_components/CourseSearch.tsx:69
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:562
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:664
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:765
+      src/app/(users)/_components/SupportFooterLink.tsx:33
+      src/app/admin/courses/_components/AdminCourseSearch.tsx:56
+      src/app/(users)/_components/TestimonialBanner.tsx:160
+      src/app/(users)/_components/TestimonialBanner.tsx:174
+      src/app/admin/analytics/_components/UserList.tsx:457
+      src/app/admin/analytics/_components/UserList.tsx:468
+      src/app/admin/analytics/_components/UserList.tsx:478
+      src/app/admin/analytics/_components/UserList.tsx:598
+      src/app/admin/analytics/_components/UserList.tsx:614
+      src/app/admin/analytics/_components/UserList.tsx:624
+      src/app/admin/requests/_components/RequestsTable.tsx:536
+      src/app/admin/requests/_components/RequestsTable.tsx:646
+      src/app/admin/requests/_components/RequestsTable.tsx:661
+      src/app/admin/requests/_components/RequestsTable.tsx:673
+      src/app/admin/requests/_components/RequestsTable.tsx:790
+      src/app/admin/requests/_components/RequestsTable.tsx:1017
+      src/app/(users)/_components/Navbar.tsx:156
+      src/app/(users)/_components/Navbar.tsx:201
+      src/app/(users)/_components/Navbar.tsx:215
+      src/app/(users)/_components/Navbar.tsx:369
+      src/app/(users)/_components/Navbar.tsx:394
+      src/app/(users)/_components/Navbar.tsx:429
+      src/app/(users)/_components/Navbar.tsx:511
+
+  ⚠ react-doctor/design-no-three-period-ellipsis              ×30
+      Three-period ellipsis ("...") in JSX text — use the actual ellipsis character "…" (or `&hellip;`)
+      → Use the typographic ellipsis "…" (or `&hellip;`) instead of three periods — pairs with action-with-followup labels ("Rename…", "Loading…")
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/design-no-three-period-ellipsis.md
+      src/components/student/LessonQuiz.tsx:184
+      src/app/not-admin/page.tsx:21
+      src/components/file-uploader/Uploader.tsx:995
+      src/components/chat/ChatWindow.tsx:2236
+      src/app/admin/courses/create/page.tsx:443
+      src/app/admin/courses/[courseId]/edit/_components/DeleteLesson.tsx:99
+      src/app/admin/courses/[courseId]/edit/_components/NewChapterModel.tsx:135
+      src/app/admin/courses/[courseId]/edit/_components/NewLessonModel.tsx:140
+      src/app/(users)/_components/SupportTicketDialog.tsx:385
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:162
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:519
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:526
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:636
+      src/app/(users)/courses/[slug]/_components/EnrollmentButton.tsx:139
+      src/app/admin/courses/[courseId]/edit/_components/DeleteChapter.tsx:95
+      src/app/(users)/_components/PhoneNumberDialog.tsx:161
+      src/app/(users)/_components/PublicCourseCard.tsx:231
+      src/app/(users)/_components/PublicCourseCard.tsx:248
+      src/app/admin/courses/[courseId]/edit/_components/ImportStructureModel.tsx:266
+      src/app/admin/courses/[courseId]/edit/_components/EditChapter.tsx:93
+      src/app/(auth)/login/_components/LoginForm.tsx:201
+      src/app/(auth)/login/_components/LoginForm.tsx:227
+      src/app/(auth)/verify-request/page.tsx:91
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/LessonForm.tsx:292
+      src/app/admin/courses/[courseId]/delete/page.tsx:109
+      src/app/admin/analytics/_components/UserList.tsx:415
+      src/app/admin/analytics/_components/UserList.tsx:534
+      src/app/admin/courses/[courseId]/edit/_components/EditCourseForm.tsx:445
+      src/app/admin/requests/_components/RequestsTable.tsx:869
+      src/app/(users)/courses/[slug]/_components/SlugPageWrapper.tsx:552
+
+  ⚠ react-doctor/no-giant-component                           ×22
+      Component "FloatingChat" is 641 lines — consider breaking it into smaller focused components
+      → Extract logical sections into focused components: `<UserHeader />`, `<UserActions />`, etc.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-giant-component.md
+      src/components/ai-chat/FloatingChat.tsx:104
+      src/components/file-uploader/Uploader.tsx:176
+      src/components/video-player/VideoPlayer.tsx:229
+      src/components/chat/ChatWindow.tsx:76
+      src/components/chat/ChatSidebar.tsx:42
+      src/app/dashboard/_components/CourseSidebar.tsx:44
+      src/app/admin/courses/_components/AdminCoursesClient.tsx:30
+      src/app/admin/courses/create/page.tsx:54
+      src/app/admin/courses/[courseId]/edit/_components/CourseStructure.tsx:109
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:119
+      src/app/admin/analytics/users/[userId]/_components/UserAnalyticsClient.tsx:26
+      src/app/(users)/_components/SupportTicketDialog.tsx:35
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:47
+      src/app/admin/analytics/_components/UserList.tsx:31
+      src/app/admin/courses/[courseId]/edit/_components/EditCourseForm.tsx:53
+      src/app/admin/requests/_components/RequestsTable.tsx:100
+      src/app/admin/analytics/_components/AnalyticsClient.tsx:48
+      src/app/(users)/courses/[slug]/_components/SlugPageWrapper.tsx:208
+      src/app/(users)/_components/Navbar.tsx:24
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:146
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1136
+      src/app/(users)/courses/_components/CoursesClient.tsx:35
+
+  ⚠ react-doctor/prefer-module-scope-pure-function            ×20
+      `parseMarkdown` inside `MessageContent` doesn't close over any local state. Move it to module scope so it isn't reallocated every render and the component file stays focused on rendering logic.
+      → Move the function to module scope (above the component). It doesn't reference any local state, so the per-render allocation is wasted.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/prefer-module-scope-pure-function.md
+      src/components/chat/MessageContent.tsx:12
+      src/components/video-player/VideoPlayer.tsx:1067
+      src/components/video-player/VideoPlayer.tsx:1147
+      src/components/chat/ChatSidebar.tsx:63
+      src/app/admin/courses/create/page.tsx:142
+      src/app/admin/courses/[courseId]/edit/_components/NewChapterModel.tsx:91
+      src/app/admin/courses/[courseId]/edit/_components/NewLessonModel.tsx:96
+      src/app/admin/analytics/users/[userId]/[courseId]/page.tsx:35
+      src/app/admin/analytics/users/[userId]/[courseId]/page.tsx:44
+      src/app/(users)/_components/PhoneNumberDialog.tsx:73
+      src/app/(auth)/login/_components/LoginForm.tsx:106
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/LessonForm.tsx:117
+      src/app/admin/analytics/_components/UserList.tsx:227
+      src/app/admin/courses/[courseId]/edit/_components/EditCourseForm.tsx:160
+      src/app/admin/requests/_components/RequestsTable.tsx:514
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:378
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:383
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:390
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:397
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:703
+
+  ⚠ react-doctor/no-react19-deprecated-apis                   ×18
+      useContext is superseded by `use()` on React 19+ — `use()` reads context conditionally inside hooks, branches, and loops; switch to `import { use } from 'react'`
+      → Pass `ref` as a regular prop on function components — `forwardRef` is no longer needed in React 19+. Replace `useContext(X)` with `use(X)` for branch-aware context reads. Only enabled on projects detected as React 19+.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-react19-deprecated-apis.md
+      src/providers/CourseProgressProvider.tsx:2
+      src/components/ui/input-otp.tsx:46
+      src/components/ui/users.tsx:6
+      src/components/ui/book-text.tsx:5
+      src/components/ui/layers.tsx:6
+      src/components/ui/circle-check.tsx:6
+      src/components/ui/chart.tsx:28
+      src/components/ui/sidebar.tsx:49
+      src/components/ui/chart-column-increasing.tsx:6
+      src/components/ui/user.tsx:6
+      src/components/ui/form.tsx:46
+      src/components/ui/form.tsx:47
+      src/components/ui/button.tsx:42
+      src/components/ui/toggle.tsx:31
+      src/components/ui/file-text.tsx:6
+      src/components/ui/toggle-group.tsx:59
+      src/components/ui/play.tsx:6
+      src/components/ui/clipboard-check.tsx:6
+
+  ⚠ react-doctor/nextjs-no-img-element                        ×16
+      Use next/image instead of <img> — provides automatic optimization, lazy loading, and responsive srcset
+      → `import Image from 'next/image'` — provides automatic WebP/AVIF, lazy loading, and responsive srcset
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/nextjs-no-img-element.md
+      src/app/dashboard/_components/CourseProgressCard.tsx:73
+      src/components/file-uploader/RenderState.tsx:109
+      src/app/dashboard/_components/LessonItem.tsx:71
+      src/components/chat/ChatWindow.tsx:1758
+      src/components/chat/ChatWindow.tsx:2187
+      src/components/ui/avatar.tsx:48
+      src/app/dashboard/_components/HorizontalCourseCard.tsx:128
+      src/app/admin/analytics/users/[userId]/_components/UserAnalyticsClient.tsx:273
+      src/app/(users)/_components/TestimonialBanner.tsx:90
+      src/app/(users)/_components/TestimonialBanner.tsx:116
+      src/app/(users)/_components/PublicCourseCard.tsx:162
+      src/app/admin/courses/_components/AdminCourseCard.tsx:69
+      src/app/(users)/_components/Stacking.tsx:155
+      src/app/(users)/_components/Stacking.tsx:169
+      src/app/(users)/courses/[slug]/_components/SlugPageWrapper.tsx:280
+      src/app/(users)/_components/Navbar.tsx:404
+
+  ⚠ react-doctor/use-lazy-motion                              ×14
+      Import "m" with LazyMotion instead of "motion" — saves ~30kb in bundle size
+      → Use `import { LazyMotion, m } from "framer-motion"` with `domAnimation` features — saves ~30kb
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/use-lazy-motion.md
+      src/components/ui/users.tsx:4
+      src/components/ui/book-text.tsx:3
+      src/components/ui/layers.tsx:4
+      src/components/ui/circle-check.tsx:4
+      src/app/dashboard/_components/DashboardGreeting.tsx:3
+      src/components/ui/chart-column-increasing.tsx:4
+      src/components/ui/user.tsx:4
+      src/components/ui/file-text.tsx:3
+      src/components/ui/play.tsx:4
+      src/components/ui/clipboard-check.tsx:4
+      src/app/(users)/privacy/page.tsx:24
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:35
+      src/app/(users)/terms/page.tsx:25
+      src/app/(users)/_components/PublicCourseCard.tsx:12
+
+  ⚠ react-doctor/exhaustive-deps                              ×14
+      The ref value `resizeCleanupRef.current` will likely have changed by the time this effect cleanup function runs. Copy it to a variable inside the hook callback and use that variable in cleanup.
+      → Don't blindly add missing dependencies. Read the hook callback first.
+      
+      Bad:
+      useEffect(() => {
+        setCount(count + 1);
+      }, [count]);
+      
+      Better:
+      useEffect(() => {
+        setCount((currentCount) => currentCount + 1);
+      }, []);
+      
+      If the missing value is recreated every render, move it inside the hook or stabilize it before adding it to deps.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/exhaustive-deps.md
+      src/components/ai-chat/FloatingChat.tsx:344
+      src/components/video-player/VideoPlayer.tsx:353
+      src/components/video-player/VideoPlayer.tsx:778
+      src/components/chat/ChatWindow.tsx:285
+      src/components/chat/ChatSidebar.tsx:165
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:214
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:901
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:915
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:915
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:935
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1046
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1072
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1072
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1072
+
+  ⚠ react-doctor/design-no-space-on-flex-children             ×13
+      space-x-2 on a flex/grid parent — use gap-x-2 instead. Per-sibling margins phantom-gap on conditional render and don't mirror in RTL
+      → Use `gap-*` on the flex/grid parent. `space-x-*` / `space-y-*` produce phantom gaps when a sibling is conditionally rendered, lose vertical spacing on wrapped lines, and don't mirror in RTL
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/design-no-space-on-flex-children.md
+      src/components/student/LessonQuiz.tsx:153
+      src/components/file-uploader/Uploader.tsx:993
+      src/components/video-player/VideoPlayer.tsx:1583
+      src/components/chat/ChatWindow.tsx:1553
+      src/components/analytics/GrowthChartWithFilter.tsx:80
+      src/components/dashboard/CourseProgressCard.tsx:25
+      src/app/(auth)/verify-request/page.tsx:70
+      src/app/admin/courses/page.tsx:10
+      src/app/(users)/courses/page.tsx:33
+      src/app/(users)/courses/[slug]/_components/SlugPageWrapper.tsx:234
+      src/app/(users)/_components/Navbar.tsx:148
+      src/app/(users)/_components/Navbar.tsx:424
+      src/app/(users)/_components/Navbar.tsx:521
+
+  ⚠ react-doctor/rerender-state-only-in-handlers              ×12
+      useState "isDbReady" is updated but never read in the component's return — use useRef so updates don't trigger re-renders
+      → Replace useState with useRef when the value is only mutated and never read in render — `ref.current = ...` updates without re-rendering the component
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/rerender-state-only-in-handlers.md
+      src/components/ai-chat/FloatingChat.tsx:124
+      src/components/video-player/VideoPlayer.tsx:275
+      src/components/chat/ChatWindow.tsx:100
+      src/components/chat/ChatWindow.tsx:239
+      src/components/chat/ChatWindow.tsx:240
+      src/components/chat/ChatWindow.tsx:241
+      src/app/dashboard/_components/CourseSidebar.tsx:54
+      src/app/dashboard/_components/CourseSidebar.tsx:55
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:65
+      src/app/(users)/courses/[slug]/_components/EnrollmentButton.tsx:37
+      src/app/admin/requests/_components/RequestsTable.tsx:139
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:306
+
+  ⚠ react-doctor/no-derived-state                             ×11
+      Avoid storing derived state. Compute "sessions" directly during render, optionally with `useMemo` if it's expensive.
+      → Compute derived state inline during render (or with useMemo if expensive) instead of mirroring it into useState via a useEffect. See https://react.dev/learn/you-might-not-need-an-effect#updating-state-based-on-props-or-state
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-derived-state.md
+      src/components/ai-chat/FloatingChat.tsx:465
+      src/components/file-uploader/Uploader.tsx:270
+      src/components/ui/sidebar.tsx:112
+      src/components/video-player/VideoPlayer.tsx:807
+      src/components/video-player/VideoPlayer.tsx:812
+      src/components/video-player/VideoPlayer.tsx:1179
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:208
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:154
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:289
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:340
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1035
+
+  ⚠ react-doctor/no-multi-comp                                ×10
+      Declare only one React component per file. Found extra component: InputOTPSlot.
+      → Move secondary components into their own files.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-multi-comp.md
+      src/components/ui/input-otp.tsx:39
+      src/components/ui/input-otp.tsx:69
+      src/components/chat/ChatSkeleton.tsx:24
+      src/components/chat/ChatSkeleton.tsx:48
+      src/components/analytics/Charts.tsx:89
+      src/components/analytics/Charts.tsx:139
+      src/components/ui/avatar.tsx:37
+      src/components/ui/avatar.tsx:59
+      src/components/ui/collapsible.tsx:11
+      src/components/ui/collapsible.tsx:22
+
+  ⚠ react-doctor/no-array-index-key                           ×10
+      Array index in `key` doesn't uniquely identify the element — re-renders may use stale state.
+      → Use a stable, data-derived `key` instead of the array index.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-array-index-key.md
+      src/components/ai-chat/FloatingChat.tsx:77
+      src/components/ai-chat/FloatingChat.tsx:79
+      src/components/ai-chat/FloatingChat.tsx:602
+      src/components/student/LessonQuiz.tsx:153
+      src/components/chat/MessageContent.tsx:53
+      src/app/(users)/privacy/page.tsx:218
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:563
+      src/app/(users)/terms/page.tsx:219
+      src/app/(users)/terms/page.tsx:243
+      src/app/(users)/_components/Stacking.tsx:146
+
+  ⚠ react-doctor/prefer-useReducer                            ×10
+      Component "FloatingChat" has 18 useState calls — consider useReducer for related state
+      → Group related state: `const [state, dispatch] = useReducer(reducer, { field1, field2, ... })`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/prefer-useReducer.md
+      src/components/ai-chat/FloatingChat.tsx:104
+      src/components/video-player/VideoPlayer.tsx:249
+      src/components/chat/ChatWindow.tsx:85
+      src/components/analytics/GrowthChartWithFilter.tsx:30
+      src/app/dashboard/_components/CourseSidebar.tsx:44
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:127
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:56
+      src/app/admin/requests/_components/RequestsTable.tsx:108
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:188
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1136
+
+  ⚠ react-doctor/nextjs-no-use-search-params-without-suspense ×10
+      useSearchParams() requires a <Suspense> boundary — without one, the entire page bails out to client-side rendering
+      → Wrap the component using useSearchParams: `<Suspense fallback={<Skeleton />}><SearchComponent /></Suspense>`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/nextjs-no-use-search-params-without-suspense.md
+      src/components/chat/ChatSidebar.tsx:60
+      src/app/admin/courses/_components/AdminCoursesClient.tsx:32
+      src/app/(users)/courses/_components/CourseSearch.tsx:18
+      src/app/admin/courses/_components/AdminCourseSearch.tsx:9
+      src/app/dashboard/available-courses/_components/AvailableCoursesClient.tsx:23
+      src/app/admin/courses/[courseId]/edit/_components/EditCourseClientWrapper.tsx:33
+      src/app/(auth)/login/_components/LoginForm.tsx:71
+      src/app/admin/analytics/_components/UserList.tsx:36
+      src/app/(users)/_components/HomePageUrlCleaner.tsx:10
+      src/app/(users)/courses/_components/CoursesClient.tsx:42
+
+  ⚠ react-doctor/nextjs-no-client-side-redirect               ×10
+      router.replace() in useEffect — use redirect() from next/navigation or handle navigation in an event handler
+      → Avoid redirects inside useEffect. Use an event handler, middleware, or server-side redirect (App Router: redirect() from next/navigation; Pages Router: getServerSideProps redirect)
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/nextjs-no-client-side-redirect.md
+      src/app/dashboard/resources/_components/ResourcesClient.tsx:76
+      src/app/admin/courses/_components/AdminCoursesClient.tsx:72
+      src/app/(users)/courses/_components/CourseSearch.tsx:41
+      src/app/(auth)/login/_components/LoginForm.tsx:85
+      src/app/(auth)/login/_components/LoginForm.tsx:89
+      src/app/(auth)/login/_components/LoginForm.tsx:97
+      src/app/api/auth/error/page.tsx:13
+      src/app/api/auth/error/page.tsx:15
+      src/app/admin/analytics/_components/UserList.tsx:79
+      src/app/(users)/_components/HomePageUrlCleaner.tsx:18
+
+  ⚠ react-doctor/no-array-index-as-key                        ×9
+      Array index "i" used as key — causes bugs when list is reordered or filtered
+      → Use a stable unique identifier: `key={item.id}` or `key={item.slug}` — index keys break on reorder/filter
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-array-index-as-key.md
+      src/components/ai-chat/FloatingChat.tsx:77
+      src/components/ai-chat/FloatingChat.tsx:79
+      src/components/ai-chat/FloatingChat.tsx:602
+      src/components/ui/slider.tsx:51
+      src/app/(users)/privacy/page.tsx:218
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:563
+      src/app/(users)/terms/page.tsx:219
+      src/app/(users)/terms/page.tsx:243
+      src/app/(users)/_components/Stacking.tsx:146
+
+  ⚠ react-doctor/nextjs-missing-metadata                      ×8
+      Page without metadata or generateMetadata export — hurts SEO
+      → Add `export const metadata = { title: '...', description: '...' }` or `export async function generateMetadata()`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/nextjs-missing-metadata.md
+      src/app/not-admin/page.tsx:1
+      src/app/banned/page.tsx:1
+      src/app/(users)/privacy/page.tsx:10
+      src/app/(users)/terms/page.tsx:10
+      src/app/api/auth/error/page.tsx:1
+      src/app/(users)/courses/[slug]/page.tsx:3
+      src/app/(users)/courses/page.tsx:12
+      src/app/(users)/page.tsx:5
+
+  ⚠ react-doctor/no-static-element-interactions               ×7
+      Static HTML elements with event handlers require a role — add `role="…"` or use a semantic HTML element instead.
+      → Static HTML elements with event handlers require a role, or use a semantic HTML element instead.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-static-element-interactions.md
+      src/components/ai-chat/FloatingChat.tsx:506
+      src/components/ai-chat/FloatingChat.tsx:685
+      src/components/ai-chat/FloatingChat.tsx:724
+      src/components/video-player/VideoPlayer.tsx:2040
+      src/app/(users)/privacy/page.tsx:162
+      src/app/(users)/terms/page.tsx:163
+      src/app/(users)/_components/Navbar.tsx:379
+
+  ⚠ react-doctor/prefer-module-scope-static-value             ×7
+      `sections` inside `PrivacyPage` doesn't depend on any local state. Move it to module scope so the allocation happens once and memoised consumers see a stable reference.
+      → Move the constant to module scope (above the component). It doesn't reference any local state, so the per-render allocation is wasted and any memoised consumer sees a fresh reference each render.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/prefer-module-scope-static-value.md
+      src/app/(users)/privacy/page.tsx:31
+      src/app/(users)/_components/SupportTicketDialog.tsx:65
+      src/app/(users)/_components/SupportTicketDialog.tsx:78
+      src/app/(users)/_components/SupportTicketDialog.tsx:86
+      src/app/(users)/_components/SupportTicketDialog.tsx:99
+      src/app/(users)/terms/page.tsx:32
+      src/app/(users)/_components/Stacking.tsx:15
+
+  ⚠ react-doctor/control-has-associated-label                 ×6
+      A control must be associated with a text label — add visible text, `aria-label`, or `aria-labelledby`.
+      → Every interactive control must have an accessible label.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/control-has-associated-label.md
+      src/components/ai-chat/FloatingChat.tsx:667
+      src/components/chat/ChatWindow.tsx:2109
+      src/components/chat/ChatWindow.tsx:2134
+      src/components/chat/ChatWindow.tsx:2277
+      src/components/chat/ChatWindow.tsx:2301
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:485
+
+  ⚠ react-doctor/js-combine-iterations                        ×6
+      .filter().map() iterates the array twice — combine into a single loop with .reduce() or for...of
+      → Combine `.map().filter()` (or similar chains) into a single pass with `.reduce()` or a `for...of` loop to avoid iterating the array twice
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/js-combine-iterations.md
+      src/components/ui/chart.tsx:168
+      src/components/ui/chart.tsx:266
+      src/app/dashboard/_components/DashboardAppSidebar.tsx:116
+      src/app/admin/analytics/_components/UserList.tsx:434
+      src/app/admin/analytics/_components/UserList.tsx:554
+      src/app/(users)/courses/_components/CoursesClient.tsx:338
+
+  ⚠ react-doctor/no-derived-useState                          ×6
+      useState initialized from prop "threadId" — if this value should stay in sync with the prop, derive it during render instead
+      → Remove useState and compute the value inline: `const value = transform(propName)`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-derived-useState.md
+      src/components/chat/ChatWindow.tsx:239
+      src/app/dashboard/_components/HorizontalCourseCard.tsx:41
+      src/app/dashboard/_components/HorizontalCourseCard.tsx:42
+      src/app/dashboard/_components/CourseSidebar.tsx:55
+      src/app/(users)/courses/[slug]/_components/EnrollmentButton.tsx:36
+      src/app/(users)/courses/[slug]/_components/EnrollmentButton.tsx:37
+
+  ⚠ react-doctor/no-pass-data-to-parent                       ×6
+      Avoid passing data to parents in an effect. Instead, fetch the data in the parent and pass it down to the child as a prop.
+      → Fetch the data in the parent and pass it to the child as a prop (or return it from the hook), instead of pushing it back up via a prop callback inside a useEffect. See https://react.dev/learn/you-might-not-need-an-effect#passing-data-to-the-parent
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-pass-data-to-parent.md
+      src/components/chat/ChatSidebar.tsx:154
+      src/app/admin/courses/[courseId]/edit/_components/CourseStructure.tsx:136
+      src/app/admin/analytics/_components/UserList.tsx:213
+      src/app/admin/courses/[courseId]/edit/_components/EditCourseForm.tsx:79
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1035
+      src/app/(users)/courses/_components/CoursesClient.tsx:344
+
+  ⚠ react-doctor/jsx-no-constructed-context-values            ×5
+      Context `value` prop is constructed inline — wrap with `useMemo`/`useCallback` or hoist a constant to avoid re-renders.
+      → Memoize the context value (`useMemo`) or hoist it outside the render.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/jsx-no-constructed-context-values.md
+      src/providers/CourseProgressProvider.tsx:21
+      src/components/ui/chart.tsx:53
+      src/components/ui/form.tsx:39
+      src/components/ui/form.tsx:80
+      src/components/ui/toggle-group.tsx:44
+
+  ⚠ react-doctor/no-initialize-state                          ×5
+      Avoid initializing state in an effect. Instead, initialize "isMobile"'s `useState()` with "undefined". For SSR hydration, prefer `useSyncExternalStore()`.
+      → Pass the initial value directly to useState() instead of setting it from a mount-only useEffect. For SSR hydration, prefer useSyncExternalStore().
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-initialize-state.md
+      src/components/ai-chat/FloatingChat.tsx:196
+      src/components/video-player/VideoPlayer.tsx:355
+      src/components/video-player/VideoPlayer.tsx:1312
+      src/components/analytics/GrowthChartWithFilter.tsx:48
+      src/app/(users)/_components/FeatureCard.tsx:28
+
+  ⚠ react-doctor/click-events-have-key-events                 ×5
+      Visible non-interactive elements with click handlers must have a corresponding keyboard listener (`onKeyUp`, `onKeyDown`, or `onKeyPress`).
+      → Pair `onClick` with `onKeyUp` / `onKeyDown` / `onKeyPress` for keyboard users.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/click-events-have-key-events.md
+      src/components/ai-chat/FloatingChat.tsx:506
+      src/components/video-player/VideoPlayer.tsx:2040
+      src/app/(users)/privacy/page.tsx:162
+      src/app/(users)/terms/page.tsx:163
+      src/app/(users)/_components/Navbar.tsx:379
+
+  ⚠ react-doctor/no-danger                                    ×4
+      Do not use `dangerouslySetInnerHTML` — it injects raw HTML and is a common XSS vector.
+      → Render trusted content as React children rather than injecting raw HTML.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-danger.md
+      src/app/not-found.tsx:24
+      src/components/ui/chart.tsx:83
+      src/components/video-player/VideoPlayer.tsx:1497
+      src/app/layout.tsx:30
+
+  ⚠ react-doctor/prefer-tag-over-role                         ×4
+      Prefer the semantic `<a>` element over `role="link"` on a generic tag.
+      → Replace `role` with the semantic HTML element when one exists.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/prefer-tag-over-role.md
+      src/components/ui/breadcrumb.tsx:56
+      src/components/ui/input-otp.tsx:71
+      src/components/ai-chat/FloatingChat.tsx:532
+      src/components/chat/ChatSidebar.tsx:206
+
+  ⚠ react-doctor/no-cascading-set-state                       ×4
+      3 setState calls in a single useEffect — consider using useReducer or deriving state
+      → Combine into useReducer: `const [state, dispatch] = useReducer(reducer, initialState)`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-cascading-set-state.md
+      src/components/ai-chat/FloatingChat.tsx:130
+      src/components/video-player/VideoPlayer.tsx:1189
+      src/app/dashboard/_components/HorizontalCourseCard.tsx:46
+      src/app/dashboard/_components/SidebarContainer.tsx:90
+
+  ⚠ react-doctor/no-chain-state-updates                       ×4
+      Avoid chaining state changes. When possible, update all relevant state simultaneously.
+      → Update all related state simultaneously inside the event handler that originally fires, instead of reacting to one state update in a useEffect that writes another state. See https://react.dev/learn/you-might-not-need-an-effect#chains-of-computations
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-chain-state-updates.md
+      src/components/ai-chat/FloatingChat.tsx:144
+      src/components/ai-chat/FloatingChat.tsx:358
+      src/components/video-player/VideoPlayer.tsx:807
+      src/components/video-player/VideoPlayer.tsx:812
+
+  ⚠ react-doctor/async-await-in-loop                          ×4
+      await inside a while-loop runs the calls sequentially — for independent operations, collect them and use `await Promise.all(items.map(...))` to run them concurrently
+      → Collect the items and use `await Promise.all(items.map(...))` to run independent operations concurrently
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/async-await-in-loop.md
+      src/components/ai-chat/FloatingChat.tsx:424
+      src/components/file-uploader/Uploader.tsx:335
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:318
+      src/app/(users)/_components/FeatureCard.tsx:41
+
+  ⚠ react-doctor/no-fetch-in-effect                           ×4
+      fetch() inside useEffect — use a data fetching library (react-query, SWR) or server component
+      → Use `useQuery()` from @tanstack/react-query, `useSWR()`, or fetch in a Server Component instead
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-fetch-in-effect.md
+      src/components/video-player/VideoPlayer.tsx:1189
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:97
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:238
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:1230
+
+  ⚠ react-doctor/client-passive-event-listeners               ×3
+      "touchend" listener without { passive: true } — blocks scrolling performance. Only add { passive: true } if the handler does NOT call event.preventDefault() (passive listeners silently ignore preventDefault())
+      → Add `{ passive: true }` as the third argument: `addEventListener('scroll', handler, { passive: true })`. Only do this if the handler does NOT call `event.preventDefault()` — passive listeners silently ignore `preventDefault()`, which breaks features like pull-to-refresh suppression, custom gestures, and nested-scroll containment.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/client-passive-event-listeners.md
+      src/components/ai-chat/FloatingChat.tsx:293
+      src/components/ai-chat/FloatingChat.tsx:340
+      src/app/(users)/_components/Stacking.tsx:118
+
+  ⚠ react-doctor/no-inline-bounce-easing                      ×3
+      animate-bounce feels dated and tacky — use a subtle ease-out transform for natural deceleration
+      → Use `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out-expo) for natural deceleration — objects in the real world don't bounce
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-inline-bounce-easing.md
+      src/components/ai-chat/FloatingChat.tsx:640
+      src/components/ai-chat/FloatingChat.tsx:641
+      src/components/ai-chat/FloatingChat.tsx:642
+
+  ⚠ react-doctor/rerender-lazy-ref-init                       ×3
+      useRef(new AbortController()) allocates a fresh value on every render — useRef has no lazy-init form, so the allocation is discarded after the first render. Use `const ref = useRef(null); if (ref.current === null) ref.current = new AbortController();` or `useMemo` instead.
+      → Initialize lazily: `const ref = useRef<T | null>(null); if (ref.current === null) ref.current = expensiveCall();`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/rerender-lazy-ref-init.md
+      src/components/file-uploader/Uploader.tsx:186
+      src/components/file-uploader/Uploader.tsx:187
+      src/components/video-player/VideoPlayer.tsx:261
+
+  ⚠ react-doctor/prefer-dynamic-import                        ×3
+      "recharts" is a heavy library — use React.lazy() or next/dynamic for code splitting
+      → Use `const Component = dynamic(() => import('library'), { ssr: false })` from next/dynamic or React.lazy()
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/prefer-dynamic-import.md
+      src/components/sidebar/chart-area-interactive.tsx:3
+      src/components/ui/chart.tsx:4
+      src/components/analytics/Charts.tsx:3
+
+  ⚠ react-doctor/no-prop-callback-in-effect                   ×3
+      useEffect calls prop callback "setOpenProp" with local state in deps — this is the "lift state via callback" anti-pattern; lift state into a shared Provider so both sides read the same source
+      → Lift the shared state into a Provider so both sides read the same source — no useEffect-driven sync needed
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-prop-callback-in-effect.md
+      src/components/ui/sidebar.tsx:110
+      src/components/chat/ChatSidebar.tsx:154
+      src/app/admin/courses/[courseId]/edit/_components/CourseStructure.tsx:136
+
+  ⚠ react-doctor/only-export-components                       ×3
+      Fast refresh only works when a file only exports components. Move non-component exports to a separate file.
+      → Move non-component exports out of files that export components.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/only-export-components.md
+      src/components/ui/button.tsx:63
+      src/components/ui/toggle.tsx:46
+      src/components/ui/badge.tsx:46
+
+  ⚠ react-doctor/rerender-memo-with-default-value             ×3
+      Default prop value [] creates a new array reference every render — extract to a module-level constant
+      → Move to module scope: `const EMPTY_ITEMS: Item[] = []` then use as the default value
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/rerender-memo-with-default-value.md
+      src/components/chat/ChatSidebar.tsx:45
+      src/components/chat/ChatSidebar.tsx:46
+      src/app/(users)/_components/SupportTicketDialog.tsx:38
+
+  ⚠ react-doctor/js-tosorted-immutable                        ×2
+      [...array].sort() — use array.toSorted() for immutable sorting (ES2023)
+      → Use `array.toSorted()` (ES2023) instead of `[...array].sort()` for immutable sorting without the spread allocation
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/js-tosorted-immutable.md
+      src/app/dashboard/_components/CourseProgressCard.tsx:30
+      src/app/dashboard/_components/CourseProgressCard.tsx:37
+
+  ⚠ react-doctor/no-generic-handler-names                     ×2
+      Non-descriptive handler name "handleClick" — name should describe what it does, not when it runs
+      → Rename to describe the action: e.g. `handleSubmit` → `saveUserProfile`, `handleClick` → `toggleSidebar`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-generic-handler-names.md
+      src/components/ai-chat/FloatingChat.tsx:39
+      src/app/admin/courses/[courseId]/edit/_components/BackConfirm.tsx:51
+
+  ⚠ react-doctor/no-pure-black-background                     ×2
+      Pure black background (bg-black) looks harsh — use a near-black tinted toward your brand hue (e.g. bg-gray-950)
+      → Tint the background slightly toward your brand hue — e.g. `#0a0a0f` or Tailwind's `bg-gray-950`. Pure black looks harsh on modern displays
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-pure-black-background.md
+      src/components/file-uploader/RenderState.tsx:96
+      src/components/video-player/VideoPlayer.tsx:1544
+
+  ⚠ react-doctor/rendering-hydration-mismatch-time            ×2
+      new Date() reachable from JSX renders differently on server vs client — wrap in useEffect+useState (client-only) or add suppressHydrationWarning to the parent if intentional
+      → Wrap dynamic time/random values in useEffect+useState (client-only) or add suppressHydrationWarning to the parent if intentional
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/rendering-hydration-mismatch-time.md
+      src/components/analytics/GrowthChartWithFilter.tsx:122
+      src/app/(users)/_components/Footer.tsx:167
+
+  ⚠ react-doctor/design-no-redundant-padding-axes             ×2
+      px-4 py-4 → use the shorthand p-4
+      → Collapse `px-N py-N` to `p-N` when both axes match. Keep them split only when one axis varies at a breakpoint (`py-2 md:py-3`)
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/design-no-redundant-padding-axes.md
+      src/app/dashboard/[slug]/[lessonId]/_components/lessonSkeleton.tsx:24
+      src/app/(users)/_components/Navbar.tsx:392
+
+  ⚠ react-doctor/no-pass-live-state-to-parent                 ×2
+      Avoid passing live state to parents in an effect. Instead, lift the state to the parent and pass it down to the child as a prop.
+      → Lift the state to the parent (or return it from the hook) instead of pushing it back up via a prop callback inside a useEffect. See https://react.dev/learn/you-might-not-need-an-effect#notifying-parent-components-about-state-changes
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-pass-live-state-to-parent.md
+      src/app/admin/courses/[courseId]/edit/_components/CourseStructure.tsx:136
+      src/app/admin/analytics/_components/UserList.tsx:213
+
+  ⚠ react-doctor/rerender-functional-setstate                 ×2
+      setCurrentIndex(currentIndex + ...) — use functional update to avoid stale closures
+      → Use the callback form: `setState(prev => prev + 1)` to always read the latest value
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/rerender-functional-setstate.md
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:238
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:245
+
+  ⚠ react-doctor/js-min-max-loop                              ×2
+      array.sort()[0] for min/max — use Math.min(...array) instead (O(n) vs O(n log n))
+      → Use `Math.min(...array)` / `Math.max(...array)` instead of sorting just to read the first or last element
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/js-min-max-loop.md
+      src/app/(users)/courses/[slug]/_components/SlugPageWrapper.tsx:224
+      src/app/(users)/courses/[slug]/_components/SlugPageWrapper.tsx:524
+
+  ⚠ react-doctor/no-prevent-default
+      preventDefault() on <form> onSubmit — form won't work without JavaScript. Use a server action (`<form action={serverAction}>`) for progressive enhancement
+      → Use `<form action>` (works without JS) where your framework supports it, or use a `<button>` instead of `<a>` with preventDefault
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-prevent-default.md
+      src/components/ai-chat/FloatingChat.tsx:663
+
+  ⚠ react-doctor/no-permanent-will-change
+      Permanent will-change wastes GPU memory — apply only during active animation and remove after
+      → Add will-change on animation start (`onMouseEnter`) and remove on end (`onAnimationEnd`). Permanent promotion wastes GPU memory and can degrade performance
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-permanent-will-change.md
+      src/components/ai-chat/FloatingChat.tsx:735
+
+  ⚠ react-doctor/no-render-in-render
+      Inline render function "renderContent()" — extract to a separate component for proper reconciliation
+      → Extract to a named component: `const ListItem = ({ item }) => <div>{item.name}</div>`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/no-render-in-render.md
+      src/components/file-uploader/Uploader.tsx:1079
+
+  ⚠ react-doctor/rendering-hydration-no-flicker
+      useEffect(setState, []) on mount causes a flash — consider useSyncExternalStore or suppressHydrationWarning
+      → Use `useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)` or add `suppressHydrationWarning` to the element
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/rendering-hydration-no-flicker.md
+      src/components/video-player/VideoPlayer.tsx:1311
+
+  ⚠ react-doctor/design-no-vague-button-label
+      Vague button label "No" — name the action ("Save changes", "Send invite", "Delete account") so screen readers and hesitant users know what happens
+      → Name the action: "Save changes" instead of "Continue", "Send invite" instead of "Submit", "Delete account" instead of "OK". The label IS the button's accessible name
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/design-no-vague-button-label.md
+      src/components/chat/ChatWindow.tsx:1918
+
+  ⚠ react-doctor/query-no-query-in-effect
+      refetch() inside useEffect — React Query manages refetching automatically. Use queryKey dependencies or the enabled option instead
+      → React Query manages refetching automatically via queryKey dependencies and the `enabled` option — manual refetch() in useEffect is usually unnecessary
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/query-no-query-in-effect.md
+      src/components/chat/ChatSidebar.tsx:122
+
+  ⚠ react-doctor/nextjs-no-native-script
+      Use next/script <Script> instead of <script> — provides loading strategy optimization and deferred loading
+      → `import Script from "next/script"` — use `strategy="afterInteractive"` for analytics or `"lazyOnload"` for widgets
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/nextjs-no-native-script.md
+      src/app/layout.tsx:29
+
+  ⚠ react-doctor/server-sequential-independent-await
+      Sequential `await` without a data dependency on the previous result — wrap the independent calls in `Promise.all([...])` so they race instead of waterfalling
+      → Wrap independent awaits in `Promise.all([...])` so they race instead of waterfalling — second call doesn't depend on the first
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/server-sequential-independent-await.md
+      src/app/dashboard/page.tsx:8
+
+  ⚠ react-doctor/rerender-lazy-state-init
+      useState(fill()) calls initializer on every render — use useState(() => fill()) for lazy initialization
+      → Wrap in an arrow function so it only runs once: `useState(() => expensiveComputation())`
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/rerender-lazy-state-init.md
+      src/app/dashboard/[slug]/[lessonId]/_components/AssessmentModal.tsx:132
+
+  ⚠ react-doctor/label-has-associated-control
+      A form label must be associated with a control — use `htmlFor` or nest the input.
+      → Associate every label with a control via `htmlFor` or by nesting the input.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/label-has-associated-control.md
+      src/app/admin/courses/[courseId]/[chapterId]/[lessonId]/_components/TranscriptionWorkflow.tsx:622
+
+  ⚠ react-doctor/design-no-em-dash-in-jsx-text
+      Em dash (—) in JSX text reads as model output — replace with comma, colon, semicolon, or parentheses
+      → Replace em dashes in JSX prose with commas, colons, semicolons, or parentheses so UI copy reads less like generated text.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/design-no-em-dash-in-jsx-text.md
+      src/app/(users)/_components/PhoneNumberDialog.tsx:170
+
+  ⚠ react-doctor/heading-has-content
+      Heading elements must contain accessible text content (or `aria-label` / `aria-labelledby`).
+      → Provide visible or aria-labelled text in every heading.
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/heading-has-content.md
+      src/app/(users)/_components/Navbar.tsx:393
+
+  ⚠ react-doctor/js-set-map-lookups
+      array.includes() in a loop is O(n) per call — convert to a Set for O(1) lookups
+      → Use a `Set` or `Map` for repeated membership tests / keyed lookups — `Array.includes`/`find` is O(n) per call
+      Fetch & follow the canonical fix recipe before fixing: https://www.react.doctor/prompts/rules/react-doctor/js-set-map-lookups.md
+      src/app/dashboard/[slug]/[lessonId]/_components/CourseContent.tsx:808
+
+Agent guidance
+  - Treat React Doctor diagnostics as starting hypotheses. Read the relevant code before confirming or suppressing each finding.
+  - For each group, decide true positive, false positive, or needs-human-review, then assign high/medium/low confidence.
+  - Do not suppress a finding without evidence from the file in question. Confidence requires code context.
+  - Understand the root cause before editing. Fix the underlying code instead of changing react-doctor config or suppressing rules unless explicitly asked.
+  - Investigate deeply where relevant: race conditions, security-sensitive flows, state propagation, multi-file refactors, and downstream dependency chains.
+  - Ignore pure style preferences, theoretical issues without real impact, missing features, and unrelated pre-existing code.
+  - Start with high-confidence fixes that preserve behavior. Leave low-confidence or product-dependent changes as notes.
+  - Run `npx react-doctor@latest --verbose --diff` before and after changes, plus relevant tests after each focused batch.
+  - When available, spawn subagents or isolated worktrees for independent rule families, then review and merge only the best safe fixes.
+  - Split unrelated, broad, or behavior-changing work into separate PRs/branches instead of one large cleanup.
+  - For confirmed issues that cannot be fixed now, create GitHub issues with the rule, file/line, confidence, impact, and proposed fix.
+  - If a fix needs an API, UX, or architecture decision, stop and ask before editing.
+
+  ┌─────┐  50 / 100 Needs work · nextcareerlabs
+  │ • • │  █████████████████████████░░░░░░░░░░░░░░░░░░░░░░░░░
+  │  ─  │  React Doctor (https://react.doctor)
+  └─────┘
+
+  684 issues
+  Full diagnostics written to /tmp/react-doctor-428f3492-2eab-4e64-97a3-6f78bb56acf0
+
+  → Share: https://www.react.doctor/share?p=nextcareerlabs&s=50&e=42&w=642&f=106
+
+
+
+React Doctor is not installed in this project.
+Ask the user if they would like to set it up, then run:
+
+  npx react-doctor install --yes
+
+This adds agent skill files, a `doctor` package script, and react-doctor as a dev dependency.
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 [2K[1G[2K[1G[31m✖[39m [1mCopy issues to clipboard?[22m [90m…[39m yes
+[?25h

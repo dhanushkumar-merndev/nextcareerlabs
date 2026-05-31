@@ -1,7 +1,6 @@
 "use client";
 
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
-import React from "react";
 
 import {
   Card,
@@ -35,9 +34,9 @@ export function ChartAreaInteractive({ data }: ChartAreaInteractiveProps) {
   // Backend already returns exactly 30 days, so no need to slice
   const last30DaysData = data;
 
-  const totalEnrollments = React.useMemo(
-    () => last30DaysData.reduce((total, item) => total + item.enrollments, 0),
-    [last30DaysData]
+  const totalEnrollments = last30DaysData.reduce(
+    (total, item) => total + item.enrollments,
+    0,
   );
 
   return (

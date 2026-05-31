@@ -1,8 +1,3 @@
-"use client";
-
-import { useEffect, useRef } from "react";
-import { useSmartSession } from "@/hooks/use-smart-session";
-import { useEnrolledCourses } from "@/hooks/use-enrolled-courses";
 import { AppSidebar } from "./DashboardAppSidebar";
 import { SidebarInset } from "@/components/ui/sidebar";
 import { SiteHeader } from "@/components/sidebar/site-header";

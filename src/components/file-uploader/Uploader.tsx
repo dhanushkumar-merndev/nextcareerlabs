@@ -1,6 +1,6 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileRejection, useDropzone } from "react-dropzone";
 import { Card, CardContent } from "../ui/card";
 import {
@@ -125,64 +125,68 @@ interface UploaderState {
   audioCompressing: boolean;
 }
 
+function getBaseKey(key?: string | null) {
+  if (!key) return null;
+  if (key.startsWith("hls/")) return key.split("/")[1] ?? null;
+  return key.replace(/\.[^/.]+$/, "");
+}
+
+function getHlsPlaylistUrl(id: string, baseKey: string) {
+  const params = new URLSearchParams({ v: baseKey });
+  return `/api/video/playlist/${id}?${params.toString()}`;
+}
+
+async function isHlsPlayable(playlistUrl: string) {
+  const playlistResponse = await fetch(playlistUrl, { cache: "no-store" });
+  if (!playlistResponse.ok) return false;
+
+  const playlist = await playlistResponse.text();
+  if (!playlist.includes("#EXTM3U")) return false;
+
+  const keyUri = playlist.match(/#EXT-X-KEY[^\n]*URI="([^"]+)"/)?.[1];
+  if (keyUri) {
+    const keyResponse = await fetch(new URL(keyUri, window.location.href), {
+      cache: "no-store",
+    });
+    if (!keyResponse.ok) return false;
+  }
+
+  const firstSegmentUri = playlist
+    .split("\n")
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("#"));
+
+  if (!firstSegmentUri) return false;
+
+  const segmentResponse = await fetch(
+    new URL(firstSegmentUri, window.location.href),
+    {
+      cache: "no-store",
+      headers: { Range: "bytes=0-0" },
+    },
+  );
+
+  return segmentResponse.ok || segmentResponse.status === 206;
+}
+
+function setVideoProcessingFlag(value: boolean) {
+  Reflect.set(window, "__PROCESSING_VIDEO__", value);
+}
+
 export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncryptionChange, lessonId, value, fileTypeAccepted, duration: initialDuration, initialSpriteKey, captionUrl }: iAppProps) {
   const fileUrl = constructUrl(value || "");
-
-  // Extract baseKey more reliably (handles hls/baseKey/master.m3u8 AND baseKey.mp4)
-  const getBaseKey = useCallback((key?: string | null) => {
-    if (!key) return null;
-    if (key.startsWith('hls/')) return key.split('/')[1] ?? null;
-    return key.replace(/\.[^/.]+$/, "");
-  }, []);
 
   const extractedBaseKey = value ? (() => {
     if (value.startsWith('hls/')) return value.split('/')[1];
     return value.replace(/\.[^/.]+$/, "");
   })() : null;
 
-  const getHlsPlaylistUrl = useCallback((id: string, baseKey: string) => {
-    const params = new URLSearchParams({ v: baseKey });
-    return `/api/video/playlist/${id}?${params.toString()}`;
-  }, []);
-
-  const isHlsPlayable = useCallback(async (playlistUrl: string) => {
-    const playlistResponse = await fetch(playlistUrl, { cache: "no-store" });
-    if (!playlistResponse.ok) return false;
-
-    const playlist = await playlistResponse.text();
-    if (!playlist.includes("#EXTM3U")) return false;
-
-    const keyUri = playlist.match(/#EXT-X-KEY[^\n]*URI="([^"]+)"/)?.[1];
-    if (keyUri) {
-      const keyResponse = await fetch(new URL(keyUri, window.location.href), {
-        cache: "no-store",
-      });
-      if (!keyResponse.ok) return false;
-    }
-
-    const firstSegmentUri = playlist
-      .split("\n")
-      .map((line) => line.trim())
-      .find((line) => line && !line.startsWith("#"));
-
-    if (!firstSegmentUri) return false;
-
-    const segmentResponse = await fetch(
-      new URL(firstSegmentUri, window.location.href),
-      {
-        cache: "no-store",
-        headers: { Range: "bytes=0-0" },
-      },
-    );
-
-    return segmentResponse.ok || segmentResponse.status === 206;
-  }, []);
 
   // ── Cancel Infrastructure ──
   const abortRef = useRef<AbortController>(new AbortController());
   const activeXHRs = useRef<Set<XMLHttpRequest>>(new Set());
 
-  const handleCancelUpload = useCallback(() => {
+  const handleCancelUpload = () => {
     // 1. Abort all async operations (fetch, timers etc.)
     abortRef.current.abort();
 
@@ -193,7 +197,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     activeXHRs.current.clear();
 
     // 3. Unlock processing flag
-    (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
+    setVideoProcessingFlag(false);
 
     // 4. Reset state to empty
     setHlsReady(false);
@@ -227,7 +231,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     abortRef.current = new AbortController();
 
     toast.info("Upload cancelled");
-  }, [fileTypeAccepted]);
+  };
 
   const justUploadedRef = useRef(false);
   const [hlsReady, setHlsReady] = useState(
@@ -299,7 +303,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         audioCompressing: false,
       };
     });
-  }, [getBaseKey, initialDuration, initialSpriteKey, value]);
+  }, [initialDuration, initialSpriteKey, value]);
 
   // Safety: Prevent closing tab during upload/processing
   useEffect(() => {
@@ -341,10 +345,9 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
     } else {
       setHlsReady(true);
     }
-  }, [fileState.baseKey, getHlsPlaylistUrl, isHlsPlayable, lessonId, fileState.uploading, fileState.file]);
+  }, [fileState.baseKey, lessonId, fileState.uploading, fileState.file]);
 
-  const uploadFile = useCallback(
-    async (file: File) => {
+  const uploadFile = async (file: File) => {
       // Capture the signal NOW so it stays aborted even after handleCancelUpload
       // replaces abortRef.current with a fresh controller.
       const signal = abortRef.current.signal;
@@ -372,7 +375,15 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
 
           const compatibility = await validateMp4ForFastHls(file);
           if (!compatibility.valid) {
-            throw new Error(compatibility.reason || "Invalid video. Please upload H.264 video with AAC audio.");
+            toast.error(compatibility.reason || "Invalid video. Please upload H.264 video with AAC audio.");
+            setFileState((s) => ({
+              ...s,
+              error: true,
+              uploading: false,
+              transcoding: false,
+              uploadStatus: "Upload failed",
+            }));
+            return;
           }
 
           console.log("[Uploader] Fast HLS compatibility OK", {
@@ -390,7 +401,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           onDurationChange?.(Math.round(duration));
 
           // LOCK: Start Memory-Intensive Phase
-          (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = true;
+          setVideoProcessingFlag(true);
 
           // Combined HLS transcode + audio compression in a single FFmpeg session
           let encryptionMetadata = null;
@@ -583,7 +594,16 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             signal,
           });
 
-          if (!presignedRes.ok) throw new Error("Failed to get pre-signed URLs");
+          if (!presignedRes.ok) {
+            toast.error("Failed to get pre-signed URLs");
+            setFileState((s) => ({
+              ...s,
+              error: true,
+              uploading: false,
+              uploadStatus: "Upload failed",
+            }));
+            return;
+          }
           const presignedUrls: { presignedUrl: string; key: string }[] = await presignedRes.json();
 
           // 3. Upload Master Playlist (index 0)
@@ -723,7 +743,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           } : undefined);
           toast.success("Video processed and uploaded successfully");
           // UNLOCK: Finished Memory-Intensive Phase
-          (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
+          setVideoProcessingFlag(false);
 
           // Cleanup HLS blobs from memory
           segments.length = 0;
@@ -743,7 +763,16 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
             }),
           });
 
-          if (!presignedResponse.ok) throw new Error("Failed to get presigned URL");
+          if (!presignedResponse.ok) {
+            toast.error("Failed to get presigned URL");
+            setFileState((s) => ({
+              ...s,
+              error: true,
+              uploading: false,
+              uploadStatus: "Upload failed",
+            }));
+            return;
+          }
           const { presignedUrl, key } = await presignedResponse.json();
 
           await new Promise<void>((resolve, reject) => {
@@ -782,7 +811,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
         // Don't show error toast if it was a user-initiated cancel
         if (isCancelled() || uploadErr?.message === "Upload cancelled" || uploadErr?.name === "AbortError") return;
         toast.error(uploadErr?.message || "Something went wrong during upload");
-        (window as unknown as { __PROCESSING_VIDEO__?: boolean }).__PROCESSING_VIDEO__ = false;
+        setVideoProcessingFlag(false);
         setFileState((prevState) => {
           if (prevState.objectUrl?.startsWith('blob:')) {
             URL.revokeObjectURL(prevState.objectUrl);
@@ -802,13 +831,10 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
           };
         });
       }
-    },
-    [fileTypeAccepted, onDurationChange, lessonId, onChange, onSpriteChange, onEncryptionChange]
-  );
+  };
 
 
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
+  const onDrop = (acceptedFiles: File[]) => {
       if (acceptedFiles.length > 0) {
         const file = acceptedFiles[0];
 
@@ -838,9 +864,7 @@ export function Uploader({ onChange, onDurationChange, onSpriteChange, onEncrypt
 
         uploadFile(file);
       }
-    },
-    [fileState.objectUrl, uploadFile, fileTypeAccepted]
-  );
+  };
 
   async function handleRemoveFile() {
     if (fileState.isDeleting || !fileState.objectUrl) return;

@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,26 +27,35 @@ export function CourseProgressCard({ data }: iAppProps) {
 
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  const targetLessonId = useMemo(() => {
-    if (!course.chapter) return null;
-    const chapters = [...course.chapter].sort((a, b) => a.position - b.position);
+  const chapters = [...(course.chapter ?? [])].sort(
+    (a, b) => a.position - b.position,
+  );
 
-    let lastProgressLesson: { id: string; completed: boolean } | null = null;
+  let lastProgressLesson: { id: string; completed: boolean } | null = null;
 
-    for (const chapter of chapters) {
-      const lessons = [...(chapter.lesson ?? [])].sort((a, b) => a.position - b.position);
-      for (const lesson of lessons) {
-        const p = lesson.lessonProgress?.[0];
-        if (!p) continue;
-        const completed = p.completed || !!(lesson.duration && lesson.duration > 0 && p.restrictionTime >= lesson.duration * 0.9);
-        lastProgressLesson = { id: lesson.id, completed };
-        if (!completed) break;
-      }
+  for (const chapter of chapters) {
+    const lessons = [...(chapter.lesson ?? [])].sort(
+      (a, b) => a.position - b.position,
+    );
+    for (const lesson of lessons) {
+      const p = lesson.lessonProgress?.[0];
+      if (!p) continue;
+      const completed =
+        p.completed ||
+        !!(
+          lesson.duration &&
+          lesson.duration > 0 &&
+          p.restrictionTime >= lesson.duration * 0.9
+        );
+      lastProgressLesson = { id: lesson.id, completed };
+      if (!completed) break;
     }
+  }
 
-    if (lastProgressLesson && !lastProgressLesson.completed) return lastProgressLesson.id;
-    return chapters[0]?.lesson?.[0]?.id ?? null;
-  }, [course.chapter]);
+  const targetLessonId =
+    lastProgressLesson && !lastProgressLesson.completed
+      ? lastProgressLesson.id
+      : chapters[0]?.lesson?.[0]?.id ?? null;
 
   return (
     <Card className="group relative py-0 gap-0 hover:shadow-lg transition-all rounded-xl">

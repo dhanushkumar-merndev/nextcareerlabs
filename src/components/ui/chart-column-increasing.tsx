@@ -3,7 +3,7 @@
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
-import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect } from "react";
+import { forwardRef, useImperativeHandle, useRef, useEffect } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -76,8 +76,7 @@ const ChartColumnIncreasingIcon = forwardRef<
     };
   });
 
-  const handleMouseEnter = useCallback(
-    async (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseEnter = async (e: React.MouseEvent<HTMLDivElement>) => {
       if (!isMounted.current) return;
       if (isControlledRef.current) {
         onMouseEnter?.(e);
@@ -94,21 +93,16 @@ const ChartColumnIncreasingIcon = forwardRef<
           transition: { delay: i * 0.1, duration: 0.3 },
         }));
       }
-    },
-    [controls, onMouseEnter]
-  );
+  };
 
-  const handleMouseLeave = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
       if (!isMounted.current) return;
       if (isControlledRef.current) {
         onMouseLeave?.(e);
       } else {
         controls.start("visible");
       }
-    },
-    [controls, onMouseLeave]
-  );
+  };
 
   return (
     <div

@@ -51,7 +51,7 @@ export function HorizontalCourseCard({
       let totalWatchedTime = 0;
       let completedCount = 0;
 
-      course.lessonsProgress?.forEach((lp) => {
+      for (const lp of course.lessonsProgress ?? []) {
         // 1. Get Duration (chatCache (1-day) > secureStorage > DB)
         const cachedDuration = chatCache.get<number>(
           `duration_${lp.id}`,
@@ -86,12 +86,12 @@ export function HorizontalCourseCard({
           (duration > 0 && effectiveRestriction >= duration * 0.9);
 
         if (isLocallyCompleted) {
-          completedCount++;
+          completedCount += 1;
           totalWatchedTime += duration; // Count full duration for completed
         } else {
           totalWatchedTime += Math.min(effectiveRestriction, duration);
         }
-      });
+      }
 
       // Prefer granular progress if we have durations, otherwise fallback to discrete
       if (totalCourseDuration > 0) {

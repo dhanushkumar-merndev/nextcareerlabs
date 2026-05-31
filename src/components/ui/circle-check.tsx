@@ -3,7 +3,7 @@
 import type { Variants } from "motion/react";
 import { motion, useAnimation } from "motion/react";
 import type { HTMLAttributes } from "react";
-import { forwardRef, useCallback, useImperativeHandle, useRef, useEffect } from "react";
+import { forwardRef, useImperativeHandle, useRef, useEffect } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -77,29 +77,23 @@ const CircleCheckIcon = forwardRef<CircleCheckIconHandle, CircleCheckIconProps>(
       };
     });
 
-    const handleMouseEnter = useCallback(
-      (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleMouseEnter = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!isMounted.current) return;
         if (isControlledRef.current) {
           onMouseEnter?.(e);
         } else {
           controls.start("animate");
         }
-      },
-      [controls, onMouseEnter]
-    );
+  };
 
-    const handleMouseLeave = useCallback(
-      (e: React.MouseEvent<HTMLDivElement>) => {
+    const handleMouseLeave = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!isMounted.current) return;
         if (isControlledRef.current) {
           onMouseLeave?.(e);
         } else {
           controls.start("normal");
         }
-      },
-      [controls, onMouseLeave]
-    );
+  };
 
     return (
       <div

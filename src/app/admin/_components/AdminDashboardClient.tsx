@@ -145,14 +145,11 @@ export function AdminDashboardClient() {
     if (!checkRateLimit()) return;
     setIsRefreshing(true);
 
-    try {
-      await Promise.all([
-        refetch(),
-        new Promise((resolve) => setTimeout(resolve, 800)),
-      ]);
-    } finally {
-      setIsRefreshing(false);
-    }
+    await Promise.all([
+      refetch(),
+      new Promise((resolve) => setTimeout(resolve, 800)),
+    ]);
+    setIsRefreshing(false);
   };
 
   const statsData = isHydrated ? dashboardData?.stats : undefined;

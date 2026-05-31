@@ -24,6 +24,9 @@ import { useDebounce } from "use-debounce";
 import { useRefreshRateLimit } from "@/hooks/use-refresh-rate-limit";
 import { secureStorage } from "@/lib/secure-storage";
 
+function getTimestamp() {
+  return Date.now();
+}
 
 export function UserList({
   search: initialSearch,
@@ -40,7 +43,7 @@ export function UserList({
   const [debouncedSearch] = useDebounce(searchTerm, 500);
 
   const [activeTab, setActiveTab] = useState("users"); // "users" | "admins"
-  const [version, setVersion] = useState<string | null>(null);
+  const versionRef = useRef<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hasLogged = useRef(false);
   const { checkRateLimit } = useRefreshRateLimit(5, 60000);
@@ -54,6 +57,7 @@ export function UserList({
     if (!hasLogged.current) {
       const storedData = secureStorage.getItem(STORAGE_KEY);
       const storedVersion = secureStorage.getItem(VERSION_KEY);
+      versionRef.current = storedVersion;
       if (storedData) {
         console.log(`%c[UserList] LOCAL HIT (${storedVersion || 'v0'}). Rendering from storage.`, "color: #eab308; font-weight: bold");
       }
@@ -75,16 +79,6 @@ export function UserList({
       router.replace(`?${params.toString()}`);
     }
   }, [debouncedSearch, router, searchParams]);
-
-  // Initial Sync from secureStorage to state
-  useEffect(() => {
-    if (!debouncedSearch && !version) {
-      const storedVersion = secureStorage.getItem(VERSION_KEY);
-      if (storedVersion) {
-        setVersion(storedVersion);
-      }
-    }
-  }, [debouncedSearch, version]);
 
   const queryKey = ["users", debouncedSearch, activeTab, enrolledOnly];
 
@@ -119,7 +113,7 @@ export function UserList({
         const lastCheck = secureStorage.getItem(LAST_CHECK_KEY);
         const storedData = secureStorage.getItem(STORAGE_KEY);
         if (lastCheck && storedData) {
-          const now = Date.now();
+          const now = getTimestamp();
           if (now - parseInt(lastCheck) < 1000 * 60 * 30) {
             try {
               const parsed = JSON.parse(storedData);
@@ -129,7 +123,7 @@ export function UserList({
                   users: parsed.users,
                   hasNextPage: parsed.hasNextPage,
                   totalUsers: parsed.totalUsers,
-                  version: secureStorage.getItem(VERSION_KEY) || version
+                  version: secureStorage.getItem(VERSION_KEY) || versionRef.current || undefined
                 } as UsersPage;
               }
             } catch {
@@ -139,7 +133,7 @@ export function UserList({
       }
 
       const hasLocalData = typeof window !== 'undefined' && !!secureStorage.getItem(STORAGE_KEY);
-      const clientV = isFirstPageDefault && hasLocalData ? (secureStorage.getItem(VERSION_KEY) || version) : undefined;
+      const clientV = isFirstPageDefault && hasLocalData ? (secureStorage.getItem(VERSION_KEY) || versionRef.current) : undefined;
       console.log(`[UserList] FETCH: Page ${pageParam} (Tab: ${activeTab}). Version Check: ${clientV || 'None (Force Refresh)'}`);
 
       const result = await getAllUsers(debouncedSearch, pageParam as number, 100, roleFilter, clientV || undefined, enrolledOnly);
@@ -148,7 +142,7 @@ export function UserList({
 
       if ("status" in result && result.status === "not-modified") {
         console.log(`[UserList] Smart Sync: Server version matches. Cache is fresh.`);
-        secureStorage.setItemTracked(LAST_CHECK_KEY, Date.now().toString());
+        secureStorage.setItemTracked(LAST_CHECK_KEY, getTimestamp().toString());
 
         const existingData = queryClient.getQueryData<InfiniteData<UsersPage>>(queryKey);
         if (existingData?.pages[0]?.users?.length) {
@@ -178,9 +172,9 @@ export function UserList({
         }));
         if (finalResult.version) {
           secureStorage.setItemTracked(VERSION_KEY, finalResult.version);
-          setVersion(finalResult.version);
+          versionRef.current = finalResult.version;
         }
-        secureStorage.setItemTracked(LAST_CHECK_KEY, Date.now().toString());
+        secureStorage.setItemTracked(LAST_CHECK_KEY, getTimestamp().toString());
       }
 
       return finalResult as UsersPage;
@@ -263,7 +257,7 @@ export function UserList({
     secureStorage.removeItemTracked("admin_admins_list_data:enrolled");
     secureStorage.removeItemTracked("admin_admins_list_last_check");
     secureStorage.removeItemTracked("admin_admins_list_last_check:enrolled");
-    setVersion(null);
+    versionRef.current = null;
 
     // 2. OPTIMISTIC UPDATE: Move user between tabs immediately
     if (userToMove) {
@@ -333,15 +327,15 @@ export function UserList({
     console.log(`[UserList] MANUAL SYNC: Bypassing all local thresholds. Force fetching from server...`);
 
     setIsRefreshing(true);
-    try {
-      // Nuclear clear for manual refresh - Keep LAST_CHECK_KEY removal to bypass 30m skip
-      // but keep VERSION_KEY so we can still benefit from NOT_MODIFIED (Smart Sync)
-      secureStorage.removeItemTracked(LAST_CHECK_KEY);
+    // Nuclear clear for manual refresh - Keep LAST_CHECK_KEY removal to bypass 30m skip
+    // but keep VERSION_KEY so we can still benefit from NOT_MODIFIED (Smart Sync)
+    secureStorage.removeItemTracked(LAST_CHECK_KEY);
 
-      await refetch();
-    } finally {
-      setIsRefreshing(false);
+    const result = await refetch();
+    if (result.error) {
+      toast.error("Failed to refresh users");
     }
+    setIsRefreshing(false);
   };
 
   if (!isHydrated) {
